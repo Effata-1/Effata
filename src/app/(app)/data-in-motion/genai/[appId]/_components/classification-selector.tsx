@@ -33,7 +33,7 @@ export function ClassificationSelector({ appId, orgId, currentClassification }: 
     if (!orgId) return
 
     startTransition(async () => {
-      await setCustomerClassification(appId, orgId, value)
+      await setCustomerClassification(appId, orgId, value, selected)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     })

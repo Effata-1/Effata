@@ -71,6 +71,27 @@ function FieldLabel({ field }: { field: string }) {
 }
 
 export default async function RefreshLogsPage() {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <Link href="/data-in-motion/genai" className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors mb-2">
+            <ArrowLeft className="w-3 h-3" />Back to GenAI Apps
+          </Link>
+          <h1 className="text-xl font-bold text-white">Research Run Logs</h1>
+        </div>
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 py-16 text-center">
+          <Clock className="w-8 h-8 text-zinc-700 mx-auto mb-3" />
+          <p className="text-sm text-white font-medium mb-1">Service key not configured</p>
+          <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+            Add <code className="text-zinc-300 bg-zinc-800 px-1 rounded">SUPABASE_SERVICE_ROLE_KEY</code> to your
+            Vercel environment variables and redeploy to enable research run logs.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   const supabase = createServiceClient()
 
   const { data: runs } = await supabase
