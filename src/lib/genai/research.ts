@@ -2,7 +2,7 @@ import 'server-only'
 import Anthropic from '@anthropic-ai/sdk'
 import type { AppFields, DLPActivities, BreachInfo } from './types'
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY_GENAI_Intellegence_PIPELINE! })
 
 const VALID_FIELD_VALUES = ['yes','no','partial','enterprise-only','tier-dependent','configurable','no-published','na'] as const
 const VALID_DLP_VALUES   = ['enforcement','monitoring','partial','no-published','not-supported'] as const
