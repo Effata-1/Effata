@@ -24,7 +24,7 @@ export default async function RegexLabPage() {
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white mb-1">Regex Lab</h1>
-        <p className="text-zinc-500 text-sm">Build, test, and validate DLP regex patterns — with AI assistance and a built-in pattern library</p>
+        <p className="text-zinc-500 text-sm">Build, test, and save DLP regex patterns — AI-assisted or hand-crafted — with 50 built-in patterns across 7 categories</p>
       </div>
       <Suspense fallback={<div className="text-sm text-zinc-600 italic">Loading regex lab...</div>}>
         <RegexLab initialPatterns={patterns} />
