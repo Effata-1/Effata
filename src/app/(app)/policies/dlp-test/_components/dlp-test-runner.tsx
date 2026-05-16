@@ -3,7 +3,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import {
   Play, Download, Copy, Check, Loader2,
-  ShieldCheck, ShieldAlert, AlertTriangle, Terminal, Zap, Search,
+  ShieldCheck, ShieldAlert, AlertTriangle, Terminal, Zap,
+  UploadCloud, FileText, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { saveTestResult } from '../actions'
@@ -21,12 +22,13 @@ interface Scenario {
 }
 
 const WEB_TESTS: Scenario[] = [
-  { id: 'https_post_text',   category: 'web',    name: 'HTTPS POST — Plain Text',     protocol: 'text/plain',                        description: 'POST request with sensitive text in the body — the most common web exfiltration vector' },
-  { id: 'https_post_json',   category: 'web',    name: 'HTTPS POST — JSON Payload',   protocol: 'application/json',                  description: 'REST API call with sensitive data as JSON — tests whether DLP inspects structured API traffic' },
-  { id: 'https_post_form',   category: 'web',    name: 'HTTPS POST — Form Submit',    protocol: 'application/x-www-form-urlencoded', description: 'Web form submission with sensitive data — simulates a user copy-pasting into an online form' },
-  { id: 'https_file_upload', category: 'web',    name: 'HTTPS — File Upload',         protocol: 'multipart/form-data',               description: 'Multipart upload of a text file containing sensitive data — tests file-level DLP inspection' },
-  { id: 'https_get_param',   category: 'web',    name: 'HTTPS GET — URL Parameter',   protocol: 'GET ?data=…',                       description: 'Sensitive data encoded in a URL query string — tests whether DLP inspects GET request parameters' },
-  { id: 'base64_post',       category: 'web',    name: 'HTTPS POST — Base64 Encoded', protocol: 'text/plain (base64)',               description: 'Base64-obfuscated payload — tests whether DLP decodes and inspects encoded content' },
+  { id: 'https_post_text',   category: 'web', name: 'HTTPS POST — Plain Text',     protocol: 'text/plain',                        description: 'POST request with sensitive text in the body — the most common web exfiltration vector' },
+  { id: 'https_post_json',   category: 'web', name: 'HTTPS POST — JSON Payload',   protocol: 'application/json',                  description: 'REST API call with sensitive data as JSON — tests whether DLP inspects structured API traffic' },
+  { id: 'https_post_form',   category: 'web', name: 'HTTPS POST — Form Submit',    protocol: 'application/x-www-form-urlencoded', description: 'Web form submission with sensitive data — simulates a user copy-pasting into an online form' },
+  { id: 'https_file_upload', category: 'web', name: 'HTTPS — File Upload',         protocol: 'multipart/form-data',               description: 'Multipart upload of a generated text file containing synthetic sensitive data' },
+  { id: 'https_get_param',   category: 'web', name: 'HTTPS GET — URL Parameter',   protocol: 'GET ?data=…',                       description: 'Sensitive data encoded in a URL query string — tests whether DLP inspects GET request parameters' },
+  { id: 'base64_post',       category: 'web', name: 'HTTPS POST — Base64 Encoded', protocol: 'text/plain (base64)',               description: 'Base64-obfuscated payload — tests whether DLP decodes and inspects encoded content' },
+  { id: 'custom_file',       category: 'web', name: 'Upload Your Own File',         protocol: 'multipart/form-data',               description: 'Upload any file from your machine — tests whether DLP catches real-world documents containing sensitive data' },
 ]
 
 const SCRIPT_DEFS: Scenario[] = [
@@ -332,6 +334,9 @@ export function DlpTestRunner({ initialHistory }: Props) {
   const [history,         setHistory]         = useState<TestHistoryEntry[]>(initialHistory)
   const [copied,          setCopied]          = useState(false)
   const [scriptContent,   setScriptContent]   = useState('')
+  const [uploadFile,      setUploadFile]      = useState<File | null>(null)
+  const [isDragging,      setIsDragging]      = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Re-fill payload when data type changes (unless custom)
   useEffect(() => {
@@ -348,13 +353,16 @@ export function DlpTestRunner({ initialHistory }: Props) {
   // ── Run web channel test ──────────────────────────────────────────────────
 
   const handleRun = useCallback(async () => {
-    if (!payload.trim() || isRunning) return
+    const isFileTest = selectedWeb.id === 'custom_file'
+    if (isFileTest ? !uploadFile : !payload.trim()) return
+    if (isRunning) return
     setIsRunning(true)
     setRunResult(null)
 
-    const origin = window.location.origin
-    const dest   = `${origin}/api/dlp-test`
-    const start  = Date.now()
+    const origin   = window.location.origin
+    const dest     = `${origin}/api/dlp-test`
+    const start    = Date.now()
+    const nameForHistory = isFileTest ? `Upload Your Own File (${uploadFile!.name})` : selectedWeb.name
 
     try {
       let response: Response
@@ -373,46 +381,53 @@ export function DlpTestRunner({ initialHistory }: Props) {
         response = await fetch(dest, { method: 'POST', body: fd })
       } else if (selectedWeb.id === 'https_get_param') {
         response = await fetch(`${dest}?data=${encodeURIComponent(payload)}&type=${dataType.id}`)
+      } else if (selectedWeb.id === 'base64_post') {
+        const bytes    = new TextEncoder().encode(payload)
+        const binStr   = Array.from(bytes, b => String.fromCharCode(b)).join('')
+        response = await fetch(dest, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: btoa(binStr) })
       } else {
-        // base64_post
-        response = await fetch(dest, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: btoa(unescape(encodeURIComponent(payload))) })
+        // custom_file
+        const fd = new FormData()
+        fd.append('file', uploadFile!, uploadFile!.name)
+        response = await fetch(dest, { method: 'POST', body: fd })
       }
 
       const ms   = Date.now() - start
       const json = await response.json() as Record<string, unknown>
-      const res: RunResult = { status: 'not_blocked', responseCode: response.status, responseMs: ms, serverData: json }
-      setRunResult(res)
+      setRunResult({ status: 'not_blocked', responseCode: response.status, responseMs: ms, serverData: json })
 
       const { id } = await saveTestResult({
-        testName: selectedWeb.name, protocol: selectedWeb.id, dataType: dataType.id,
+        testName: nameForHistory, protocol: selectedWeb.id,
+        dataType: isFileTest ? 'custom_file' : dataType.id,
         destination: dest, result: 'not_blocked', responseCode: response.status, responseTimeMs: ms,
       })
       setHistory(prev => [{
-        id: id ?? crypto.randomUUID(),
-        test_name: selectedWeb.name, protocol: selectedWeb.id, data_type: dataType.id,
+        id: id ?? crypto.randomUUID(), test_name: nameForHistory,
+        protocol: selectedWeb.id, data_type: isFileTest ? 'custom_file' : dataType.id,
         destination: dest, result: 'not_blocked', response_code: response.status,
         response_time_ms: ms, created_at: new Date().toISOString(),
       }, ...prev.slice(0, 49)])
 
     } catch (err) {
-      const ms = Date.now() - start
+      const ms  = Date.now() - start
       const msg = err instanceof Error ? err.message : 'Unknown error'
       setRunResult({ status: 'blocked', responseMs: ms, errMsg: msg })
 
       const { id } = await saveTestResult({
-        testName: selectedWeb.name, protocol: selectedWeb.id, dataType: dataType.id,
+        testName: nameForHistory, protocol: selectedWeb.id,
+        dataType: isFileTest ? 'custom_file' : dataType.id,
         destination: dest, result: 'blocked', responseTimeMs: ms,
       })
       setHistory(prev => [{
-        id: id ?? crypto.randomUUID(),
-        test_name: selectedWeb.name, protocol: selectedWeb.id, data_type: dataType.id,
+        id: id ?? crypto.randomUUID(), test_name: nameForHistory,
+        protocol: selectedWeb.id, data_type: isFileTest ? 'custom_file' : dataType.id,
         destination: dest, result: 'blocked', response_code: null,
         response_time_ms: ms, created_at: new Date().toISOString(),
       }, ...prev.slice(0, 49)])
     }
 
     setIsRunning(false)
-  }, [payload, isRunning, selectedWeb, dataType])
+  }, [payload, uploadFile, isRunning, selectedWeb, dataType])
 
   // ── Script actions ────────────────────────────────────────────────────────
 
@@ -468,7 +483,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
             return (
               <button
                 key={s.id}
-                onClick={() => { if (activeTab === 'web') { setSelectedWeb(s); setRunResult(null) } else setSelectedScript(s) }}
+                onClick={() => { if (activeTab === 'web') { setSelectedWeb(s); setRunResult(null); setUploadFile(null) } else setSelectedScript(s) }}
                 className={cn(
                   'w-full text-left rounded-lg border p-3 transition-all',
                   selected
@@ -519,34 +534,91 @@ export function DlpTestRunner({ initialHistory }: Props) {
                 </span>
               </div>
 
-              {/* Data type selector */}
-              <div className="mb-3">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">
-                  Data Type
-                </label>
-                <select
-                  value={dataType.id}
-                  onChange={e => setDataType(DATA_TYPES.find(d => d.id === e.target.value) ?? DATA_TYPES[0])}
-                  className="w-full bg-zinc-800 text-zinc-300 text-xs px-3 py-2 rounded-lg border border-zinc-700 focus:outline-none focus:border-zinc-500"
-                >
-                  {DATA_TYPES.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
-                </select>
-              </div>
+              {selectedWeb.id === 'custom_file' ? (
+                /* ── Custom file upload zone ── */
+                <div className="mb-4">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Your File</label>
 
-              {/* Payload editor */}
-              <div className="mb-4">
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Payload</label>
-                  <span className="text-[9px] text-zinc-600">Editable — modify to test specific patterns</span>
+                  {/* Hidden native input */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) setUploadFile(f) }}
+                  />
+
+                  {uploadFile ? (
+                    /* File selected — show info card */
+                    <div className="flex items-center gap-3 rounded-lg border border-blue-500/40 bg-blue-500/8 p-4">
+                      <FileText className="h-8 w-8 text-blue-400 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{uploadFile.name}</p>
+                        <p className="text-[10px] text-zinc-400 mt-0.5">
+                          {uploadFile.type || 'unknown type'} · {(uploadFile.size / 1024).toFixed(1)} KB
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => { setUploadFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
+                        className="p-1.5 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        title="Remove file"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    /* Drop zone */
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
+                      onDragLeave={() => setIsDragging(false)}
+                      onDrop={e => {
+                        e.preventDefault(); setIsDragging(false)
+                        const f = e.dataTransfer.files[0]
+                        if (f) setUploadFile(f)
+                      }}
+                      className={cn(
+                        'w-full rounded-lg border-2 border-dashed p-8 flex flex-col items-center gap-2 transition-colors cursor-pointer',
+                        isDragging
+                          ? 'border-blue-500 bg-blue-500/10'
+                          : 'border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/40'
+                      )}
+                    >
+                      <UploadCloud className={cn('h-8 w-8', isDragging ? 'text-blue-400' : 'text-zinc-600')} />
+                      <p className="text-sm font-medium text-zinc-400">Drop a file here or click to browse</p>
+                      <p className="text-[10px] text-zinc-600">Any file type — PDF, DOCX, CSV, TXT, images, etc.</p>
+                    </button>
+                  )}
                 </div>
-                <textarea
-                  value={payload}
-                  onChange={e => setPayload(e.target.value)}
-                  rows={5}
-                  className="w-full bg-zinc-800 text-white text-xs font-mono px-3 py-2.5 rounded-lg border border-zinc-700 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 resize-none"
-                  placeholder="Enter or paste test data here..."
-                />
-              </div>
+              ) : (
+                /* ── Standard data-type + payload editor ── */
+                <>
+                  <div className="mb-3">
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Data Type</label>
+                    <select
+                      value={dataType.id}
+                      onChange={e => setDataType(DATA_TYPES.find(d => d.id === e.target.value) ?? DATA_TYPES[0])}
+                      className="w-full bg-zinc-800 text-zinc-300 text-xs px-3 py-2 rounded-lg border border-zinc-700 focus:outline-none focus:border-zinc-500"
+                    >
+                      {DATA_TYPES.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Payload</label>
+                      <span className="text-[9px] text-zinc-600">Editable — modify to test specific patterns</span>
+                    </div>
+                    <textarea
+                      value={payload}
+                      onChange={e => setPayload(e.target.value)}
+                      rows={5}
+                      className="w-full bg-zinc-800 text-white text-xs font-mono px-3 py-2.5 rounded-lg border border-zinc-700 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 resize-none"
+                      placeholder="Enter or paste test data here..."
+                    />
+                  </div>
+                </>
+              )}
 
               {/* Destination + Run */}
               <div className="flex items-center gap-3">
@@ -556,7 +628,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
                 </div>
                 <button
                   onClick={handleRun}
-                  disabled={isRunning || !payload.trim()}
+                  disabled={isRunning || (selectedWeb.id === 'custom_file' ? !uploadFile : !payload.trim())}
                   className="flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
                 >
                   {isRunning
