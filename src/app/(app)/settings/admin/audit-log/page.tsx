@@ -27,6 +27,7 @@ const ACTION_LABELS: Record<string, string> = {
   'regex.pattern_deleted':        'Regex pattern deleted',
   'test_data.dataset_saved':      'Test dataset saved',
   'test_data.dataset_deleted':    'Test dataset deleted',
+  'dlp_test.run':                 'DLP test run',
 }
 
 const SEVERITY_MAP: Record<string, 'high' | 'medium' | 'low' | 'info'> = {
@@ -40,6 +41,7 @@ const SEVERITY_MAP: Record<string, 'high' | 'medium' | 'low' | 'info'> = {
   'regex.pattern_deleted':        'medium',
   'test_data.dataset_saved':      'low',
   'test_data.dataset_deleted':    'medium',
+  'dlp_test.run':                 'low',
 }
 
 const SEVERITY_STYLES: Record<string, string> = {
