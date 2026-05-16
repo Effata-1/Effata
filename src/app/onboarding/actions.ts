@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { logAuditEvent } from '@/lib/audit'
 import type { OnboardingData } from './types'
 
 export async function saveOnboardingProgress(
@@ -78,6 +79,16 @@ export async function completeOnboarding(data: OnboardingData): Promise<{ error?
     }, { onConflict: 'user_id' })
 
   if (error) return { error: error.message }
+
+  await logAuditEvent({
+    action: 'onboarding.completed',
+    entity_type: 'onboarding',
+    details: { industry: data.industry, tools: data.tools },
+    user_id: user.id,
+    user_email: user.email ?? undefined,
+    org_id: orgId,
+  })
+
   redirect('/dashboard')
 }
 

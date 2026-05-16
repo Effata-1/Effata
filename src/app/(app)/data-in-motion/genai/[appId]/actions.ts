@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { logAuditEvent } from '@/lib/audit'
 import type { CustomerClass } from '@/lib/genai/types'
 
 export async function setCustomerClassification(
@@ -25,25 +26,23 @@ export async function setCustomerClassification(
 
   if (error) return { error: error.message }
 
-  // Fetch app name for the audit record
   const { data: app } = await supabase
     .from('genai_apps')
     .select('app_name')
     .eq('app_id', appId)
     .single()
 
-  // Write audit log — non-blocking, ignore errors
-  await supabase.from('audit_logs').insert({
-    org_id:      orgId,
-    user_id:     user.id,
-    user_email:  user.email ?? null,
-    action:      'classification_changed',
+  await logAuditEvent({
+    action: 'genai.classification_changed',
     entity_type: 'genai_app',
-    entity_id:   appId,
+    entity_id: appId,
     entity_name: app?.app_name ?? appId,
-    old_value:   previous,
-    new_value:   classification,
-  }).then(() => {})
+    old_value: previous,
+    new_value: classification,
+    org_id: orgId,
+    user_id: user.id,
+    user_email: user.email ?? undefined,
+  })
 
   return {}
 }

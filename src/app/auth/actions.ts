@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { logAuditEvent } from '@/lib/audit'
 
 export async function login(formData: FormData) {
   const supabase = await createClient()
@@ -13,6 +14,7 @@ export async function login(formData: FormData) {
 
   if (error) return { error: error.message }
 
+  await logAuditEvent({ action: 'auth.login_success' })
   redirect('/dashboard')
 }
 
@@ -29,11 +31,13 @@ export async function signup(formData: FormData) {
 
   if (error) return { error: error.message }
 
+  await logAuditEvent({ action: 'auth.signup' })
   redirect('/dashboard')
 }
 
 export async function logout() {
   const supabase = await createClient()
+  await logAuditEvent({ action: 'auth.logout' })
   await supabase.auth.signOut()
   redirect('/auth/login')
 }
