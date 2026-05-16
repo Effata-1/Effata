@@ -1,8 +1,8 @@
-import Link from 'next/link'
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
 import { cn } from '@/lib/utils'
-import { RefreshCw } from 'lucide-react'
+import { AuditFilters } from './_components/audit-filters'
 
 interface AuditLog {
   id: string
@@ -17,25 +17,41 @@ interface AuditLog {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  // Legacy string (old rows)
   'classification_changed':       'App classification changed',
-  // Auth
   'auth.login_success':           'Logged in',
   'auth.logout':                  'Logged out',
   'auth.signup':                  'Account created',
-  // GenAI
   'genai.classification_changed': 'App classification changed',
-  // Onboarding
   'onboarding.completed':         'Onboarding completed',
 }
 
+const SEVERITY_MAP: Record<string, 'high' | 'medium' | 'low' | 'info'> = {
+  'auth.login_success':           'info',
+  'auth.logout':                  'info',
+  'auth.signup':                  'low',
+  'onboarding.completed':         'low',
+  'genai.classification_changed': 'medium',
+  'classification_changed':       'medium',
+}
+
+const SEVERITY_STYLES: Record<string, string> = {
+  high:   'bg-red-500/15 text-red-400',
+  medium: 'bg-amber-500/15 text-amber-400',
+  low:    'bg-blue-500/15 text-blue-400',
+  info:   'bg-zinc-700/50 text-zinc-400',
+}
+
 const CATEGORY_PREFIXES: Record<string, string> = {
-  'auth':        'Auth',
-  'genai':       'GenAI',
-  'onboarding':  'Onboarding',
-  'policy':      'Policies',
-  'user':        'Users',
-  'tool':        'Tools',
+  auth:       'Auth',
+  genai:      'GenAI',
+  onboarding: 'Onboarding',
+  policy:     'Policies',
+  user:       'Users',
+  tool:       'Tools',
+}
+
+function getSeverity(action: string): 'high' | 'medium' | 'low' | 'info' {
+  return SEVERITY_MAP[action] ?? 'info'
 }
 
 function getCategory(action: string): string {
@@ -43,18 +59,31 @@ function getCategory(action: string): string {
   return CATEGORY_PREFIXES[prefix] ?? 'Other'
 }
 
-const RANGES = [
-  { label: 'Last 7 Days',  value: '7' },
-  { label: 'Last 30 Days', value: '30' },
-  { label: 'All Time',     value: 'all' },
-]
+function SeverityBadge({ action }: { action: string }) {
+  const sev = getSeverity(action)
+  return (
+    <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded uppercase', SEVERITY_STYLES[sev])}>
+      {sev}
+    </span>
+  )
+}
 
-const CATEGORIES = [
-  { label: 'All',         value: 'all',        prefix: null },
-  { label: 'Auth',        value: 'auth',        prefix: 'auth.' },
-  { label: 'GenAI',       value: 'genai',       prefix: 'genai.' },
-  { label: 'Onboarding',  value: 'onboarding',  prefix: 'onboarding.' },
-]
+function CategoryPill({ action }: { action: string }) {
+  const cat = getCategory(action)
+  const colors: Record<string, string> = {
+    Auth:       'bg-blue-500/10 text-blue-400',
+    GenAI:      'bg-purple-500/10 text-purple-400',
+    Onboarding: 'bg-green-500/10 text-green-400',
+    Policies:   'bg-amber-500/10 text-amber-400',
+    Users:      'bg-cyan-500/10 text-cyan-400',
+    Tools:      'bg-orange-500/10 text-orange-400',
+  }
+  return (
+    <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded', colors[cat] ?? 'bg-zinc-800 text-zinc-500')}>
+      {cat}
+    </span>
+  )
+}
 
 function ClassBadge({ value }: { value: string | null }) {
   if (!value) return <span className="text-zinc-600 text-xs">—</span>
@@ -70,25 +99,6 @@ function ClassBadge({ value }: { value: string | null }) {
       meta.color === 'purple' ? 'bg-purple-500/15 text-purple-400' :
       'bg-zinc-700/50 text-zinc-400'
     )}>{meta.label}</span>
-  )
-}
-
-function CategoryPill({ category }: { category: string }) {
-  const colors: Record<string, string> = {
-    'Auth':       'bg-blue-500/10 text-blue-400',
-    'GenAI':      'bg-purple-500/10 text-purple-400',
-    'Onboarding': 'bg-green-500/10 text-green-400',
-    'Policies':   'bg-amber-500/10 text-amber-400',
-    'Users':      'bg-cyan-500/10 text-cyan-400',
-    'Tools':      'bg-orange-500/10 text-orange-400',
-  }
-  return (
-    <span className={cn(
-      'text-[10px] font-medium px-1.5 py-0.5 rounded',
-      colors[category] ?? 'bg-zinc-800 text-zinc-500'
-    )}>
-      {category}
-    </span>
   )
 }
 
@@ -108,19 +118,13 @@ function renderChange(log: AuditLog) {
         </div>
       )
     }
-
-    return (
-      <span className="text-xs text-zinc-400">
-        {log.old_value} → {log.new_value}
-      </span>
-    )
+    return <span className="text-xs text-zinc-400">{log.old_value} → {log.new_value}</span>
   }
   return <span className="text-zinc-600 text-xs">—</span>
 }
 
 function formatTime(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleString('en-GB', {
+  return new Date(iso).toLocaleString('en-GB', {
     day: '2-digit', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   })
@@ -129,9 +133,9 @@ function formatTime(iso: string): string {
 export default async function AuditLogPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string; category?: string }>
+  searchParams: Promise<{ range?: string; severity?: string; category?: string; user?: string }>
 }) {
-  const { range = '7', category = 'all' } = await searchParams
+  const { range = '7', severity = 'all', category = 'all', user: userSearch = '' } = await searchParams
 
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
@@ -152,13 +156,26 @@ export default async function AuditLogPage({
     query = query.gte('created_at', since)
   }
 
-  const activeCategory = CATEGORIES.find(c => c.value === category)
-  if (activeCategory?.prefix) {
-    query = query.like('action', `${activeCategory.prefix}%`)
+  // Category filter at DB level (prefix match)
+  const categoryPrefixMap: Record<string, string> = {
+    auth: 'auth.', genai: 'genai.', onboarding: 'onboarding.',
+    policy: 'policy.', user: 'user.', tool: 'tool.',
+  }
+  if (category !== 'all' && categoryPrefixMap[category]) {
+    query = query.like('action', `${categoryPrefixMap[category]}%`)
   }
 
-  const { data: logs } = await query
-  const allLogs = (logs as AuditLog[] ?? [])
+  const { data: rawLogs } = await query
+  let allLogs = (rawLogs as AuditLog[]) ?? []
+
+  // Severity + user filters applied in JS (severity computed from action string)
+  if (severity !== 'all') {
+    allLogs = allLogs.filter(l => getSeverity(l.action) === severity)
+  }
+  if (userSearch) {
+    const q = userSearch.toLowerCase()
+    allLogs = allLogs.filter(l => l.user_email?.toLowerCase().includes(q))
+  }
 
   return (
     <div className="space-y-6">
@@ -169,57 +186,17 @@ export default async function AuditLogPage({
         <span className="text-zinc-400">Audit Log</span>
       </div>
 
-      {/* Title + filters row */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <h2 className="text-2xl font-bold text-white">Audit Log</h2>
-          <Link
-            href={`/settings/admin/audit-log?range=${range}&category=${category}`}
-            className="text-zinc-600 hover:text-zinc-400 transition-colors"
-            title="Refresh"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </Link>
-        </div>
+      <h2 className="text-2xl font-bold text-white">Audit Log</h2>
 
-        <div className="flex items-center gap-2">
-          {/* Category filter */}
-          <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
-            {CATEGORIES.map(c => (
-              <Link
-                key={c.value}
-                href={`?range=${range}&category=${c.value}`}
-                className={cn(
-                  'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                  category === c.value
-                    ? 'bg-zinc-700 text-white'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                )}
-              >
-                {c.label}
-              </Link>
-            ))}
-          </div>
-
-          {/* Time range filter */}
-          <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
-            {RANGES.map(r => (
-              <Link
-                key={r.value}
-                href={`?range=${r.value}&category=${category}`}
-                className={cn(
-                  'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                  range === r.value
-                    ? 'bg-zinc-700 text-white'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                )}
-              >
-                {r.label}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </div>
+      {/* Interactive filter bar */}
+      <Suspense>
+        <AuditFilters
+          currentRange={range}
+          currentSeverity={severity}
+          currentCategory={category}
+          currentUser={userSearch}
+        />
+      </Suspense>
 
       {/* Table */}
       <div className="rounded-xl border border-zinc-800 overflow-hidden">
@@ -228,17 +205,13 @@ export default async function AuditLogPage({
             <span className="text-sm font-semibold text-white tabular-nums">{allLogs.length}</span>
             <span className="text-xs text-zinc-500">events found</span>
           </div>
-          <div className="flex items-center gap-2 text-xs text-zinc-600">
-            <span>Sorted by Time ↓</span>
-          </div>
+          <span className="text-xs text-zinc-600">Sorted by Time ↓</span>
         </div>
 
         {allLogs.length === 0 ? (
           <div className="py-16 text-center">
-            <p className="text-sm text-zinc-500">No events in this time range.</p>
-            <p className="text-xs text-zinc-600 mt-1">
-              Try switching to a wider range or a different category.
-            </p>
+            <p className="text-sm text-zinc-500">No events match your filters.</p>
+            <p className="text-xs text-zinc-600 mt-1">Try clearing filters or expanding the time range.</p>
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -246,6 +219,7 @@ export default async function AuditLogPage({
               <tr className="border-b border-zinc-800">
                 <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Time</th>
                 <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">User</th>
+                <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Severity</th>
                 <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Category</th>
                 <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Action</th>
                 <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Target</th>
@@ -262,7 +236,10 @@ export default async function AuditLogPage({
                     <span className="text-xs text-zinc-300">{log.user_email ?? 'System'}</span>
                   </td>
                   <td className="px-4 py-3">
-                    <CategoryPill category={getCategory(log.action)} />
+                    <SeverityBadge action={log.action} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <CategoryPill action={log.action} />
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-xs text-zinc-400">{ACTION_LABELS[log.action] ?? log.action}</span>
