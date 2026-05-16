@@ -25,6 +25,8 @@ const ACTION_LABELS: Record<string, string> = {
   'onboarding.completed':         'Onboarding completed',
   'regex.pattern_saved':          'Regex pattern saved',
   'regex.pattern_deleted':        'Regex pattern deleted',
+  'test_data.dataset_saved':      'Test dataset saved',
+  'test_data.dataset_deleted':    'Test dataset deleted',
 }
 
 const SEVERITY_MAP: Record<string, 'high' | 'medium' | 'low' | 'info'> = {
@@ -36,6 +38,8 @@ const SEVERITY_MAP: Record<string, 'high' | 'medium' | 'low' | 'info'> = {
   'classification_changed':       'medium',
   'regex.pattern_saved':          'low',
   'regex.pattern_deleted':        'medium',
+  'test_data.dataset_saved':      'low',
+  'test_data.dataset_deleted':    'medium',
 }
 
 const SEVERITY_STYLES: Record<string, string> = {
