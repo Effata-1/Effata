@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/genai-refresh",
+      "schedule": "0 2 * * 1"
+    }
+  ]
+}
