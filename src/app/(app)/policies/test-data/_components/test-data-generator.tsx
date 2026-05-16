@@ -16,28 +16,59 @@ interface Template {
 }
 
 const TEMPLATES: Template[] = [
-  // People & PII
-  { category: 'People', name: 'US Employee',       description: 'Name, SSN, email, phone, address, dept', fields: ['full_name','email','ssn','dob','phone','address','department','job_title'] },
-  { category: 'People', name: 'UK Employee',       description: 'Name, NI, NHS, postcode, dept',           fields: ['full_name','email','ni_number','nhs_number','dob','uk_phone','uk_postcode','department'] },
-  { category: 'People', name: 'Indian Employee',   description: 'Name, Aadhaar, PAN, phone',               fields: ['full_name','email','aadhaar','pan_card','dob','in_phone'] },
-  { category: 'People', name: 'Generic PII',       description: 'Name, email, DOB, phone, passport',       fields: ['full_name','email','dob','phone','passport','ip_address'] },
+  // People
+  { category: 'People', name: 'US Employee',         description: 'Name, SSN, email, phone, address, dept',          fields: ['full_name','email','ssn','dob','phone','address','department','job_title'] },
+  { category: 'People', name: 'UK Employee',         description: 'Name, NI, NHS, postcode, dept',                   fields: ['full_name','email','ni_number','nhs_number','dob','uk_phone','uk_postcode','department'] },
+  { category: 'People', name: 'Indian Employee',     description: 'Name, Aadhaar, PAN, phone',                       fields: ['full_name','email','aadhaar','pan_card','dob','in_phone'] },
+  { category: 'People', name: 'EU Employee',         description: 'German/French — VAT, tax ID, IBAN',               fields: ['full_name','email','eu_tax_id','eu_vat_number','nationality','dob','iban','department','job_title'] },
+  { category: 'People', name: 'Australian Employee', description: 'TFN, Medicare, phone, postcode',                  fields: ['full_name','email','aus_tfn','aus_medicare','dob','au_phone','au_postcode','department'] },
+  { category: 'People', name: 'Canadian Employee',   description: 'SIN, province, postal code',                      fields: ['full_name','email','can_sin','dob','ca_phone','ca_postcode','department','job_title'] },
+  { category: 'People', name: 'Generic PII',         description: 'Name, email, DOB, phone, passport, IP',           fields: ['full_name','email','dob','phone','passport','ip_address'] },
+  { category: 'People', name: 'Customer Profile',    description: 'Loyalty ID, segment, lifetime value',             fields: ['full_name','email','phone','loyalty_id','customer_segment','lifetime_value','last_purchase'] },
+  { category: 'People', name: 'Student Record',      description: 'Student ID, GPA, major, graduation',              fields: ['full_name','email','student_id','major','gpa','enrollment_date','graduation_date','dob'] },
+  { category: 'People', name: 'Job Applicant',       description: 'Skills, experience, salary ask, LinkedIn',        fields: ['full_name','email','phone','job_title','years_experience','skills','salary_expectation','linkedin_url'] },
   // Financial
-  { category: 'Financial', name: 'Credit Application', description: 'SSN, credit card, bank account',       fields: ['full_name','ssn','dob','credit_card','routing_number','bank_account','annual_income'] },
-  { category: 'Financial', name: 'Banking Customer',   description: 'IBAN, SWIFT, sort code',               fields: ['full_name','email','iban','swift','sort_code','bank_account'] },
-  { category: 'Financial', name: 'Crypto Wallet',      description: 'Bitcoin and Ethereum addresses',       fields: ['full_name','email','bitcoin_address','ethereum_address'] },
+  { category: 'Financial', name: 'Credit Application', description: 'SSN, credit card, bank account',               fields: ['full_name','ssn','dob','credit_card','routing_number','bank_account','annual_income'] },
+  { category: 'Financial', name: 'Banking Customer',   description: 'IBAN, SWIFT, sort code',                        fields: ['full_name','email','iban','swift','sort_code','bank_account'] },
+  { category: 'Financial', name: 'Crypto Wallet',      description: 'Bitcoin and Ethereum addresses',                fields: ['full_name','email','bitcoin_address','ethereum_address'] },
+  { category: 'Financial', name: 'Payroll Record',     description: 'Salary, pay period, bank, tax withholding',     fields: ['full_name','employee_id','ssn','salary','pay_period','bank_account','routing_number','tax_withholding'] },
+  { category: 'Financial', name: 'Insurance Claim',    description: 'Policy, claim number, amount, status',          fields: ['full_name','ssn','policy_number','claim_number','claim_amount','claim_date','claim_status'] },
+  { category: 'Financial', name: 'Tax Record',         description: 'SSN, tax year, income, filing status',          fields: ['full_name','ssn','tax_year','filing_status','gross_income','tax_owed','refund_amount'] },
+  { category: 'Financial', name: 'Wire Transfer',      description: 'SWIFT, IBAN, amount, currency, reference',      fields: ['sender_name','recipient_name','amount','currency','swift','iban','reference_number','transfer_date'] },
+  { category: 'Financial', name: 'Investment Account', description: 'Portfolio value, holdings, risk profile',       fields: ['full_name','email','account_number','portfolio_value','asset_type','annual_return','risk_profile'] },
+  { category: 'Financial', name: 'Expense Report',     description: 'Employee expenses with merchant and category',  fields: ['full_name','employee_id','expense_date','merchant','expense_category','amount','currency','receipt_id'] },
   // Healthcare
-  { category: 'Healthcare', name: 'US Patient Record',   description: 'SSN, NPI, insurance, ICD-10',         fields: ['full_name','dob','ssn','npi_number','insurance_id','icd10_code','phone'] },
-  { category: 'Healthcare', name: 'Prescription Record', description: 'DEA, drug name, dosage, ICD-10',      fields: ['full_name','dob','dea_number','drug_name','dosage','icd10_code'] },
+  { category: 'Healthcare', name: 'US Patient Record',   description: 'SSN, NPI, insurance, ICD-10',                fields: ['full_name','dob','ssn','npi_number','insurance_id','icd10_code','phone'] },
+  { category: 'Healthcare', name: 'Prescription Record', description: 'DEA, drug name, dosage, ICD-10',             fields: ['full_name','dob','dea_number','drug_name','dosage','icd10_code'] },
+  { category: 'Healthcare', name: 'Lab Results',         description: 'Test name, result, reference range, NPI',    fields: ['full_name','dob','npi_number','lab_test','lab_result','reference_range','collected_date'] },
+  { category: 'Healthcare', name: 'Medical Insurance',   description: 'Policy, group number, coverage type',        fields: ['full_name','dob','insurance_id','policy_number','group_number','coverage_type','effective_date'] },
+  { category: 'Healthcare', name: 'Pharmacy Record',     description: 'Drug, quantity, refills, DEA number',        fields: ['full_name','dob','dea_number','drug_name','dosage','quantity','refills','icd10_code'] },
+  { category: 'Healthcare', name: 'Emergency Contact',   description: 'Blood type, allergies, emergency contact',   fields: ['full_name','dob','blood_type','allergies','emergency_contact_name','emergency_contact_phone','relationship'] },
+  { category: 'Healthcare', name: 'Mental Health',       description: 'Therapist NPI, diagnosis, treatment, session', fields: ['full_name','dob','ssn','npi_number','icd10_code','treatment','session_date','insurance_id'] },
   // Credentials
-  { category: 'Credentials', name: 'API Config',        description: 'API key, AWS, DB URL, JWT',            fields: ['service','api_key','aws_access_key','aws_secret_key','db_url','jwt_token'] },
-  { category: 'Credentials', name: 'Developer Secrets', description: 'GitHub PAT, Google, Stripe, password', fields: ['service','github_pat','google_api_key','stripe_key','password','api_key'] },
-  { category: 'Credentials', name: 'User Account',      description: 'Username, password, API key, IP',      fields: ['username','email','password','api_key','ip_address','mac_address'] },
+  { category: 'Credentials', name: 'API Config',        description: 'API key, AWS, DB URL, JWT',                   fields: ['service','api_key','aws_access_key','aws_secret_key','db_url','jwt_token'] },
+  { category: 'Credentials', name: 'Developer Secrets', description: 'GitHub PAT, Google, Stripe, password',       fields: ['service','github_pat','google_api_key','stripe_key','password','api_key'] },
+  { category: 'Credentials', name: 'User Account',      description: 'Username, password, API key, IP',            fields: ['username','email','password','api_key','ip_address','mac_address'] },
+  { category: 'Credentials', name: 'AWS Config',        description: 'Access key, region, S3 bucket, secret',      fields: ['service','aws_access_key','aws_secret_key','aws_region','s3_bucket','db_url'] },
+  { category: 'Credentials', name: 'Azure Config',      description: 'Subscription, client ID, secret, tenant',    fields: ['service','azure_subscription_id','azure_client_id','azure_client_secret','azure_tenant_id','db_url'] },
+  { category: 'Credentials', name: 'OAuth Tokens',      description: 'Client ID, access and refresh tokens, scope',fields: ['service','client_id','access_token','refresh_token','token_expiry','scope'] },
+  { category: 'Credentials', name: 'SSH & Certs',       description: 'Private key header, cert CN, fingerprint',   fields: ['hostname','ssh_private_key_header','certificate_cn','cert_expiry','fingerprint','ip_address'] },
   // Network
-  { category: 'Network', name: 'Server Inventory', description: 'IP, MAC, OS, hostname, ports',              fields: ['hostname','ip_address','mac_address','ipv6','os_version','open_ports'] },
-  { category: 'Network', name: 'Network Scan',     description: 'IP, MAC, IPv6, hostname, last seen',        fields: ['ip_address','mac_address','ipv6','hostname','last_seen','status'] },
+  { category: 'Network', name: 'Server Inventory', description: 'IP, MAC, OS, hostname, ports',                     fields: ['hostname','ip_address','mac_address','ipv6','os_version','open_ports'] },
+  { category: 'Network', name: 'Network Scan',     description: 'IP, MAC, IPv6, hostname, last seen',               fields: ['ip_address','mac_address','ipv6','hostname','last_seen','status'] },
+  { category: 'Network', name: 'Firewall Rules',   description: 'Rule ID, source, dest, port, protocol, action',   fields: ['rule_id','source_ip','dest_ip','port','protocol','action','fw_zone'] },
+  { category: 'Network', name: 'VPN Config',       description: 'Endpoint, shared secret, tunnel IPs, encryption', fields: ['vpn_endpoint','shared_secret','tunnel_ip_local','tunnel_ip_remote','ike_version','encryption','hostname'] },
+  { category: 'Network', name: 'DNS Records',      description: 'Record type, TTL, zone, record value',            fields: ['dns_zone','hostname','record_type','ttl','record_value','last_updated'] },
+  // Corporate
+  { category: 'Corporate', name: 'Customer Contract', description: 'Org, contract value, payment terms, expiry',   fields: ['org_name','contact_name','email','contract_value','currency','payment_terms','start_date','expiry_date'] },
+  { category: 'Corporate', name: 'HR Record',         description: 'Employee ID, hire date, salary, manager',      fields: ['full_name','employee_id','email','ssn','hire_date','salary','department','job_title','manager_name'] },
+  { category: 'Corporate', name: 'M&A Dataroom',      description: 'Company, valuation, deal type, stage',         fields: ['org_name','revenue','valuation','deal_type','deal_stage','lead_advisor','target_close_date'] },
+  { category: 'Corporate', name: 'Background Check',  description: 'SSN, credit score, criminal record, history',  fields: ['full_name','ssn','dob','credit_score','criminal_record','employment_history','reference_name'] },
+  { category: 'Corporate', name: 'Vendor Agreement',  description: 'Vendor, value, payment terms, termination',    fields: ['org_name','contact_name','email','contract_value','payment_terms','start_date','termination_date','termination_reason'] },
+  { category: 'Corporate', name: 'Incident Report',   description: 'Incident ID, severity, affected system, notes',fields: ['incident_id','reported_by','email','severity','affected_system','description','reported_date','resolved_date'] },
 ]
 
-const TEMPLATE_CATEGORIES = ['All', 'People', 'Financial', 'Healthcare', 'Credentials', 'Network']
+const TEMPLATE_CATEGORIES = ['All', 'People', 'Financial', 'Healthcare', 'Credentials', 'Network', 'Corporate']
 
 const CATEGORY_COLORS: Record<string, string> = {
   People:      'bg-blue-500/15 text-blue-400',
@@ -45,6 +76,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   Healthcare:  'bg-red-500/15 text-red-400',
   Credentials: 'bg-amber-500/15 text-amber-400',
   Network:     'bg-purple-500/15 text-purple-400',
+  Corporate:   'bg-cyan-500/15 text-cyan-400',
 }
 
 // ── Client-Side Data Generator ────────────────────────────────────────────────
@@ -56,8 +88,46 @@ const DEPARTMENTS = ['Engineering','Marketing','Finance','Operations','HR','Sale
 const JOB_TITLES  = ['Software Engineer','Product Manager','Data Analyst','Marketing Manager','Financial Analyst','HR Specialist','Sales Representative','Operations Lead','Legal Counsel','Designer']
 const ICD10_CODES = ['J18.9','M54.5','I10','E11.9','F32.1','K21.0','R05','Z00.00','J06.9','N39.0']
 const DRUG_NAMES  = ['Amoxicillin','Lisinopril','Metformin','Atorvastatin','Omeprazole']
-const SERVICES    = ['payment-api','auth-service','data-pipeline','reporting-api','webhook-service','notification-svc','analytics-api','crm-service','billing-service','search-service']
-const OS_VERSIONS = ['Ubuntu 22.04 LTS','Windows Server 2022','CentOS 7.9','Debian 11','RHEL 8.6']
+const SERVICES         = ['payment-api','auth-service','data-pipeline','reporting-api','webhook-service','notification-svc','analytics-api','crm-service','billing-service','search-service']
+const OS_VERSIONS      = ['Ubuntu 22.04 LTS','Windows Server 2022','CentOS 7.9','Debian 11','RHEL 8.6']
+const NATIONALITIES    = ['German','French','Dutch','Spanish','Italian','Belgian','Austrian','Swiss','Swedish','Danish']
+const MAJORS           = ['Computer Science','Business Administration','Finance','Marketing','Mechanical Engineering','Nursing','Psychology','Data Science','Information Systems','Accounting']
+const SKILL_SETS       = ['Python, SQL, Machine Learning','React, Node.js, TypeScript','Java, Spring Boot, AWS','Salesforce, HubSpot, CRM','Data Analysis, Tableau, Excel','DevOps, Kubernetes, Terraform','Penetration Testing, SIEM, SOAR','Finance, FP&A, Excel, SAP','Project Management, Agile, JIRA','Compliance, GDPR, Risk Management']
+const MERCHANTS        = ['Amazon Business','Marriott Hotels','Delta Airlines','Office Depot','Uber Business','Microsoft Azure','Salesforce Inc','Zoom Video','Gartner Research','Adobe Systems']
+const EXPENSE_CATS     = ['Travel','Accommodation','Software Subscriptions','Office Supplies','Training & Conferences','Meals & Entertainment','Equipment','Marketing','Legal','Consulting']
+const LAB_TESTS        = ['Complete Blood Count (CBC)','Comprehensive Metabolic Panel','Hemoglobin A1c','Lipid Panel','TSH Thyroid','Urinalysis','Vitamin D Level','Ferritin','PSA Prostate','INR/PT']
+const LAB_RESULTS      = ['12.4 g/dL','7.1 mmol/L','5.8%','185 mg/dL','2.1 mIU/L','Normal','32 ng/mL','45 ng/mL','4.2 ng/mL','1.1']
+const LAB_RANGES       = ['11.5-17.5 g/dL','3.5-5.5 mmol/L','< 5.7%','< 200 mg/dL','0.4-4.0 mIU/L','Normal','30-100 ng/mL','20-250 ng/mL','0-4.0 ng/mL','0.8-1.2']
+const BLOOD_TYPES      = ['A+','A-','B+','B-','AB+','AB-','O+','O-']
+const ALLERGY_LIST     = ['Penicillin','Sulfonamides','None known','Aspirin, NSAIDs','Latex','Ibuprofen','Codeine','Erythromycin']
+const RELATIONSHIPS    = ['Spouse','Parent','Sibling','Child','Friend','Partner','Guardian','Emergency']
+const TREATMENTS       = ['Cognitive Behavioural Therapy (CBT)','Dialectical Behaviour Therapy (DBT)','Exposure and Response Prevention','Psychodynamic Therapy','Group Therapy','Medication Management','EMDR Therapy','Mindfulness-Based Cognitive Therapy']
+const AWS_REGIONS      = ['us-east-1','us-west-2','eu-west-1','ap-southeast-2','eu-central-1','us-east-2','ap-northeast-1','ca-central-1']
+const OAUTH_SCOPES     = ['read:user,repo,write:packages','openid,profile,email,offline_access','https://graph.microsoft.com/.default','https://www.googleapis.com/auth/cloud-platform','read,write,channels:read']
+const PROTOCOLS        = ['TCP','UDP','ICMP','TCP/UDP','ESP','GRE']
+const DNS_RECORD_TYPES = ['A','AAAA','CNAME','MX','TXT','NS','SRV','PTR']
+const IKE_VERSIONS     = ['IKEv2','IKEv1','IKEv2 (preferred)']
+const ENCRYPTIONS      = ['AES-256-GCM','AES-128-CBC','AES-256-CBC','CHACHA20-POLY1305']
+const FW_ZONES         = ['DMZ','Internal','External','Guest','Management','Production','Staging']
+const ORG_NAMES        = ['Apex Technologies Ltd','Meridian Data Corp','Vertex Solutions Inc','Pinnacle Systems LLC','Summit Consulting Group','Horizon Analytics','Catalyst Digital','Nexus Global Services','Ember Software','Prism Ventures']
+const DEAL_TYPES       = ['Merger','Acquisition','Strategic Partnership','Joint Venture','Asset Purchase','Share Purchase','Carve-out','Management Buyout']
+const DEAL_STAGES      = ['Initial Outreach','NDA Signed','Letter of Intent','Due Diligence','Definitive Agreement','Regulatory Review','Closing']
+const PAYMENT_TERMS    = ['Net 30','Net 60','Net 90','Net 15','2/10 Net 30','50% Upfront / 50% Delivery','Monthly Recurring','Quarterly']
+const ADVISORS         = ['Goldman Sachs Advisory','Morgan Stanley M&A','McKinsey & Company','Deloitte Corporate Finance','KPMG Deal Advisory','PwC M&A','Lazard Ltd','Rothschild & Co']
+const CRIMINAL_RECORDS = ['None','None','None','None','Minor traffic offence (2019)','None','None','Misdemeanor — dismissed (2018)']
+const EMP_HISTORY      = ['Microsoft Corp','Google LLC','Amazon Web Services','Salesforce Inc','Oracle Corp','SAP SE','Cisco Systems','IBM Corporation','Accenture','Deloitte']
+const TERM_REASONS     = ['Voluntary resignation','End of contract','Restructuring','Performance improvement plan','Mutual agreement','Acquisition integration','Role elimination','Personal reasons']
+const AFFECTED_SYSTEMS = ['Customer DB (prod)','Auth Service','Payment Gateway','API Gateway','Data Warehouse','CI/CD Pipeline','Email Server','VPN Concentrator','SSO Provider','Load Balancer']
+const SEVERITY_LEVELS  = ['Critical','High','Medium','Low']
+const INC_DESCRIPTIONS = ['Unauthorized access attempt on customer database','Sensitive PII exposed via misconfigured S3 bucket','Credential stuffing attack on auth service','Ransomware variant detected on endpoint','Data exfiltration via unsanctioned cloud storage','Phishing campaign targeting finance team','Unencrypted backup containing SSNs discovered','API key leaked in public GitHub repository','Insider threat — large download of customer records','DLP policy bypass via encrypted email attachment']
+const COVERAGE_TYPES   = ['Individual HMO','Family PPO','Employee + Spouse EPO','Individual HDHP','Group PPO','COBRA Coverage','Medicare Supplement','Individual Bronze ACA']
+const ASSET_TYPES      = ['US Equities','Bonds & Fixed Income','International ETFs','REITs','Technology Stocks','ESG Portfolio','Diversified Index Funds','Commodities','Cash & Money Market','Cryptocurrency']
+const RISK_PROFILES    = ['Conservative','Moderate','Aggressive','Very Aggressive','Moderate-Conservative','Income-focused']
+const CUST_SEGMENTS    = ['Enterprise','SMB','Consumer','Premium','Startup','Non-profit','Government','Partner']
+const FILING_STATUSES  = ['Single','Married Filing Jointly','Married Filing Separately','Head of Household','Qualifying Widow(er)']
+const CLAIM_STATUSES   = ['Submitted','Under Review','Approved','Denied','Pending Documentation','In Appeal','Settled','Closed']
+const CURRENCIES       = ['USD','EUR','GBP','AUD','CAD','JPY','CHF','SGD','HKD','INR']
+const PAY_PERIODS      = ['Bi-Weekly','Monthly','Semi-Monthly','Weekly']
 
 function hex(n: number, len = 8): string {
   return Math.abs(n).toString(16).padStart(len, '0').slice(0, len).toUpperCase()
@@ -125,6 +195,157 @@ function generateField(field: string, i: number): string {
     case 'last_seen':      return `${pad(1 + (i * 7) % 28)}/${pad(1 + (i * 3) % 12)}/2026 ${pad((i * 5) % 23)}:${pad((i * 13) % 59)}`
     case 'status':         return ['active','inactive','unknown','vulnerable','patched'][i % 5]
     case 'service':        return SERVICES[i % SERVICES.length]
+    // People — EU / AU / CA
+    case 'eu_tax_id':      return `DE${pad(10000000 + (i * 31337) % 89999999, 8)}`
+    case 'eu_vat_number':  return `${['DE','FR','NL','ES','IT','BE','AT'][i % 7]}${pad(100000000 + (i * 97531) % 899999999, 9)}`
+    case 'nationality':    return NATIONALITIES[i % NATIONALITIES.length]
+    case 'au_phone':       return `+61 4${pad((i * 13 + 100) % 899, 2)} ${pad(100 + (i * 7) % 899, 3)} ${pad(100 + (i * 31) % 899, 3)}`
+    case 'au_postcode':    return `${2000 + (i * 137) % 7999}`
+    case 'aus_tfn':        return `${pad(100 + (i * 37) % 899, 3)} ${pad(100 + (i * 13) % 899, 3)} ${pad(100 + (i * 73) % 899, 3)}`
+    case 'aus_medicare':   return `${2 + i % 8}${pad((i * 3737 + 1000) % 9999, 4)} ${pad((i * 7919 + 1000) % 9999, 4)} ${i % 9 + 1}`
+    case 'can_sin':        return `${pad(100 + (i * 37) % 799, 3)}-${pad(100 + (i * 13) % 899, 3)}-${pad(100 + (i * 73) % 899, 3)}`
+    case 'ca_phone':       return `(${200 + (i * 17) % 799}) ${200 + (i * 13) % 799}-${1000 + (i * 97) % 8999}`
+    case 'ca_postcode':    return `${String.fromCharCode(75 + (i * 3) % 12)}${(i * 7) % 9}${String.fromCharCode(65 + (i * 11) % 22)} ${(i * 13) % 9}${String.fromCharCode(65 + (i * 17) % 22)}${(i * 19) % 9}`
+    // People — Customer / Student / Applicant
+    case 'loyalty_id':        return `LYL-${pad(1000000 + (i * 97531) % 8999999, 7)}`
+    case 'customer_segment':  return CUST_SEGMENTS[i % CUST_SEGMENTS.length]
+    case 'lifetime_value':    return `$${(500 + (i * 847) % 149500).toLocaleString()}`
+    case 'last_purchase': {
+      const d = new Date(2025, (i * 3) % 12, 1 + (i * 7) % 28)
+      return `${pad(d.getMonth() + 1)}/${pad(d.getDate())}/${d.getFullYear()}`
+    }
+    case 'student_id':        return `STU-${pad(100000 + (i * 97) % 899999, 6)}`
+    case 'major':             return MAJORS[i % MAJORS.length]
+    case 'gpa':               return `${(2.0 + ((i * 23) % 200) / 100).toFixed(2)}`
+    case 'years_experience':  return `${2 + (i * 3) % 18} years`
+    case 'skills':            return SKILL_SETS[i % SKILL_SETS.length]
+    case 'salary_expectation': return `$${(60000 + (i * 7500) % 140000).toLocaleString()}`
+    case 'linkedin_url': {
+      const lfn = FIRST_NAMES[i % FIRST_NAMES.length].toLowerCase()
+      const lln = LAST_NAMES[Math.floor(i / FIRST_NAMES.length) % LAST_NAMES.length].toLowerCase()
+      return `linkedin.com/in/${lfn}-${lln}-${pad(i + 1, 3)}`
+    }
+    // Financial — Payroll / Claim / Tax / Transfer / Investment / Expense
+    case 'employee_id':      return `EMP-${pad(10000 + (i * 97) % 89999, 5)}`
+    case 'salary':           return `$${(45000 + (i * 5500) % 155000).toLocaleString()}`
+    case 'pay_period':       return PAY_PERIODS[i % PAY_PERIODS.length]
+    case 'tax_withholding':  return `$${(3000 + (i * 750) % 22000).toLocaleString()}`
+    case 'policy_number':    return `POL-${String.fromCharCode(65 + (i * 3) % 26)}${pad(100000 + (i * 97) % 899999, 6)}`
+    case 'claim_number':     return `CLM-2025${pad(10000 + (i * 97) % 89999, 5)}`
+    case 'claim_amount':     return `$${(500 + (i * 1237) % 99500).toLocaleString()}`
+    case 'claim_status':     return CLAIM_STATUSES[i % CLAIM_STATUSES.length]
+    case 'tax_year':         return `${2020 + (i % 5)}`
+    case 'filing_status':    return FILING_STATUSES[i % FILING_STATUSES.length]
+    case 'gross_income':     return `$${(30000 + (i * 7500) % 270000).toLocaleString()}`
+    case 'tax_owed':         return `$${(3000 + (i * 1500) % 57000).toLocaleString()}`
+    case 'refund_amount':    return `$${((i * 750) % 8000).toLocaleString()}`
+    case 'sender_name':      return `${FIRST_NAMES[(i * 3) % FIRST_NAMES.length]} ${LAST_NAMES[(i * 5) % LAST_NAMES.length]}`
+    case 'recipient_name':   return `${FIRST_NAMES[(i * 7) % FIRST_NAMES.length]} ${LAST_NAMES[(i * 11) % LAST_NAMES.length]}`
+    case 'amount':           return `${(100 + (i * 2731) % 99900).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    case 'currency':         return CURRENCIES[i % CURRENCIES.length]
+    case 'reference_number': return `REF-2025-${pad(10000 + (i * 97) % 89999, 5)}`
+    case 'account_number':   return `ACCT-${pad(100000000 + (i * 97531) % 899999999, 9)}`
+    case 'portfolio_value':  return `$${(10000 + (i * 47500) % 990000).toLocaleString()}`
+    case 'asset_type':       return ASSET_TYPES[i % ASSET_TYPES.length]
+    case 'annual_return':    return `${(-3 + ((i * 17) % 250) / 10).toFixed(1)}%`
+    case 'risk_profile':     return RISK_PROFILES[i % RISK_PROFILES.length]
+    case 'merchant':         return MERCHANTS[i % MERCHANTS.length]
+    case 'expense_category': return EXPENSE_CATS[i % EXPENSE_CATS.length]
+    case 'receipt_id':       return `RCP-${pad(100000 + (i * 97) % 899999, 6)}`
+    // Healthcare — Lab / Insurance / Pharmacy / Emergency / Mental Health
+    case 'lab_test':                return LAB_TESTS[i % LAB_TESTS.length]
+    case 'lab_result':              return LAB_RESULTS[i % LAB_RESULTS.length]
+    case 'reference_range':         return LAB_RANGES[i % LAB_RANGES.length]
+    case 'group_number':            return `GRP-${pad(10000 + (i * 37) % 89999, 5)}`
+    case 'coverage_type':           return COVERAGE_TYPES[i % COVERAGE_TYPES.length]
+    case 'quantity':                return `${[30, 60, 90, 14, 7, 28][i % 6]} tablets`
+    case 'refills':                 return `${i % 5}`
+    case 'blood_type':              return BLOOD_TYPES[i % BLOOD_TYPES.length]
+    case 'allergies':               return ALLERGY_LIST[i % ALLERGY_LIST.length]
+    case 'emergency_contact_name':  return `${FIRST_NAMES[(i * 5) % FIRST_NAMES.length]} ${LAST_NAMES[(i * 7) % LAST_NAMES.length]}`
+    case 'emergency_contact_phone': return `(${300 + (i * 23) % 699}) ${200 + (i * 11) % 799}-${1000 + (i * 113) % 8999}`
+    case 'relationship':            return RELATIONSHIPS[i % RELATIONSHIPS.length]
+    case 'treatment':               return TREATMENTS[i % TREATMENTS.length]
+    // Credentials — AWS / Azure / OAuth / SSH
+    case 'aws_region':           return AWS_REGIONS[i % AWS_REGIONS.length]
+    case 's3_bucket':            return `synthetic-dlp-${['prod','staging','dev','backup','archive'][i % 5]}-${pad(i + 1, 3)}.example.com`
+    case 'azure_subscription_id': return `SYNTH-${hex(i * 11111 + 100000, 8)}-${hex(i * 22222 + 200000, 4)}-${hex(i * 33333 + 300000, 4)}-${hex(i * 44444 + 400000, 4)}-${hex(i * 55555 + 500000, 12)}`
+    case 'azure_client_id':      return `SYNTH-${hex(i * 66666 + 100000, 8)}-${hex(i * 77777 + 200000, 4)}-${hex(i * 88888 + 300000, 4)}-${hex(i * 99999 + 400000, 4)}-${hex(i * 12345 + 500000, 12)}`
+    case 'azure_tenant_id':      return `SYNTH-${hex(i * 13579 + 100000, 8)}-${hex(i * 24680 + 200000, 4)}-${hex(i * 35791 + 300000, 4)}-${hex(i * 46802 + 400000, 4)}-${hex(i * 57913 + 500000, 12)}`
+    case 'azure_client_secret':  return `SYNTHETIC_AZ_SECRET_${hex(i * 31337 + 100000, 16)}~SYNTH`
+    case 'client_id':            return `SYNTH_CLIENT_${pad(i + 1, 3)}_${hex(i * 97531 + 100000, 8)}`
+    case 'access_token':         return `SYNTH_ACCESS_${pad(i + 1, 3)}.${hex(i * 11111 + 100000, 16)}.${hex(i * 22222 + 200000, 8)}`
+    case 'refresh_token':        return `SYNTH_REFRESH_${pad(i + 1, 3)}.${hex(i * 33333 + 100000, 16)}`
+    case 'token_expiry': {
+      const te = new Date(2026, (i * 3) % 12, 1 + (i * 7) % 28)
+      return `${te.toISOString().slice(0, 10)} ${pad((i * 5) % 23)}:${pad((i * 13) % 59)} UTC`
+    }
+    case 'scope':                return OAUTH_SCOPES[i % OAUTH_SCOPES.length]
+    case 'ssh_private_key_header': return `-----BEGIN SYNTHETIC RSA PRIVATE KEY ${pad(i + 1, 3)}-----`
+    case 'certificate_cn':       return `CN=synthetic-cert-${pad(i + 1, 3)}.example.com, O=Synthetic Corp, C=US`
+    case 'cert_expiry':          return `${pad(1 + (i * 3) % 12)}/${pad(1 + (i * 7) % 28)}/${2025 + (i % 5) + 1}`
+    case 'fingerprint':          return `SHA256:SYNTH${hex(i * 97531 + 100000, 8)}${hex(i * 12345 + 200000, 8)}${hex(i * 67890 + 300000, 8)}=`
+    // Network — Firewall / VPN / DNS
+    case 'rule_id':          return `FW-RULE-${pad(1000 + i, 4)}`
+    case 'source_ip':        return `10.${(i * 3) % 255}.${(i * 7) % 255}.0/24`
+    case 'dest_ip':          return `${[192, 172, 10][(i * 3) % 3]}.${(i * 11) % 255}.${(i * 17) % 255}.0/24`
+    case 'port':             return `${[80, 443, 22, 3389, 8080, 3306, 5432, 6379, 27017, 25][i % 10]}`
+    case 'protocol':         return PROTOCOLS[i % PROTOCOLS.length]
+    case 'action':           return ['Allow','Deny','Drop','Log','Alert'][i % 5]
+    case 'fw_zone':          return FW_ZONES[i % FW_ZONES.length]
+    case 'vpn_endpoint':     return `vpn-${['primary','secondary','backup','dr'][i % 4]}-${pad(i + 1, 2)}.example.com`
+    case 'shared_secret':    return `SYNTHETIC_VPN_PSK_${hex(i * 97531 + 100000, 16)}!`
+    case 'tunnel_ip_local':  return `172.16.${(i * 3) % 255}.1`
+    case 'tunnel_ip_remote': return `172.16.${((i * 3) % 255) + 1}.1`
+    case 'ike_version':      return IKE_VERSIONS[i % IKE_VERSIONS.length]
+    case 'encryption':       return ENCRYPTIONS[i % ENCRYPTIONS.length]
+    case 'dns_zone':         return `${['corp','internal','dmz','example','prod'][i % 5]}.example.com`
+    case 'record_type':      return DNS_RECORD_TYPES[i % DNS_RECORD_TYPES.length]
+    case 'ttl':              return `${[300, 600, 900, 3600, 86400, 60][i % 6]}`
+    case 'record_value':     return `${10 + (i * 13) % 245}.${(i * 7) % 255}.${(i * 11) % 255}.${(i * 17 + 1) % 254}`
+    // Corporate
+    case 'org_name':           return ORG_NAMES[i % ORG_NAMES.length]
+    case 'contact_name':       return `${FIRST_NAMES[i % FIRST_NAMES.length]} ${LAST_NAMES[Math.floor(i / FIRST_NAMES.length) % LAST_NAMES.length]}`
+    case 'contract_value':     return `$${(10000 + (i * 47500) % 990000).toLocaleString()}`
+    case 'payment_terms':      return PAYMENT_TERMS[i % PAYMENT_TERMS.length]
+    case 'manager_name':       return `${FIRST_NAMES[(i * 7) % FIRST_NAMES.length]} ${LAST_NAMES[(i * 11) % LAST_NAMES.length]}`
+    case 'revenue':            return `$${(500000 + (i * 2500000) % 99500000).toLocaleString()}`
+    case 'valuation':          return `$${(1000000 + (i * 12500000) % 499000000).toLocaleString()}`
+    case 'deal_type':          return DEAL_TYPES[i % DEAL_TYPES.length]
+    case 'deal_stage':         return DEAL_STAGES[i % DEAL_STAGES.length]
+    case 'lead_advisor':       return ADVISORS[i % ADVISORS.length]
+    case 'credit_score':       return `${580 + (i * 37) % 270}`
+    case 'criminal_record':    return CRIMINAL_RECORDS[i % CRIMINAL_RECORDS.length]
+    case 'employment_history': return `${EMP_HISTORY[i % EMP_HISTORY.length]} (${2015 + (i * 2) % 8}–${2020 + (i % 5)})`
+    case 'reference_name':     return `${FIRST_NAMES[(i * 9) % FIRST_NAMES.length]} ${LAST_NAMES[(i * 13) % LAST_NAMES.length]}`
+    case 'termination_reason': return TERM_REASONS[i % TERM_REASONS.length]
+    case 'incident_id':        return `INC-2025-${pad(1000 + i, 4)}`
+    case 'reported_by':        return `${FIRST_NAMES[(i * 5) % FIRST_NAMES.length]} ${LAST_NAMES[(i * 7) % LAST_NAMES.length]}`
+    case 'severity':           return SEVERITY_LEVELS[i % SEVERITY_LEVELS.length]
+    case 'affected_system':    return AFFECTED_SYSTEMS[i % AFFECTED_SYSTEMS.length]
+    case 'description':        return INC_DESCRIPTIONS[i % INC_DESCRIPTIONS.length]
+    // Shared date fields
+    case 'claim_date':
+    case 'collected_date':
+    case 'expense_date':
+    case 'session_date':
+    case 'effective_date':
+    case 'start_date':
+    case 'expiry_date':
+    case 'hire_date':
+    case 'target_close_date':
+    case 'termination_date':
+    case 'transfer_date':
+    case 'enrollment_date':
+    case 'graduation_date':
+    case 'reported_date':
+    case 'resolved_date':
+    case 'last_updated': {
+      const y = 2022 + (i * 3) % 4
+      const m = 1 + (i * 5) % 12
+      const d = 1 + (i * 7) % 28
+      return `${pad(m)}/${pad(d)}/${y}`
+    }
     default:               return `value_${i + 1}`
   }
 }
@@ -168,10 +389,6 @@ function toCSV(columns: string[], records: Record<string, string>[]): string {
   return [header, ...rows].join('\n')
 }
 
-function toJSON(records: Record<string, string>[]): string {
-  return JSON.stringify(records, null, 2)
-}
-
 function toTXT(columns: string[], records: Record<string, string>[]): string {
   return records.map((r, i) =>
     `--- Record ${i + 1} ---\n${columns.map(c => `${c}: ${r[c] ?? ''}`).join('\n')}`
@@ -186,14 +403,6 @@ function toXML(columns: string[], records: Record<string, string>[]): string {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<records>\n${rows}\n</records>`
 }
 
-function toSQL(columns: string[], records: Record<string, string>[]): string {
-  return records.map(r => {
-    const cols = columns.map(c => `\`${c}\``).join(', ')
-    const vals = columns.map(c => `'${(r[c] ?? '').replace(/'/g, "''")}'`).join(', ')
-    return `INSERT INTO \`test_data\` (${cols}) VALUES (${vals});`
-  }).join('\n')
-}
-
 // ── Shared UI helpers ─────────────────────────────────────────────────────────
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -206,10 +415,8 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 const FORMATS = [
   { id: 'csv',  label: 'CSV'  },
-  { id: 'json', label: 'JSON' },
   { id: 'txt',  label: 'TXT'  },
   { id: 'xml',  label: 'XML'  },
-  { id: 'sql',  label: 'SQL'  },
 ] as const
 
 type Format = typeof FORMATS[number]['id']
@@ -273,11 +480,9 @@ export function TestDataGenerator({ initialDatasets }: Props) {
     const { columns, records } = generatedData
     const ts = Date.now()
     switch (downloadFormat) {
-      case 'csv':  downloadFile(toCSV(columns, records),  `dlp-test-data-${ts}.csv`,  'text/csv')           ; break
-      case 'json': downloadFile(toJSON(records),           `dlp-test-data-${ts}.json`, 'application/json')   ; break
-      case 'txt':  downloadFile(toTXT(columns, records),  `dlp-test-data-${ts}.txt`,  'text/plain')          ; break
-      case 'xml':  downloadFile(toXML(columns, records),  `dlp-test-data-${ts}.xml`,  'application/xml')     ; break
-      case 'sql':  downloadFile(toSQL(columns, records),  `dlp-test-data-${ts}.sql`,  'text/plain')          ; break
+      case 'csv':  downloadFile(toCSV(columns, records),  `dlp-test-data-${ts}.csv`,  'text/csv')    ; break
+      case 'txt':  downloadFile(toTXT(columns, records),  `dlp-test-data-${ts}.txt`,  'text/plain')  ; break
+      case 'xml':  downloadFile(toXML(columns, records),  `dlp-test-data-${ts}.xml`,  'application/xml') ; break
     }
   }, [generatedData, downloadFormat])
 
