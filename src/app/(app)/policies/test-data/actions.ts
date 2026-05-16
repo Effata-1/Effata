@@ -40,6 +40,7 @@ Required JSON structure:
 }
 
 Rules:
+- CRITICAL: Generate ONLY the exact columns the user asks for. If the user asks for "credit card, cvv, expiry" generate exactly those 3 columns — do NOT add name, email, address, record_id, or any other column unless explicitly requested. Strict column matching.
 - All data is synthetic — no real people, no real account numbers, no real credentials
 - Vary values across every record — no two rows should be identical
 - Column names: snake_case, no spaces
