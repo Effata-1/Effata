@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useTransition, useCallback, useRef } from 'react'
-import { Loader2, Trash2, Copy, Check, Sparkles } from 'lucide-react'
+import { Loader2, Trash2, Copy, Check, Sparkles, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { generateRegex, savePattern, deletePattern } from '../actions'
 import type { AiRegexResult, SavedPattern } from '../actions'
@@ -27,48 +27,80 @@ interface RegexResult {
 interface DlpPattern {
   name: string
   description: string
+  category: string
   pattern: string
   flags: string
   testExample: string
 }
 
 const DLP_PATTERNS: DlpPattern[] = [
+  // ── Payment & Banking ───────────────────────────────────────────────────────
   {
-    name: 'Visa / Mastercard',
-    description: 'Credit card numbers',
-    pattern: '\\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14})\\b',
+    category: 'Payment & Banking',
+    name: 'Visa Card',
+    description: 'Visa credit/debit card numbers',
+    pattern: '\\b4[0-9]{12}(?:[0-9]{3})?\\b',
     flags: 'g',
-    testExample: 'Card: 4532015112830366 or 5425233430109903',
+    testExample: 'Card: 4532015112830366',
   },
   {
-    name: 'US SSN',
-    description: 'Social Security Numbers',
-    pattern: '\\b(?!000|666|9\\d{2})\\d{3}-(?!00)\\d{2}-(?!0000)\\d{4}\\b',
+    category: 'Payment & Banking',
+    name: 'Mastercard',
+    description: 'Mastercard numbers (legacy 5x and 2x series)',
+    pattern: '\\b(?:5[1-5][0-9]{2}|222[1-9]|22[3-9][0-9]|2[3-6][0-9]{2}|27[01][0-9]|2720)[0-9]{12}\\b',
     flags: 'g',
-    testExample: 'SSN: 123-45-6789',
+    testExample: 'Card: 5425233430109903 or 2720992589999816',
   },
   {
-    name: 'Email Address',
-    description: 'Standard email addresses',
-    pattern: '[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}',
+    category: 'Payment & Banking',
+    name: 'American Express',
+    description: 'Amex card numbers starting with 34 or 37',
+    pattern: '\\b3[47][0-9]{13}\\b',
+    flags: 'g',
+    testExample: 'Amex: 378282246310005',
+  },
+  {
+    category: 'Payment & Banking',
+    name: 'Discover Card',
+    description: 'Discover card numbers',
+    pattern: '\\b6(?:011|5[0-9]{2})[0-9]{12}\\b',
+    flags: 'g',
+    testExample: 'Discover: 6011111111111117',
+  },
+  {
+    category: 'Payment & Banking',
+    name: 'Any Credit Card',
+    description: 'Visa, Mastercard, Amex, Discover, Diners, JCB',
+    pattern: '\\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12}|3(?:0[0-5]|[68][0-9])[0-9]{11}|(?:2131|1800|35\\d{3})\\d{11})\\b',
+    flags: 'g',
+    testExample: '4532015112830366 or 378282246310005 or 5425233430109903',
+  },
+  {
+    category: 'Payment & Banking',
+    name: 'US Routing Number',
+    description: 'ABA bank routing numbers (9 digits)',
+    pattern: '\\b(?:routing[\\s:#]*)?(?:0[0-9]|[1-9][0-9])\\d{7}\\b',
     flags: 'gi',
-    testExample: 'Contact: user@example.com or admin@company.co.uk',
+    testExample: 'Routing: 021000021',
   },
   {
-    name: 'US Phone',
-    description: 'US/Canada phone numbers',
-    pattern: '\\b(?:\\+1[\\s.-]?)?(?:\\(?[2-9]\\d{2}\\)?[\\s.-]?)[2-9]\\d{2}[\\s.-]?\\d{4}\\b',
+    category: 'Payment & Banking',
+    name: 'UK Sort Code',
+    description: 'UK bank sort codes (XX-XX-XX)',
+    pattern: '\\b\\d{2}[-\\s]\\d{2}[-\\s]\\d{2}\\b',
     flags: 'g',
-    testExample: 'Call: (800) 555-1234 or +1-212-555-6789',
+    testExample: 'Sort Code: 20-47-14',
   },
   {
-    name: 'IPv4 Address',
-    description: 'IPv4 addresses 0.0.0.0–255.255.255.255',
-    pattern: '\\b(?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\b',
+    category: 'Payment & Banking',
+    name: 'SWIFT / BIC',
+    description: 'SWIFT/BIC bank identifier codes (8 or 11 chars)',
+    pattern: '\\b[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}(?:[A-Z0-9]{3})?\\b',
     flags: 'g',
-    testExample: 'Servers: 192.168.1.100 and 10.0.0.1',
+    testExample: 'SWIFT: DEUTDEDB or BOFAUS3NXXX',
   },
   {
+    category: 'Payment & Banking',
     name: 'IBAN',
     description: 'International Bank Account Numbers',
     pattern: '\\b[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7}(?:[A-Z0-9]?){0,16}\\b',
@@ -76,41 +108,348 @@ const DLP_PATTERNS: DlpPattern[] = [
     testExample: 'IBAN: GB29NWBK60161331926819',
   },
   {
+    category: 'Payment & Banking',
+    name: 'Bitcoin Address',
+    description: 'Bitcoin wallet addresses (P2PKH and P2SH)',
+    pattern: '\\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\\b',
+    flags: 'g',
+    testExample: '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2',
+  },
+  {
+    category: 'Payment & Banking',
+    name: 'Ethereum Address',
+    description: 'Ethereum wallet addresses (0x + 40 hex chars)',
+    pattern: '\\b0x[a-fA-F0-9]{40}\\b',
+    flags: 'g',
+    testExample: '0x742d35Cc6634C0532925a3b8D4C9Ce1e47cF4f8',
+  },
+
+  // ── Personal Identity ───────────────────────────────────────────────────────
+  {
+    category: 'Personal Identity',
+    name: 'US SSN',
+    description: 'US Social Security Numbers',
+    pattern: '\\b(?!000|666|9\\d{2})\\d{3}-(?!00)\\d{2}-(?!0000)\\d{4}\\b',
+    flags: 'g',
+    testExample: 'SSN: 123-45-6789',
+  },
+  {
+    category: 'Personal Identity',
+    name: 'US EIN',
+    description: 'US Employer Identification Numbers (tax ID)',
+    pattern: '\\b[0-9]{2}-[0-9]{7}\\b',
+    flags: 'g',
+    testExample: 'EIN: 91-1234567',
+  },
+  {
+    category: 'Personal Identity',
+    name: 'US ITIN',
+    description: 'US Individual Taxpayer Identification Numbers (starts with 9)',
+    pattern: '\\b9\\d{2}[- ](?!00)\\d{2}[- ](?!0000)\\d{4}\\b',
+    flags: 'g',
+    testExample: 'ITIN: 912-34-5678',
+  },
+  {
+    category: 'Personal Identity',
+    name: 'Indian Aadhaar',
+    description: '12-digit Indian national ID',
+    pattern: '\\b[2-9]\\d{3}\\s?\\d{4}\\s?\\d{4}\\b',
+    flags: 'g',
+    testExample: 'Aadhaar: 2345 6789 0123',
+  },
+  {
+    category: 'Personal Identity',
+    name: 'Indian PAN',
+    description: 'Indian Permanent Account Number (income tax)',
+    pattern: '\\b[A-Z]{5}[0-9]{4}[A-Z]\\b',
+    flags: 'g',
+    testExample: 'PAN: ABCDE1234F',
+  },
+  {
+    category: 'Personal Identity',
     name: 'UK NI Number',
     description: 'UK National Insurance numbers',
     pattern: '\\b[A-CEGHJ-PR-TW-Z]{2}[0-9]{6}[A-D]\\b',
     flags: 'gi',
-    testExample: 'NI Number: AB123456C',
+    testExample: 'NI: AB123456C',
   },
   {
-    name: 'UK Postcode',
-    description: 'UK postal codes',
-    pattern: '\\b[A-Z]{1,2}[0-9][0-9A-Z]?\\s?[0-9][ABD-HJLNP-UW-Z]{2}\\b',
-    flags: 'gi',
-    testExample: 'Address: London SW1A 2AA or EC1A 1BB',
-  },
-  {
-    name: 'AWS Access Key',
-    description: 'AWS Access Key IDs (AKIA...)',
-    pattern: '\\b(AKIA|ABIA|ACCA|ASIA)[0-9A-Z]{16}\\b',
+    category: 'Personal Identity',
+    name: 'UK NHS Number',
+    description: 'UK National Health Service numbers',
+    pattern: '\\b[0-9]{3}\\s[0-9]{3}\\s[0-9]{4}\\b',
     flags: 'g',
-    testExample: 'Key: AKIAIOSFODNN7EXAMPLE in config.yml',
+    testExample: 'NHS: 943 476 5919',
   },
   {
-    name: 'Bearer Token',
-    description: 'API keys and bearer tokens',
-    pattern: '(?:Bearer\\s+|api[_-]?key[=:\\s]+|token[=:\\s]+)[A-Za-z0-9\\-_=+\\/]{20,}',
-    flags: 'gi',
-    testExample: 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.abc123',
-  },
-  {
+    category: 'Personal Identity',
     name: 'Passport Number',
     description: 'Generic alphanumeric passport numbers',
     pattern: '\\b(?:passport[:\\s]*)?([A-Z]{1,2}[0-9]{6,7})\\b',
     flags: 'gi',
     testExample: 'Passport: AB1234567',
   },
+  {
+    category: 'Personal Identity',
+    name: 'Date of Birth',
+    description: 'DOB in MM/DD/YYYY, DD/MM/YYYY, or YYYY-MM-DD',
+    pattern: '\\b(?:(?:0[1-9]|1[0-2])\\/(?:0[1-9]|[12]\\d|3[01])\\/(?:19|20)\\d{2}|(?:0[1-9]|[12]\\d|3[01])\\/(?:0[1-9]|1[0-2])\\/(?:19|20)\\d{2}|(?:19|20)\\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\\d|3[01]))\\b',
+    flags: 'g',
+    testExample: 'DOB: 01/15/1990 or 15/01/1990 or 1990-01-15',
+  },
+
+  // ── Contact & Location ──────────────────────────────────────────────────────
+  {
+    category: 'Contact & Location',
+    name: 'Email Address',
+    description: 'Standard email addresses',
+    pattern: '[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}',
+    flags: 'gi',
+    testExample: 'Contact: user@example.com or admin@company.co.uk',
+  },
+  {
+    category: 'Contact & Location',
+    name: 'US Phone',
+    description: 'US/Canada phone numbers (various formats)',
+    pattern: '\\b(?:\\+1[\\s.-]?)?(?:\\(?[2-9]\\d{2}\\)?[\\s.-]?)[2-9]\\d{2}[\\s.-]?\\d{4}\\b',
+    flags: 'g',
+    testExample: '(800) 555-1234 or +1-212-555-6789',
+  },
+  {
+    category: 'Contact & Location',
+    name: 'UK Phone',
+    description: 'UK landline and mobile numbers',
+    pattern: '\\b(?:\\+44\\s?|0)(?:7\\d{3}|\\d{4})\\s?\\d{3}\\s?\\d{3,4}\\b',
+    flags: 'g',
+    testExample: '+44 7700 900123 or 07700 900123',
+  },
+  {
+    category: 'Contact & Location',
+    name: "Int'l Phone (E.164)",
+    description: 'International phone numbers in E.164 format',
+    pattern: '\\+[1-9]\\d{6,14}\\b',
+    flags: 'g',
+    testExample: '+14155552671 or +447700900123',
+  },
+  {
+    category: 'Contact & Location',
+    name: 'IPv4 Address',
+    description: 'IPv4 addresses 0.0.0.0–255.255.255.255',
+    pattern: '\\b(?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\b',
+    flags: 'g',
+    testExample: 'Server: 192.168.1.100 and 10.0.0.1',
+  },
+  {
+    category: 'Contact & Location',
+    name: 'IPv6 Address',
+    description: 'Full and compressed IPv6 addresses',
+    pattern: '\\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\\b',
+    flags: 'gi',
+    testExample: '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+  },
+  {
+    category: 'Contact & Location',
+    name: 'MAC Address',
+    description: 'Network hardware MAC addresses',
+    pattern: '\\b(?:[0-9A-Fa-f]{2}[:\\-]){5}[0-9A-Fa-f]{2}\\b',
+    flags: 'gi',
+    testExample: 'MAC: 00:1B:44:11:3A:B7',
+  },
+  {
+    category: 'Contact & Location',
+    name: 'US ZIP Code',
+    description: 'US 5-digit and ZIP+4 postal codes',
+    pattern: '\\b\\d{5}(?:-\\d{4})?\\b',
+    flags: 'g',
+    testExample: 'ZIP: 90210 or 90210-1234',
+  },
+  {
+    category: 'Contact & Location',
+    name: 'UK Postcode',
+    description: 'UK postal codes',
+    pattern: '\\b[A-Z]{1,2}[0-9][0-9A-Z]?\\s?[0-9][ABD-HJLNP-UW-Z]{2}\\b',
+    flags: 'gi',
+    testExample: 'London SW1A 2AA or EC1A 1BB',
+  },
+  {
+    category: 'Contact & Location',
+    name: 'Canadian Postal Code',
+    description: 'Canadian postal codes (A1A 1A1 format)',
+    pattern: '\\b[ABCEGHJ-NPRSTVXY]\\d[ABCEGHJ-NPRSTV-Z]\\s?\\d[ABCEGHJ-NPRSTV-Z]\\d\\b',
+    flags: 'gi',
+    testExample: 'Postal: M5V 3L9 or K1A 0A9',
+  },
+
+  // ── Credentials & Secrets ───────────────────────────────────────────────────
+  {
+    category: 'Credentials & Secrets',
+    name: 'AWS Access Key',
+    description: 'AWS Access Key IDs (AKIA/ASIA prefix)',
+    pattern: '\\b(AKIA|ABIA|ACCA|ASIA)[0-9A-Z]{16}\\b',
+    flags: 'g',
+    testExample: 'Key: AKIAIOSFODNN7EXAMPLE',
+  },
+  {
+    category: 'Credentials & Secrets',
+    name: 'AWS Secret Key',
+    description: 'AWS secret access keys in config/env files',
+    pattern: '(?:aws[_-]?secret[_-]?(?:access[_-]?)?key|AWS_SECRET_ACCESS_KEY)[^=:\\s]*[=:\\s]+[A-Za-z0-9\\/+=]{40}',
+    flags: 'gi',
+    testExample: 'aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+  },
+  {
+    category: 'Credentials & Secrets',
+    name: 'GitHub PAT',
+    description: 'GitHub classic personal access tokens (ghp_)',
+    pattern: '\\bghp_[A-Za-z0-9]{36}\\b',
+    flags: 'g',
+    testExample: 'Token: ghp_16C7e42F292c6912E7710c838347Ae178B4a',
+  },
+  {
+    category: 'Credentials & Secrets',
+    name: 'Stripe Secret Key',
+    description: 'Stripe live and test secret API keys',
+    pattern: '\\bsk_(?:live|test)_[A-Za-z0-9]{24,}\\b',
+    flags: 'g',
+    testExample: 'sk_live_EXAMPLE000000000000000 or sk_test_EXAMPLE000000000000000',
+  },
+  {
+    category: 'Credentials & Secrets',
+    name: 'Google API Key',
+    description: 'Google Cloud/Maps/Firebase API keys (AIza prefix)',
+    pattern: '\\bAIza[0-9A-Za-z\\-_]{35}\\b',
+    flags: 'g',
+    testExample: 'key=AIzaSyDhz2FotRjLQ1v4FKb5aWIZnDzRnBYoxiE',
+  },
+  {
+    category: 'Credentials & Secrets',
+    name: 'Slack Token',
+    description: 'Slack bot and user OAuth tokens (xoxb/xoxp)',
+    pattern: '\\bxox[baprs]-(?:[0-9]{12}-){2}[0-9]{12}-[0-9a-f]{32}\\b',
+    flags: 'g',
+    testExample: 'xoxb-123456789012-123456789012-123456789012-abc123def456ghi7',
+  },
+  {
+    category: 'Credentials & Secrets',
+    name: 'Bearer Token / API Key',
+    description: 'Authorization headers and inline API key assignments',
+    pattern: '(?:Bearer\\s+|api[_-]?key[=:\\s]+|token[=:\\s]+)[A-Za-z0-9\\-_=+\\/]{20,}',
+    flags: 'gi',
+    testExample: 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.abc123',
+  },
+  {
+    category: 'Credentials & Secrets',
+    name: 'JWT Token',
+    description: 'JSON Web Tokens (three Base64URL-encoded segments)',
+    pattern: '\\beyJ[A-Za-z0-9\\-_]+\\.eyJ[A-Za-z0-9\\-_]+\\.[A-Za-z0-9\\-_.+\\/]*',
+    flags: 'g',
+    testExample: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c',
+  },
+  {
+    category: 'Credentials & Secrets',
+    name: 'PEM Private Key',
+    description: 'RSA/EC/DSA/OpenSSH private key headers',
+    pattern: '-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----',
+    flags: 'g',
+    testExample: '-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA...',
+  },
+  {
+    category: 'Credentials & Secrets',
+    name: 'Database URL',
+    description: 'Database connection strings with embedded credentials',
+    pattern: '(?:mysql|postgresql|postgres|mongodb(?:\\+srv)?|redis|mssql|sqlserver):\\/\\/[^\\s"\'<>]+',
+    flags: 'gi',
+    testExample: 'postgresql://admin:secretpass@db.example.com:5432/prod',
+  },
+
+  // ── Network & Technical ─────────────────────────────────────────────────────
+  {
+    category: 'Network & Technical',
+    name: 'HTTPS URL',
+    description: 'HTTP and HTTPS web URLs',
+    pattern: 'https?:\\/\\/(?:www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b(?:[-a-zA-Z0-9()@:%_\\+.~#?&\\/=]*)',
+    flags: 'gi',
+    testExample: 'https://app.example.com/reset?token=abc123&user=42',
+  },
+  {
+    category: 'Network & Technical',
+    name: 'IPv4 CIDR Range',
+    description: 'IPv4 addresses with CIDR subnet mask',
+    pattern: '\\b(?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\/(?:[0-9]|[12][0-9]|3[012])\\b',
+    flags: 'g',
+    testExample: 'Network: 192.168.0.0/24 or 10.0.0.0/8',
+  },
+  {
+    category: 'Network & Technical',
+    name: 'UUID / GUID',
+    description: 'Universally unique identifiers (v1–v5)',
+    pattern: '\\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\b',
+    flags: 'gi',
+    testExample: 'ID: 550e8400-e29b-41d4-a716-446655440000',
+  },
+  {
+    category: 'Network & Technical',
+    name: 'Semantic Version',
+    description: 'SemVer version numbers (MAJOR.MINOR.PATCH)',
+    pattern: '\\bv?(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-[0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*)?(?:\\+[0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*)?\\b',
+    flags: 'g',
+    testExample: 'Released 2.14.0 and 3.0.0-beta.1+build.123',
+  },
+
+  // ── Healthcare ──────────────────────────────────────────────────────────────
+  {
+    category: 'Healthcare',
+    name: 'US NPI Number',
+    description: 'National Provider Identifier (10 digits)',
+    pattern: '\\bNPI[:\\s#]*([0-9]{10})\\b',
+    flags: 'gi',
+    testExample: 'NPI: 1234567890',
+  },
+  {
+    category: 'Healthcare',
+    name: 'DEA Number',
+    description: 'US Drug Enforcement Administration registration numbers',
+    pattern: '\\b[ABCDEFGHJKLMNPQRSTUVWXYZ][ABCDEFGHJKLMNPQRSTUVWXYZ9][0-9]{7}\\b',
+    flags: 'g',
+    testExample: 'DEA: AB1234563',
+  },
+  {
+    category: 'Healthcare',
+    name: 'ICD-10 Code',
+    description: 'International Classification of Diseases codes',
+    pattern: '\\b[A-Z][0-9]{2}(?:\\.[0-9A-Z]{1,4})?\\b',
+    flags: 'g',
+    testExample: 'Diagnosis: J18.9 or M54.5',
+  },
+
+  // ── Enterprise & Legal ──────────────────────────────────────────────────────
+  {
+    category: 'Enterprise & Legal',
+    name: 'EU VAT Number',
+    description: 'European Union VAT registration numbers',
+    pattern: '\\b(?:AT|BE|BG|CY|CZ|DE|DK|EE|EL|ES|FI|FR|GB|HR|HU|IE|IT|LT|LU|LV|MT|NL|PL|PT|RO|SE|SI|SK)[0-9A-Z]{6,13}\\b',
+    flags: 'gi',
+    testExample: 'VAT: DE123456789 or FR12345678901',
+  },
+  {
+    category: 'Enterprise & Legal',
+    name: 'UK VAT Number',
+    description: 'UK VAT registration numbers (GB prefix)',
+    pattern: '\\bGB\\s?[0-9]{3}\\s?[0-9]{4}\\s?[0-9]{2}(?:\\s?[0-9]{3})?\\b',
+    flags: 'gi',
+    testExample: 'VAT: GB 123 4567 89',
+  },
+  {
+    category: 'Enterprise & Legal',
+    name: 'UK Companies House',
+    description: 'UK Companies House registration numbers',
+    pattern: '\\b(?:SC|NI|OC|LP|SO|NC|R)?[0-9]{6,8}\\b',
+    flags: 'g',
+    testExample: 'Company: 12345678 or SC123456',
+  },
 ]
+
+const DLP_CATEGORIES = Array.from(new Set(DLP_PATTERNS.map(p => p.category)))
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -199,6 +538,10 @@ export function RegexLab({ initialPatterns }: Props) {
 
   // Clipboard
   const [copied, setCopied] = useState(false)
+
+  // Library filter
+  const [libSearch,   setLibSearch]   = useState('')
+  const [libCategory, setLibCategory] = useState('All')
 
   // Scroll sync refs
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -335,6 +678,25 @@ export function RegexLab({ initialPatterns }: Props) {
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }, [pattern, flags])
+
+  // ── Library filter ────────────────────────────────────────────────────────
+  const filteredPatterns = useMemo(() => {
+    const q = libSearch.toLowerCase()
+    return DLP_PATTERNS.filter(p => {
+      const catMatch = libCategory === 'All' || p.category === libCategory
+      const textMatch = !q || p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q)
+      return catMatch && textMatch
+    })
+  }, [libSearch, libCategory])
+
+  const groupedPatterns = useMemo(() => {
+    const groups: Record<string, DlpPattern[]> = {}
+    for (const p of filteredPatterns) {
+      if (!groups[p.category]) groups[p.category] = []
+      groups[p.category].push(p)
+    }
+    return groups
+  }, [filteredPatterns])
 
   // ── Badge colour ──────────────────────────────────────────────────────────
   const matchBadgeClass =
@@ -689,22 +1051,72 @@ export function RegexLab({ initialPatterns }: Props) {
 
         {/* DLP Pattern Library */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
-          <SectionLabel>DLP Pattern Library</SectionLabel>
-          <div className="grid grid-cols-2 gap-1.5">
-            {DLP_PATTERNS.map(p => (
+          <div className="flex items-center justify-between mb-3">
+            <SectionLabel>DLP Pattern Library</SectionLabel>
+            <span className="text-[10px] text-zinc-600 mb-3">{filteredPatterns.length} patterns</span>
+          </div>
+
+          {/* Search */}
+          <div className="relative mb-2">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search patterns..."
+              value={libSearch}
+              onChange={e => setLibSearch(e.target.value)}
+              className="w-full pl-7 pr-3 py-1.5 text-xs bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+            />
+          </div>
+
+          {/* Category filter */}
+          <div className="flex flex-wrap gap-1 mb-3">
+            {['All', ...DLP_CATEGORIES].map(cat => (
               <button
-                key={p.name}
-                onClick={() => loadPattern(p)}
-                className="text-left rounded-lg border border-zinc-700 bg-zinc-800/60 p-2.5 hover:border-blue-500/50 hover:bg-zinc-700/60 transition-all group"
+                key={cat}
+                onClick={() => setLibCategory(cat)}
+                className={cn(
+                  'px-2 py-0.5 rounded text-[10px] font-medium transition-colors',
+                  libCategory === cat
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300'
+                )}
               >
-                <p className="text-[11px] font-semibold text-white group-hover:text-blue-300 transition-colors leading-tight">
-                  {p.name}
-                </p>
-                <p className="text-[10px] text-zinc-500 mt-0.5 leading-tight line-clamp-2">
-                  {p.description}
-                </p>
+                {cat === 'All' ? 'All' : cat.split(' ')[0]}
               </button>
             ))}
+          </div>
+
+          {/* Pattern list grouped by category */}
+          <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+            {filteredPatterns.length === 0 ? (
+              <p className="text-xs text-zinc-600 italic">No patterns match your search</p>
+            ) : (
+              Object.entries(groupedPatterns).map(([cat, patterns]) => (
+                <div key={cat}>
+                  {libCategory === 'All' && (
+                    <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5 px-0.5">
+                      {cat}
+                    </p>
+                  )}
+                  <div className="grid grid-cols-2 gap-1">
+                    {patterns.map(p => (
+                      <button
+                        key={p.name}
+                        onClick={() => loadPattern(p)}
+                        className="text-left rounded-lg border border-zinc-700 bg-zinc-800/60 p-2 hover:border-blue-500/50 hover:bg-zinc-700/60 transition-all group"
+                      >
+                        <p className="text-[10px] font-semibold text-white group-hover:text-blue-300 transition-colors leading-tight">
+                          {p.name}
+                        </p>
+                        <p className="text-[9px] text-zinc-500 mt-0.5 leading-tight line-clamp-2">
+                          {p.description}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
