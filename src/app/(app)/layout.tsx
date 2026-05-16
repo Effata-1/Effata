@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { Sidebar } from '@/components/nav/sidebar'
+import { ConditionalSidebar } from '@/components/nav/conditional-sidebar'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -23,7 +23,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+      <ConditionalSidebar />
       <main className="flex-1 overflow-y-auto bg-zinc-950">
         <div className="p-8">{children}</div>
       </main>

@@ -1,14 +1,14 @@
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
 import { cn } from '@/lib/utils'
-import { Activity } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 
 interface AuditLog {
   id: string
   user_email: string | null
   action: string
   entity_type: string | null
-  entity_id: string | null
   entity_name: string | null
   old_value: string | null
   new_value: string | null
@@ -16,13 +16,19 @@ interface AuditLog {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  classification_changed: 'changed classification for',
+  classification_changed: 'Classification changed',
 }
 
+const RANGES = [
+  { label: 'Last 7 Days',  value: '7' },
+  { label: 'Last 30 Days', value: '30' },
+  { label: 'All Time',     value: 'all' },
+]
+
 function ClassBadge({ value }: { value: string | null }) {
-  if (!value) return <span className="text-zinc-600">—</span>
+  if (!value) return <span className="text-zinc-600 text-xs">—</span>
   const meta = CLASSIFICATION_LABELS[value]
-  if (!meta) return <span className="text-zinc-400 text-[10px]">{value}</span>
+  if (!meta) return <span className="text-zinc-400 text-xs">{value}</span>
   return (
     <span className={cn(
       'text-[10px] font-bold px-1.5 py-0.5 rounded',
@@ -36,132 +42,147 @@ function ClassBadge({ value }: { value: string | null }) {
   )
 }
 
-function groupByDate(logs: AuditLog[]): Array<{ label: string; logs: AuditLog[] }> {
-  const groups: Record<string, AuditLog[]> = {}
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-
-  for (const log of logs) {
-    const d = new Date(log.created_at)
-    d.setHours(0, 0, 0, 0)
-    let label: string
-    if (d.getTime() === today.getTime()) {
-      label = 'Today'
-    } else if (d.getTime() === yesterday.getTime()) {
-      label = 'Yesterday'
-    } else {
-      label = new Date(log.created_at).toLocaleDateString('en-GB', {
-        day: '2-digit', month: 'short', year: 'numeric',
-      })
-    }
-    if (!groups[label]) groups[label] = []
-    groups[label].push(log)
-  }
-
-  return Object.entries(groups).map(([label, logs]) => ({ label, logs }))
+function formatTime(iso: string): string {
+  const d = new Date(iso)
+  return d.toLocaleString('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })
 }
 
-function timeLabel(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-}
+export default async function AuditLogPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string }>
+}) {
+  const { range = '7' } = await searchParams
 
-export default async function AuditLogsPage() {
   const supabase = await createClient()
-
   const { data: { session } } = await supabase.auth.getSession()
   const orgId = session?.access_token
     ? JSON.parse(atob(session.access_token.split('.')[1]))?.org_id
     : null
 
-  const { data: logs } = orgId
-    ? await supabase
-        .from('audit_logs')
-        .select('*')
-        .eq('org_id', orgId)
-        .order('created_at', { ascending: false })
-        .limit(200)
-    : { data: [] }
+  let query = supabase
+    .from('audit_logs')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(500)
 
+  if (orgId) query = query.eq('org_id', orgId)
+
+  if (range !== 'all') {
+    const since = new Date(Date.now() - parseInt(range) * 24 * 60 * 60 * 1000).toISOString()
+    query = query.gte('created_at', since)
+  }
+
+  const { data: logs } = await query
   const allLogs = (logs as AuditLog[] ?? [])
-  const groups = groupByDate(allLogs)
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-white">Audit Logs</h2>
-          <p className="text-sm text-zinc-500 mt-1">
-            All user actions — classifications, changes, and system events.
-          </p>
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-1.5 text-xs text-zinc-600">
+        <span>Admin</span>
+        <span>›</span>
+        <span className="text-zinc-400">Audit Log</span>
+      </div>
+
+      {/* Title row */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h2 className="text-2xl font-bold text-white">Audit Log</h2>
+          <Link
+            href="/settings/admin/audit-log"
+            className="text-zinc-600 hover:text-zinc-400 transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </Link>
         </div>
-        <div className="text-right">
-          <p className="text-[10px] text-zinc-600 uppercase tracking-wide mb-1">Total Events</p>
-          <p className="text-xl font-bold text-white">{allLogs.length}</p>
+
+        {/* Time range filter */}
+        <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
+          {RANGES.map(r => (
+            <Link
+              key={r.value}
+              href={`?range=${r.value}`}
+              className={cn(
+                'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                range === r.value
+                  ? 'bg-zinc-700 text-white'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              )}
+            >
+              {r.label}
+            </Link>
+          ))}
         </div>
       </div>
 
-      {allLogs.length === 0 ? (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 py-16 text-center">
-          <Activity className="w-8 h-8 text-zinc-700 mx-auto mb-3" />
-          <p className="text-sm text-zinc-500">No activity yet.</p>
-          <p className="text-xs text-zinc-600 mt-1">
-            Actions like changing app classifications will appear here.
-          </p>
+      {/* Count + table */}
+      <div className="rounded-xl border border-zinc-800 overflow-hidden">
+        {/* Table header bar */}
+        <div className="flex items-center justify-between px-4 py-3 bg-zinc-900/80 border-b border-zinc-800">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-white tabular-nums">{allLogs.length}</span>
+            <span className="text-xs text-zinc-500">events found</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-zinc-600">
+            <span>Sorted by Time ↓</span>
+          </div>
         </div>
-      ) : (
-        <div className="space-y-6">
-          {groups.map(({ label, logs: groupLogs }) => (
-            <div key={label}>
-              <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest mb-3">{label}</p>
-              <div className="rounded-xl border border-zinc-800 overflow-hidden">
-                <table className="w-full text-sm">
-                  <tbody className="divide-y divide-zinc-800/60">
-                    {groupLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-zinc-900/40 transition-colors">
-                        <td className="px-4 py-3 w-20 shrink-0">
-                          <span className="text-[11px] tabular-nums text-zinc-500">
-                            {timeLabel(log.created_at)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 w-48">
-                          <span className="text-xs text-zinc-300 font-medium truncate block max-w-[180px]">
-                            {log.user_email ?? 'Unknown user'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs text-zinc-500">
-                            {ACTION_LABELS[log.action] ?? log.action}
-                          </span>
-                          {log.entity_name && (
-                            <span className="text-xs text-white font-medium ml-1">{log.entity_name}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {(log.old_value || log.new_value) && (
-                            <div className="flex items-center gap-2">
-                              <ClassBadge value={log.old_value} />
-                              <span className="text-zinc-700 text-xs">→</span>
-                              <ClassBadge value={log.new_value} />
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
 
-      {!orgId && (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 py-12 text-center">
-          <p className="text-sm text-zinc-500">Sign in to view your organisation's activity log.</p>
-        </div>
-      )}
+        {allLogs.length === 0 ? (
+          <div className="py-16 text-center">
+            <p className="text-sm text-zinc-500">No events in this time range.</p>
+            <p className="text-xs text-zinc-600 mt-1">
+              Try switching to a wider range, or perform an action like changing an app classification.
+            </p>
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800">
+                <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Time</th>
+                <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">User</th>
+                <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Action</th>
+                <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Target</th>
+                <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Change</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-800/60">
+              {allLogs.map(log => (
+                <tr key={log.id} className="hover:bg-zinc-900/40 transition-colors">
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className="text-xs tabular-nums text-zinc-500">{formatTime(log.created_at)}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs text-zinc-300">{log.user_email ?? 'Unknown'}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs text-zinc-400">{ACTION_LABELS[log.action] ?? log.action}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs text-white font-medium">{log.entity_name ?? log.entity_type ?? '—'}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {(log.old_value || log.new_value) ? (
+                      <div className="flex items-center gap-1.5">
+                        <ClassBadge value={log.old_value} />
+                        <span className="text-zinc-700 text-xs">→</span>
+                        <ClassBadge value={log.new_value} />
+                      </div>
+                    ) : (
+                      <span className="text-zinc-600 text-xs">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   )
 }
