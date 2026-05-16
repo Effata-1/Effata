@@ -1,4 +1,4 @@
-import { SectionNav } from '@/components/nav/section-nav'
+import { SectionSidebar } from '@/components/nav/section-sidebar'
 
 const ITEMS = [
   { label: 'Regulations', href: '/compliance/regulations' },
@@ -8,9 +8,11 @@ const ITEMS = [
 
 export default function ComplianceLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-full">
-      <SectionNav title="Compliance" items={ITEMS} />
-      <div className="flex-1 overflow-y-auto p-8">{children}</div>
+    <div className="flex h-screen overflow-hidden bg-zinc-950">
+      <SectionSidebar title="Compliance" items={ITEMS} />
+      <main className="flex-1 overflow-y-auto">
+        <div className="p-8">{children}</div>
+      </main>
     </div>
   )
 }

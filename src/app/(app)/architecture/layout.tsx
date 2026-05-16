@@ -1,4 +1,4 @@
-import { SectionNav } from '@/components/nav/section-nav'
+import { SectionSidebar } from '@/components/nav/section-sidebar'
 
 const ITEMS = [
   { label: 'Global Framework',  href: '/architecture/framework' },
@@ -8,9 +8,11 @@ const ITEMS = [
 
 export default function ArchitectureLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-full">
-      <SectionNav title="Architecture" items={ITEMS} />
-      <div className="flex-1 overflow-y-auto p-8">{children}</div>
+    <div className="flex h-screen overflow-hidden bg-zinc-950">
+      <SectionSidebar title="Architecture" items={ITEMS} />
+      <main className="flex-1 overflow-y-auto">
+        <div className="p-8">{children}</div>
+      </main>
     </div>
   )
 }
