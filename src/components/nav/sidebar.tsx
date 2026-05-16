@@ -95,16 +95,6 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Audit Trail', href: '/compliance/audit-trail' },
     ],
   },
-  {
-    label: 'Settings',
-    href: '/settings',
-    icon: <Settings className="h-4 w-4" />,
-    children: [
-      { label: 'Tools Connected', href: '/settings/tools' },
-      { label: 'Team', href: '/settings/team' },
-      { label: 'Integrations', href: '/settings/integrations' },
-    ],
-  },
 ]
 
 function ScoreBadge({ score }: { score?: number }) {
@@ -201,9 +191,16 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* Bottom: org + logout */}
-      <div className="px-3 py-3 border-t border-zinc-800 space-y-1">
-        <p className="text-xs text-zinc-600 truncate px-1">Organisation workspace</p>
+      {/* Bottom: settings + logout */}
+      <div className="px-3 py-3 border-t border-zinc-800 space-y-0.5">
+        <p className="text-xs text-zinc-600 truncate px-1 mb-1">Organisation workspace</p>
+        <Link
+          href="/settings"
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-colors"
+        >
+          <Settings className="h-3.5 w-3.5" />
+          Settings
+        </Link>
         <form action={logout}>
           <button
             type="submit"
