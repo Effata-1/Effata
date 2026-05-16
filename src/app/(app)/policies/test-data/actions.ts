@@ -46,7 +46,7 @@ Rules:
 - Dates: MM/DD/YYYY format
 - US SSN: ###-##-#### format (e.g. 523-45-6789)
 - Phone (US): (###) ###-#### format
-- Credit cards: use Visa test number variants starting with 4111-1111-1111-
+- Credit cards: generate a realistic mix of card types and numbers — Visa (16 digits, starts with 4), Mastercard (16 digits, starts with 51-55), Amex (15 digits, starts with 34 or 37), Discover (16 digits, starts with 6011) — vary card types across records, use realistic-looking but synthetic numbers (not sequential like 0001, 0002)
 - API keys / secrets: always prefix with SYNTHETIC_ (e.g. sk_test_SYNTHETIC_KEY_001)
 - AWS access keys: start with AKIAIOSFODNN followed by synthetic chars
 - Passwords: obviously fake patterns like P@ssw0rd_TEST_001
