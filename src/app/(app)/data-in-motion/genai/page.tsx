@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { computeTrustScore, CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
 import { cn } from '@/lib/utils'
 import type { GenAIApp, GenAIAppProfile, CustomerClassification } from '@/lib/genai/types'
@@ -13,6 +14,14 @@ function RiskBadge({ score }: { score: number }) {
 
 export default async function GenAIAppsPage() {
   const supabase = await createClient()
+  const serviceClient = createServiceClient()
+
+  const { data: lastRun } = await serviceClient
+    .from('genai_research_runs')
+    .select('status, completed_at, apps_updated, apps_added')
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .single()
 
   const { data: apps } = await supabase
     .from('genai_apps')
@@ -54,11 +63,34 @@ export default async function GenAIAppsPage() {
             Trust scores and DLP coverage for {apps?.length ?? 0} GenAI applications.
           </p>
         </div>
-        <div className="flex items-center gap-3 text-xs text-zinc-600">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" />Low Risk</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500" />Moderate</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500" />Medium</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" />High</span>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-3 text-xs text-zinc-600">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" />Low Risk</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500" />Moderate</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500" />Medium</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" />High</span>
+          </div>
+          <Link
+            href="/data-in-motion/genai/refresh-logs"
+            className="flex items-center gap-2 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            {lastRun ? (
+              <>
+                <span className={cn(
+                  'w-1.5 h-1.5 rounded-full',
+                  lastRun.status === 'completed' ? 'bg-green-500' :
+                  lastRun.status === 'failed'    ? 'bg-red-500'   : 'bg-yellow-500 animate-pulse'
+                )} />
+                <span>Last refresh: {lastRun.apps_updated} updated · {lastRun.apps_added} added</span>
+              </>
+            ) : (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
+                <span>No refresh runs yet</span>
+              </>
+            )}
+            <span className="text-zinc-700">→ View logs</span>
+          </Link>
         </div>
       </div>
 
