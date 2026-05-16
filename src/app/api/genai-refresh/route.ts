@@ -5,6 +5,31 @@ import type { GenAIApp } from '@/lib/genai/types'
 
 export const maxDuration = 300
 
+interface FieldChange {
+  app_id: string
+  app_name: string
+  field: string
+  old_value: string
+  new_value: string
+}
+
+function diffProfiles(
+  appId: string,
+  appName: string,
+  oldFields: Record<string, string>,
+  newFields: Record<string, string>,
+  prefix = ''
+): FieldChange[] {
+  const changes: FieldChange[] = []
+  for (const [key, newVal] of Object.entries(newFields)) {
+    const oldVal = oldFields[key]
+    if (oldVal && oldVal !== newVal) {
+      changes.push({ app_id: appId, app_name: appName, field: prefix + key, old_value: oldVal, new_value: newVal })
+    }
+  }
+  return changes
+}
+
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
@@ -14,6 +39,7 @@ export async function GET(request: Request) {
 
   const supabase = createServiceClient()
   const errors: Array<{ app_id: string; error: string }> = []
+  const allChanges: FieldChange[] = []
 
   // Log run start
   const { data: run, error: runError } = await supabase
@@ -48,16 +74,16 @@ export async function GET(request: Request) {
       const { error: insertError } = await supabase
         .from('genai_apps')
         .insert({
-          app_id:         app.app_id,
-          app_name:       app.app_name,
-          vendor:         app.vendor,
-          domain:         app.domain,
-          app_type:       app.app_type,
-          logo_letter:    app.logo_letter,
-          logo_bg:        app.logo_bg,
-          status:         'active',
+          app_id:          app.app_id,
+          app_name:        app.app_name,
+          vendor:          app.vendor,
+          domain:          app.domain,
+          app_type:        app.app_type,
+          logo_letter:     app.logo_letter,
+          logo_bg:         app.logo_bg,
+          status:          'active',
           auto_researched: true,
-          last_updated:   new Date().toISOString(),
+          last_updated:    new Date().toISOString(),
         })
       if (insertError) {
         errors.push({ app_id: app.app_id, error: `Insert failed: ${insertError.message}` })
@@ -67,11 +93,34 @@ export async function GET(request: Request) {
       }
     }
 
-    // Research all apps (original + newly added) sequentially
-    const allApps = existingApps
-    for (const app of allApps) {
+    // Research all apps sequentially
+    for (const app of existingApps) {
       try {
+        // Fetch existing enterprise profile for diffing
+        const { data: existingEnterprise } = await supabase
+          .from('genai_app_profiles')
+          .select('fields, dlp')
+          .eq('app_id', app.app_id)
+          .eq('mode', 'enterprise')
+          .single()
+
         const profile = await researchApp(app)
+
+        // Detect field changes vs previous research
+        if (existingEnterprise) {
+          const fieldChanges = diffProfiles(
+            app.app_id, app.app_name,
+            existingEnterprise.fields as Record<string, string>,
+            profile.enterprise.fields as unknown as Record<string, string>
+          )
+          const dlpChanges = diffProfiles(
+            app.app_id, app.app_name,
+            existingEnterprise.dlp as Record<string, string>,
+            profile.enterprise.dlp as unknown as Record<string, string>,
+            'dlp.'
+          )
+          allChanges.push(...fieldChanges, ...dlpChanges)
+        }
 
         // Upsert enterprise profile
         const { error: eErr } = await supabase
@@ -105,7 +154,7 @@ export async function GET(request: Request) {
           continue
         }
 
-        // Update last_updated + research_notes on the app row
+        // Update app metadata
         await supabase
           .from('genai_apps')
           .update({
@@ -126,11 +175,12 @@ export async function GET(request: Request) {
     await supabase
       .from('genai_research_runs')
       .update({
-        completed_at:  new Date().toISOString(),
-        apps_updated:  appsUpdated,
-        apps_added:    appsAdded,
-        errors:        errors,
-        status:        errors.length > 0 && appsUpdated === 0 ? 'failed' : 'completed',
+        completed_at: new Date().toISOString(),
+        apps_updated: appsUpdated,
+        apps_added:   appsAdded,
+        errors:       errors,
+        changes:      allChanges,
+        status:       errors.length > 0 && appsUpdated === 0 ? 'failed' : 'completed',
       })
       .eq('id', runId)
 
@@ -138,6 +188,7 @@ export async function GET(request: Request) {
       status:       'completed',
       apps_updated: appsUpdated,
       apps_added:   appsAdded,
+      changes:      allChanges.length,
       errors:       errors,
     })
   } catch (err) {

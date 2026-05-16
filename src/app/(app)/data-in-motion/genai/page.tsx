@@ -14,14 +14,23 @@ function RiskBadge({ score }: { score: number }) {
 
 export default async function GenAIAppsPage() {
   const supabase = await createClient()
-  const serviceClient = createServiceClient()
 
-  const { data: lastRun } = await serviceClient
-    .from('genai_research_runs')
-    .select('status, completed_at, apps_updated, apps_added')
-    .order('started_at', { ascending: false })
-    .limit(1)
-    .single()
+  // Optional: only available once SUPABASE_SERVICE_ROLE_KEY is configured
+  let lastRun: { status: string; apps_updated: number; apps_added: number } | null = null
+  try {
+    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      const serviceClient = createServiceClient()
+      const { data } = await serviceClient
+        .from('genai_research_runs')
+        .select('status, completed_at, apps_updated, apps_added')
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .single()
+      lastRun = data
+    }
+  } catch {
+    // ignore — logs link just won't show a status
+  }
 
   const { data: apps } = await supabase
     .from('genai_apps')

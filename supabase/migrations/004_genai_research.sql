@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS genai_research_runs (
   apps_updated INT         NOT NULL    DEFAULT 0,
   apps_added   INT         NOT NULL    DEFAULT 0,
   errors       JSONB       NOT NULL    DEFAULT '[]',
+  changes      JSONB       NOT NULL    DEFAULT '[]',
   status       TEXT        NOT NULL    DEFAULT 'running'
                            CHECK (status IN ('running', 'completed', 'failed'))
 );
