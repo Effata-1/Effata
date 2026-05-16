@@ -1,0 +1,118 @@
+export type FieldValue =
+  | 'yes' | 'no' | 'partial'
+  | 'enterprise-only' | 'tier-dependent' | 'configurable'
+  | 'no-published' | 'na'
+
+export type DLPValue =
+  | 'enforcement' | 'monitoring' | 'partial' | 'no-published' | 'not-supported'
+
+export interface AppFields {
+  // Data Governance & Privacy
+  dpa_available: FieldValue
+  customer_owns_data: FieldValue
+  trains_on_customer_data: FieldValue
+  opt_out_of_training: FieldValue
+  data_retention: FieldValue
+  data_deletion: FieldValue
+  data_residency: FieldValue
+  subprocessor_list: FieldValue
+  pii_sharing_third_parties: FieldValue
+  data_sharing_genai_vendor: FieldValue
+  // Enterprise Capability & Access Control
+  enterprise_tier: FieldValue
+  sso_saml: FieldValue
+  mfa_support: FieldValue
+  role_based_auth: FieldValue
+  authorization_policies: FieldValue
+  admin_console: FieldValue
+  user_audit_logs: FieldValue
+  data_access_audit_logs: FieldValue
+  tenant_isolation: FieldValue
+  // Security & Compliance
+  soc2: FieldValue
+  iso27001: FieldValue
+  iso27018: FieldValue
+  fedramp: FieldValue
+  pci_dss: FieldValue
+  hipaa_baa: FieldValue
+  encryption_at_rest: FieldValue
+  encryption_in_transit: FieldValue
+  tenant_segregation: FieldValue
+  // GenAI-Specific
+  model_provider_clear: FieldValue
+  prompt_retention_controls: FieldValue
+  private_instance: FieldValue
+  connectors_agents_risk: FieldValue   // negative field
+}
+
+export interface DLPActivities {
+  post_prompt: DLPValue
+  upload: DLPValue
+  login_instance: DLPValue
+  edit: DLPValue
+  response: DLPValue
+  download: DLPValue
+  attach: DLPValue
+}
+
+export interface BreachInfo {
+  recent_breach: FieldValue          // negative
+  older_breach: FieldValue           // negative
+  breach_disclosed: FieldValue
+  source_disclosure: FieldValue
+  breach_remediated: FieldValue
+  breach_name?: string
+  breach_date?: string
+  breach_description?: string
+}
+
+export interface GenAIApp {
+  app_id: string
+  app_name: string
+  vendor: string
+  domain: string
+  app_type: string
+  logo_letter: string
+  logo_bg: string
+  status: string
+  last_updated: string | null
+}
+
+export interface GenAIAppProfile {
+  app_id: string
+  mode: 'enterprise' | 'personal'
+  fields: AppFields
+  dlp: DLPActivities
+  breach_info: BreachInfo
+}
+
+export interface CustomerClassification {
+  org_id: string
+  app_id: string
+  customer_classification: CustomerClass
+  classification_scope: string | null
+  notes: string | null
+}
+
+export type CustomerClass =
+  | 'enterprise-approved'
+  | 'approved-with-conditions'
+  | 'permitted-with-restriction'
+  | 'personal'
+  | 'unknown'
+  | 'prohibited'
+
+export interface TrustScores {
+  data_governance: number
+  dlp_activity: number
+  enterprise_access: number
+  security_compliance: number
+  genai_risk: number
+  breach_transparency: number
+  raw_score: number
+  applied_cap: string | null
+  final_score: number
+  suggested_classification: string
+  dlp_activities_supported: number
+  dlp_activities_total: number
+}
