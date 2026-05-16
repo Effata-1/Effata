@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { logout } from '@/app/auth/actions'
 import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
 import {
   LayoutDashboard,
   Building2,
@@ -14,166 +13,67 @@ import {
   Shield,
   ClipboardList,
   Settings,
-  ChevronDown,
   ChevronRight,
   LogOut,
 } from 'lucide-react'
-import { useState } from 'react'
 
-type NavItem = {
-  label: string
-  href: string
-  icon: React.ReactNode
-  score?: number
-  children?: { label: string; href: string }[]
-}
-
-const NAV_ITEMS: NavItem[] = [
+const NAV_ITEMS = [
   {
     label: 'Dashboard',
-    href: '/dashboard',
-    icon: <LayoutDashboard className="h-4 w-4" />,
+    href:  '/dashboard',
+    base:  '/dashboard',
+    icon:  <LayoutDashboard className="h-4 w-4" />,
+    sub:   false,
   },
   {
     label: 'Architecture',
-    href: '/architecture',
-    icon: <Building2 className="h-4 w-4" />,
-    children: [
-      { label: 'Global Framework', href: '/architecture/framework' },
-      { label: 'Your Architecture', href: '/architecture/yours' },
-      { label: 'Gap Analysis', href: '/architecture/gaps' },
-    ],
+    href:  '/architecture/framework',
+    base:  '/architecture',
+    icon:  <Building2 className="h-4 w-4" />,
+    sub:   true,
   },
   {
     label: 'Data in Motion',
-    href: '/data-in-motion',
-    icon: <ArrowRightLeft className="h-4 w-4" />,
-    children: [
-      { label: 'Web & Cloud Traffic', href: '/data-in-motion/web' },
-      { label: 'Email', href: '/data-in-motion/email' },
-      { label: 'GenAI Apps', href: '/data-in-motion/genai' },
-      { label: 'SaaS Applications', href: '/data-in-motion/saas' },
-    ],
+    href:  '/data-in-motion/genai',
+    base:  '/data-in-motion',
+    icon:  <ArrowRightLeft className="h-4 w-4" />,
+    sub:   true,
   },
   {
     label: 'Data at Rest',
-    href: '/data-at-rest',
-    icon: <HardDrive className="h-4 w-4" />,
-    children: [
-      { label: 'Cloud Storage', href: '/data-at-rest/cloud-storage' },
-      { label: 'Endpoints', href: '/data-at-rest/endpoints' },
-      { label: 'Databases', href: '/data-at-rest/databases' },
-    ],
+    href:  '/data-at-rest/cloud-storage',
+    base:  '/data-at-rest',
+    icon:  <HardDrive className="h-4 w-4" />,
+    sub:   true,
   },
   {
     label: 'Data in Use',
-    href: '/data-in-use',
-    icon: <Monitor className="h-4 w-4" />,
-    children: [
-      { label: 'Endpoint Activity', href: '/data-in-use/endpoint-activity' },
-      { label: 'Copy/Paste Controls', href: '/data-in-use/copy-paste' },
-      { label: 'Removable Media', href: '/data-in-use/removable-media' },
-    ],
+    href:  '/data-in-use/endpoint-activity',
+    base:  '/data-in-use',
+    icon:  <Monitor className="h-4 w-4" />,
+    sub:   true,
   },
   {
     label: 'Policies',
-    href: '/policies',
-    icon: <Shield className="h-4 w-4" />,
-    children: [
-      { label: 'Policy Library', href: '/policies/library' },
-      { label: 'Regex Lab', href: '/policies/regex-lab' },
-      { label: 'Test Data', href: '/policies/test-data' },
-    ],
+    href:  '/policies/library',
+    base:  '/policies',
+    icon:  <Shield className="h-4 w-4" />,
+    sub:   true,
   },
   {
     label: 'Compliance',
-    href: '/compliance',
-    icon: <ClipboardList className="h-4 w-4" />,
-    children: [
-      { label: 'Regulations', href: '/compliance/regulations' },
-      { label: 'Gap Report', href: '/compliance/gap-report' },
-      { label: 'Audit Trail', href: '/compliance/audit-trail' },
-    ],
+    href:  '/compliance/regulations',
+    base:  '/compliance',
+    icon:  <ClipboardList className="h-4 w-4" />,
+    sub:   true,
   },
 ]
 
-function ScoreBadge({ score }: { score?: number }) {
-  if (score === undefined) return null
-  const colour =
-    score >= 71 ? 'bg-green-500/20 text-green-400 border-green-500/30' :
-    score >= 51 ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
-    score >= 26 ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
-    score === -1 ? 'bg-zinc-700/50 text-zinc-500 border-zinc-600/30' :
-    'bg-red-500/20 text-red-400 border-red-500/30'
-  const label = score === -1 ? '?' : `${score}`
-  return (
-    <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded border', colour)}>
-      {label}
-    </span>
-  )
-}
-
-function NavItemRow({ item, depth = 0 }: { item: NavItem; depth?: number }) {
-  const pathname = usePathname()
-  const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-  const [open, setOpen] = useState(isActive)
-
-  if (item.children) {
-    return (
-      <div>
-        <button
-          onClick={() => setOpen(!open)}
-          className={cn(
-            'w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors',
-            'hover:bg-white/5',
-            isActive ? 'text-white' : 'text-zinc-400'
-          )}
-        >
-          {item.icon}
-          <span className="flex-1 text-left">{item.label}</span>
-          <ScoreBadge score={item.score} />
-          {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-        </button>
-        {open && (
-          <div className="ml-6 mt-0.5 flex flex-col gap-0.5">
-            {item.children.map((child) => (
-              <Link
-                key={child.href}
-                href={child.href}
-                className={cn(
-                  'px-3 py-1.5 rounded-md text-xs transition-colors',
-                  pathname === child.href
-                    ? 'bg-white/10 text-white font-medium'
-                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
-                )}
-              >
-                {child.label}
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  return (
-    <Link
-      href={item.href}
-      className={cn(
-        'flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors',
-        isActive ? 'bg-white/10 text-white font-medium' : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-300'
-      )}
-    >
-      {item.icon}
-      <span className="flex-1">{item.label}</span>
-      <ScoreBadge score={item.score} />
-    </Link>
-  )
-}
-
 export function Sidebar() {
+  const pathname = usePathname()
+
   return (
-    <aside className="w-60 shrink-0 flex flex-col h-screen bg-zinc-900 border-r border-zinc-800">
+    <aside className="w-56 shrink-0 flex flex-col h-screen bg-zinc-900 border-r border-zinc-800">
       {/* Logo */}
       <div className="px-4 py-5 border-b border-zinc-800">
         <div className="flex items-center gap-2">
@@ -185,18 +85,44 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-2 py-3 flex flex-col gap-0.5">
-        {NAV_ITEMS.map((item) => (
-          <NavItemRow key={item.href} item={item} />
-        ))}
+      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
+        {NAV_ITEMS.map(item => {
+          const isActive = pathname === item.base || pathname.startsWith(item.base + '/')
+          return (
+            <Link
+              key={item.base}
+              href={item.href}
+              className={cn(
+                'flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors',
+                isActive
+                  ? 'bg-white/10 text-white font-medium'
+                  : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-300'
+              )}
+            >
+              {item.icon}
+              <span className="flex-1">{item.label}</span>
+              {item.sub && (
+                <ChevronRight className={cn(
+                  'h-3.5 w-3.5 transition-colors',
+                  isActive ? 'text-zinc-400' : 'text-zinc-700'
+                )} />
+              )}
+            </Link>
+          )
+        })}
       </nav>
 
-      {/* Bottom: settings + logout */}
+      {/* Bottom: settings + sign out */}
       <div className="px-3 py-3 border-t border-zinc-800 space-y-0.5">
-        <p className="text-xs text-zinc-600 truncate px-1 mb-1">Organisation workspace</p>
+        <p className="text-[10px] text-zinc-700 truncate px-2 mb-1">Organisation workspace</p>
         <Link
           href="/settings"
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-colors"
+          className={cn(
+            'flex items-center gap-2 px-3 py-2 rounded-md text-xs transition-colors',
+            pathname.startsWith('/settings')
+              ? 'text-zinc-300'
+              : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
+          )}
         >
           <Settings className="h-3.5 w-3.5" />
           Settings

@@ -24,8 +24,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex h-screen overflow-hidden">
       <ConditionalSidebar />
-      <main className="flex-1 overflow-y-auto bg-zinc-950">
-        <div className="p-8">{children}</div>
+      <main className="flex-1 overflow-hidden bg-zinc-950">
+        {children}
       </main>
     </div>
   )
