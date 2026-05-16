@@ -3,7 +3,7 @@ import { SectionSidebar } from '@/components/nav/section-sidebar'
 const ITEMS = [
   { label: 'Policy Library', href: '/policies/library' },
   { label: 'Regex Lab',      href: '/policies/regex-lab' },
-  { label: 'Test Data',      href: '/policies/test-data' },
+  { label: 'Data Lab',       href: '/policies/test-data' },
 ]
 
 export default function PoliciesLayout({ children }: { children: React.ReactNode }) {

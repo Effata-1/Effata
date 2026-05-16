@@ -66,7 +66,7 @@ export async function generateTestData(
   try {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
+      max_tokens: 8192,
       system: SYSTEM_PROMPT,
       messages: [{
         role: 'user',
@@ -76,6 +76,9 @@ export async function generateTestData(
 
     const text = response.content[0].type === 'text' ? response.content[0].text : ''
     if (!text) return { error: 'No response from AI' }
+    if (response.stop_reason === 'max_tokens') {
+      return { error: 'Response was too long — try fewer rows or a simpler description' }
+    }
 
     const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     const parsed = JSON.parse(clean)
