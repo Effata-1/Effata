@@ -23,6 +23,8 @@ const ACTION_LABELS: Record<string, string> = {
   'auth.signup':                  'Account created',
   'genai.classification_changed': 'App classification changed',
   'onboarding.completed':         'Onboarding completed',
+  'regex.pattern_saved':          'Regex pattern saved',
+  'regex.pattern_deleted':        'Regex pattern deleted',
 }
 
 const SEVERITY_MAP: Record<string, 'high' | 'medium' | 'low' | 'info'> = {
@@ -32,6 +34,8 @@ const SEVERITY_MAP: Record<string, 'high' | 'medium' | 'low' | 'info'> = {
   'onboarding.completed':         'low',
   'genai.classification_changed': 'medium',
   'classification_changed':       'medium',
+  'regex.pattern_saved':          'low',
+  'regex.pattern_deleted':        'medium',
 }
 
 const SEVERITY_STYLES: Record<string, string> = {

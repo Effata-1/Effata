@@ -21,7 +21,7 @@ const RANGES = [
 ]
 
 const SEVERITIES = ['High', 'Medium', 'Low', 'Info']
-const CATEGORIES  = ['Auth', 'GenAI', 'Onboarding']
+const CATEGORIES  = ['Auth', 'GenAI', 'Onboarding', 'Policies']
 
 export function AuditFilters({ currentRange, currentSeverity, currentCategory, currentUser }: Props) {
   const router = useRouter()
