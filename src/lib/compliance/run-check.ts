@@ -66,38 +66,39 @@ async function reviewRegulation(reg: RegRow): Promise<AIUpdate> {
     .map(r => `  • ${r.article} — ${r.title} | Fine: ${r.fine ?? 'not specified'} | Severity: ${r.severity}`)
     .join('\n')
 
-  const prompt = `You are a DLP compliance expert. Review the accuracy of the stored data for the following regulation.
+  const prompt = `You are auditing stored compliance regulation data for factual errors only.
 
 Regulation: ${reg.short_name} (${reg.code})
-Full name: ${reg.name}
-Summary: ${reg.summary}
-Max fine: ${reg.max_fine ?? 'not specified'}
+Max fine stored: ${reg.max_fine ?? 'not specified'}
 
-Requirements currently stored:
+Requirements stored:
 ${reqList}
 
-Based on your training knowledge of this regulation, is the above content factually accurate?
+Your ONLY job is to check whether specific numeric/legal facts are objectively wrong:
+- Fine amounts (wrong currency, wrong number)
+- Article numbers (clearly wrong reference)
+- Enforcement dates that have provably shifted
 
-IMPORTANT RULES:
-- Only return changed=true if you are HIGHLY CONFIDENT a specific fact is wrong (e.g. fine amount changed, a key article was renumbered, enforcement date shifted).
-- Do NOT change content for minor wording differences — only for factual inaccuracies.
-- Do NOT invent new requirements — only correct existing ones.
-- If you are uncertain, return changed=false.
+STRICT RULES — you MUST follow these or you will corrupt production data:
+1. Return changed=false unless you are 100% certain a stored fact is objectively incorrect.
+2. NEVER change wording, summaries, descriptions, or DLP relevance text — ever.
+3. NEVER change severity labels.
+4. NEVER flag something as changed just because you would phrase it differently.
+5. When in doubt, return changed=false. Stability is more important than perfection.
+6. Only update the "fine" field on requirements — no other fields.
 
-Respond ONLY with valid JSON, no other text:
+Respond ONLY with valid JSON:
 
-If nothing changed:
 {"changed": false}
 
-If there are factual changes:
+OR only if a fine amount is provably wrong:
 {
   "changed": true,
-  "reason": "brief explanation",
+  "reason": "one sentence — the exact fact that is wrong",
   "updates": {
-    "summary": "corrected summary (omit key if unchanged)",
-    "max_fine": "corrected fine (omit key if unchanged)",
+    "max_fine": "corrected value (only if max_fine is wrong, otherwise omit)",
     "requirements": [
-      {"article": "Article X", "field": "fine", "new_value": "corrected value"}
+      {"article": "Article X", "field": "fine", "new_value": "corrected amount"}
     ]
   }
 }`
