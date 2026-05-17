@@ -27,7 +27,9 @@ const ACTION_LABELS: Record<string, string> = {
   'regex.pattern_deleted':        'Regex pattern deleted',
   'test_data.dataset_saved':      'Test dataset saved',
   'test_data.dataset_deleted':    'Test dataset deleted',
-  'dlp_test.run':                 'DLP test run',
+  'dlp_test.run':                         'DLP test run',
+  'compliance.regulation_verified':       'Regulation marked as verified',
+  'compliance.assessment_updated':        'Control assessment updated',
 }
 
 const SEVERITY_MAP: Record<string, 'high' | 'medium' | 'low' | 'info'> = {
@@ -41,7 +43,9 @@ const SEVERITY_MAP: Record<string, 'high' | 'medium' | 'low' | 'info'> = {
   'regex.pattern_deleted':        'medium',
   'test_data.dataset_saved':      'low',
   'test_data.dataset_deleted':    'medium',
-  'dlp_test.run':                 'low',
+  'dlp_test.run':                         'low',
+  'compliance.regulation_verified':       'low',
+  'compliance.assessment_updated':        'low',
 }
 
 const SEVERITY_STYLES: Record<string, string> = {
@@ -52,12 +56,14 @@ const SEVERITY_STYLES: Record<string, string> = {
 }
 
 const CATEGORY_PREFIXES: Record<string, string> = {
-  auth:       'Auth',
-  genai:      'GenAI',
-  onboarding: 'Onboarding',
-  policy:     'Policies',
-  user:       'Users',
-  tool:       'Tools',
+  auth:        'Auth',
+  genai:       'GenAI',
+  onboarding:  'Onboarding',
+  policy:      'Policies',
+  user:        'Users',
+  tool:        'Tools',
+  compliance:  'Compliance',
+  dlp_test:    'Tools',
 }
 
 function getSeverity(action: string): 'high' | 'medium' | 'low' | 'info' {
@@ -81,12 +87,13 @@ function SeverityBadge({ action }: { action: string }) {
 function CategoryPill({ action }: { action: string }) {
   const cat = getCategory(action)
   const colors: Record<string, string> = {
-    Auth:       'bg-blue-500/10 text-blue-400',
-    GenAI:      'bg-purple-500/10 text-purple-400',
-    Onboarding: 'bg-green-500/10 text-green-400',
-    Policies:   'bg-amber-500/10 text-amber-400',
-    Users:      'bg-cyan-500/10 text-cyan-400',
-    Tools:      'bg-orange-500/10 text-orange-400',
+    Auth:        'bg-blue-500/10 text-blue-400',
+    GenAI:       'bg-purple-500/10 text-purple-400',
+    Onboarding:  'bg-green-500/10 text-green-400',
+    Policies:    'bg-amber-500/10 text-amber-400',
+    Users:       'bg-cyan-500/10 text-cyan-400',
+    Tools:       'bg-orange-500/10 text-orange-400',
+    Compliance:  'bg-teal-500/10 text-teal-400',
   }
   return (
     <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded', colors[cat] ?? 'bg-zinc-800 text-zinc-500')}>
@@ -169,7 +176,7 @@ export default async function AuditLogPage({
   // Category filter at DB level (prefix match)
   const categoryPrefixMap: Record<string, string> = {
     auth: 'auth.', genai: 'genai.', onboarding: 'onboarding.',
-    policy: 'policy.', user: 'user.', tool: 'tool.',
+    policy: 'policy.', user: 'user.', tool: 'tool.', compliance: 'compliance.',
   }
   if (category !== 'all' && categoryPrefixMap[category]) {
     query = query.like('action', `${categoryPrefixMap[category]}%`)
