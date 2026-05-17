@@ -2,9 +2,6 @@ import { SectionSidebar } from '@/components/nav/section-sidebar'
 
 const ITEMS = [
   { label: 'Policy Library', href: '/policies/library' },
-  { label: 'Regex Lab',      href: '/policies/regex-lab' },
-  { label: 'Data Lab',       href: '/policies/test-data' },
-  { label: 'DLP Testing',    href: '/policies/dlp-test' },
 ]
 
 export default function PoliciesLayout({ children }: { children: React.ReactNode }) {

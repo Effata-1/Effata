@@ -11,6 +11,7 @@ import {
   HardDrive,
   Monitor,
   Shield,
+  Wrench,
   ClipboardList,
   Settings,
   ChevronRight,
@@ -58,6 +59,13 @@ const NAV_ITEMS = [
     href:  '/policies/library',
     base:  '/policies',
     icon:  <Shield className="h-4 w-4" />,
+    sub:   true,
+  },
+  {
+    label: 'Tools',
+    href:  '/tools/regex-lab',
+    base:  '/tools',
+    icon:  <Wrench className="h-4 w-4" />,
     sub:   true,
   },
   {

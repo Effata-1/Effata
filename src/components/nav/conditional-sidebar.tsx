@@ -10,6 +10,7 @@ const SECTION_ROUTES = [
   '/data-at-rest',
   '/data-in-use',
   '/policies',
+  '/tools',
   '/compliance',
 ]
 
