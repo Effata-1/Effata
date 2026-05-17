@@ -249,7 +249,11 @@ export async function runComplianceCheck(): Promise<RunResult> {
           }
 
           const fieldsUpdated: string[] = []
-          const regUpdate: Record<string, unknown> = { last_verified_at: new Date().toISOString() }
+          const now = new Date().toISOString()
+          const regUpdate: Record<string, unknown> = {
+            last_verified_at:   now,
+            content_updated_at: now,
+          }
 
           if (result.updates.summary !== undefined) {
             regUpdate.summary = result.updates.summary

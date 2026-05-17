@@ -15,7 +15,9 @@ export interface RegulationRow {
   max_fine: string | null
   effective_date: string | null
   source_url: string | null
+  created_at: string
   last_verified_at: string
+  content_updated_at: string | null
   active: boolean
   requirements: RequirementRow[]
 }

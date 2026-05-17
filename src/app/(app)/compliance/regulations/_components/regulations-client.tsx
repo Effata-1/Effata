@@ -106,10 +106,15 @@ function VerifyButton({ reg }: { reg: RegulationRow }) {
   )
 }
 
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
+
 function RegulationCard({ reg, isRelevant }: { reg: RegulationRow; isRelevant: boolean }) {
   const [expanded, setExpanded] = useState(false)
   const fresh = freshnessInfo(reg.last_verified_at)
   const criticalCount = reg.requirements.filter(r => r.severity === 'critical').length
+  const isNew = Date.now() - new Date(reg.created_at).getTime() < THIRTY_DAYS_MS
+  const isUpdated = !isNew && reg.content_updated_at &&
+    Date.now() - new Date(reg.content_updated_at).getTime() < THIRTY_DAYS_MS
 
   return (
     <div className={cn(
@@ -128,6 +133,16 @@ function RegulationCard({ reg, isRelevant }: { reg: RegulationRow; isRelevant: b
             <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded uppercase', TYPE_COLORS[reg.type] ?? 'bg-zinc-700 text-zinc-400')}>
               {reg.type}
             </span>
+            {isNew && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 uppercase">
+                New
+              </span>
+            )}
+            {isUpdated && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400 uppercase">
+                Updated
+              </span>
+            )}
             {isRelevant && (
               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400">
                 For your org

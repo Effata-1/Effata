@@ -7,11 +7,13 @@ interface RegulationMeta {
   code: string
   short_name: string
   max_fine: string | null
+  content_updated_at: string | null
 }
 
 interface AssessmentRow {
   control_key: string
   status: 'not_assessed' | 'implemented' | 'partial' | 'not_implemented'
+  updated_at: string
 }
 
 export default async function GapReportPage({
@@ -26,7 +28,7 @@ export default async function GapReportPage({
 
   const { data: regsData } = await supabase
     .from('compliance_regulations')
-    .select('id, code, short_name, max_fine')
+    .select('id, code, short_name, max_fine, content_updated_at')
     .eq('active', true)
     .order('short_name')
 
@@ -36,20 +38,37 @@ export default async function GapReportPage({
   let assessments: AssessmentRow[] = DLP_CONTROLS.map(c => ({
     control_key: c.key,
     status: 'not_assessed',
+    updated_at: new Date(0).toISOString(),
   }))
+
+  let needsReview = false
 
   if (user && currentReg) {
     const { data: existing } = await supabase
       .from('compliance_assessments')
-      .select('control_key, status')
+      .select('control_key, status, updated_at')
       .eq('regulation_id', currentReg.id)
 
-    if (existing) {
-      const map = new Map((existing as AssessmentRow[]).map(a => [a.control_key, a.status]))
-      assessments = DLP_CONTROLS.map(c => ({
-        control_key: c.key,
-        status: map.get(c.key) ?? 'not_assessed',
-      }))
+    if (existing && existing.length > 0) {
+      const rows = existing as AssessmentRow[]
+      const map = new Map(rows.map(a => [a.control_key, a]))
+      assessments = DLP_CONTROLS.map(c => {
+        const row = map.get(c.key)
+        return {
+          control_key: c.key,
+          status:      row?.status ?? 'not_assessed',
+          updated_at:  row?.updated_at ?? new Date(0).toISOString(),
+        }
+      })
+
+      // Flag if AI updated content after the user's most recent assessment
+      if (currentReg.content_updated_at) {
+        const lastAssessed = rows.reduce((latest, a) =>
+          new Date(a.updated_at) > new Date(latest) ? a.updated_at : latest,
+          new Date(0).toISOString()
+        )
+        needsReview = new Date(currentReg.content_updated_at) > new Date(lastAssessed)
+      }
     }
   }
 
@@ -72,6 +91,8 @@ export default async function GapReportPage({
           regulations={regulations}
           initialAssessments={assessments}
           currentRegCode={currentReg?.code ?? reg}
+          needsReview={needsReview}
+          contentUpdatedAt={currentReg?.content_updated_at ?? null}
         />
       )}
     </div>

@@ -3,12 +3,14 @@
 import { useOptimistic, useTransition, useState } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { AlertTriangle, X } from 'lucide-react'
 import { DLP_CONTROLS, CONTROL_STATUS_OPTIONS, CONTROL_GDPR_FINE_WEIGHT, type ControlStatus } from '@/lib/compliance/controls'
 import { upsertAssessment } from '../actions'
 
 interface Assessment {
   control_key: string
   status: ControlStatus
+  updated_at?: string
 }
 
 interface Regulation {
@@ -16,6 +18,7 @@ interface Regulation {
   code: string
   short_name: string
   max_fine: string | null
+  content_updated_at?: string | null
 }
 
 const STATUS_CYCLE: ControlStatus[] = ['not_assessed', 'implemented', 'partial', 'not_implemented']
@@ -56,15 +59,20 @@ export function GapReportClient({
   regulations,
   initialAssessments,
   currentRegCode,
+  needsReview,
+  contentUpdatedAt,
 }: {
   regulations: Regulation[]
   initialAssessments: Assessment[]
   currentRegCode: string
+  needsReview: boolean
+  contentUpdatedAt: string | null
 }) {
   const router     = useRouter()
   const pathname   = usePathname()
   const params     = useSearchParams()
   const [, startT] = useTransition()
+  const [reviewDismissed, setReviewDismissed] = useState(false)
 
   const currentReg = regulations.find(r => r.code === currentRegCode) ?? regulations[0]
 
@@ -114,6 +122,27 @@ export function GapReportClient({
           </button>
         ))}
       </div>
+
+      {/* Review required banner */}
+      {needsReview && !reviewDismissed && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+          <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+          <p className="text-sm text-amber-300 flex-1">
+            <span className="font-semibold">Regulation content was updated</span>
+            {contentUpdatedAt && (
+              <span className="font-normal text-amber-400/80"> on {new Date(contentUpdatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+            )}
+            {' '}— your assessments may no longer reflect the current requirements. Review each control below.
+          </p>
+          <button
+            onClick={() => setReviewDismissed(true)}
+            className="text-amber-500 hover:text-amber-300 transition-colors"
+            aria-label="Dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Summary banner */}
       <div className="grid grid-cols-3 gap-3">
