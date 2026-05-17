@@ -18,7 +18,8 @@ const SECTIONS = [
   {
     title: 'Admin',
     items: [
-      { label: 'Audit Log', href: '/settings/admin/audit-log' },
+      { label: 'Audit Log',  href: '/settings/admin/audit-log' },
+      { label: 'Cron Runs',  href: '/settings/admin/cron-runs' },
     ],
   },
 ]
