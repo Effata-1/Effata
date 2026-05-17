@@ -62,6 +62,11 @@ export default async function RegulationsPage({
 
   const allRegs = (regsData as RegulationRow[]) ?? []
 
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+  const staleCount = allRegs.filter(
+    r => new Date(r.last_verified_at) < sevenDaysAgo
+  ).length
+
   const filtered = allRegs.filter(r => {
     const regionOk = region === 'all' || regionGroupMatch(r.regions, region)
     const industryOk =
@@ -83,6 +88,7 @@ export default async function RegulationsPage({
       <RegulationsClient
         regulations={filtered}
         allCount={allRegs.length}
+        staleCount={staleCount}
         currentRegion={region}
         currentIndustry={industry}
       />
