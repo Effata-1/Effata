@@ -62,43 +62,42 @@ const anthropic = new Anthropic({
 })
 
 async function reviewRegulation(reg: RegRow): Promise<AIUpdate> {
-  const reqList = reg.requirements
-    .map(r => `  • ${r.article} — ${r.title} | Fine: ${r.fine ?? 'not specified'} | Severity: ${r.severity}`)
-    .join('\n')
+  const reqFull = reg.requirements
+    .map(r => `  • ${r.article} — ${r.title}\n    Description: ${r.description}\n    DLP Relevance: ${r.dlp_relevance}\n    Fine: ${r.fine ?? 'not specified'} | Severity: ${r.severity}`)
+    .join('\n\n')
 
-  const prompt = `You are auditing stored compliance regulation data for factual errors only.
+  const prompt = `You are auditing stored compliance regulation data. You may correct ANY field — but ONLY when you are 100% certain the stored content is factually wrong, not just differently worded.
 
 Regulation: ${reg.short_name} (${reg.code})
+Summary stored: ${reg.summary}
 Max fine stored: ${reg.max_fine ?? 'not specified'}
 
 Requirements stored:
-${reqList}
+${reqFull}
 
-Your ONLY job is to check whether specific numeric/legal facts are objectively wrong:
-- Fine amounts (wrong currency, wrong number)
-- Article numbers (clearly wrong reference)
-- Enforcement dates that have provably shifted
+STRICT RULES — violating these corrupts production data:
+1. Return changed=false unless you are 100% certain a stored value is objectively incorrect — not just imprecise or differently phrased.
+2. Do NOT rewrite descriptions or DLP relevance just because you'd word it differently. Only correct if the meaning is factually wrong.
+3. Do NOT change severity unless the regulation explicitly defines a different risk tier for that article.
+4. Do NOT change fine amounts unless the stored number is provably wrong (wrong currency, wrong cap, clearly outdated figure).
+5. Prefer changed=false. One wrong update is worse than missing a minor inaccuracy.
 
-STRICT RULES — you MUST follow these or you will corrupt production data:
-1. Return changed=false unless you are 100% certain a stored fact is objectively incorrect.
-2. NEVER change wording, summaries, descriptions, or DLP relevance text — ever.
-3. NEVER change severity labels.
-4. NEVER flag something as changed just because you would phrase it differently.
-5. When in doubt, return changed=false. Stability is more important than perfection.
-6. Only update the "fine" field on requirements — no other fields.
+Updatable fields per requirement: description, dlp_relevance, fine, severity
+Updatable regulation fields: summary, max_fine
 
 Respond ONLY with valid JSON:
 
 {"changed": false}
 
-OR only if a fine amount is provably wrong:
+OR if something is provably wrong:
 {
   "changed": true,
-  "reason": "one sentence — the exact fact that is wrong",
+  "reason": "one sentence — exactly what is factually incorrect and why",
   "updates": {
-    "max_fine": "corrected value (only if max_fine is wrong, otherwise omit)",
+    "summary": "corrected summary (omit key if unchanged)",
+    "max_fine": "corrected value (omit key if unchanged)",
     "requirements": [
-      {"article": "Article X", "field": "fine", "new_value": "corrected amount"}
+      {"article": "Article X", "field": "description|dlp_relevance|fine|severity", "new_value": "corrected value"}
     ]
   }
 }`
