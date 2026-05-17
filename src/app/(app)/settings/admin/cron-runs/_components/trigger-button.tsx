@@ -1,14 +1,12 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Play } from 'lucide-react'
 import { triggerComplianceCheck } from '../actions'
 
 export function TriggerButton() {
   const [isPending, startTransition] = useTransition()
   const [message, setMessage] = useState('')
-  const router = useRouter()
 
   function run() {
     setMessage('')
@@ -18,7 +16,7 @@ export function TriggerButton() {
         setMessage(`Error: ${result.error}`)
       } else {
         setMessage(`Done — ${result.regs_checked} checked, ${result.regs_updated} updated`)
-        router.refresh()
+        window.location.reload()
       }
     })
   }
@@ -33,10 +31,8 @@ export function TriggerButton() {
         <Play className="h-3.5 w-3.5" />
         {isPending ? 'Running…' : 'Run now'}
       </button>
-      {message && (
-        <p className={`text-xs ${message.startsWith('Error') ? 'text-red-400' : 'text-green-400'}`}>
-          {message}
-        </p>
+      {message && !message.startsWith('Done') && (
+        <p className="text-xs text-red-400">{message}</p>
       )}
     </div>
   )
