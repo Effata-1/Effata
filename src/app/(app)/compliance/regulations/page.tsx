@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import { cn } from '@/lib/utils'
 import { RegulationsClient } from './_components/regulations-client'
 
 export interface RegulationRow {
@@ -15,6 +14,7 @@ export interface RegulationRow {
   summary: string
   max_fine: string | null
   effective_date: string | null
+  source_url: string | null
   last_verified_at: string
   active: boolean
   requirements: RequirementRow[]

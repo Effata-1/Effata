@@ -10,6 +10,7 @@ export interface RegulationData {
   summary: string
   max_fine: string | null
   effective_date: string | null // ISO YYYY-MM-DD
+  source_url: string
   requirements: RequirementData[]
 }
 
@@ -37,6 +38,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: 'The EU\'s primary data protection law governing the collection, processing, and transfer of personal data of EU/EEA residents. Applies globally to any organisation handling EU/EEA personal data.',
     max_fine: '€20M or 4% of global annual turnover (whichever is higher)',
     effective_date: '2018-05-25',
+    source_url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32016R0679',
     requirements: [
       {
         article: 'Article 5(1)(f)',
@@ -98,6 +100,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: 'The UK\'s post-Brexit data protection law, retained from EU GDPR with UK-specific modifications. Applies to organisations processing personal data of UK residents.',
     max_fine: '£17.5M or 4% of global annual turnover (whichever is higher)',
     effective_date: '2021-01-01',
+    source_url: 'https://www.legislation.gov.uk/uksi/2019/419/contents/made',
     requirements: [
       {
         article: 'Article 5(1)(f)',
@@ -150,6 +153,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: 'EU directive requiring essential and important entities to implement cybersecurity risk management measures and report significant incidents. Expands the scope of the original NIS Directive significantly.',
     max_fine: '€10M or 2% of global annual turnover (essential entities); €7M or 1.4% (important entities)',
     effective_date: '2024-10-17',
+    source_url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32022L2555',
     requirements: [
       {
         article: 'Article 21(2)(b)',
@@ -202,6 +206,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: 'EU regulation requiring financial entities to manage ICT risks, test resilience, report ICT incidents, and manage third-party ICT risks. Applies to banks, insurance companies, investment firms, and critical ICT providers.',
     max_fine: 'Up to 1% of average daily worldwide turnover for up to 6 months (for ICT third-party providers)',
     effective_date: '2025-01-17',
+    source_url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32022R2554',
     requirements: [
       {
         article: 'Article 9',
@@ -255,6 +260,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: 'India\'s primary data protection legislation governing the processing of digital personal data of individuals in India. Applies to organisations processing personal data of Indian residents, both within and outside India.',
     max_fine: '₹250 Crore (~€27M) per violation',
     effective_date: '2023-08-11',
+    source_url: 'https://www.meity.gov.in/writereaddata/files/Digital%20Personal%20Data%20Protection%20Act%202023.pdf',
     requirements: [
       {
         article: 'Section 8(4)',
@@ -307,6 +313,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: 'Framework requiring scheduled commercial banks in India to implement a robust cybersecurity policy, incident response, and controls for protecting customer data and critical banking infrastructure.',
     max_fine: 'Regulatory sanctions, penalties, and licence conditions',
     effective_date: '2016-06-02',
+    source_url: 'https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=10435',
     requirements: [
       {
         article: 'Annex I — Controls',
@@ -350,6 +357,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: 'Framework for SEBI-regulated entities (stock exchanges, depositories, brokers, mutual funds) covering cybersecurity governance, risk management, and incident response.',
     max_fine: 'Regulatory action including suspension, cancellation of registration, or monetary penalties',
     effective_date: '2023-08-25',
+    source_url: 'https://www.sebi.gov.in/legal/circulars/aug-2023/cybersecurity-and-cyber-resilience-framework-cscrf-for-sebi-regulated-entities_75301.html',
     requirements: [
       {
         article: 'Section 3 — Controls',
@@ -394,6 +402,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: 'US federal law protecting individually identifiable health information (PHI) held by covered entities and business associates. Sets standards for electronic PHI security and privacy.',
     max_fine: '$100 to $1.9M per violation category per year (up to $1.9M per violation category)',
     effective_date: '1996-08-21',
+    source_url: 'https://www.hhs.gov/hipaa/for-professionals/security/laws-regulations/index.html',
     requirements: [
       {
         article: '§164.308(a)(1)',
@@ -455,6 +464,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: 'Requires US financial institutions to protect the security and confidentiality of customer financial information. The FTC Safeguards Rule (updated 2023) mandates a comprehensive information security program.',
     max_fine: '$100,000 per violation for financial institutions; $10,000 per violation for individuals',
     effective_date: '2003-05-23',
+    source_url: 'https://www.ftc.gov/business-guidance/privacy-security/gramm-leach-bliley-act',
     requirements: [
       {
         article: '16 CFR §314.4(c)',
@@ -507,6 +517,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: 'California\'s comprehensive privacy law granting consumers rights over their personal information and imposing obligations on businesses that collect, sell, or share consumer personal data. CPRA (2020) strengthened CCPA with a new enforcement agency.',
     max_fine: '$2,500 per unintentional violation; $7,500 per intentional violation; $100–$750 per consumer per incident for data breaches',
     effective_date: '2020-01-01',
+    source_url: 'https://cppa.ca.gov/regulations/',
     requirements: [
       {
         article: '§1798.81.5',
@@ -550,6 +561,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: 'DoD framework requiring defence contractors and subcontractors to achieve specific cybersecurity certification levels (Level 1, 2, or 3) based on the sensitivity of the data they handle (FCI and CUI).',
     max_fine: 'Loss of DoD contracts; False Claims Act penalties up to $27,894 per false claim',
     effective_date: '2021-11-04',
+    source_url: 'https://www.acq.osd.mil/cmmc/',
     requirements: [
       {
         article: 'AC.L2-3.1.3',
@@ -602,6 +614,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: 'US federal law requiring publicly traded companies to implement internal controls over financial reporting and maintain accurate financial records. SOX Section 404 mandates management assessment of internal controls.',
     max_fine: 'Up to $5M and 20 years imprisonment for wilful violations; up to $1M and 10 years for individual violations',
     effective_date: '2002-07-30',
+    source_url: 'https://www.sec.gov/spotlight/sarbanes-oxley.htm',
     requirements: [
       {
         article: 'Section 404',
@@ -646,6 +659,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: 'Global security standard for all organisations that handle branded credit cards from major card schemes. PCI-DSS v4.0 strengthens requirements around targeted risk analysis and customised implementation.',
     max_fine: '$5,000–$100,000 per month per merchant/provider; card scheme penalties and potential card acceptance revocation',
     effective_date: '2024-03-31',
+    source_url: 'https://www.pcisecuritystandards.org/document_library/',
     requirements: [
       {
         article: 'Requirement 3',
@@ -699,6 +713,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: 'Singapore\'s comprehensive data protection law governing the collection, use, and disclosure of personal data by organisations. Includes mandatory breach notification and financial penalties.',
     max_fine: 'SGD 1M or 10% of annual turnover in Singapore (whichever is higher)',
     effective_date: '2014-07-02',
+    source_url: 'https://www.pdpc.gov.sg/Overview-of-PDPA/The-Legislation/Personal-Data-Protection-Act',
     requirements: [
       {
         article: 'Section 24 (Protection Obligation)',
@@ -742,6 +757,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: "China's comprehensive personal information protection law. Applies to organisations processing personal information of individuals in China, including cross-border data transfers (which require specific approval mechanisms).",
     max_fine: '¥50M (~€6.5M) or 5% of annual revenue; responsible persons face fines up to ¥1M',
     effective_date: '2021-11-01',
+    source_url: 'https://www.chinalawtranslate.com/en/personal-information-protection-law/',
     requirements: [
       {
         article: 'Article 51',
@@ -785,6 +801,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: "Japan's primary data protection law, significantly amended in 2022 to strengthen individual rights, mandatory breach reporting, and controls over cross-border data transfers.",
     max_fine: '¥100M for corporations; ¥1M for individuals',
     effective_date: '2022-04-01',
+    source_url: 'https://www.ppc.go.jp/en/legal/',
     requirements: [
       {
         article: 'Article 23 / 24',
@@ -819,6 +836,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: "Australia's primary privacy legislation, including the Australian Privacy Principles (APPs) and the Notifiable Data Breaches (NDB) scheme. The 2023 Review proposed significant strengthening of the law.",
     max_fine: 'AUD 50M, or 30% of adjusted turnover during breach period, or 3x benefit obtained (whichever is greater)',
     effective_date: '1988-12-21',
+    source_url: 'https://www.legislation.gov.au/Details/C2023C00209',
     requirements: [
       {
         article: 'APP 11',
@@ -853,6 +871,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: "South Korea's comprehensive data protection law, one of the strictest in Asia. Requires data localisation for certain sectors, mandatory DPO appointment, and strict security measures.",
     max_fine: '3% of annual revenue related to the violation; criminal fines up to KRW 100M',
     effective_date: '2011-09-30',
+    source_url: 'https://www.pipc.go.kr/eng/',
     requirements: [
       {
         article: 'Article 29',
@@ -888,6 +907,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: 'Saudi Arabia\'s comprehensive data protection law governing the processing of personal data of individuals in Saudi Arabia. Includes cross-border transfer restrictions and mandatory breach notification.',
     max_fine: 'SAR 5M (~€1.3M); SAR 3M for first violation',
     effective_date: '2023-09-14',
+    source_url: 'https://sdaia.gov.sa/en/SDAIA/about/Pages/PersonalDataProtection.aspx',
     requirements: [
       {
         article: 'Article 19',
@@ -931,6 +951,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: 'South Africa\'s data protection law establishing conditions for the lawful processing of personal information. Applies to all responsible parties processing personal information of South African data subjects.',
     max_fine: 'ZAR 10M (~€500K); imprisonment up to 10 years for certain offences',
     effective_date: '2021-07-01',
+    source_url: 'https://www.justice.gov.za/inforeg/',
     requirements: [
       {
         article: 'Section 19',
@@ -966,6 +987,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: 'Canada\'s federal private sector data protection law. Mandatory Breach Reporting Regulations require notification to the OPC and affected individuals for breaches posing a real risk of significant harm. Bill C-27 (Consumer Privacy Protection Act) proposes significant updates.',
     max_fine: 'CAD 25M or 5% of global annual gross revenue (under proposed Bill C-27); current PIPEDA fine CAD 100,000',
     effective_date: '2000-04-13',
+    source_url: 'https://laws-lois.justice.gc.ca/ENG/ACTS/P-8.6/',
     requirements: [
       {
         article: 'Principle 7 (Schedule 1)',
@@ -1000,6 +1022,7 @@ export const REGULATIONS: RegulationData[] = [
     summary: "Brazil's comprehensive data protection law modelled on the GDPR. Applies to any processing of personal data of individuals in Brazil, regardless of where the processor is located.",
     max_fine: '2% of revenue in Brazil per violation, up to BRL 50M (~€9M) per violation',
     effective_date: '2020-09-18',
+    source_url: 'https://www.gov.br/cidadania/pt-br/acesso-a-informacao/lgpd',
     requirements: [
       {
         article: 'Article 46',

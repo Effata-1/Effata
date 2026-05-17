@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { ChevronDown, ChevronRight, CheckCircle, AlertTriangle, Clock, Shield } from 'lucide-react'
+import { ChevronDown, ChevronRight, CheckCircle, AlertTriangle, Clock, Shield, ExternalLink } from 'lucide-react'
 import type { RegulationRow } from '../page'
 import { markRegulationVerified } from '../actions'
 
@@ -155,7 +155,21 @@ function RegulationCard({ reg }: { reg: RegulationRow }) {
             {fresh.icon}
             <span>{fresh.label}</span>
           </div>
-          <VerifyButton reg={reg} />
+          <div className="flex items-center gap-2">
+            {reg.source_url && (
+              <a
+                href={reg.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-blue-400 transition-colors"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Official source
+              </a>
+            )}
+            <VerifyButton reg={reg} />
+          </div>
           {expanded
             ? <ChevronDown className="h-4 w-4 text-zinc-500 mt-1" />
             : <ChevronRight className="h-4 w-4 text-zinc-500 mt-1" />
