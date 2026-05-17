@@ -106,13 +106,18 @@ function VerifyButton({ reg }: { reg: RegulationRow }) {
   )
 }
 
-function RegulationCard({ reg }: { reg: RegulationRow }) {
+function RegulationCard({ reg, isRelevant }: { reg: RegulationRow; isRelevant: boolean }) {
   const [expanded, setExpanded] = useState(false)
   const fresh = freshnessInfo(reg.last_verified_at)
   const criticalCount = reg.requirements.filter(r => r.severity === 'critical').length
 
   return (
-    <div className="rounded-xl border border-zinc-800 overflow-hidden bg-zinc-900/40">
+    <div className={cn(
+      'rounded-xl border overflow-hidden transition-opacity',
+      isRelevant
+        ? 'border-blue-800/50 bg-zinc-900/60'
+        : 'border-zinc-800 bg-zinc-900/40 opacity-60 hover:opacity-100'
+    )}>
       <button
         onClick={() => setExpanded(v => !v)}
         className="w-full text-left px-5 py-4 flex items-start gap-4 hover:bg-zinc-900/60 transition-colors"
@@ -123,6 +128,11 @@ function RegulationCard({ reg }: { reg: RegulationRow }) {
             <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded uppercase', TYPE_COLORS[reg.type] ?? 'bg-zinc-700 text-zinc-400')}>
               {reg.type}
             </span>
+            {isRelevant && (
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400">
+                For your org
+              </span>
+            )}
             {reg.industries && (
               <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-zinc-700/50 text-zinc-400">
                 {reg.industries.join(' · ')}
@@ -219,12 +229,16 @@ export function RegulationsClient({
   regulations,
   allCount,
   staleCount,
+  relevantCodes,
+  hasOrgProfile,
   currentRegion,
   currentIndustry,
 }: {
   regulations: RegulationRow[]
   allCount: number
   staleCount: number
+  relevantCodes: string[]
+  hasOrgProfile: boolean
   currentRegion: string
   currentIndustry: string
 }) {
@@ -232,6 +246,7 @@ export function RegulationsClient({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [bannerDismissed, setBannerDismissed] = useState(false)
+  const relevantSet = new Set(relevantCodes)
 
   function updateFilter(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString())
@@ -289,6 +304,12 @@ export function RegulationsClient({
         <span className="text-xs text-zinc-600">
           {regulations.length} of {allCount} regulations
         </span>
+        {hasOrgProfile && relevantSet.size > 0 && (
+          <span className="text-xs text-zinc-600 flex items-center gap-1.5">
+            <span className="inline-block w-2 h-2 rounded-sm bg-blue-500/40 border border-blue-800/50" />
+            Highlighted = applies to your org
+          </span>
+        )}
       </div>
 
       {regulations.length === 0 ? (
@@ -299,7 +320,7 @@ export function RegulationsClient({
       ) : (
         <div className="space-y-3">
           {regulations.map(reg => (
-            <RegulationCard key={reg.id} reg={reg} />
+            <RegulationCard key={reg.id} reg={reg} isRelevant={relevantSet.has(reg.code)} />
           ))}
         </div>
       )}
