@@ -62,7 +62,7 @@ export default async function CronRunsPage() {
     started_at:   r.started_at as string,
     completed_at: r.completed_at as string | null,
     status:       r.status as string,
-    summary:      `${r.regs_checked ?? 0} checked · ${r.regs_updated ?? 0} updated`,
+    summary:      `${r.regs_checked ?? 0} checked · ${r.regs_updated ?? 0} updated · ${r.regs_added ?? 0} added`,
     changes:      (r.changes as CronRun['changes']) ?? [],
     errors:       (r.errors as CronRun['errors']) ?? [],
   }))

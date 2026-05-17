@@ -49,10 +49,35 @@ export interface ErrorRecord {
   error: string
 }
 
+export interface NewRegulation {
+  code: string
+  short_name: string
+  name: string
+  regions: string[]
+  industries: string[] | null
+  jurisdiction: string
+  authority: string | null
+  type: 'privacy' | 'security' | 'sector'
+  summary: string
+  max_fine: string | null
+  effective_date: string | null
+  source_url: string
+  requirements: Array<{
+    article: string
+    title: string
+    description: string
+    dlp_relevance: string
+    fine: string | null
+    severity: 'critical' | 'high' | 'medium'
+    dlp_controls: string[]
+  }>
+}
+
 export interface RunResult {
   run_id: string
   regs_checked: number
   regs_updated: number
+  regs_added: number
   changes: ChangeRecord[]
   errors: ErrorRecord[]
 }
@@ -119,6 +144,69 @@ OR if something is provably wrong:
   }
 }
 
+async function discoverNewRegulations(existingCodes: string[]): Promise<NewRegulation[]> {
+  const prompt = `You are a DLP compliance expert. Your task is to identify DLP-relevant regulations that are NOT in the list below.
+
+Already tracked regulations (do NOT suggest these):
+${existingCodes.join(', ')}
+
+Identify up to 3 enacted regulations or compliance frameworks that:
+1. Are directly relevant to Data Loss Prevention (DLP)
+2. Are already in force (not just proposed)
+3. Are NOT already in the list above
+4. Cover data privacy, data security, or sector-specific data protection
+
+Only include regulations you are highly confident about. If none are missing, return an empty array.
+
+Respond ONLY with valid JSON:
+{
+  "new_regulations": [
+    {
+      "code": "short_snake_case_id",
+      "short_name": "Acronym",
+      "name": "Full Official Name",
+      "regions": ["Region name"],
+      "industries": null,
+      "jurisdiction": "Country or region",
+      "authority": "Regulating body name",
+      "type": "privacy|security|sector",
+      "summary": "2-3 sentence plain-English summary of what it requires from a DLP perspective",
+      "max_fine": "e.g. €10M or 2% global ARR (or null)",
+      "effective_date": "YYYY-MM-DD (or null)",
+      "source_url": "official government/regulator URL",
+      "requirements": [
+        {
+          "article": "Article or Section reference",
+          "title": "Short requirement title",
+          "description": "What the regulation requires",
+          "dlp_relevance": "How DLP controls address this requirement",
+          "fine": "Specific fine for this article (or null)",
+          "severity": "critical|high|medium",
+          "dlp_controls": ["data_classification", "dlp_web", "dlp_email", "dlp_endpoint", "dlp_saas", "genai_controls", "audit_logging", "breach_detection", "encryption_transit", "access_controls"]
+        }
+      ]
+    }
+  ]
+}`
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-5',
+    max_tokens: 4096,
+    messages: [{ role: 'user', content: prompt }],
+  })
+
+  const text = message.content[0].type === 'text' ? message.content[0].text.trim() : '{}'
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) return []
+
+  try {
+    const parsed = JSON.parse(jsonMatch[0]) as { new_regulations?: NewRegulation[] }
+    return parsed.new_regulations ?? []
+  } catch {
+    return []
+  }
+}
+
 export async function runComplianceCheck(): Promise<RunResult> {
   const supabase = createServiceClient()
 
@@ -134,6 +222,7 @@ export async function runComplianceCheck(): Promise<RunResult> {
   const changes: ChangeRecord[] = []
   const errors: ErrorRecord[]   = []
   let regsUpdated = 0
+  let regsAdded   = 0
 
   try {
     const { data: regsData } = await supabase
@@ -143,6 +232,7 @@ export async function runComplianceCheck(): Promise<RunResult> {
 
     const regs = (regsData as RegRow[]) ?? []
 
+    // Step 1: Review existing regulations
     const BATCH = 5
     for (let i = 0; i < regs.length; i += BATCH) {
       const batch = regs.slice(i, i + BATCH)
@@ -207,19 +297,83 @@ export async function runComplianceCheck(): Promise<RunResult> {
       }))
     }
 
+    // Step 2: Discover new regulations not yet in the DB
+    try {
+      const existingCodes = regs.map(r => r.code)
+      const newRegs = await discoverNewRegulations(existingCodes)
+
+      for (const nr of newRegs) {
+        // Skip if code already exists (safety check)
+        if (existingCodes.includes(nr.code)) continue
+
+        const { data: inserted, error: insertErr } = await supabase
+          .from('compliance_regulations')
+          .insert({
+            code:            nr.code,
+            short_name:      nr.short_name,
+            name:            nr.name,
+            regions:         nr.regions,
+            industries:      nr.industries,
+            jurisdiction:    nr.jurisdiction,
+            authority:       nr.authority,
+            type:            nr.type,
+            summary:         nr.summary,
+            max_fine:        nr.max_fine,
+            effective_date:  nr.effective_date,
+            source_url:      nr.source_url,
+            active:          true,
+          })
+          .select('id')
+          .single()
+
+        if (insertErr || !inserted) {
+          errors.push({ regulation_code: nr.code, error: insertErr?.message ?? 'Insert failed' })
+          continue
+        }
+
+        // Insert requirements
+        if (nr.requirements.length > 0) {
+          await supabase.from('compliance_requirements').insert(
+            nr.requirements.map(req => ({
+              regulation_id: inserted.id,
+              article:       req.article,
+              title:         req.title,
+              description:   req.description,
+              dlp_relevance: req.dlp_relevance,
+              fine:          req.fine,
+              severity:      req.severity,
+              dlp_controls:  req.dlp_controls,
+            }))
+          )
+        }
+
+        changes.push({
+          regulation_code: nr.code,
+          regulation_name: nr.short_name,
+          reason:          'New regulation added by AI discovery',
+          fields_updated:  ['new'],
+        })
+        regsAdded++
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      errors.push({ regulation_code: 'discovery', error: msg })
+    }
+
     await supabase
       .from('compliance_check_runs')
       .update({
         completed_at: new Date().toISOString(),
-        status:       errors.length > 0 && regsUpdated === 0 ? 'failed' : 'completed',
+        status:       errors.length > 0 && regsUpdated === 0 && regsAdded === 0 ? 'failed' : 'completed',
         regs_checked: regs.length,
         regs_updated: regsUpdated,
+        regs_added:   regsAdded,
         changes,
         errors,
       })
       .eq('id', runId)
 
-    return { run_id: runId, regs_checked: regs.length, regs_updated: regsUpdated, changes, errors }
+    return { run_id: runId, regs_checked: regs.length, regs_updated: regsUpdated, regs_added: regsAdded, changes, errors }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     await supabase
