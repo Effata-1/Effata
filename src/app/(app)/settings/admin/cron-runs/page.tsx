@@ -1,5 +1,7 @@
 import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
+
+export const dynamic = 'force-dynamic'
 import { cn } from '@/lib/utils'
 import { TriggerButton } from './_components/trigger-button'
 
