@@ -3,8 +3,8 @@
 import { useOptimistic, useTransition, useState } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { AlertTriangle, X, Pencil, Clock, Download } from 'lucide-react'
-import { DLP_CONTROLS, CONTROL_STATUS_OPTIONS, CONTROL_GDPR_FINE_WEIGHT, type ControlStatus } from '@/lib/compliance/controls'
+import { AlertTriangle, X, FileText, Download } from 'lucide-react'
+import { DLP_CONTROLS, CONTROL_STATUS_OPTIONS, CONTROL_GDPR_FINE_WEIGHT, type ControlStatus, type DlpControl } from '@/lib/compliance/controls'
 import { upsertAssessment, getControlHistory } from '../actions'
 
 interface Assessment {
@@ -36,8 +36,8 @@ function statusMeta(status: ControlStatus) {
 function computeScore(assessments: Assessment[]): number {
   let score = 0
   for (const a of assessments) {
-    if (a.status === 'implemented')     score += 1
-    if (a.status === 'partial')         score += 0.5
+    if (a.status === 'implemented') score += 1
+    if (a.status === 'partial')     score += 0.5
   }
   return Math.round((score / DLP_CONTROLS.length) * 100)
 }
@@ -56,94 +56,132 @@ function fineExposure(assessments: Assessment[], maxFine: string | null): string
   return `~${pct}% of max (${maxFine})`
 }
 
-type HistoryEntry = { created_at: string; user_email: string | null; old_value: string | null; new_value: string | null }
-
-function HistoryPanel({ controlKey, regulationId }: { controlKey: string; regulationId: string }) {
-  const [entries, setEntries] = useState<HistoryEntry[] | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  async function load() {
-    if (entries !== null) { setEntries(null); return }
-    setLoading(true)
-    const data = await getControlHistory(controlKey, regulationId)
-    setEntries(data)
-    setLoading(false)
-  }
-
-  return (
-    <div className="flex flex-col gap-0">
-      <button
-        onClick={load}
-        title="View history"
-        className="text-zinc-600 hover:text-zinc-400 transition-colors"
-      >
-        <Clock className={cn('h-3.5 w-3.5', loading && 'animate-pulse')} />
-      </button>
-      {entries !== null && (
-        <div className="absolute z-10 mt-5 right-0 w-80 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl p-3">
-          <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wide mb-2">Change history</p>
-          {entries.length === 0 ? (
-            <p className="text-xs text-zinc-600">No history yet.</p>
-          ) : (
-            <div className="space-y-1.5">
-              {entries.map((e, i) => (
-                <div key={i} className="flex items-center gap-2 text-[10px]">
-                  <span className="text-zinc-600 shrink-0">
-                    {new Date(e.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}
-                  </span>
-                  <span className="text-zinc-500 truncate shrink">{e.user_email ?? 'unknown'}</span>
-                  <span className="text-zinc-600 shrink-0">{e.old_value ?? '—'} → {e.new_value ?? '—'}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
+type HistoryEntry = {
+  created_at: string
+  user_email: string | null
+  old_value: string | null
+  new_value: string | null
 }
 
-function NotesCell({
-  controlKey,
+function ControlRow({
+  ctrl,
+  assessment,
   regulationId,
-  currentStatus,
-  initialNote,
+  onToggle,
 }: {
-  controlKey: string
+  ctrl: DlpControl
+  assessment: Assessment | undefined
   regulationId: string
-  currentStatus: ControlStatus
-  initialNote: string | null | undefined
+  onToggle: (key: string) => void
 }) {
-  const [editing, setEditing] = useState(false)
-  const [value, setValue] = useState(initialNote ?? '')
+  const status = (assessment?.status ?? 'not_assessed') as ControlStatus
+  const meta   = statusMeta(status)
+  const note   = assessment?.notes
 
-  function handleBlur() {
-    setEditing(false)
-    upsertAssessment(controlKey, regulationId, currentStatus, value || undefined)
+  const [panelOpen, setPanelOpen] = useState(false)
+  const [noteValue, setNoteValue]   = useState(note ?? '')
+  const [history, setHistory]       = useState<HistoryEntry[] | null>(null)
+  const [loadingHistory, setLoadingHistory] = useState(false)
+
+  async function togglePanel() {
+    const next = !panelOpen
+    setPanelOpen(next)
+    if (next && history === null) {
+      setLoadingHistory(true)
+      const data = await getControlHistory(ctrl.key, regulationId)
+      setHistory(data)
+      setLoadingHistory(false)
+    }
   }
 
-  if (editing) {
-    return (
-      <textarea
-        autoFocus
-        value={value}
-        onChange={e => setValue(e.target.value)}
-        onBlur={handleBlur}
-        rows={2}
-        placeholder="Add evidence note…"
-        className="w-full text-xs bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-white placeholder:text-zinc-600 resize-none focus:outline-none focus:border-blue-600"
-      />
-    )
+  function handleNoteBlur() {
+    upsertAssessment(ctrl.key, regulationId, status, noteValue || undefined)
   }
 
   return (
-    <button
-      onClick={() => setEditing(true)}
-      title="Add note"
-      className="text-zinc-600 hover:text-zinc-400 transition-colors"
-    >
-      <Pencil className="h-3.5 w-3.5" />
-    </button>
+    <>
+      <tr className="hover:bg-zinc-900/40 transition-colors">
+        <td className="px-5 py-3.5">
+          <div className="text-xs font-medium text-white">{ctrl.label}</div>
+          <div className="text-xs text-zinc-500 mt-0.5 max-w-xs">{ctrl.description}</div>
+          {note && !panelOpen && (
+            <div className="text-[10px] text-zinc-600 italic mt-1 max-w-xs">{note}</div>
+          )}
+        </td>
+        <td className="px-4 py-3.5 hidden md:table-cell">
+          <div className="flex flex-wrap gap-1">
+            {ctrl.gdpr_articles.map(a => (
+              <span key={a} className="text-[10px] font-mono bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded">{a}</span>
+            ))}
+          </div>
+        </td>
+        <td className="px-4 py-3.5 hidden lg:table-cell">
+          <span className="text-xs text-zinc-500">{ctrl.channel}</span>
+        </td>
+        <td className="px-4 py-3.5">
+          <button
+            onClick={() => onToggle(ctrl.key)}
+            className={cn(
+              'text-[10px] font-semibold px-2.5 py-1 rounded-full transition-colors border',
+              meta.color,
+              meta.bg,
+              'border-transparent hover:border-current'
+            )}
+          >
+            {meta.label}
+          </button>
+        </td>
+        <td className="px-4 py-3.5 w-10">
+          <button
+            onClick={togglePanel}
+            title="Notes & history"
+            className={cn('transition-colors', panelOpen ? 'text-blue-400' : 'text-zinc-600 hover:text-zinc-400')}
+          >
+            <FileText className="h-3.5 w-3.5" />
+          </button>
+        </td>
+      </tr>
+
+      {panelOpen && (
+        <tr className="bg-zinc-900/60">
+          <td colSpan={5} className="px-5 py-3">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              <div>
+                <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">Evidence note</p>
+                <textarea
+                  value={noteValue}
+                  onChange={e => setNoteValue(e.target.value)}
+                  onBlur={handleNoteBlur}
+                  rows={3}
+                  placeholder="Add evidence or implementation notes…"
+                  className="w-full text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-white placeholder:text-zinc-600 resize-none focus:outline-none focus:border-blue-600"
+                />
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">Change history</p>
+                {loadingHistory ? (
+                  <p className="text-xs text-zinc-600">Loading…</p>
+                ) : !history || history.length === 0 ? (
+                  <p className="text-xs text-zinc-600">No history yet.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {history.map((e, i) => (
+                      <div key={i} className="flex items-center gap-3 text-[10px]">
+                        <span className="text-zinc-600 shrink-0 tabular-nums">
+                          {new Date(e.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}
+                        </span>
+                        <span className="text-zinc-500 truncate">{e.user_email ?? 'unknown'}</span>
+                        <span className="text-zinc-600 shrink-0">{e.old_value ?? '—'} → {e.new_value ?? '—'}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   )
 }
 
@@ -190,8 +228,8 @@ export function GapReportClient({
     router.push(`${pathname}?${p.toString()}`)
   }
 
-  const score     = computeScore(optimisticAssessments)
-  const exposure  = fineExposure(optimisticAssessments, currentReg?.max_fine ?? null)
+  const score       = computeScore(optimisticAssessments)
+  const exposure    = fineExposure(optimisticAssessments, currentReg?.max_fine ?? null)
   const implemented = optimisticAssessments.filter(a => a.status === 'implemented').length
   const partial     = optimisticAssessments.filter(a => a.status === 'partial').length
 
@@ -236,7 +274,7 @@ export function GapReportClient({
         </div>
       )}
 
-      {/* Summary banner */}
+      {/* Summary cards */}
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-5 py-4">
           <div className="text-2xl font-bold text-white tabular-nums">{score}%</div>
@@ -253,7 +291,9 @@ export function GapReportClient({
         </div>
 
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-5 py-4">
-          <div className="text-2xl font-bold text-white tabular-nums">{implemented}<span className="text-zinc-600 text-base">/{DLP_CONTROLS.length}</span></div>
+          <div className="text-2xl font-bold text-white tabular-nums">
+            {implemented}<span className="text-zinc-600 text-base">/{DLP_CONTROLS.length}</span>
+          </div>
           <div className="text-xs text-zinc-500 mt-0.5">Controls implemented</div>
           {partial > 0 && <div className="text-xs text-amber-400 mt-1">{partial} partial</div>}
         </div>
@@ -288,64 +328,19 @@ export function GapReportClient({
               <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5 hidden md:table-cell">GDPR Articles</th>
               <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5 hidden lg:table-cell">Channel</th>
               <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Status</th>
-              <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5 w-16"></th>
+              <th className="w-10 px-4 py-2.5"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800/60">
-            {DLP_CONTROLS.map(ctrl => {
-              const assessment = optimisticAssessments.find(a => a.control_key === ctrl.key)
-              const status = (assessment?.status ?? 'not_assessed') as ControlStatus
-              const meta   = statusMeta(status)
-              const note   = assessment?.notes
-              return (
-                <tr key={ctrl.key} className="hover:bg-zinc-900/40 transition-colors">
-                  <td className="px-5 py-3.5">
-                    <div className="text-xs font-medium text-white">{ctrl.label}</div>
-                    <div className="text-xs text-zinc-500 mt-0.5 max-w-xs">{ctrl.description}</div>
-                    {note && (
-                      <div className="text-[10px] text-zinc-600 italic mt-1 max-w-xs">{note}</div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3.5 hidden md:table-cell">
-                    <div className="flex flex-wrap gap-1">
-                      {ctrl.gdpr_articles.map(a => (
-                        <span key={a} className="text-[10px] font-mono bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded">{a}</span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3.5 hidden lg:table-cell">
-                    <span className="text-xs text-zinc-500">{ctrl.channel}</span>
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <button
-                      onClick={() => toggleStatus(ctrl.key)}
-                      className={cn(
-                        'text-[10px] font-semibold px-2.5 py-1 rounded-full transition-colors border',
-                        meta.color,
-                        meta.bg,
-                        'border-transparent hover:border-current'
-                      )}
-                    >
-                      {meta.label}
-                    </button>
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <div className="flex items-center gap-2 relative">
-                      <NotesCell
-                        controlKey={ctrl.key}
-                        regulationId={currentReg?.id}
-                        currentStatus={status}
-                        initialNote={assessment?.notes}
-                      />
-                      <HistoryPanel
-                        controlKey={ctrl.key}
-                        regulationId={currentReg?.id}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
+            {DLP_CONTROLS.map(ctrl => (
+              <ControlRow
+                key={ctrl.key}
+                ctrl={ctrl}
+                assessment={optimisticAssessments.find(a => a.control_key === ctrl.key)}
+                regulationId={currentReg?.id}
+                onToggle={toggleStatus}
+              />
+            ))}
           </tbody>
         </table>
       </div>

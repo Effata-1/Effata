@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     (rows ?? []).map(r => [r.control_key, r as { control_key: string; status: string; notes: string | null }])
   )
 
-  const header = ['Control', 'Description', 'Channel', 'GDPR Articles', 'Status', 'Notes', 'Fine Weight %']
+  const header = ['Control', 'Description', 'Channel', 'GDPR Articles', 'Status', 'Notes', 'Risk Weight % (Internal Model)']
 
   const bodyRows = DLP_CONTROLS.map(ctrl => {
     const a = assessmentMap.get(ctrl.key)
