@@ -75,7 +75,7 @@ function analyzePatternHeuristic(pattern: string): ConfidenceReport {
 
 // ── Confidence report row ─────────────────────────────────────────────────────
 
-function ConfRow({ label, value }: { label: string; value: string }) {
+function ConfRow({ label, description, value }: { label: string; description: string; value: string }) {
   const color =
     ['good', 'low', 'strong'].includes(value)   ? 'text-green-400' :
     ['fair', 'medium'].includes(value)           ? 'text-amber-400' :
@@ -85,8 +85,11 @@ function ConfRow({ label, value }: { label: string; value: string }) {
     'text-zinc-300'
   return (
     <>
-      <span className="text-[10px] text-zinc-500">{label}</span>
-      <span className={cn('text-[10px] font-semibold capitalize', color)}>{value}</span>
+      <div>
+        <p className="text-[10px] text-zinc-400">{label}</p>
+        <p className="text-[9px] text-zinc-600 leading-snug mt-0.5">{description}</p>
+      </div>
+      <span className={cn('text-[10px] font-semibold capitalize self-start pt-0.5', color)}>{value}</span>
     </>
   )
 }
@@ -615,33 +618,18 @@ export function RegexLab({ initialPatterns }: Props) {
   const [libSearch,   setLibSearch]   = useState('')
   const [libCategory, setLibCategory] = useState('All')
 
-  // Test tabs & false-positive area
-  const [testTab,  setTestTab]  = useState<'match' | 'fp'>('match')
-  const [fpData,   setFpData]   = useState('')
-
   // Context keywords (AI Assistant)
   const [contextKeywords, setContextKeywords] = useState('')
   const [showContext,     setShowContext]      = useState(false)
 
-  // Scroll sync refs — match area
+  // Scroll sync refs
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const overlayRef  = useRef<HTMLDivElement>(null)
-
-  // Scroll sync refs — false-positive area
-  const fpTextareaRef = useRef<HTMLTextAreaElement>(null)
-  const fpOverlayRef  = useRef<HTMLDivElement>(null)
 
   const syncScroll = useCallback(() => {
     if (textareaRef.current && overlayRef.current) {
       overlayRef.current.scrollTop  = textareaRef.current.scrollTop
       overlayRef.current.scrollLeft = textareaRef.current.scrollLeft
-    }
-  }, [])
-
-  const syncFpScroll = useCallback(() => {
-    if (fpTextareaRef.current && fpOverlayRef.current) {
-      fpOverlayRef.current.scrollTop  = fpTextareaRef.current.scrollTop
-      fpOverlayRef.current.scrollLeft = fpTextareaRef.current.scrollLeft
     }
   }, [])
 
@@ -696,36 +684,6 @@ export function RegexLab({ initialPatterns }: Props) {
     [testData, regexResult]
   )
 
-  // ── False-positive regex evaluation + highlighted HTML ────────────────────
-  const fpRegexResult = useMemo<RegexResult>(() => {
-    if (!pattern || !fpData) return { valid: true, matches: [], error: null }
-    try {
-      const flagsWithG = flags.includes('g') ? flags : flags + 'g'
-      const regex = new RegExp(pattern, flagsWithG)
-      const matches: Match[] = []
-      let m: RegExpExecArray | null
-      regex.lastIndex = 0
-      while ((m = regex.exec(fpData)) !== null && matches.length < 100) {
-        matches.push({ index: matches.length, start: m.index, end: m.index + m[0].length, text: m[0], groups: m.slice(1) })
-        if (m[0].length === 0) { regex.lastIndex++; if (regex.lastIndex > fpData.length) break }
-      }
-      return { valid: true, matches, error: null }
-    } catch (e) {
-      return { valid: false, matches: [], error: (e as Error).message }
-    }
-  }, [pattern, flags, fpData])
-
-  const fpHighlightedHtml = useMemo(
-    () => buildHighlightedHtml(fpData, fpRegexResult.valid ? fpRegexResult.matches : [], 'fp'),
-    [fpData, fpRegexResult]
-  )
-
-  // Pre-fill FP area with AI non-match examples when they arrive
-  useEffect(() => {
-    if (aiResult?.nonMatchExamples.length) {
-      setFpData(aiResult.nonMatchExamples.join('\n'))
-    }
-  }, [aiResult])
 
   // ── AI generate ───────────────────────────────────────────────────────────
   const handleGenerate = useCallback(() => {
@@ -742,6 +700,7 @@ export function RegexLab({ initialPatterns }: Props) {
         setAiResult(result)
         setPattern(result.pattern)
         setFlags(result.flags)
+        setSaveName(result.title)
         if (!testData && result.testExamples.length > 0) {
           setTestData(result.testExamples.join('\n'))
         }
@@ -794,6 +753,7 @@ export function RegexLab({ initialPatterns }: Props) {
   const loadPattern = useCallback((p: SavedPattern | DlpPattern) => {
     setPattern(p.pattern)
     setFlags(p.flags)
+    setSaveName(p.name)
     if ('test_data' in p && p.test_data) {
       setTestData(p.test_data)
     } else if ('testExample' in p) {
@@ -819,7 +779,6 @@ export function RegexLab({ initialPatterns }: Props) {
       pattern,
       flags,
       test_data:   testData || null,
-      fp_test_data: fpData || null,
       ...(aiResult?.explanation && { explanation: aiResult.explanation }),
       ...(confidence && { confidence }),
       exported_at: new Date().toISOString(),
@@ -831,7 +790,7 @@ export function RegexLab({ initialPatterns }: Props) {
     a.download = `dlp-pattern-${Date.now()}.json`
     a.click()
     URL.revokeObjectURL(url)
-  }, [pattern, flags, testData, fpData, saveName, aiResult, confidence])
+  }, [pattern, flags, testData, saveName, aiResult, confidence])
 
   // ── Copy as markdown documentation ────────────────────────────────────────
   const copyAsMarkdown = useCallback(async () => {
@@ -856,13 +815,12 @@ export function RegexLab({ initialPatterns }: Props) {
         '',
         `**Recommended use:** ${conf.recommendation}`,
       ] : []),
-      ...(testData ? [`\n**Match test data:**\n\`\`\`\n${testData}\n\`\`\``] : []),
-      ...(fpData   ? [`\n**False-positive test data:**\n\`\`\`\n${fpData}\n\`\`\``] : []),
+      ...(testData ? [`\n**Test data:**\n\`\`\`\n${testData}\n\`\`\``] : []),
     ]
     await navigator.clipboard.writeText(lines.join('\n'))
     setCopiedMd(true)
     setTimeout(() => setCopiedMd(false), 1500)
-  }, [pattern, flags, testData, fpData, saveName, aiResult, confidence])
+  }, [pattern, flags, testData, saveName, aiResult, confidence])
 
   // ── Library filter ────────────────────────────────────────────────────────
   const filteredPatterns = useMemo(() => {
@@ -967,15 +925,35 @@ export function RegexLab({ initialPatterns }: Props) {
           {/* Confidence Report */}
           {confidence && (
             <div className="mt-4 rounded-lg border border-zinc-700/60 bg-zinc-800/40 p-3">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2.5">Confidence Report</p>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
-                <ConfRow label="Match accuracy"     value={confidence.matchAccuracy} />
-                <ConfRow label="False-positive risk" value={confidence.falsePositiveRisk} />
-                <ConfRow label="Anchoring"           value={confidence.anchoring} />
-                <ConfRow label="Context required"    value={confidence.contextRequired ? 'Yes' : 'No'} />
-                <ConfRow label="DLP severity"        value={confidence.dlpSeverity} />
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Confidence Report</p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                <ConfRow
+                  label="Match accuracy"
+                  description="How precisely this pattern targets the intended data type without over-matching."
+                  value={confidence.matchAccuracy}
+                />
+                <ConfRow
+                  label="False-positive risk"
+                  description="Likelihood of firing on non-sensitive strings that look similar to the target."
+                  value={confidence.falsePositiveRisk}
+                />
+                <ConfRow
+                  label="Anchoring"
+                  description="Whether \\b word boundaries or ^ $ anchors prevent partial-word matches."
+                  value={confidence.anchoring}
+                />
+                <ConfRow
+                  label="Context required"
+                  description="If yes, add a keyword proximity condition in your DLP tool to reduce noise."
+                  value={confidence.contextRequired ? 'Yes' : 'No'}
+                />
+                <ConfRow
+                  label="DLP severity"
+                  description="Suggested enforcement level: critical=block, high=alert+block, medium=alert, low=monitor."
+                  value={confidence.dlpSeverity}
+                />
               </div>
-              <p className="text-[10px] text-zinc-400 mt-2.5 leading-relaxed border-t border-zinc-700/60 pt-2">
+              <p className="text-[10px] text-zinc-400 mt-3 leading-relaxed border-t border-zinc-700/60 pt-2.5">
                 {confidence.recommendation}
               </p>
             </div>
@@ -1083,76 +1061,35 @@ export function RegexLab({ initialPatterns }: Props) {
           )}
         </div>
 
-        {/* Test String — tabbed: Match / False Positive */}
+        {/* Test String */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
           <div className="flex items-center justify-between mb-3">
-            {/* Tab switcher */}
-            <div className="flex items-center gap-1 bg-zinc-800 rounded-lg p-0.5">
-              <button
-                onClick={() => setTestTab('match')}
-                className={cn(
-                  'px-3 py-1 rounded text-xs font-semibold transition-colors',
-                  testTab === 'match'
-                    ? 'bg-zinc-700 text-white'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                )}
-              >
-                Match Test
-              </button>
-              <button
-                onClick={() => setTestTab('fp')}
-                className={cn(
-                  'px-3 py-1 rounded text-xs font-semibold transition-colors',
-                  testTab === 'fp'
-                    ? 'bg-zinc-700 text-white'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                )}
-              >
-                False Positive
-              </button>
-            </div>
-            {testTab === 'match' ? (
-              <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded uppercase', matchBadgeClass)}>
-                {!regexResult.valid ? 'Invalid pattern' : `${regexResult.matches.length} match${regexResult.matches.length !== 1 ? 'es' : ''}`}
-              </span>
-            ) : (
-              <span className={cn(
-                'text-[10px] font-bold px-2 py-0.5 rounded uppercase',
-                fpRegexResult.matches.length > 0 ? 'bg-red-500/15 text-red-400' : 'bg-green-500/15 text-green-400'
-              )}>
-                {fpRegexResult.matches.length > 0
-                  ? `${fpRegexResult.matches.length} false positive${fpRegexResult.matches.length !== 1 ? 's' : ''}`
-                  : 'No false positives'}
-              </span>
-            )}
+            <SectionLabel>Test String</SectionLabel>
+            <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded uppercase', matchBadgeClass)}>
+              {!regexResult.valid
+                ? 'Invalid pattern'
+                : `${regexResult.matches.length} match${regexResult.matches.length !== 1 ? 'es' : ''}`}
+            </span>
           </div>
 
-          {testTab === 'match' ? (
-            <div className="relative rounded-lg border border-zinc-700 overflow-hidden" style={{ height: '240px' }}>
-              <div ref={overlayRef} aria-hidden="true" dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-                style={{ ...OVERLAY_STYLE, zIndex: 1, pointerEvents: 'none', background: '#18181b' }} />
-              <textarea ref={textareaRef} value={testData} onChange={e => setTestData(e.target.value)}
-                onScroll={syncScroll} placeholder="Paste text that SHOULD match your pattern…"
-                spellCheck={false} className="absolute inset-0 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 rounded-lg"
-                style={{ ...OVERLAY_STYLE, zIndex: 2, background: 'transparent', caretColor: 'white', color: 'transparent', WebkitTextFillColor: 'transparent' }} />
-            </div>
-          ) : (
-            <>
-              <div className="relative rounded-lg border border-zinc-700 overflow-hidden" style={{ height: '240px' }}>
-                <div ref={fpOverlayRef} aria-hidden="true" dangerouslySetInnerHTML={{ __html: fpHighlightedHtml }}
-                  style={{ ...OVERLAY_STYLE, zIndex: 1, pointerEvents: 'none', background: '#18181b' }} />
-                <textarea ref={fpTextareaRef} value={fpData} onChange={e => setFpData(e.target.value)}
-                  onScroll={syncFpScroll} placeholder="Paste text that should NOT match (e.g. similar-looking but non-sensitive strings). Red = false positive."
-                  spellCheck={false} className="absolute inset-0 resize-none focus:outline-none focus:ring-1 focus:ring-red-500/50 rounded-lg"
-                  style={{ ...OVERLAY_STYLE, zIndex: 2, background: 'transparent', caretColor: 'white', color: 'transparent', WebkitTextFillColor: 'transparent' }} />
-              </div>
-              {fpRegexResult.matches.length > 0 && (
-                <p className="mt-2 text-[10px] text-red-400">
-                  Pattern fires on {fpRegexResult.matches.length} string{fpRegexResult.matches.length !== 1 ? 's' : ''} that should not match — consider tightening anchoring or adding context keywords.
-                </p>
-              )}
-            </>
-          )}
+          <div className="relative rounded-lg border border-zinc-700 overflow-hidden" style={{ height: '280px' }}>
+            <div
+              ref={overlayRef}
+              aria-hidden="true"
+              dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+              style={{ ...OVERLAY_STYLE, zIndex: 1, pointerEvents: 'none', background: '#18181b' }}
+            />
+            <textarea
+              ref={textareaRef}
+              value={testData}
+              onChange={e => setTestData(e.target.value)}
+              onScroll={syncScroll}
+              placeholder="Paste or type text to test against your pattern..."
+              spellCheck={false}
+              className="absolute inset-0 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 rounded-lg"
+              style={{ ...OVERLAY_STYLE, zIndex: 2, background: 'transparent', caretColor: 'white', color: 'transparent', WebkitTextFillColor: 'transparent' }}
+            />
+          </div>
         </div>
 
         {/* Match Results */}

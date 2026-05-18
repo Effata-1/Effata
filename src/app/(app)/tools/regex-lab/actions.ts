@@ -16,6 +16,7 @@ export interface ConfidenceReport {
 }
 
 export interface AiRegexResult {
+  title:            string
   pattern:          string
   flags:            string
   explanation:      string
@@ -48,6 +49,7 @@ No markdown, no prose, no code blocks — raw JSON only.
 
 The JSON must have exactly this structure:
 {
+  "title": "<short pattern name, 2-5 words, suitable as a library entry title>",
   "pattern": "<regex pattern string, no delimiters, no flags>",
   "flags": "<string containing only g, i, m characters — always include g>",
   "explanation": "<plain English explanation of how the pattern works, with each major component on its own line separated by \\n>",
@@ -63,10 +65,19 @@ The JSON must have exactly this structure:
   }
 }
 
-Rules:
-- pattern must be a valid JavaScript RegExp (no PCRE-only syntax)
+DLP TOOL COMPATIBILITY — mandatory, non-negotiable:
+- Use ONLY: character classes [0-9] [A-Za-z] [A-Z0-9], shorthand \\d \\w \\s and their negations, word boundaries \\b, simple quantifiers {n} {n,m} ? + *, non-capturing groups (?:...), capturing groups ()
+- NEVER use lookaheads: (?=...) or (?!...)
+- NEVER use lookbehinds: (?<=...) or (?<!...)
+- NEVER use backreferences: \\1 or named groups (?<name>...) or (?P<name>...)
+- NEVER use atomic groups (?>...) or possessive quantifiers *+ ++ ?+
+- NEVER use conditional patterns (?(condition)...)
+- If precision requires excluding edge cases (e.g. SSN 000-xx-xxxx), accept those edge cases and note them in the explanation rather than using lookaheads
+- Patterns must work in Netskope, Symantec DLP, Microsoft Purview, and standard regex engines
+
+General rules:
 - flags must only contain g, i, m — always include g
-- Prefer precise patterns with word boundaries (\\b) over broad ones
+- Prefer \\b word boundaries for anchoring — avoids partial matches
 - Avoid catastrophic backtracking — no nested quantifiers on overlapping character classes
 - testExamples: 3–5 realistic strings that match the pattern
 - nonMatchExamples: 2–3 strings that should NOT match, to verify precision
@@ -102,6 +113,10 @@ export async function generateRegex(
       return { error: 'AI returned an unexpected response format' }
     }
 
+    const title = typeof parsed.title === 'string' && parsed.title.trim()
+      ? parsed.title.trim()
+      : 'Custom Pattern'
+
     // Validate the pattern is a legal RegExp before returning
     const safeFlags = (parsed.flags as string).replace(/[^gim]/g, '') || 'g'
     new RegExp(parsed.pattern, safeFlags)
@@ -119,6 +134,7 @@ export async function generateRegex(
 
     return {
       result: {
+        title,
         pattern: parsed.pattern,
         flags: safeFlags,
         explanation: parsed.explanation,
