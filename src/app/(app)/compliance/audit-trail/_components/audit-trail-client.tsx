@@ -102,6 +102,7 @@ export function AuditTrailClient({
           value={ctrlFilter}
           onChange={setCtrl}
           placeholder="All Controls"
+          align="right"
         />
 
         <span className="text-xs text-zinc-600 ml-auto">

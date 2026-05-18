@@ -375,6 +375,7 @@ export function RegulationsClient({
           options={INDUSTRY_OPTIONS}
           value={currentIndustry}
           onChange={v => updateFilter('industry', v)}
+          align="right"
         />
 
         <span className="text-xs text-zinc-600">

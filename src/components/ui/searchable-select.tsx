@@ -16,6 +16,7 @@ type SearchableSelectProps =
       onChange: (value: string) => void
       options: SelectOption[]
       placeholder?: string
+      align?: 'left' | 'right'
       className?: string
     }
   | {
@@ -24,16 +25,18 @@ type SearchableSelectProps =
       onChange: (values: string[]) => void
       options: SelectOption[]
       placeholder?: string
+      align?: 'left' | 'right'
       className?: string
     }
 
 export function SearchableSelect(props: SearchableSelectProps) {
-  const { options, placeholder = 'Select…', className } = props
+  const { options, placeholder = 'Select…', align = 'left', className } = props
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const ref = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
+  // Close on click-outside and ESC
   useEffect(() => {
     function handleOutside(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
@@ -41,8 +44,18 @@ export function SearchableSelect(props: SearchableSelectProps) {
         setSearch('')
       }
     }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setOpen(false)
+        setSearch('')
+      }
+    }
     document.addEventListener('mousedown', handleOutside)
-    return () => document.removeEventListener('mousedown', handleOutside)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('keydown', handleKey)
+    }
   }, [])
 
   useEffect(() => {
@@ -52,7 +65,9 @@ export function SearchableSelect(props: SearchableSelectProps) {
   const q = search.toLowerCase()
   const filtered = q ? options.filter(o => o.label.toLowerCase().includes(q)) : options
 
-  const hasSelection = props.multiple ? props.value.length > 0 : false
+  // Avoid unsafe casts — compute count once via proper narrowing
+  const selectedCount = props.multiple ? props.value.length : 0
+  const hasSelection  = selectedCount > 0
 
   function triggerLabel(): string {
     if (props.multiple) {
@@ -85,13 +100,13 @@ export function SearchableSelect(props: SearchableSelectProps) {
       >
         <span className={cn(
           'flex-1 text-left truncate text-sm',
-          !hasSelection && props.multiple ? 'text-zinc-500' : 'text-white'
+          hasSelection || !props.multiple ? 'text-white' : 'text-zinc-500'
         )}>
           {triggerLabel()}
         </span>
         {hasSelection && (
           <span className="text-[10px] font-bold bg-blue-600 text-white rounded-full px-1.5 py-0.5 leading-none shrink-0 tabular-nums">
-            {(props as { value: string[] }).value.length}
+            {selectedCount}
           </span>
         )}
         <ChevronDown className={cn(
@@ -101,7 +116,11 @@ export function SearchableSelect(props: SearchableSelectProps) {
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1.5 w-72 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl z-50 overflow-hidden">
+        <div className={cn(
+          'absolute top-full mt-1.5 w-72 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl z-50 overflow-hidden',
+          align === 'right' ? 'right-0' : 'left-0'
+        )}>
+          {/* Search */}
           <div className="p-2 border-b border-zinc-800">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-600 pointer-events-none" />
@@ -111,11 +130,21 @@ export function SearchableSelect(props: SearchableSelectProps) {
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search…"
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-600"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-8 pr-7 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-600"
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
             </div>
           </div>
 
+          {/* Options */}
           <div className="max-h-72 overflow-y-auto">
             {filtered.length === 0 ? (
               <p className="text-xs text-zinc-600 px-3 py-3 text-center">No options match.</p>
@@ -144,9 +173,10 @@ export function SearchableSelect(props: SearchableSelectProps) {
             )}
           </div>
 
+          {/* Multi-select footer */}
           {props.multiple && hasSelection && (
             <div className="border-t border-zinc-800 px-3 py-2 flex items-center justify-between">
-              <span className="text-[10px] text-zinc-500">{(props as { value: string[] }).value.length} selected</span>
+              <span className="text-[10px] text-zinc-500">{selectedCount} selected</span>
               <button
                 type="button"
                 onClick={() => { props.onChange([]); setSearch('') }}
