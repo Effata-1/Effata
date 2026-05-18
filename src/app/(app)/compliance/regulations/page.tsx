@@ -79,9 +79,10 @@ export default async function RegulationsPage({
   const orgRegions: string[] = profileData?.regions ?? []
   const orgIndustry: string | null = profileData?.industry ?? null
 
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+  // Cron runs monthly (1st of each month) — treat anything older than 35 days as stale
+  const thirtyFiveDaysAgo = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000)
   const staleCount = allRegs.filter(
-    r => new Date(r.last_verified_at) < sevenDaysAgo
+    r => new Date(r.last_verified_at) < thirtyFiveDaysAgo
   ).length
 
   // Compute relevance set

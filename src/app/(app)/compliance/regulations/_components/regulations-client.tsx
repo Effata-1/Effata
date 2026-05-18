@@ -316,8 +316,8 @@ export function RegulationsClient({
         <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
           <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
           <p className="text-sm text-amber-300 flex-1">
-            <span className="font-semibold">{staleCount} {staleCount === 1 ? "regulation hasn't" : "regulations haven't"} been verified in over 7 days.</span>
-            {' '}The monthly AI review runs on the 1st of each month — or check each one manually using the official source links below.
+            <span className="font-semibold">{staleCount} {staleCount === 1 ? "regulation hasn't" : "regulations haven't"} been AI-verified this month.</span>
+            {' '}The monthly review runs on the 1st of each month — or verify manually using the official source links below.
           </p>
           <button
             onClick={() => setBannerDismissed(true)}
