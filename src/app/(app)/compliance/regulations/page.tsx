@@ -34,11 +34,12 @@ export interface RequirementRow {
 }
 
 const REGION_GROUPS: Record<string, string[]> = {
-  Europe:           ['EU', 'EEA', 'UK'],
-  India:            ['India'],
-  Americas:         ['US', 'Canada', 'Brazil', 'California, United States'],
-  'Asia-Pacific':   ['Singapore', 'China', 'Japan', 'Australia', 'South Korea'],
-  'MENA & Africa':  ['Saudi Arabia', 'UAE', 'South Africa'],
+  Europe:          ['EU', 'EEA', 'UK'],
+  India:           ['India'],
+  Americas:        ['US', 'Canada', 'Brazil', 'California, United States'],
+  'Asia-Pacific':  ['Singapore', 'China', 'Japan', 'Australia', 'South Korea'],
+  'Middle East':   ['Saudi Arabia', 'UAE'],
+  Africa:          ['South Africa'],
 }
 
 // Maps onboarding region IDs → regulation region strings
@@ -181,7 +182,8 @@ export default async function RegulationsPage({
   )
 
   const filtered = allRegs.filter(r => {
-    const regionOk = region === 'all' || regionGroupMatch(r.regions, region)
+    // 'my-regions' passes all regs through — client filters by relevantCodes
+    const regionOk = region === 'all' || region === 'my-regions' || regionGroupMatch(r.regions, region)
     const industryOk =
       industry === 'all' ||
       r.industries === null ||

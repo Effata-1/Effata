@@ -8,13 +8,18 @@ import type { RegulationRow } from '../page'
 import { markRegulationVerified } from '../actions'
 
 const REGION_OPTIONS = [
-  { value: 'all',            label: 'All Regions' },
-  { value: 'Europe',         label: 'Europe' },
-  { value: 'India',          label: 'India' },
-  { value: 'Americas',       label: 'Americas' },
-  { value: 'Asia-Pacific',   label: 'Asia-Pacific' },
-  { value: 'MENA & Africa',  label: 'MENA & Africa' },
+  { value: 'all',          label: 'All Regions' },
+  { value: 'Europe',       label: 'Europe' },
+  { value: 'Americas',     label: 'Americas' },
+  { value: 'Asia-Pacific', label: 'Asia-Pacific' },
+  { value: 'Middle East',  label: 'Middle East' },
+  { value: 'Africa',       label: 'Africa' },
+  { value: 'India',        label: 'India' },
 ]
+
+const PILL_BASE = 'px-3 py-1.5 rounded-full border text-xs font-medium transition-colors'
+const PILL_DEFAULT = 'border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300'
+const PILL_ACTIVE  = 'border-zinc-400 bg-zinc-800 text-white'
 
 const INDUSTRY_OPTIONS = [
   { value: 'all',                     label: 'All Industries' },
@@ -280,14 +285,17 @@ export function RegulationsClient({
   }
 
   const q = searchQuery.toLowerCase().trim()
+  const afterRegion = currentRegion === 'my-regions'
+    ? regulations.filter(r => relevantSet.has(r.code))
+    : regulations
   const visible = q
-    ? regulations.filter(r =>
+    ? afterRegion.filter(r =>
         r.short_name.toLowerCase().includes(q) ||
         r.name.toLowerCase().includes(q) ||
         r.summary.toLowerCase().includes(q) ||
         r.jurisdiction.toLowerCase().includes(q)
       )
-    : regulations
+    : afterRegion
 
   return (
     <div className="space-y-4">
@@ -327,23 +335,28 @@ export function RegulationsClient({
         )}
       </div>
 
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
-          {REGION_OPTIONS.map(opt => (
-            <button
-              key={opt.value}
-              onClick={() => updateFilter('region', opt.value)}
-              className={cn(
-                'text-xs px-3 py-1.5 rounded-md transition-colors',
-                currentRegion === opt.value
-                  ? 'bg-white/10 text-white font-medium'
-                  : 'text-zinc-500 hover:text-zinc-300'
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        {hasOrgProfile && relevantCodes.length > 0 && (
+          <button
+            onClick={() => updateFilter('region', 'my-regions')}
+            className={cn(PILL_BASE, currentRegion === 'my-regions'
+              ? 'border-blue-500 bg-blue-500/15 text-blue-300'
+              : PILL_DEFAULT
+            )}
+          >
+            For my org · {relevantCodes.length}
+          </button>
+        )}
+
+        {REGION_OPTIONS.map(opt => (
+          <button
+            key={opt.value}
+            onClick={() => updateFilter('region', opt.value)}
+            className={cn(PILL_BASE, currentRegion === opt.value ? PILL_ACTIVE : PILL_DEFAULT)}
+          >
+            {opt.label}
+          </button>
+        ))}
 
         <select
           value={currentIndustry}
