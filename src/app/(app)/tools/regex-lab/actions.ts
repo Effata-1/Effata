@@ -67,6 +67,7 @@ The JSON must have exactly this structure:
 
 DLP TOOL COMPATIBILITY — mandatory, non-negotiable:
 - Use ONLY: character classes [0-9] [A-Za-z] [A-Z0-9], shorthand \\d \\w \\s and their negations, word boundaries \\b, simple quantifiers {n} {n,m} ? + *, non-capturing groups (?:...), capturing groups ()
+- NEVER use non-capturing groups (?:...) — use regular capturing groups (...) instead
 - NEVER use lookaheads: (?=...) or (?!...)
 - NEVER use lookbehinds: (?<=...) or (?<!...)
 - NEVER use backreferences: \\1 or named groups (?<name>...) or (?P<name>...)
