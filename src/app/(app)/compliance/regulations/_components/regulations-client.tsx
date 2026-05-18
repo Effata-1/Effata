@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { ChevronDown, ChevronRight, CheckCircle, AlertTriangle, Clock, Shield, ExternalLink, X, Search } from 'lucide-react'
+import { ChevronDown, ChevronRight, CheckCircle, AlertTriangle, Clock, Shield, ExternalLink, X, Search, ClipboardCheck } from 'lucide-react'
 import type { RegulationRow } from '../page'
 import { markRegulationVerified } from '../actions'
 
@@ -187,6 +187,14 @@ function RegulationCard({ reg, isRelevant }: { reg: RegulationRow; isRelevant: b
             <span>{fresh.label}</span>
           </div>
           <div className="flex items-center gap-2">
+            <a
+              href={`/compliance/gap-report?reg=${reg.code}`}
+              onClick={e => e.stopPropagation()}
+              className="flex items-center gap-1 text-[10px] font-medium text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 px-2 py-1 rounded transition-colors"
+            >
+              <ClipboardCheck className="h-3 w-3" />
+              Assess
+            </a>
             {reg.source_url && (
               <a
                 href={reg.source_url}
