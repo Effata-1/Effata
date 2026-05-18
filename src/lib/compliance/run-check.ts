@@ -21,6 +21,7 @@ interface ReqRow {
   dlp_relevance: string
   fine: string | null
   severity: string
+  dlp_controls: string[] | null
 }
 
 interface AIUpdate {
@@ -31,8 +32,8 @@ interface AIUpdate {
     max_fine?: string | null
     requirements?: Array<{
       article: string
-      field: 'description' | 'dlp_relevance' | 'fine' | 'severity'
-      new_value: string | null
+      field: 'description' | 'dlp_relevance' | 'fine' | 'severity' | 'dlp_controls'
+      new_value: string | string[] | null
     }>
   }
 }
@@ -88,7 +89,7 @@ const anthropic = new Anthropic({
 
 async function reviewRegulation(reg: RegRow): Promise<AIUpdate> {
   const reqFull = reg.requirements
-    .map(r => `  • ${r.article} — ${r.title}\n    Description: ${r.description}\n    DLP Relevance: ${r.dlp_relevance}\n    Fine: ${r.fine ?? 'not specified'} | Severity: ${r.severity}`)
+    .map(r => `  • ${r.article} — ${r.title}\n    Description: ${r.description}\n    DLP Relevance: ${r.dlp_relevance}\n    Fine: ${r.fine ?? 'not specified'} | Severity: ${r.severity}\n    DLP Controls: ${r.dlp_controls?.join(', ') ?? 'none'}`)
     .join('\n\n')
 
   const prompt = `You are auditing stored compliance regulation data. You may correct ANY field — but ONLY when you are 100% certain the stored content is factually wrong, not just differently worded.
@@ -107,8 +108,10 @@ STRICT RULES — violating these corrupts production data:
 4. Do NOT change fine amounts unless the stored number is provably wrong (wrong currency, wrong cap, clearly outdated figure).
 5. Prefer changed=false. One wrong update is worse than missing a minor inaccuracy.
 
-Updatable fields per requirement: description, dlp_relevance, fine, severity
+Updatable fields per requirement: description, dlp_relevance, fine, severity, dlp_controls
 Updatable regulation fields: summary, max_fine
+
+Valid dlp_controls values: data_classification, dlp_web, dlp_email, dlp_endpoint, dlp_saas, genai_controls, audit_logging, breach_detection, encryption_transit, access_controls
 
 Respond ONLY with valid JSON:
 
@@ -122,7 +125,8 @@ OR if something is provably wrong:
     "summary": "corrected summary (omit key if unchanged)",
     "max_fine": "corrected value (omit key if unchanged)",
     "requirements": [
-      {"article": "Article X", "field": "description|dlp_relevance|fine|severity", "new_value": "corrected value"}
+      {"article": "Article X", "field": "description|dlp_relevance|fine|severity", "new_value": "corrected value"},
+      {"article": "Article Y", "field": "dlp_controls", "new_value": ["data_classification", "audit_logging"]}
     ]
   }
 }`

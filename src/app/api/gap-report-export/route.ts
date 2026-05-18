@@ -13,27 +13,38 @@ export async function GET(req: NextRequest) {
 
   if (!regId) return new Response('Missing reg_id', { status: 400 })
 
-  const { data: rows } = await supabase
-    .from('compliance_assessments')
-    .select('control_key, status, notes')
-    .eq('regulation_id', regId)
+  const [{ data: rows }, { data: reqs }] = await Promise.all([
+    supabase
+      .from('compliance_assessments')
+      .select('control_key, status, notes')
+      .eq('regulation_id', regId),
+    supabase
+      .from('compliance_requirements')
+      .select('article, dlp_controls')
+      .eq('regulation_id', regId),
+  ])
 
   const assessmentMap = new Map(
     (rows ?? []).map(r => [r.control_key, r as { control_key: string; status: string; notes: string | null }])
   )
 
-  const header = ['Control', 'Description', 'Channel', 'GDPR Articles', 'Status', 'Notes', 'Risk Weight % (Internal Model)']
+  const requirements = (reqs ?? []) as { article: string; dlp_controls: string[] | null }[]
+
+  const header = ['Control', 'Description', 'Channel', 'Articles / Sections', 'Status', 'Notes', 'Risk Weight % (Internal Model)']
 
   const bodyRows = DLP_CONTROLS.map(ctrl => {
     const a = assessmentMap.get(ctrl.key)
     const status = a?.status ?? 'not_assessed'
     const notes  = a?.notes ?? ''
     const weight = Math.round((CONTROL_GDPR_FINE_WEIGHT[ctrl.key] ?? 0.05) * 100)
+    const articles = requirements
+      .filter(r => r.dlp_controls?.includes(ctrl.key))
+      .map(r => r.article)
     return [
       ctrl.label,
       ctrl.description,
       ctrl.channel,
-      ctrl.gdpr_articles.join('; '),
+      articles.length > 0 ? articles.join('; ') : ctrl.gdpr_articles.join('; '),
       status,
       notes,
       `${weight}%`,

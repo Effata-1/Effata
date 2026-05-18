@@ -63,20 +63,31 @@ type HistoryEntry = {
   new_value: string | null
 }
 
+interface RequirementRef {
+  article: string
+  dlp_controls: string[] | null
+}
+
 function ControlRow({
   ctrl,
   assessment,
   regulationId,
+  requirements,
   onToggle,
 }: {
   ctrl: DlpControl
   assessment: Assessment | undefined
   regulationId: string
+  requirements: RequirementRef[]
   onToggle: (key: string) => void
 }) {
   const status = (assessment?.status ?? 'not_assessed') as ControlStatus
   const meta   = statusMeta(status)
   const note   = assessment?.notes
+
+  const articles = requirements
+    .filter(r => r.dlp_controls?.includes(ctrl.key))
+    .map(r => r.article)
 
   const [panelOpen, setPanelOpen] = useState(false)
   const [noteValue, setNoteValue]   = useState(note ?? '')
@@ -110,9 +121,12 @@ function ControlRow({
         </td>
         <td className="px-4 py-3.5 hidden md:table-cell">
           <div className="flex flex-wrap gap-1">
-            {ctrl.gdpr_articles.map(a => (
-              <span key={a} className="text-[10px] font-mono bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded">{a}</span>
-            ))}
+            {articles.length > 0
+              ? articles.map(a => (
+                  <span key={a} className="text-[10px] font-mono bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded">{a}</span>
+                ))
+              : <span className="text-[10px] text-zinc-600">—</span>
+            }
           </div>
         </td>
         <td className="px-4 py-3.5 hidden lg:table-cell">
@@ -191,12 +205,14 @@ export function GapReportClient({
   currentRegCode,
   needsReview,
   contentUpdatedAt,
+  requirements,
 }: {
   regulations: Regulation[]
   initialAssessments: Assessment[]
   currentRegCode: string
   needsReview: boolean
   contentUpdatedAt: string | null
+  requirements: RequirementRef[]
 }) {
   const router     = useRouter()
   const pathname   = usePathname()
@@ -325,7 +341,7 @@ export function GapReportClient({
           <thead>
             <tr className="border-b border-zinc-800">
               <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-5 py-2.5">Control</th>
-              <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5 hidden md:table-cell">GDPR Articles</th>
+              <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5 hidden md:table-cell">Articles / Sections</th>
               <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5 hidden lg:table-cell">Channel</th>
               <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Status</th>
               <th className="w-10 px-4 py-2.5"></th>
@@ -338,6 +354,7 @@ export function GapReportClient({
                 ctrl={ctrl}
                 assessment={optimisticAssessments.find(a => a.control_key === ctrl.key)}
                 regulationId={currentReg?.id}
+                requirements={requirements}
                 onToggle={toggleStatus}
               />
             ))}

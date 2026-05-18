@@ -10,6 +10,11 @@ interface RegulationMeta {
   content_updated_at: string | null
 }
 
+interface RequirementRef {
+  article: string
+  dlp_controls: string[] | null
+}
+
 interface AssessmentRow {
   control_key: string
   status: 'not_assessed' | 'implemented' | 'partial' | 'not_implemented'
@@ -44,12 +49,20 @@ export default async function GapReportPage({
   }))
 
   let needsReview = false
+  let requirements: RequirementRef[] = []
 
   if (user && currentReg) {
-    const { data: existing } = await supabase
-      .from('compliance_assessments')
-      .select('control_key, status, notes, updated_at')
-      .eq('regulation_id', currentReg.id)
+    const [{ data: existing }, { data: reqs }] = await Promise.all([
+      supabase
+        .from('compliance_assessments')
+        .select('control_key, status, notes, updated_at')
+        .eq('regulation_id', currentReg.id),
+      supabase
+        .from('compliance_requirements')
+        .select('article, dlp_controls')
+        .eq('regulation_id', currentReg.id),
+    ])
+    requirements = (reqs as RequirementRef[]) ?? []
 
     if (existing && existing.length > 0) {
       const rows = existing as AssessmentRow[]
@@ -96,6 +109,7 @@ export default async function GapReportPage({
           currentRegCode={currentReg?.code ?? reg}
           needsReview={needsReview}
           contentUpdatedAt={currentReg?.content_updated_at ?? null}
+          requirements={requirements}
         />
       )}
     </div>
