@@ -8,7 +8,8 @@ import type { RegulationRow } from '../page'
 import { markRegulationVerified } from '../actions'
 
 const REGION_OPTIONS = [
-  { value: 'all',          label: 'All Regions' },
+  { value: 'all',          label: 'All' },
+  { value: 'Global',       label: 'Global' },
   { value: 'Europe',       label: 'Europe' },
   { value: 'Americas',     label: 'Americas' },
   { value: 'Asia-Pacific', label: 'Asia-Pacific' },
@@ -39,9 +40,12 @@ const INDUSTRY_OPTIONS = [
 ]
 
 const TYPE_COLORS: Record<string, string> = {
-  privacy:  'bg-blue-500/15 text-blue-400',
-  security: 'bg-purple-500/15 text-purple-400',
-  sector:   'bg-amber-500/15 text-amber-400',
+  privacy:      'bg-blue-500/15 text-blue-400',
+  security:     'bg-purple-500/15 text-purple-400',
+  sector:       'bg-amber-500/15 text-amber-400',
+  framework:    'bg-teal-500/15 text-teal-400',
+  standard:     'bg-sky-500/15 text-sky-400',
+  ai_governance:'bg-rose-500/15 text-rose-400',
 }
 
 const SEVERITY_COLORS: Record<string, string> = {

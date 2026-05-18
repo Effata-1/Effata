@@ -316,7 +316,7 @@ export function GapReportClient({
 
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-5 py-4">
           <div className="text-sm font-semibold text-red-400 leading-tight mt-0.5 break-words">{exposure}</div>
-          <div className="text-xs text-zinc-500 mt-0.5">Fine exposure at risk</div>
+          <div className="text-xs text-zinc-500 mt-0.5">Penalty / exposure at risk</div>
           <div className="text-[10px] text-zinc-600 mt-1">Based on unimplemented controls</div>
         </div>
       </div>

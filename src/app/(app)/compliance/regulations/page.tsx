@@ -34,6 +34,7 @@ export interface RequirementRow {
 }
 
 const REGION_GROUPS: Record<string, string[]> = {
+  Global:          ['Global'],
   Europe:          ['EU', 'EEA', 'UK'],
   India:           ['India'],
   Americas:        ['US', 'Canada', 'Brazil', 'California, United States'],
@@ -114,6 +115,9 @@ const ORG_INDUSTRY_MAP: Record<string, string[]> = {
 
 function regionGroupMatch(regions: string[], group: string): boolean {
   if (group === 'all') return true
+  if (group === 'Global') return regions.includes('Global')
+  // Global frameworks appear under every geographic filter
+  if (regions.includes('Global')) return true
   const targets = REGION_GROUPS[group] ?? []
   return regions.some(r => targets.some(t => r.includes(t) || t.includes(r)))
 }
@@ -125,12 +129,13 @@ function isRelevantToOrg(
 ): boolean {
   if (orgRegions.length === 0) return false
 
-  const isGlobal = orgRegions.includes('global')
+  const orgIsGlobal = orgRegions.includes('global')
+  const regIsGlobal = reg.regions.includes('Global')
 
   // Map org region IDs to regulation region strings
   const orgRegionStrings = orgRegions.flatMap(r => ORG_REGION_MAP[r] ?? [])
 
-  const regionMatch = isGlobal || orgRegionStrings.some(orgR =>
+  const regionMatch = orgIsGlobal || regIsGlobal || orgRegionStrings.some(orgR =>
     reg.regions.some(regR => regR.includes(orgR) || orgR.includes(regR))
   )
   if (!regionMatch) return false
@@ -200,7 +205,7 @@ export default async function RegulationsPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white mb-1">Regulations</h1>
+        <h1 className="text-2xl font-bold text-white mb-1">Regulations & Frameworks</h1>
         <p className="text-zinc-500 text-sm">
           Browse and filter DLP-relevant regulations across privacy, security, and sector-specific frameworks worldwide.
         </p>

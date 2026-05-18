@@ -383,7 +383,7 @@ export default async function CompliancePage() {
           {/* Quick links */}
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden divide-y divide-zinc-800/60">
             {[
-              { href: '/compliance/regulations', icon: FileText,       label: 'Browse Regulations',  sub: `${totalRegs} tracked` },
+              { href: '/compliance/regulations', icon: FileText,       label: 'Regulations & Frameworks', sub: `${totalRegs} tracked` },
               { href: '/compliance/gap-report',  icon: ClipboardCheck, label: 'Gap Report',           sub: `${assessedCount} assessed` },
               { href: '/compliance/audit-trail', icon: BarChart2,      label: 'Audit Trail',          sub: `${logs.length > 0 ? 'Recent activity' : 'No activity yet'}` },
             ].map(({ href, icon: Icon, label, sub }) => (
