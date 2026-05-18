@@ -701,7 +701,7 @@ export function RegexLab({ initialPatterns }: Props) {
         setPattern(result.pattern)
         setFlags(result.flags)
         setSaveName(result.title)
-        if (!testData && result.testExamples.length > 0) {
+        if (result.testExamples.length > 0) {
           setTestData(result.testExamples.join('\n'))
         }
       }
@@ -1152,6 +1152,77 @@ export function RegexLab({ initialPatterns }: Props) {
           ══════════════════════════════════════════════════ */}
       <div className="col-span-1 space-y-5">
 
+        {/* DLP Pattern Library */}
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <SectionLabel>DLP Pattern Library</SectionLabel>
+            <span className="text-[10px] text-zinc-600 mb-3">{filteredPatterns.length} patterns</span>
+          </div>
+
+          {/* Search */}
+          <div className="relative mb-2">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search patterns..."
+              value={libSearch}
+              onChange={e => setLibSearch(e.target.value)}
+              className="w-full pl-7 pr-3 py-1.5 text-xs bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+            />
+          </div>
+
+          {/* Category filter */}
+          <div className="flex flex-wrap gap-1 mb-3">
+            {['All', ...DLP_CATEGORIES].map(cat => (
+              <button
+                key={cat}
+                onClick={() => setLibCategory(cat)}
+                className={cn(
+                  'px-2 py-0.5 rounded text-[10px] font-medium transition-colors',
+                  libCategory === cat
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300'
+                )}
+              >
+                {cat === 'All' ? 'All' : cat.split(' ')[0]}
+              </button>
+            ))}
+          </div>
+
+          {/* Pattern list grouped by category */}
+          <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+            {filteredPatterns.length === 0 ? (
+              <p className="text-xs text-zinc-600 italic">No patterns match your search</p>
+            ) : (
+              Object.entries(groupedPatterns).map(([cat, patterns]) => (
+                <div key={cat}>
+                  {libCategory === 'All' && (
+                    <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5 px-0.5">
+                      {cat}
+                    </p>
+                  )}
+                  <div className="grid grid-cols-2 gap-1">
+                    {patterns.map(p => (
+                      <button
+                        key={p.name}
+                        onClick={() => loadPattern(p)}
+                        className="text-left rounded-lg border border-zinc-700 bg-zinc-800/60 p-2 hover:border-blue-500/50 hover:bg-zinc-700/60 transition-all group"
+                      >
+                        <p className="text-[10px] font-semibold text-white group-hover:text-blue-300 transition-colors leading-tight">
+                          {p.name}
+                        </p>
+                        <p className="text-[9px] text-zinc-500 mt-0.5 leading-tight line-clamp-2">
+                          {p.description}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
         {/* Save Pattern */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
           <SectionLabel>Save Pattern</SectionLabel>
@@ -1237,77 +1308,6 @@ export function RegexLab({ initialPatterns }: Props) {
               ))}
             </div>
           )}
-        </div>
-
-        {/* DLP Pattern Library */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <SectionLabel>DLP Pattern Library</SectionLabel>
-            <span className="text-[10px] text-zinc-600 mb-3">{filteredPatterns.length} patterns</span>
-          </div>
-
-          {/* Search */}
-          <div className="relative mb-2">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search patterns..."
-              value={libSearch}
-              onChange={e => setLibSearch(e.target.value)}
-              className="w-full pl-7 pr-3 py-1.5 text-xs bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
-            />
-          </div>
-
-          {/* Category filter */}
-          <div className="flex flex-wrap gap-1 mb-3">
-            {['All', ...DLP_CATEGORIES].map(cat => (
-              <button
-                key={cat}
-                onClick={() => setLibCategory(cat)}
-                className={cn(
-                  'px-2 py-0.5 rounded text-[10px] font-medium transition-colors',
-                  libCategory === cat
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300'
-                )}
-              >
-                {cat === 'All' ? 'All' : cat.split(' ')[0]}
-              </button>
-            ))}
-          </div>
-
-          {/* Pattern list grouped by category */}
-          <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-            {filteredPatterns.length === 0 ? (
-              <p className="text-xs text-zinc-600 italic">No patterns match your search</p>
-            ) : (
-              Object.entries(groupedPatterns).map(([cat, patterns]) => (
-                <div key={cat}>
-                  {libCategory === 'All' && (
-                    <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5 px-0.5">
-                      {cat}
-                    </p>
-                  )}
-                  <div className="grid grid-cols-2 gap-1">
-                    {patterns.map(p => (
-                      <button
-                        key={p.name}
-                        onClick={() => loadPattern(p)}
-                        className="text-left rounded-lg border border-zinc-700 bg-zinc-800/60 p-2 hover:border-blue-500/50 hover:bg-zinc-700/60 transition-all group"
-                      >
-                        <p className="text-[10px] font-semibold text-white group-hover:text-blue-300 transition-colors leading-tight">
-                          {p.name}
-                        </p>
-                        <p className="text-[9px] text-zinc-500 mt-0.5 leading-tight line-clamp-2">
-                          {p.description}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
         </div>
       </div>
     </div>
