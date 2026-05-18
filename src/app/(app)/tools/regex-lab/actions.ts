@@ -6,12 +6,22 @@ import { logAuditEvent } from '@/lib/audit'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export interface ConfidenceReport {
+  matchAccuracy:     'good' | 'fair' | 'poor'
+  falsePositiveRisk: 'low' | 'medium' | 'high'
+  anchoring:         'strong' | 'weak'
+  contextRequired:   boolean
+  dlpSeverity:       'critical' | 'high' | 'medium' | 'low'
+  recommendation:    string
+}
+
 export interface AiRegexResult {
-  pattern: string
-  flags: string
-  explanation: string
-  testExamples: string[]
+  pattern:          string
+  flags:            string
+  explanation:      string
+  testExamples:     string[]
   nonMatchExamples: string[]
+  confidence:       ConfidenceReport
 }
 
 export interface SavedPattern {
@@ -42,7 +52,15 @@ The JSON must have exactly this structure:
   "flags": "<string containing only g, i, m characters — always include g>",
   "explanation": "<plain English explanation of how the pattern works, with each major component on its own line separated by \\n>",
   "testExamples": ["<string that WILL match>", ...],
-  "nonMatchExamples": ["<string that will NOT match>", ...]
+  "nonMatchExamples": ["<string that will NOT match>", ...],
+  "confidence": {
+    "matchAccuracy": "good|fair|poor",
+    "falsePositiveRisk": "low|medium|high",
+    "anchoring": "strong|weak",
+    "contextRequired": true|false,
+    "dlpSeverity": "critical|high|medium|low",
+    "recommendation": "<one sentence: how to deploy this pattern in a DLP tool>"
+  }
 }
 
 Rules:
@@ -88,6 +106,17 @@ export async function generateRegex(
     const safeFlags = (parsed.flags as string).replace(/[^gim]/g, '') || 'g'
     new RegExp(parsed.pattern, safeFlags)
 
+    // Normalise confidence — tolerate missing/malformed fields gracefully
+    const c = (parsed.confidence ?? {}) as Partial<ConfidenceReport>
+    const confidence: ConfidenceReport = {
+      matchAccuracy:     (['good','fair','poor'] as const).includes(c.matchAccuracy as 'good') ? c.matchAccuracy! : 'fair',
+      falsePositiveRisk: (['low','medium','high'] as const).includes(c.falsePositiveRisk as 'low') ? c.falsePositiveRisk! : 'medium',
+      anchoring:         (['strong','weak'] as const).includes(c.anchoring as 'strong') ? c.anchoring! : 'weak',
+      contextRequired:   !!c.contextRequired,
+      dlpSeverity:       (['critical','high','medium','low'] as const).includes(c.dlpSeverity as 'low') ? c.dlpSeverity! : 'medium',
+      recommendation:    typeof c.recommendation === 'string' ? c.recommendation : 'Test thoroughly before deploying in production.',
+    }
+
     return {
       result: {
         pattern: parsed.pattern,
@@ -99,6 +128,7 @@ export async function generateRegex(
         nonMatchExamples: (parsed.nonMatchExamples as unknown[])
           .filter((s): s is string => typeof s === 'string')
           .slice(0, 3),
+        confidence,
       },
     }
   } catch (e) {
