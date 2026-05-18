@@ -3,7 +3,7 @@
 import { useOptimistic, useTransition, useState } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { AlertTriangle, X, FileText, Download } from 'lucide-react'
+import { AlertTriangle, X, FileText, Download, ChevronDown } from 'lucide-react'
 import { DLP_CONTROLS, CONTROL_STATUS_OPTIONS, CONTROL_GDPR_FINE_WEIGHT, type ControlStatus, type DlpControl } from '@/lib/compliance/controls'
 import { upsertAssessment, getControlHistory } from '../actions'
 
@@ -251,22 +251,24 @@ export function GapReportClient({
 
   return (
     <div className="space-y-5">
-      {/* Regulation tabs */}
-      <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1 flex-wrap">
-        {regulations.map(reg => (
-          <button
-            key={reg.code}
-            onClick={() => switchReg(reg.code)}
-            className={cn(
-              'text-xs px-3 py-1.5 rounded-md transition-colors',
-              currentRegCode === reg.code
-                ? 'bg-white/10 text-white font-medium'
-                : 'text-zinc-500 hover:text-zinc-300'
-            )}
+      {/* Regulation selector */}
+      <div className="flex items-center gap-3">
+        <span className="text-xs text-zinc-500 shrink-0">Regulation</span>
+        <div className="relative">
+          <select
+            value={currentRegCode}
+            onChange={e => switchReg(e.target.value)}
+            className="appearance-none bg-zinc-900 border border-zinc-800 rounded-lg pl-3 pr-8 py-2 text-sm text-white focus:outline-none focus:border-blue-600 cursor-pointer min-w-[200px]"
           >
-            {reg.short_name}
-          </button>
-        ))}
+            {regulations.map(reg => (
+              <option key={reg.code} value={reg.code}>{reg.short_name}</option>
+            ))}
+          </select>
+          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500 pointer-events-none" />
+        </div>
+        {currentReg?.max_fine && (
+          <span className="text-xs text-red-400/70">Max fine: {currentReg.max_fine}</span>
+        )}
       </div>
 
       {/* Review required banner */}

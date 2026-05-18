@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { DLP_CONTROLS } from '@/lib/compliance/controls'
+import { isRelevantToOrg } from '@/lib/compliance/org-mappings'
 import { cn } from '@/lib/utils'
 import { FileText, BarChart2, ClipboardCheck, ChevronRight, ArrowRight } from 'lucide-react'
 
@@ -11,52 +12,6 @@ const STATUS_STYLE: Record<string, { color: string; bg: string; label: string }>
   partial:         { color: 'text-amber-400', bg: 'bg-amber-500/15', label: 'Partial' },
   not_implemented: { color: 'text-red-400',   bg: 'bg-red-500/15',   label: 'Not Implemented' },
   not_assessed:    { color: 'text-zinc-400',  bg: 'bg-zinc-700/50',  label: 'Not Assessed' },
-}
-
-// Maps onboarding region IDs → regulation region strings (mirror of regulations/page.tsx)
-const ORG_REGION_MAP: Record<string, string[]> = {
-  'european-union': ['EU', 'EEA'],
-  'united-kingdom': ['UK'],
-  'india':          ['India'],
-  'united-states':  ['US', 'California, United States'],
-  'canada':         ['Canada'],
-  'brazil':         ['Brazil'],
-  'singapore':      ['Singapore'],
-  'china':          ['China'],
-  'japan':          ['Japan'],
-  'south-korea':    ['South Korea'],
-  'australia':      ['Australia'],
-  'apac':           ['Singapore', 'Japan', 'Australia', 'South Korea', 'China'],
-  'saudi-arabia':   ['Saudi Arabia'],
-  'uae':            ['UAE'],
-  'middle-east':    ['Saudi Arabia', 'UAE'],
-  'south-africa':   ['South Africa'],
-  'africa':         ['South Africa'],
-  'latin-america':  ['Brazil'],
-}
-
-const ORG_INDUSTRY_MAP: Record<string, string[]> = {
-  'financial-services': ['financial'],
-  'banking':            ['financial'],
-  'insurance':          ['financial'],
-  'healthcare':         ['healthcare'],
-  'life-sciences':      ['healthcare'],
-  'technology-saas':    ['technology'],
-  'software-engineering': ['technology'],
-  'retail-ecommerce':   ['retail'],
-  'hospitality-travel': ['retail'],
-  'energy-utilities':   ['critical_infrastructure', 'energy'],
-  'manufacturing':      ['critical_infrastructure'],
-  'automotive':         ['automotive', 'transport'],
-  'logistics-transport': ['transport', 'critical_infrastructure'],
-  'telecom':            ['telecom', 'digital_infrastructure'],
-  'government':         ['government', 'defence'],
-  'education':          ['education'],
-  'legal':              ['legal'],
-  'professional-services': ['legal'],
-  'media-entertainment': ['media'],
-  'non-profit':         [],
-  'other':              [],
 }
 
 function computeScore(assessments: { status: string }[]): number {
@@ -107,24 +62,10 @@ export default async function CompliancePage() {
 
   const orgRegions: string[] = profileData?.regions ?? []
   const orgIndustry: string | null = profileData?.industry ?? null
-  const isGlobal = orgRegions.includes('global')
-  const orgRegionStrings = orgRegions.flatMap(r => ORG_REGION_MAP[r] ?? [])
-  const mappedIndustries = orgIndustry ? (ORG_INDUSTRY_MAP[orgIndustry] ?? []) : []
 
-  // Which regulations are relevant to this org
   const relevantIds = new Set(
     regs
-      .filter(r => {
-        if (!isGlobal && orgRegionStrings.length === 0) return false
-        const regIsGlobal = r.regions.some((regR: string) => regR === 'Global')
-        const regionMatch = isGlobal || regIsGlobal || orgRegionStrings.some(orgR =>
-          r.regions.some((regR: string) => regR.includes(orgR) || orgR.includes(regR))
-        )
-        if (!regionMatch) return false
-        if (r.industries === null) return true
-        if (!orgIndustry) return true
-        return mappedIndustries.some((i: string) => r.industries.includes(i))
-      })
+      .filter(r => isRelevantToOrg(r, orgRegions, orgIndustry))
       .map(r => r.id)
   )
 

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { RegulationsClient } from './_components/regulations-client'
+import { isRelevantToOrg } from '@/lib/compliance/org-mappings'
 
 export interface RegulationRow {
   id: string
@@ -43,76 +44,6 @@ const REGION_GROUPS: Record<string, string[]> = {
   Africa:          ['South Africa'],
 }
 
-// Maps onboarding region IDs → regulation region strings
-const ORG_REGION_MAP: Record<string, string[]> = {
-  'european-union': ['EU', 'EEA'],
-  'united-kingdom': ['UK'],
-  'india':          ['India'],
-  'united-states':  ['US', 'California, United States'],
-  'canada':         ['Canada'],
-  'brazil':         ['Brazil'],
-  'latin-america':  ['Brazil'],
-  'singapore':      ['Singapore'],
-  'china':          ['China'],
-  'japan':          ['Japan'],
-  'south-korea':    ['South Korea'],
-  'australia':      ['Australia'],
-  'apac':           ['Singapore', 'Japan', 'Australia', 'South Korea', 'China'],
-  'saudi-arabia':   ['Saudi Arabia'],
-  'uae':            ['UAE'],
-  'middle-east':    ['Saudi Arabia', 'UAE'],
-  'south-africa':   ['South Africa'],
-  'africa':         ['South Africa'],
-}
-
-// Maps onboarding industry IDs → regulation industry strings
-const ORG_INDUSTRY_MAP: Record<string, string[]> = {
-  // Financial
-  'financial-services': ['financial'],
-  'banking':            ['financial'],
-  'insurance':          ['financial'],
-
-  // Healthcare / Life Sciences
-  'healthcare':         ['healthcare'],
-  'life-sciences':      ['healthcare'],
-
-  // Technology
-  'technology-saas':       ['technology'],
-  'software-engineering':  ['technology'],
-
-  // Retail / E-commerce
-  'retail-ecommerce':   ['retail'],
-  'hospitality-travel': ['retail'],
-
-  // Critical Infrastructure / Energy
-  'energy-utilities':   ['critical_infrastructure', 'energy'],
-  'manufacturing':      ['critical_infrastructure'],
-
-  // Transport
-  'automotive':         ['automotive', 'transport'],
-  'logistics-transport': ['transport', 'critical_infrastructure'],
-
-  // Telecom — maps to both 'telecom' (CPNI) and 'digital_infrastructure' (NIS2)
-  'telecom':            ['telecom', 'digital_infrastructure'],
-
-  // Government / Defence
-  'government':         ['government', 'defence'],
-
-  // Education
-  'education':          ['education'],
-
-  // Legal / Professional Services
-  'legal':              ['legal'],
-  'professional-services': ['legal'],
-
-  // Media & Entertainment
-  'media-entertainment': ['media'],
-
-  // Non-profit and Other: no industry-specific regs; null-industry regs apply via region match
-  'non-profit':         [],
-  'other':              [],
-}
-
 function regionGroupMatch(regions: string[], group: string): boolean {
   if (group === 'all') return true
   if (group === 'Global') return regions.includes('Global')
@@ -122,32 +53,6 @@ function regionGroupMatch(regions: string[], group: string): boolean {
   return regions.some(r => targets.some(t => r.includes(t) || t.includes(r)))
 }
 
-function isRelevantToOrg(
-  reg: RegulationRow,
-  orgRegions: string[],
-  orgIndustry: string | null
-): boolean {
-  if (orgRegions.length === 0) return false
-
-  const orgIsGlobal = orgRegions.includes('global')
-  const regIsGlobal = reg.regions.includes('Global')
-
-  // Map org region IDs to regulation region strings
-  const orgRegionStrings = orgRegions.flatMap(r => ORG_REGION_MAP[r] ?? [])
-
-  const regionMatch = orgIsGlobal || regIsGlobal || orgRegionStrings.some(orgR =>
-    reg.regions.some(regR => regR.includes(orgR) || orgR.includes(regR))
-  )
-  if (!regionMatch) return false
-
-  // No industry restriction on the regulation → applies to all industries
-  if (reg.industries === null) return true
-
-  // Match org industry
-  if (!orgIndustry) return true
-  const mappedIndustries = ORG_INDUSTRY_MAP[orgIndustry] ?? []
-  return mappedIndustries.some(i => reg.industries!.includes(i))
-}
 
 export default async function RegulationsPage({
   searchParams,
