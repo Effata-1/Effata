@@ -116,7 +116,8 @@ export default async function CompliancePage() {
     regs
       .filter(r => {
         if (!isGlobal && orgRegionStrings.length === 0) return false
-        const regionMatch = isGlobal || orgRegionStrings.some(orgR =>
+        const regIsGlobal = r.regions.some((regR: string) => regR === 'Global')
+        const regionMatch = isGlobal || regIsGlobal || orgRegionStrings.some(orgR =>
           r.regions.some((regR: string) => regR.includes(orgR) || orgR.includes(regR))
         )
         if (!regionMatch) return false

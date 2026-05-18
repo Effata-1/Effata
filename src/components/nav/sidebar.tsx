@@ -70,7 +70,7 @@ const NAV_ITEMS = [
   },
   {
     label: 'Compliance',
-    href:  '/compliance/regulations',
+    href:  '/compliance',
     base:  '/compliance',
     icon:  <ClipboardList className="h-4 w-4" />,
     sub:   true,

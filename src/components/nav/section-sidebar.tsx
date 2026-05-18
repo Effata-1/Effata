@@ -41,7 +41,7 @@ export function SectionSidebar({ title, items, backHref = '/dashboard' }: Props)
 
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
         {items.map(item => {
-          const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+          const isActive = pathname === item.href
           return (
             <Link
               key={item.href}

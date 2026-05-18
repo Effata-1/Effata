@@ -316,7 +316,7 @@ export function RegulationsClient({
           <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
           <p className="text-sm text-amber-300 flex-1">
             <span className="font-semibold">{staleCount} {staleCount === 1 ? "regulation hasn't" : "regulations haven't"} been verified in over 7 days.</span>
-            {' '}The weekly AI review runs every Monday — or check each one manually using the official source links below.
+            {' '}The monthly AI review runs on the 1st of each month — or check each one manually using the official source links below.
           </p>
           <button
             onClick={() => setBannerDismissed(true)}
