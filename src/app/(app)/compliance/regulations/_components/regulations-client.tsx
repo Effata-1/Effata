@@ -20,8 +20,17 @@ const INDUSTRY_OPTIONS = [
   { value: 'all',                     label: 'All Industries' },
   { value: 'financial',               label: 'Financial Services' },
   { value: 'healthcare',              label: 'Healthcare' },
+  { value: 'technology',              label: 'Technology / SaaS' },
+  { value: 'retail',                  label: 'Retail / E-commerce' },
   { value: 'critical_infrastructure', label: 'Critical Infrastructure' },
-  { value: 'defence',                 label: 'Defence / Government' },
+  { value: 'government',              label: 'Government' },
+  { value: 'defence',                 label: 'Defence' },
+  { value: 'education',               label: 'Education' },
+  { value: 'telecom',                 label: 'Telecom' },
+  { value: 'automotive',              label: 'Automotive' },
+  { value: 'legal',                   label: 'Legal' },
+  { value: 'media',                   label: 'Media & Entertainment' },
+  { value: 'transport',               label: 'Transport / Logistics' },
 ]
 
 const TYPE_COLORS: Record<string, string> = {

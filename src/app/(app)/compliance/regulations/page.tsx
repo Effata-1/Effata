@@ -65,16 +65,50 @@ const ORG_REGION_MAP: Record<string, string[]> = {
 
 // Maps onboarding industry IDs → regulation industry strings
 const ORG_INDUSTRY_MAP: Record<string, string[]> = {
+  // Financial
   'financial-services': ['financial'],
   'banking':            ['financial'],
   'insurance':          ['financial'],
+
+  // Healthcare / Life Sciences
   'healthcare':         ['healthcare'],
   'life-sciences':      ['healthcare'],
-  'defence':            ['defence'],
-  'government':         ['defence'],
-  'energy':             ['critical_infrastructure'],
-  'utilities':          ['critical_infrastructure'],
+
+  // Technology
+  'technology-saas':       ['technology'],
+  'software-engineering':  ['technology'],
+
+  // Retail / E-commerce
+  'retail-ecommerce':   ['retail'],
+  'hospitality-travel': ['retail'],
+
+  // Critical Infrastructure / Energy
+  'energy-utilities':   ['critical_infrastructure', 'energy'],
   'manufacturing':      ['critical_infrastructure'],
+
+  // Transport
+  'automotive':         ['automotive', 'transport'],
+  'logistics-transport': ['transport', 'critical_infrastructure'],
+
+  // Telecom — maps to both 'telecom' (CPNI) and 'digital_infrastructure' (NIS2)
+  'telecom':            ['telecom', 'digital_infrastructure'],
+
+  // Government / Defence
+  'government':         ['government', 'defence'],
+
+  // Education
+  'education':          ['education'],
+
+  // Legal / Professional Services
+  'legal':              ['legal'],
+  'professional-services': ['legal'],
+
+  // Media & Entertainment
+  'media-entertainment': ['media'],
+
+  // Non-profit and Other: no industry-specific regs; null-industry regs apply via region match
+  'non-profit':         [],
+  'other':              [],
 }
 
 function regionGroupMatch(regions: string[], group: string): boolean {
