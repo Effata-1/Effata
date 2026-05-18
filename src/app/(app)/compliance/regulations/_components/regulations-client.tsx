@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { ChevronDown, ChevronRight, CheckCircle, AlertTriangle, Clock, Shield, ExternalLink, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, CheckCircle, AlertTriangle, Clock, Shield, ExternalLink, X, Search } from 'lucide-react'
 import type { RegulationRow } from '../page'
 import { markRegulationVerified } from '../actions'
 
@@ -261,6 +261,7 @@ export function RegulationsClient({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [bannerDismissed, setBannerDismissed] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const relevantSet = new Set(relevantCodes)
 
   function updateFilter(key: string, value: string) {
@@ -268,6 +269,16 @@ export function RegulationsClient({
     params.set(key, value)
     router.push(`${pathname}?${params.toString()}`)
   }
+
+  const q = searchQuery.toLowerCase().trim()
+  const visible = q
+    ? regulations.filter(r =>
+        r.short_name.toLowerCase().includes(q) ||
+        r.name.toLowerCase().includes(q) ||
+        r.summary.toLowerCase().includes(q) ||
+        r.jurisdiction.toLowerCase().includes(q)
+      )
+    : regulations
 
   return (
     <div className="space-y-4">
@@ -287,6 +298,25 @@ export function RegulationsClient({
           </button>
         </div>
       )}
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-600 pointer-events-none" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Search regulations…"
+          className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-8 pr-8 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-600"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
 
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
@@ -317,7 +347,7 @@ export function RegulationsClient({
         </select>
 
         <span className="text-xs text-zinc-600">
-          {regulations.length} of {allCount} regulations
+          {visible.length} of {allCount} regulations
         </span>
         {hasOrgProfile && relevantSet.size > 0 && (
           <span className="text-xs text-zinc-600 flex items-center gap-1.5">
@@ -327,14 +357,14 @@ export function RegulationsClient({
         )}
       </div>
 
-      {regulations.length === 0 ? (
+      {visible.length === 0 ? (
         <div className="py-16 text-center rounded-xl border border-zinc-800">
           <p className="text-sm text-zinc-500">No regulations match your filters.</p>
-          <p className="text-xs text-zinc-600 mt-1">Try selecting a different region or industry.</p>
+          <p className="text-xs text-zinc-600 mt-1">Try selecting a different region, industry, or search term.</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {regulations.map(reg => (
+          {visible.map(reg => (
             <RegulationCard key={reg.id} reg={reg} isRelevant={relevantSet.has(reg.code)} />
           ))}
         </div>

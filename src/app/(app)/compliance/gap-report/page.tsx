@@ -13,6 +13,7 @@ interface RegulationMeta {
 interface AssessmentRow {
   control_key: string
   status: 'not_assessed' | 'implemented' | 'partial' | 'not_implemented'
+  notes: string | null
   updated_at: string
 }
 
@@ -38,6 +39,7 @@ export default async function GapReportPage({
   let assessments: AssessmentRow[] = DLP_CONTROLS.map(c => ({
     control_key: c.key,
     status: 'not_assessed',
+    notes: null,
     updated_at: new Date(0).toISOString(),
   }))
 
@@ -46,7 +48,7 @@ export default async function GapReportPage({
   if (user && currentReg) {
     const { data: existing } = await supabase
       .from('compliance_assessments')
-      .select('control_key, status, updated_at')
+      .select('control_key, status, notes, updated_at')
       .eq('regulation_id', currentReg.id)
 
     if (existing && existing.length > 0) {
@@ -57,6 +59,7 @@ export default async function GapReportPage({
         return {
           control_key: c.key,
           status:      row?.status ?? 'not_assessed',
+          notes:       row?.notes ?? null,
           updated_at:  row?.updated_at ?? new Date(0).toISOString(),
         }
       })

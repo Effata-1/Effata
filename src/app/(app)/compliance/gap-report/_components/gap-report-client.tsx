@@ -3,13 +3,14 @@
 import { useOptimistic, useTransition, useState } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { AlertTriangle, X } from 'lucide-react'
+import { AlertTriangle, X, Pencil, Clock, Download } from 'lucide-react'
 import { DLP_CONTROLS, CONTROL_STATUS_OPTIONS, CONTROL_GDPR_FINE_WEIGHT, type ControlStatus } from '@/lib/compliance/controls'
-import { upsertAssessment } from '../actions'
+import { upsertAssessment, getControlHistory } from '../actions'
 
 interface Assessment {
   control_key: string
   status: ControlStatus
+  notes?: string | null
   updated_at?: string
 }
 
@@ -53,6 +54,97 @@ function fineExposure(assessments: Assessment[], maxFine: string | null): string
   }
   const pct = Math.round(unprotectedWeight * 100)
   return `~${pct}% of max (${maxFine})`
+}
+
+type HistoryEntry = { created_at: string; user_email: string | null; old_value: string | null; new_value: string | null }
+
+function HistoryPanel({ controlKey, regulationId }: { controlKey: string; regulationId: string }) {
+  const [entries, setEntries] = useState<HistoryEntry[] | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  async function load() {
+    if (entries !== null) { setEntries(null); return }
+    setLoading(true)
+    const data = await getControlHistory(controlKey, regulationId)
+    setEntries(data)
+    setLoading(false)
+  }
+
+  return (
+    <div className="flex flex-col gap-0">
+      <button
+        onClick={load}
+        title="View history"
+        className="text-zinc-600 hover:text-zinc-400 transition-colors"
+      >
+        <Clock className={cn('h-3.5 w-3.5', loading && 'animate-pulse')} />
+      </button>
+      {entries !== null && (
+        <div className="absolute z-10 mt-5 right-0 w-80 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl p-3">
+          <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wide mb-2">Change history</p>
+          {entries.length === 0 ? (
+            <p className="text-xs text-zinc-600">No history yet.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {entries.map((e, i) => (
+                <div key={i} className="flex items-center gap-2 text-[10px]">
+                  <span className="text-zinc-600 shrink-0">
+                    {new Date(e.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}
+                  </span>
+                  <span className="text-zinc-500 truncate shrink">{e.user_email ?? 'unknown'}</span>
+                  <span className="text-zinc-600 shrink-0">{e.old_value ?? '—'} → {e.new_value ?? '—'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function NotesCell({
+  controlKey,
+  regulationId,
+  currentStatus,
+  initialNote,
+}: {
+  controlKey: string
+  regulationId: string
+  currentStatus: ControlStatus
+  initialNote: string | null | undefined
+}) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(initialNote ?? '')
+
+  function handleBlur() {
+    setEditing(false)
+    upsertAssessment(controlKey, regulationId, currentStatus, value || undefined)
+  }
+
+  if (editing) {
+    return (
+      <textarea
+        autoFocus
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        onBlur={handleBlur}
+        rows={2}
+        placeholder="Add evidence note…"
+        className="w-full text-xs bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-white placeholder:text-zinc-600 resize-none focus:outline-none focus:border-blue-600"
+      />
+    )
+  }
+
+  return (
+    <button
+      onClick={() => setEditing(true)}
+      title="Add note"
+      className="text-zinc-600 hover:text-zinc-400 transition-colors"
+    >
+      <Pencil className="h-3.5 w-3.5" />
+    </button>
+  )
 }
 
 export function GapReportClient({
@@ -177,7 +269,17 @@ export function GapReportClient({
       <div className="rounded-xl border border-zinc-800 overflow-hidden">
         <div className="px-4 py-3 bg-zinc-900/80 border-b border-zinc-800 flex items-center justify-between">
           <span className="text-xs font-semibold text-white">{currentReg?.short_name} — DLP Control Assessment</span>
-          <span className="text-xs text-zinc-600">Click a status badge to cycle through states</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-zinc-600">Click a status badge to cycle through states</span>
+            <a
+              href={`/api/gap-report-export?reg_id=${currentReg?.id}&reg_code=${currentRegCode}`}
+              download
+              className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              <Download className="h-3 w-3" />
+              Export CSV
+            </a>
+          </div>
         </div>
         <table className="w-full text-sm">
           <thead>
@@ -186,6 +288,7 @@ export function GapReportClient({
               <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5 hidden md:table-cell">GDPR Articles</th>
               <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5 hidden lg:table-cell">Channel</th>
               <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Status</th>
+              <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5 w-16"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800/60">
@@ -193,11 +296,15 @@ export function GapReportClient({
               const assessment = optimisticAssessments.find(a => a.control_key === ctrl.key)
               const status = (assessment?.status ?? 'not_assessed') as ControlStatus
               const meta   = statusMeta(status)
+              const note   = assessment?.notes
               return (
                 <tr key={ctrl.key} className="hover:bg-zinc-900/40 transition-colors">
                   <td className="px-5 py-3.5">
                     <div className="text-xs font-medium text-white">{ctrl.label}</div>
                     <div className="text-xs text-zinc-500 mt-0.5 max-w-xs">{ctrl.description}</div>
+                    {note && (
+                      <div className="text-[10px] text-zinc-600 italic mt-1 max-w-xs">{note}</div>
+                    )}
                   </td>
                   <td className="px-4 py-3.5 hidden md:table-cell">
                     <div className="flex flex-wrap gap-1">
@@ -221,6 +328,20 @@ export function GapReportClient({
                     >
                       {meta.label}
                     </button>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center gap-2 relative">
+                      <NotesCell
+                        controlKey={ctrl.key}
+                        regulationId={currentReg?.id}
+                        currentStatus={status}
+                        initialNote={assessment?.notes}
+                      />
+                      <HistoryPanel
+                        controlKey={ctrl.key}
+                        regulationId={currentReg?.id}
+                      />
+                    </div>
                   </td>
                 </tr>
               )
