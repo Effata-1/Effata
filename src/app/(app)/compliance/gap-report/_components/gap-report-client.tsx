@@ -106,7 +106,7 @@ function ControlRow({
   }
 
   function handleNoteBlur() {
-    upsertAssessment(ctrl.key, regulationId, status, noteValue || undefined)
+    upsertAssessment(ctrl.key, regulationId, status, noteValue)
   }
 
   return (

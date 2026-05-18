@@ -31,19 +31,21 @@ export async function upsertAssessment(
 
   const previousStatus = existing?.status ?? 'not_assessed'
 
+  // Only include notes when explicitly provided — omitting preserves existing notes in DB
+  const upsertData: Record<string, unknown> = {
+    org_id:        orgId,
+    control_key:   controlKey,
+    regulation_id: regulationId,
+    status,
+    updated_at:    new Date().toISOString(),
+  }
+  if (notes !== undefined) {
+    upsertData.notes = notes.trim() || null
+  }
+
   const { error } = await supabase
     .from('compliance_assessments')
-    .upsert(
-      {
-        org_id:        orgId,
-        control_key:   controlKey,
-        regulation_id: regulationId,
-        status,
-        notes:         notes ?? null,
-        updated_at:    new Date().toISOString(),
-      },
-      { onConflict: 'org_id,control_key,regulation_id' }
-    )
+    .upsert(upsertData, { onConflict: 'org_id,control_key,regulation_id' })
 
   if (error) return { error: error.message }
 
