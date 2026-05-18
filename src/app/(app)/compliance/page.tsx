@@ -30,11 +30,14 @@ function formatDate(iso: string) {
 export default async function CompliancePage() {
   const supabase = await createClient()
 
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+
   const [
     { data: regsData },
     { data: assessmentsData },
     { data: recentLogs },
     { data: profileData },
+    { data: trendData },
   ] = await Promise.all([
     supabase
       .from('compliance_regulations')
@@ -54,11 +57,20 @@ export default async function CompliancePage() {
       .from('onboarding_profiles')
       .select('regions, industry')
       .maybeSingle(),
+    // Oldest-first so the first entry per (reg, control) gives the state 30 days ago
+    supabase
+      .from('audit_logs')
+      .select('entity_name, old_value, details')
+      .eq('action', 'compliance.assessment_updated')
+      .gte('created_at', thirtyDaysAgo.toISOString())
+      .order('created_at', { ascending: true })
+      .limit(500),
   ])
 
   const regs = regsData ?? []
   const allAssessments = (assessmentsData ?? []) as { regulation_id: string; control_key: string; status: string }[]
   const logs = (recentLogs ?? []) as { id: string; created_at: string; user_email: string | null; entity_name: string; old_value: string | null; new_value: string | null; details: { regulation_id?: string } }[]
+  const recentChanges = (trendData ?? []) as { entity_name: string; old_value: string | null; details: { regulation_id?: string } }[]
 
   const orgRegions: string[] = profileData?.regions ?? []
   const orgIndustry: string | null = profileData?.industry ?? null
@@ -69,11 +81,11 @@ export default async function CompliancePage() {
       .map(r => r.id)
   )
 
-  // Group assessments by regulation
-  const byReg = new Map<string, { status: string }[]>()
+  // Group current assessments by regulation, keeping control_key for trend reconstruction
+  const byReg = new Map<string, { control_key: string; status: string }[]>()
   for (const a of allAssessments) {
     if (!byReg.has(a.regulation_id)) byReg.set(a.regulation_id, [])
-    byReg.get(a.regulation_id)!.push({ status: a.status })
+    byReg.get(a.regulation_id)!.push({ control_key: a.control_key, status: a.status })
   }
 
   // Regulations with at least one non-default assessment
@@ -83,16 +95,39 @@ export default async function CompliancePage() {
       .map(([id]) => id)
   )
 
-  // Compute score per assessed regulation
+  // Historic state map: for each (regId:controlKey), earliest old_value in last 30 days
+  // = what the status was before any changes in the window (i.e. the state 30 days ago)
+  const historicMap = new Map<string, string>()
+  for (const c of recentChanges) {
+    const regId = c.details?.regulation_id
+    if (!regId) continue
+    const key = `${regId}:${c.entity_name}`
+    if (!historicMap.has(key)) historicMap.set(key, c.old_value ?? 'not_assessed')
+  }
+
+  function computeHistoricScore(regId: string): number {
+    const current = byReg.get(regId) ?? []
+    let score = 0
+    for (const ctrl of DLP_CONTROLS) {
+      const histKey = `${regId}:${ctrl.key}`
+      const status = historicMap.has(histKey)
+        ? historicMap.get(histKey)!
+        : (current.find(a => a.control_key === ctrl.key)?.status ?? 'not_assessed')
+      if (status === 'implemented') score += 1
+      if (status === 'partial')     score += 0.5
+    }
+    return Math.round((score / CONTROL_COUNT) * 100)
+  }
+
+  // Compute score per assessed regulation, with 30-day delta
   const regScores = regs
     .filter(r => assessedRegIds.has(r.id))
-    .map(r => ({
-      id:         r.id,
-      code:       r.code,
-      short_name: r.short_name,
-      score:      computeScore(byReg.get(r.id) ?? []),
-      isRelevant: relevantIds.has(r.id),
-    }))
+    .map(r => {
+      const score   = computeScore(byReg.get(r.id) ?? [])
+      const hasChange = [...historicMap.keys()].some(k => k.startsWith(r.id + ':'))
+      const delta   = hasChange ? score - computeHistoricScore(r.id) : null
+      return { id: r.id, code: r.code, short_name: r.short_name, score, delta, isRelevant: relevantIds.has(r.id) }
+    })
     .sort((a, b) => a.score - b.score) // weakest first
 
   // Average over applicable regs (treating unassessed as 0 — can't claim compliance without assessment).
@@ -104,6 +139,18 @@ export default async function CompliancePage() {
     }
     if (regScores.length === 0) return null
     return Math.round(regScores.reduce((s, r) => s + r.score, 0) / regScores.length)
+  })()
+
+  // 30-day delta for the avg — only when applicable regs exist and at least one changed
+  const scoreDelta: number | null = (() => {
+    if (avgScore === null || relevantIds.size === 0) return null
+    const anyChanged = [...relevantIds].some(id =>
+      [...historicMap.keys()].some(k => k.startsWith(id + ':'))
+    )
+    if (!anyChanged) return null
+    const historicTotal = [...relevantIds].reduce((sum, id) => sum + computeHistoricScore(id), 0)
+    const historicAvg   = Math.round(historicTotal / relevantIds.size)
+    return avgScore - historicAvg
   })()
 
   // Regulation name lookup for activity feed
@@ -151,10 +198,20 @@ export default async function CompliancePage() {
                 {avgScore}%
               </div>
               <div className="text-xs text-zinc-500 mt-0.5">Avg compliance score</div>
-              <div className="text-[10px] text-zinc-600 mt-0.5">
-                {relevantIds.size > 0
-                  ? `Across ${relevantIds.size} applicable regs`
-                  : `Avg of ${assessedCount} assessed`}
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-[10px] text-zinc-600">
+                  {relevantIds.size > 0
+                    ? `Across ${relevantIds.size} applicable regs`
+                    : `Avg of ${assessedCount} assessed`}
+                </span>
+                {scoreDelta !== null && scoreDelta !== 0 && (
+                  <span className={cn(
+                    'text-[10px] font-semibold tabular-nums',
+                    scoreDelta > 0 ? 'text-green-400' : 'text-red-400'
+                  )}>
+                    {scoreDelta > 0 ? '+' : ''}{scoreDelta}pp
+                  </span>
+                )}
               </div>
               <div className="mt-1.5 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
                 <div
@@ -246,11 +303,19 @@ export default async function CompliancePage() {
                             />
                           </div>
                           <span className={cn(
-                            'text-xs font-semibold tabular-nums w-8 text-right',
+                            'text-xs font-semibold tabular-nums w-8 text-right shrink-0',
                             r.score >= 80 ? 'text-green-400' : r.score >= 50 ? 'text-amber-400' : 'text-red-400'
                           )}>
                             {r.score}%
                           </span>
+                          {r.delta !== null && r.delta !== 0 && (
+                            <span className={cn(
+                              'text-[10px] font-medium tabular-nums shrink-0 w-10 text-right',
+                              r.delta > 0 ? 'text-green-500' : 'text-red-500'
+                            )}>
+                              {r.delta > 0 ? '+' : ''}{r.delta}pp
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-3">
