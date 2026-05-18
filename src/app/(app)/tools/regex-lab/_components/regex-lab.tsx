@@ -562,6 +562,19 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
+function Tip({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="relative group/tip">
+      {children}
+      <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover/tip:opacity-100 transition-opacity duration-100 z-50">
+        <span className="block text-[10px] bg-zinc-700 text-zinc-200 px-2 py-1 rounded shadow-lg whitespace-nowrap">
+          {label}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 // Shared inline style for both overlay div and textarea (must match exactly)
 const OVERLAY_STYLE: React.CSSProperties = {
   fontFamily: "'Menlo', 'Monaco', 'Consolas', monospace",
@@ -868,36 +881,45 @@ export function RegexLab({ initialPatterns }: Props) {
             <div className="flex items-center gap-1.5">
               {/* Flag toggles */}
               {(['g', 'i', 'm'] as const).map(f => (
-                <button
+                <Tip
                   key={f}
-                  onClick={() => toggleFlag(f)}
-                  title={f === 'g' ? 'Global — always on' : f === 'i' ? 'Case insensitive' : 'Multiline'}
-                  className={cn(
-                    'w-7 h-7 rounded text-xs font-bold font-mono transition-all',
-                    flags.includes(f)
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300',
-                    f === 'g' && 'opacity-60 cursor-default'
-                  )}
+                  label={f === 'g' ? 'Global — always on' : f === 'i' ? 'Case insensitive' : 'Multiline — ^ $ match per line'}
                 >
-                  {f.toUpperCase()}
-                </button>
+                  <button
+                    onClick={() => toggleFlag(f)}
+                    className={cn(
+                      'w-7 h-7 rounded text-xs font-bold font-mono transition-all',
+                      flags.includes(f)
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300',
+                      f === 'g' && 'opacity-60 cursor-default'
+                    )}
+                  >
+                    {f.toUpperCase()}
+                  </button>
+                </Tip>
               ))}
               {/* Copy */}
-              <button onClick={copyPattern} disabled={!pattern} title="Copy pattern with flags"
-                className="w-7 h-7 rounded flex items-center justify-center bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300 disabled:opacity-30 transition-all">
-                {copied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
-              </button>
+              <Tip label="Copy pattern with flags">
+                <button onClick={copyPattern} disabled={!pattern}
+                  className="w-7 h-7 rounded flex items-center justify-center bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300 disabled:opacity-30 transition-all">
+                  {copied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
+                </button>
+              </Tip>
               {/* Copy as markdown */}
-              <button onClick={copyAsMarkdown} disabled={!pattern} title="Copy as documentation (markdown)"
-                className="w-7 h-7 rounded flex items-center justify-center bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300 disabled:opacity-30 transition-all">
-                {copiedMd ? <Check className="h-3.5 w-3.5 text-green-400" /> : <FileText className="h-3.5 w-3.5" />}
-              </button>
+              <Tip label="Copy as markdown documentation">
+                <button onClick={copyAsMarkdown} disabled={!pattern}
+                  className="w-7 h-7 rounded flex items-center justify-center bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300 disabled:opacity-30 transition-all">
+                  {copiedMd ? <Check className="h-3.5 w-3.5 text-green-400" /> : <FileText className="h-3.5 w-3.5" />}
+                </button>
+              </Tip>
               {/* Export JSON */}
-              <button onClick={exportJson} disabled={!pattern} title="Export as JSON"
-                className="w-7 h-7 rounded flex items-center justify-center bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300 disabled:opacity-30 transition-all">
-                <FileDown className="h-3.5 w-3.5" />
-              </button>
+              <Tip label="Export as JSON">
+                <button onClick={exportJson} disabled={!pattern}
+                  className="w-7 h-7 rounded flex items-center justify-center bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300 disabled:opacity-30 transition-all">
+                  <FileDown className="h-3.5 w-3.5" />
+                </button>
+              </Tip>
             </div>
           </div>
 
