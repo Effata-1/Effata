@@ -1,6 +1,6 @@
 'use client'
 
-import { useOptimistic, useTransition, useState } from 'react'
+import { useOptimistic, useTransition, useState, useEffect } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { AlertTriangle, X, FileText, Download } from 'lucide-react'
@@ -102,6 +102,9 @@ function ControlRow({
   const [history, setHistory]       = useState<HistoryEntry[] | null>(null)
   const [loadingHistory, setLoadingHistory] = useState(false)
 
+  // Keep textarea in sync if the parent assessment changes without a remount
+  useEffect(() => { setNoteValue(note ?? '') }, [note])
+
   async function togglePanel() {
     const next = !panelOpen
     setPanelOpen(next)
@@ -114,6 +117,7 @@ function ControlRow({
   }
 
   function handleNoteBlur() {
+    if (noteValue === (note ?? '')) return
     upsertAssessment(ctrl.key, regulationId, status, noteValue)
   }
 
