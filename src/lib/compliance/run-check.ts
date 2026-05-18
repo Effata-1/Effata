@@ -58,7 +58,7 @@ export interface NewRegulation {
   industries: string[] | null
   jurisdiction: string
   authority: string | null
-  type: 'privacy' | 'security' | 'sector'
+  type: 'privacy' | 'security' | 'sector' | 'framework' | 'standard' | 'ai_governance'
   summary: string
   max_fine: string | null
   effective_date: string | null
@@ -173,7 +173,7 @@ Respond ONLY with valid JSON:
       "industries": null,
       "jurisdiction": "Country or region",
       "authority": "Regulating body name",
-      "type": "privacy|security|sector",
+      "type": "privacy|security|sector|framework|standard|ai_governance",
       "summary": "2-3 sentence plain-English summary of what it requires from a DLP perspective",
       "max_fine": "e.g. €10M or 2% global ARR (or null)",
       "effective_date": "YYYY-MM-DD (or null)",
