@@ -4,6 +4,7 @@ const ITEMS = [
   { label: 'Regex Lab',         href: '/tools/regex-lab' },
   { label: 'Data Lab',          href: '/tools/test-data' },
   { label: 'Control Validator', href: '/tools/control-validator' },
+  { label: 'Evidence Report',   href: '/tools/evidence-report' },
 ]
 
 export default function ToolsLayout({ children }: { children: React.ReactNode }) {
