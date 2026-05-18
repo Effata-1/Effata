@@ -1,9 +1,9 @@
 'use client'
 
-import { useOptimistic, useTransition, useState } from 'react'
+import { useOptimistic, useTransition, useState, useEffect, useRef } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { AlertTriangle, X, FileText, Download, ChevronDown } from 'lucide-react'
+import { AlertTriangle, X, FileText, Download, ChevronDown, Check, Search } from 'lucide-react'
 import { DLP_CONTROLS, CONTROL_STATUS_OPTIONS, CONTROL_GDPR_FINE_WEIGHT, type ControlStatus, type DlpControl } from '@/lib/compliance/controls'
 import { upsertAssessment, getControlHistory } from '../actions'
 
@@ -12,14 +12,6 @@ interface Assessment {
   status: ControlStatus
   notes?: string | null
   updated_at?: string
-}
-
-interface Regulation {
-  id: string
-  code: string
-  short_name: string
-  max_fine: string | null
-  content_updated_at?: string | null
 }
 
 const STATUS_CYCLE: ControlStatus[] = ['not_assessed', 'implemented', 'partial', 'not_implemented']
@@ -66,6 +58,101 @@ type HistoryEntry = {
 interface RequirementRef {
   article: string
   dlp_controls: string[] | null
+}
+
+interface Regulation {
+  id: string
+  code: string
+  short_name: string
+  max_fine: string | null
+  content_updated_at?: string | null
+}
+
+function RegulationDropdown({
+  regulations,
+  currentRegCode,
+  onSwitch,
+}: {
+  regulations: Regulation[]
+  currentRegCode: string
+  onSwitch: (code: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+        setSearch('')
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  useEffect(() => {
+    if (open) searchRef.current?.focus()
+  }, [open])
+
+  const current = regulations.find(r => r.code === currentRegCode)
+  const q = search.toLowerCase()
+  const filtered = q
+    ? regulations.filter(r => r.short_name.toLowerCase().includes(q))
+    : regulations
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => { setOpen(v => !v); setSearch('') }}
+        className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white hover:border-zinc-700 focus:outline-none focus:border-blue-600 transition-colors min-w-[220px]"
+      >
+        <span className="flex-1 text-left truncate">{current?.short_name ?? 'Select regulation'}</span>
+        <ChevronDown className={cn('h-3.5 w-3.5 text-zinc-500 shrink-0 transition-transform duration-150', open && 'rotate-180')} />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1.5 w-72 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl z-50 overflow-hidden">
+          <div className="p-2 border-b border-zinc-800">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-600 pointer-events-none" />
+              <input
+                ref={searchRef}
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search regulations…"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-600"
+              />
+            </div>
+          </div>
+          <div className="max-h-72 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-zinc-600 px-3 py-3 text-center">No regulations match.</p>
+            ) : (
+              filtered.map(reg => (
+                <button
+                  key={reg.code}
+                  onClick={() => { onSwitch(reg.code); setOpen(false); setSearch('') }}
+                  className={cn(
+                    'w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between gap-2',
+                    reg.code === currentRegCode
+                      ? 'bg-blue-600/20 text-blue-300'
+                      : 'text-zinc-300 hover:bg-zinc-800/80'
+                  )}
+                >
+                  <span className="truncate">{reg.short_name}</span>
+                  {reg.code === currentRegCode && <Check className="h-3 w-3 shrink-0 text-blue-400" />}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function ControlRow({
@@ -254,21 +341,11 @@ export function GapReportClient({
       {/* Regulation selector */}
       <div className="flex items-center gap-3">
         <span className="text-xs text-zinc-500 shrink-0">Regulation</span>
-        <div className="relative">
-          <select
-            value={currentRegCode}
-            onChange={e => switchReg(e.target.value)}
-            className="appearance-none bg-zinc-900 border border-zinc-800 rounded-lg pl-3 pr-8 py-2 text-sm text-white focus:outline-none focus:border-blue-600 cursor-pointer min-w-[200px]"
-          >
-            {regulations.map(reg => (
-              <option key={reg.code} value={reg.code}>{reg.short_name}</option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500 pointer-events-none" />
-        </div>
-        {currentReg?.max_fine && (
-          <span className="text-xs text-red-400/70">Max fine: {currentReg.max_fine}</span>
-        )}
+        <RegulationDropdown
+          regulations={regulations}
+          currentRegCode={currentRegCode}
+          onSwitch={switchReg}
+        />
       </div>
 
       {/* Review required banner */}
