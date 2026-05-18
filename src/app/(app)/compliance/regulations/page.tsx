@@ -202,8 +202,7 @@ export default async function RegulationsPage({
       <div>
         <h1 className="text-2xl font-bold text-white mb-1">Regulations</h1>
         <p className="text-zinc-500 text-sm">
-          {allRegs.length} DLP-relevant regulations across {Object.keys(REGION_GROUPS).length} regions
-          {relevantCodes.size > 0 && ` — ${relevantCodes.size} apply to your organisation`}
+          Browse and filter DLP-relevant regulations across privacy, security, and sector-specific frameworks worldwide.
         </p>
       </div>
 
