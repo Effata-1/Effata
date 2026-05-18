@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { Search, X, Filter } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import type { AuditEntry, RegulationRef } from '../page'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 
 const STATUS_STYLE: Record<string, { label: string; color: string; bg: string }> = {
   implemented:     { label: 'Implemented',     color: 'text-green-400',  bg: 'bg-green-500/15' },
@@ -38,8 +39,8 @@ export function AuditTrailClient({
   controls: { key: string; label: string }[]
 }) {
   const [search, setSearch]   = useState('')
-  const [regFilter, setReg]   = useState('all')
-  const [ctrlFilter, setCtrl] = useState('all')
+  const [regFilter, setReg]   = useState<string[]>([])
+  const [ctrlFilter, setCtrl] = useState<string[]>([])
 
   const regMap = new Map(regulations.map(r => [r.id, r]))
 
@@ -48,8 +49,8 @@ export function AuditTrailClient({
     const regId = e.details?.regulation_id ?? ''
     const reg   = regMap.get(regId)
 
-    if (regFilter !== 'all' && reg?.code !== regFilter) return false
-    if (ctrlFilter !== 'all' && e.entity_name !== ctrlFilter) return false
+    if (regFilter.length > 0 && !regFilter.includes(reg?.code ?? '')) return false
+    if (ctrlFilter.length > 0 && !ctrlFilter.includes(e.entity_name)) return false
     if (q) {
       const ctrl = controls.find(c => c.key === e.entity_name)
       const searchable = [
@@ -87,31 +88,21 @@ export function AuditTrailClient({
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 text-zinc-600">
-          <Filter className="h-3.5 w-3.5" />
-        </div>
-
-        <select
+        <SearchableSelect
+          multiple
+          options={regulations.map(r => ({ value: r.code, label: r.short_name }))}
           value={regFilter}
-          onChange={e => setReg(e.target.value)}
-          className="text-xs bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-400 focus:outline-none focus:border-blue-600"
-        >
-          <option value="all">All Regulations</option>
-          {regulations.map(r => (
-            <option key={r.id} value={r.code}>{r.short_name}</option>
-          ))}
-        </select>
+          onChange={setReg}
+          placeholder="All Regulations"
+        />
 
-        <select
+        <SearchableSelect
+          multiple
+          options={controls.map(c => ({ value: c.key, label: c.label }))}
           value={ctrlFilter}
-          onChange={e => setCtrl(e.target.value)}
-          className="text-xs bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-400 focus:outline-none focus:border-blue-600"
-        >
-          <option value="all">All Controls</option>
-          {controls.map(c => (
-            <option key={c.key} value={c.key}>{c.label}</option>
-          ))}
-        </select>
+          onChange={setCtrl}
+          placeholder="All Controls"
+        />
 
         <span className="text-xs text-zinc-600 ml-auto">
           {visible.length} {visible.length === 1 ? 'entry' : 'entries'}
@@ -123,7 +114,7 @@ export function AuditTrailClient({
       {visible.length === 0 ? (
         <div className="py-16 text-center rounded-xl border border-zinc-800">
           <p className="text-sm text-zinc-500">No audit entries found.</p>
-          {(search || regFilter !== 'all' || ctrlFilter !== 'all') && (
+          {(search || regFilter.length > 0 || ctrlFilter.length > 0) && (
             <p className="text-xs text-zinc-600 mt-1">Try clearing your filters.</p>
           )}
         </div>

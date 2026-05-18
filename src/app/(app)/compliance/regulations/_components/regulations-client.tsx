@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { ChevronDown, ChevronRight, CheckCircle, AlertTriangle, Clock, Shield, ExternalLink, X, Search, ClipboardCheck } from 'lucide-react'
 import type { RegulationRow } from '../page'
 import { markRegulationVerified } from '../actions'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 
 const REGION_OPTIONS = [
   { value: 'all',          label: 'All' },
@@ -370,15 +371,11 @@ export function RegulationsClient({
           </button>
         ))}
 
-        <select
+        <SearchableSelect
+          options={INDUSTRY_OPTIONS}
           value={currentIndustry}
-          onChange={e => updateFilter('industry', e.target.value)}
-          className="text-xs bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-400 focus:outline-none focus:border-blue-600"
-        >
-          {INDUSTRY_OPTIONS.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
+          onChange={v => updateFilter('industry', v)}
+        />
 
         <span className="text-xs text-zinc-600">
           {visible.length} of {allCount} regulations

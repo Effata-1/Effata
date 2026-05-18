@@ -9,6 +9,7 @@ import {
 import { cn } from '@/lib/utils'
 import { saveTestResult } from '../actions'
 import type { TestHistoryEntry } from '../actions'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 
 // ── Test Scenarios ────────────────────────────────────────────────────────────
 
@@ -595,13 +596,11 @@ export function DlpTestRunner({ initialHistory }: Props) {
                 <>
                   <div className="mb-3">
                     <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Data Type</label>
-                    <select
+                    <SearchableSelect
+                      options={DATA_TYPES.map(d => ({ value: d.id, label: d.label }))}
                       value={dataType.id}
-                      onChange={e => setDataType(DATA_TYPES.find(d => d.id === e.target.value) ?? DATA_TYPES[0])}
-                      className="w-full bg-zinc-800 text-zinc-300 text-xs px-3 py-2 rounded-lg border border-zinc-700 focus:outline-none focus:border-zinc-500"
-                    >
-                      {DATA_TYPES.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
-                    </select>
+                      onChange={v => setDataType(DATA_TYPES.find(d => d.id === v) ?? DATA_TYPES[0])}
+                    />
                   </div>
 
                   <div className="mb-4">
@@ -700,13 +699,11 @@ export function DlpTestRunner({ initialHistory }: Props) {
             {/* Data type for script */}
             <div className="mb-3">
               <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Data Type in Script</label>
-              <select
+              <SearchableSelect
+                options={DATA_TYPES.filter(d => d.id !== 'custom').map(d => ({ value: d.id, label: d.label }))}
                 value={dataType.id}
-                onChange={e => setDataType(DATA_TYPES.find(d => d.id === e.target.value) ?? DATA_TYPES[0])}
-                className="w-full bg-zinc-800 text-zinc-300 text-xs px-3 py-2 rounded-lg border border-zinc-700 focus:outline-none focus:border-zinc-500"
-              >
-                {DATA_TYPES.filter(d => d.id !== 'custom').map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
-              </select>
+                onChange={v => setDataType(DATA_TYPES.find(d => d.id === v) ?? DATA_TYPES[0])}
+              />
             </div>
 
             {/* Action buttons */}
