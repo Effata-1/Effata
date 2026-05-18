@@ -95,9 +95,16 @@ export default async function CompliancePage() {
     }))
     .sort((a, b) => a.score - b.score) // weakest first
 
-  const avgScore = regScores.length > 0
-    ? Math.round(regScores.reduce((s, r) => s + r.score, 0) / regScores.length)
-    : null
+  // Average over applicable regs (treating unassessed as 0 — can't claim compliance without assessment).
+  // Falls back to assessed-only average when org profile is not set.
+  const avgScore: number | null = (() => {
+    if (relevantIds.size > 0) {
+      const total = [...relevantIds].reduce((sum, id) => sum + computeScore(byReg.get(id) ?? []), 0)
+      return Math.round(total / relevantIds.size)
+    }
+    if (regScores.length === 0) return null
+    return Math.round(regScores.reduce((s, r) => s + r.score, 0) / regScores.length)
+  })()
 
   // Regulation name lookup for activity feed
   const regNameMap = new Map(regs.map(r => [r.id, r.short_name]))
@@ -144,7 +151,12 @@ export default async function CompliancePage() {
                 {avgScore}%
               </div>
               <div className="text-xs text-zinc-500 mt-0.5">Avg compliance score</div>
-              <div className="mt-2 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+              <div className="text-[10px] text-zinc-600 mt-0.5">
+                {relevantIds.size > 0
+                  ? `Across ${relevantIds.size} applicable regs`
+                  : `Avg of ${assessedCount} assessed`}
+              </div>
+              <div className="mt-1.5 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
                 <div
                   className={cn(
                     'h-full rounded-full transition-all',

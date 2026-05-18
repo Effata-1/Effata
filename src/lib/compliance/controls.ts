@@ -121,16 +121,19 @@ export const CONTROL_STATUS_OPTIONS = [
 
 export type ControlStatus = 'not_assessed' | 'implemented' | 'partial' | 'not_implemented'
 
-// Fine exposure weights per control (for gap report risk calculation)
-export const CONTROL_GDPR_FINE_WEIGHT: Record<string, number> = {
-  data_classification: 0.10,
-  dlp_web:            0.15,
-  dlp_email:          0.15,
-  dlp_endpoint:       0.10,
-  dlp_saas:           0.10,
-  genai_controls:     0.10,
-  audit_logging:      0.10,
-  breach_detection:   0.10,
-  encryption_transit: 0.05,
-  access_controls:    0.05,
+// Derive per-control fine-exposure weights from the regulation's own requirement mappings.
+// Controls mapped to more requirements for this regulation carry proportionally higher weight.
+// Returns an empty object if no requirement→control mappings exist (caller should show '—').
+export function computeControlWeights(
+  requirements: { dlp_controls: string[] | null }[]
+): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const req of requirements) {
+    for (const key of req.dlp_controls ?? []) {
+      counts[key] = (counts[key] ?? 0) + 1
+    }
+  }
+  const total = Object.values(counts).reduce((s, v) => s + v, 0)
+  if (total === 0) return {}
+  return Object.fromEntries(Object.entries(counts).map(([k, v]) => [k, v / total]))
 }

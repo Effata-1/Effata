@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { DLP_CONTROLS, CONTROL_GDPR_FINE_WEIGHT } from '@/lib/compliance/controls'
+import { DLP_CONTROLS, computeControlWeights } from '@/lib/compliance/controls'
 import { NextRequest } from 'next/server'
 
 export async function GET(req: NextRequest) {
@@ -30,13 +30,15 @@ export async function GET(req: NextRequest) {
 
   const requirements = (reqs ?? []) as { article: string; dlp_controls: string[] | null }[]
 
-  const header = ['Control', 'Description', 'Channel', 'Articles / Sections', 'Status', 'Notes', 'Risk Weight % (Internal Model)']
+  const controlWeights = computeControlWeights(requirements)
+
+  const header = ['Control', 'Description', 'Channel', 'Articles / Sections', 'Status', 'Notes', 'Relevance Weight %']
 
   const bodyRows = DLP_CONTROLS.map(ctrl => {
     const a = assessmentMap.get(ctrl.key)
     const status = a?.status ?? 'not_assessed'
     const notes  = a?.notes ?? ''
-    const weight = Math.round((CONTROL_GDPR_FINE_WEIGHT[ctrl.key] ?? 0.05) * 100)
+    const weight = Math.round((controlWeights[ctrl.key] ?? 0) * 100)
     const articles = requirements
       .filter(r => r.dlp_controls?.includes(ctrl.key))
       .map(r => r.article)

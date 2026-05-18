@@ -5,7 +5,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { AlertTriangle, X, FileText, Download } from 'lucide-react'
 import { SearchableSelect } from '@/components/ui/searchable-select'
-import { DLP_CONTROLS, CONTROL_STATUS_OPTIONS, CONTROL_GDPR_FINE_WEIGHT, type ControlStatus, type DlpControl } from '@/lib/compliance/controls'
+import { DLP_CONTROLS, CONTROL_STATUS_OPTIONS, computeControlWeights, type ControlStatus, type DlpControl } from '@/lib/compliance/controls'
 import { upsertAssessment, getControlHistory } from '../actions'
 
 interface Assessment {
@@ -35,15 +35,21 @@ function computeScore(assessments: Assessment[]): number {
   return Math.round((score / DLP_CONTROLS.length) * 100)
 }
 
-function fineExposure(assessments: Assessment[], maxFine: string | null): string {
+function fineExposure(
+  assessments: Assessment[],
+  maxFine: string | null,
+  requirements: RequirementRef[],
+): string {
   if (!maxFine) return '—'
+  const weights = computeControlWeights(requirements)
+  if (Object.keys(weights).length === 0) return '—'
   let unprotectedWeight = 0
   for (const ctrl of DLP_CONTROLS) {
-    const a = assessments.find(x => x.control_key === ctrl.key)
-    const status = a?.status ?? 'not_assessed'
-    const weight = CONTROL_GDPR_FINE_WEIGHT[ctrl.key] ?? 0.05
-    if (status === 'not_implemented') unprotectedWeight += weight
-    else if (status === 'partial' || status === 'not_assessed') unprotectedWeight += weight * 0.5
+    const w = weights[ctrl.key]
+    if (!w) continue
+    const status = assessments.find(x => x.control_key === ctrl.key)?.status ?? 'not_assessed'
+    if (status === 'not_implemented') unprotectedWeight += w
+    else if (status === 'partial' || status === 'not_assessed') unprotectedWeight += w * 0.5
   }
   const pct = Math.round(unprotectedWeight * 100)
   return `~${pct}% of max (${maxFine})`
@@ -247,7 +253,7 @@ export function GapReportClient({
   }
 
   const score       = computeScore(optimisticAssessments)
-  const exposure    = fineExposure(optimisticAssessments, currentReg?.max_fine ?? null)
+  const exposure    = fineExposure(optimisticAssessments, currentReg?.max_fine ?? null, requirements)
   const implemented = optimisticAssessments.filter(a => a.status === 'implemented').length
   const partial     = optimisticAssessments.filter(a => a.status === 'partial').length
 
