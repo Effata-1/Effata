@@ -6,6 +6,7 @@ import { Search, X, Plus, ChevronDown, ChevronRight, Info, AlertTriangle } from 
 import { toggleInScope, setClassification, addCustomDataType, batchToggleInScope } from '@/lib/data-catalog/actions'
 import { colorClasses, SYSTEM_LEVEL_META } from '@/lib/data-catalog/types'
 import type { OrgClassificationLabel, SystemLevel } from '@/lib/data-catalog/types'
+import { FilterSelect, MultiFilterSelect } from '@/components/ui/filter-select'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -588,10 +589,10 @@ export function CatalogClient({
   labels:      OrgClassificationLabel[]
 }) {
   const [search,           setSearch]           = useState('')
-  const [levelFilter,      setLevelFilter]      = useState<string>('all')
-  const [subcatFilter,     setSubcatFilter]     = useState<string>('all')
-  const [complianceFilter, setComplianceFilter] = useState<string>('all')
-  const [scopeFilter,      setScopeFilter]      = useState<string>('all')
+  const [levelFilter,      setLevelFilter]      = useState<string[]>([])
+  const [subcatFilter,     setSubcatFilter]     = useState<string>('')
+  const [complianceFilter, setComplianceFilter] = useState<string[]>([])
+  const [scopeFilter,      setScopeFilter]      = useState<string>('')
   const [showAddModal,     setShowAddModal]     = useState(false)
   const [isPending,        startTransition]     = useTransition()
 
@@ -659,17 +660,19 @@ export function CatalogClient({
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    const selectedLabel = levelFilter !== 'all' ? labelById.get(levelFilter) : null
     return optimisticCatalog.filter(item => {
-      if (selectedLabel) {
-        if (selectedLabel.system_level) {
-          if (item.system_level !== selectedLabel.system_level) return false
-        } else {
-          if (item.classification_label_id !== levelFilter) return false
-        }
+      // Level filter (multi) — OR logic across selected labels
+      if (levelFilter.length > 0) {
+        const matches = levelFilter.some(filterId => {
+          const lbl = labelById.get(filterId)
+          if (!lbl) return false
+          return lbl.system_level ? item.system_level === lbl.system_level : item.classification_label_id === filterId
+        })
+        if (!matches) return false
       }
-      if (subcatFilter !== 'all' && (item.subcategory ?? 'General') !== subcatFilter) return false
-      if (complianceFilter !== 'all' && !(item.tags ?? []).includes(complianceFilter)) return false
+      if (subcatFilter && (item.subcategory ?? 'General') !== subcatFilter) return false
+      // Compliance filter (multi) — OR logic: item must match at least one selected tag
+      if (complianceFilter.length > 0 && !complianceFilter.some(t => (item.tags ?? []).includes(t))) return false
       if (scopeFilter === 'in_scope'     && !item.is_in_scope) return false
       if (scopeFilter === 'not_selected' &&  item.is_in_scope) return false
       if (!q) return true
@@ -732,7 +735,7 @@ export function CatalogClient({
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search data types, examples…"
-            className="w-full bg-zinc-800/60 border border-zinc-700 rounded-lg pl-8 pr-8 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
+            className="w-full bg-zinc-800/60 border border-zinc-700 rounded-xl pl-8 pr-8 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600"
           />
           {search && (
             <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400">
@@ -741,42 +744,45 @@ export function CatalogClient({
           )}
         </div>
 
-        {[
-          { value: levelFilter,      onChange: setLevelFilter,      options: levelFilterOptions },
-          { value: subcatFilter,     onChange: setSubcatFilter,     options: subcatOptions },
-          {
-            value: complianceFilter,
-            onChange: setComplianceFilter,
-            options: [{ value: 'all', label: 'All compliance' }, ...COMPLIANCE_FILTER_TAGS],
-          },
-          {
-            value: scopeFilter,
-            onChange: setScopeFilter,
-            options: [{ value: 'all', label: 'All types' }, { value: 'in_scope', label: 'In scope' }, { value: 'not_selected', label: 'Not selected' }],
-          },
-        ].map((sel, i) => (
-          <div key={i} className="relative">
-            <select
-              value={sel.value}
-              onChange={e => sel.onChange(e.target.value)}
-              className="appearance-none bg-zinc-800/60 border border-zinc-700 rounded-lg pl-3 pr-7 py-2 text-xs text-zinc-300 focus:outline-none cursor-pointer max-w-[200px]"
-            >
-              {sel.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500 pointer-events-none" />
-          </div>
-        ))}
+        <MultiFilterSelect
+          value={levelFilter}
+          onChange={setLevelFilter}
+          options={levelFilterOptions}
+          placeholder="All levels"
+        />
 
-        {(search || levelFilter !== 'all' || subcatFilter !== 'all' || complianceFilter !== 'all' || scopeFilter !== 'all') && (
+        <FilterSelect
+          value={subcatFilter}
+          onChange={setSubcatFilter}
+          options={subcatOptions}
+          placeholder="All categories"
+        />
+
+        <MultiFilterSelect
+          value={complianceFilter}
+          onChange={setComplianceFilter}
+          options={COMPLIANCE_FILTER_TAGS}
+          placeholder="All compliance"
+        />
+
+        <FilterSelect
+          value={scopeFilter}
+          onChange={setScopeFilter}
+          options={[{ value: 'in_scope', label: 'In scope' }, { value: 'not_selected', label: 'Not selected' }]}
+          placeholder="All types"
+          searchable={false}
+        />
+
+        {(search || levelFilter.length > 0 || subcatFilter || complianceFilter.length > 0 || scopeFilter) && (
           <button
-            onClick={() => { setSearch(''); setLevelFilter('all'); setSubcatFilter('all'); setComplianceFilter('all'); setScopeFilter('all') }}
+            onClick={() => { setSearch(''); setLevelFilter([]); setSubcatFilter(''); setComplianceFilter([]); setScopeFilter('') }}
             className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
           >
-            Clear
+            Clear all
           </button>
         )}
 
-        <span className="ml-auto text-xs text-zinc-600">
+        <span className="ml-auto text-sm text-zinc-600 whitespace-nowrap">
           {filtered.length} of {optimisticCatalog.length} types
         </span>
       </div>
@@ -785,14 +791,8 @@ export function CatalogClient({
       <div className="space-y-2">
         {levels.map(level => {
           const sectionItems = filtered.filter(i => i.system_level === level)
-          const selectedLabel = levelFilter !== 'all' ? labelById.get(levelFilter) : null
-          // Force expand when: search active with results, system label matches, or custom label has results here
-          const forceExpand =
-            (search.length > 0 && sectionItems.length > 0) ||
-            (subcatFilter !== 'all' && sectionItems.length > 0) ||
-            (complianceFilter !== 'all' && sectionItems.length > 0) ||
-            (selectedLabel?.system_level === level) ||
-            (!!selectedLabel && !selectedLabel.system_level && sectionItems.length > 0)
+          const anyFilterActive = search.length > 0 || subcatFilter !== '' || complianceFilter.length > 0 || levelFilter.length > 0 || scopeFilter !== ''
+          const forceExpand = anyFilterActive && sectionItems.length > 0
           return (
           <ClassificationSection
             key={level}
@@ -848,7 +848,7 @@ export function CatalogClient({
       {filtered.length === 0 && (
         <div className="text-center py-16 text-zinc-600 text-sm rounded-xl border border-zinc-800">
           No data types match your filters.
-          <button onClick={() => { setSearch(''); setLevelFilter('all'); setScopeFilter('all') }} className="ml-2 text-blue-400 hover:underline">
+          <button onClick={() => { setSearch(''); setLevelFilter([]); setSubcatFilter(''); setComplianceFilter([]); setScopeFilter('') }} className="ml-2 text-blue-400 hover:underline">
             Clear filters
           </button>
         </div>

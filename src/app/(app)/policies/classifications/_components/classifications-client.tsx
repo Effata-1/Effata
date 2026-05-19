@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useTransition, useMemo, useOptimistic } from 'react'
+import { FilterSelect } from '@/components/ui/filter-select'
 import { cn } from '@/lib/utils'
-import { Plus, X, Check, Loader2, Sparkles, ChevronDown, GripVertical, Pencil } from 'lucide-react'
+import { Plus, X, Check, Loader2, Sparkles, GripVertical, Pencil } from 'lucide-react'
 import { upsertLabel, deleteLabel, setClassification, suggestClassificationsAI, acceptAISuggestions } from '@/lib/data-catalog/actions'
 import { colorClasses, COLOR_OPTIONS, SYSTEM_LEVEL_META } from '@/lib/data-catalog/types'
 import type { OrgClassificationLabel, AISuggestion } from '@/lib/data-catalog/types'
@@ -442,17 +443,18 @@ function MappingTab({
         <div className="relative flex-1 max-w-xs">
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search data types…"
-            className="w-full bg-zinc-800/60 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500" />
+            className="w-full bg-zinc-800/60 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600" />
         </div>
-        <div className="relative">
-          <select value={mapFilter} onChange={e => setMapFilter(e.target.value)}
-            className="appearance-none bg-zinc-800/60 border border-zinc-700 rounded-lg pl-3 pr-7 py-2 text-xs text-zinc-300 focus:outline-none cursor-pointer">
-            <option value="all">All types</option>
-            <option value="unclassified">Unclassified only</option>
-            <option value="classified">Mapped only</option>
-          </select>
-          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500 pointer-events-none" />
-        </div>
+        <FilterSelect
+          value={mapFilter === 'all' ? '' : mapFilter}
+          onChange={v => setMapFilter(v || 'all')}
+          options={[
+            { value: 'unclassified', label: 'Unclassified only' },
+            { value: 'classified',   label: 'Mapped only' },
+          ]}
+          placeholder="All types"
+          searchable={false}
+        />
       </div>
 
       {/* Mapping table */}

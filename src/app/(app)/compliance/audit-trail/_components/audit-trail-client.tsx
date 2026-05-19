@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { Search, X } from 'lucide-react'
 import type { AuditEntry, RegulationRef } from '../page'
-import { SearchableSelect } from '@/components/ui/searchable-select'
+import { MultiFilterSelect } from '@/components/ui/filter-select'
 import { usePagination } from '@/hooks/use-pagination'
 
 const STATUS_STYLE: Record<string, { label: string; color: string; bg: string }> = {
@@ -82,7 +82,7 @@ export function AuditTrailClient({
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search user, control, regulation…"
-            className="bg-zinc-900 border border-zinc-800 rounded-lg pl-8 pr-8 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-600 w-72"
+            className="bg-zinc-900 border border-zinc-800 rounded-xl pl-8 pr-8 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600 w-72"
           />
           {search && (
             <button
@@ -94,21 +94,18 @@ export function AuditTrailClient({
           )}
         </div>
 
-        <SearchableSelect
-          multiple
+        <MultiFilterSelect
           options={regulations.map(r => ({ value: r.code, label: r.short_name }))}
           value={regFilter}
           onChange={setReg}
           placeholder="All Regulations"
         />
 
-        <SearchableSelect
-          multiple
+        <MultiFilterSelect
           options={controls.map(c => ({ value: c.key, label: c.label }))}
           value={ctrlFilter}
           onChange={setCtrl}
           placeholder="All Controls"
-          align="right"
         />
 
         <span className="text-xs text-zinc-600 ml-auto">
