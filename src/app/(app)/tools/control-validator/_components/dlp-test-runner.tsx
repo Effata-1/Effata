@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import {
   Play, Download, Copy, Check, Loader2,
   ShieldCheck, ShieldAlert, AlertTriangle, Terminal, Zap,
-  UploadCloud, FileText, X,
+  UploadCloud, FileText, X, ChevronDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { saveTestResult, updateTestResultUserAlert } from '../actions'
@@ -39,6 +39,10 @@ const SCRIPT_DEFS: Scenario[] = [
   { id: 'script_curl',       category: 'script', name: 'cURL — HTTPS POST',    protocol: 'HTTPS (cURL)',    ext: 'sh',  description: 'Shell script: uses cURL to POST sensitive data — useful for quick CLI-based testing' },
   { id: 'script_powershell', category: 'script', name: 'PowerShell — HTTPS',   protocol: 'HTTPS (PS)',      ext: 'ps1', description: 'PowerShell script for Windows endpoint DLP testing via HTTPS POST' },
 ]
+
+const MAIN_WEB_IDS   = new Set(['https_post_text', 'custom_file'])
+const MAIN_TESTS     = WEB_TESTS.filter(s =>  MAIN_WEB_IDS.has(s.id))
+const ADVANCED_WEB   = WEB_TESTS.filter(s => !MAIN_WEB_IDS.has(s.id))
 
 // ── Data Types ────────────────────────────────────────────────────────────────
 
@@ -311,10 +315,6 @@ const RESULT_META: Record<TestResult, {
   blocked_coached:   { label: 'BLOCKED — NOTIFIED',    color: 'text-orange-400', border: 'border-orange-500/40', bg: 'bg-orange-500/8',  Icon: ShieldAlert,   headline: 'DLP blocked the transfer and showed a notification popup', sub: 'The upload was blocked and you were shown a block notification (OK only). Data did not leave. The control is enforcing but includes user notification.' },
 }
 
-const PROTOCOL_COLORS: Record<string, string> = {
-  web:    'bg-blue-500/15 text-blue-400',
-  script: 'bg-purple-500/15 text-purple-400',
-}
 
 const DATA_TYPE_LABELS: Record<string, string> = Object.fromEntries(DATA_TYPES.map(d => [d.id, d.label]))
 
@@ -332,7 +332,8 @@ interface RunResult {
 }
 
 export function DlpTestRunner({ initialHistory }: Props) {
-  const [activeTab,       setActiveTab]       = useState<'web' | 'script'>('web')
+  const [activeMode,      setActiveMode]      = useState<'web' | 'script'>('web')
+  const [advancedOpen,    setAdvancedOpen]    = useState(false)
   const [selectedWeb,     setSelectedWeb]     = useState<Scenario>(WEB_TESTS[0])
   const [selectedScript,  setSelectedScript]  = useState<Scenario>(SCRIPT_DEFS[0])
   const [dataType,        setDataType]        = useState<DataType>(DATA_TYPES[0])
@@ -357,10 +358,10 @@ export function DlpTestRunner({ initialHistory }: Props) {
 
   // Re-generate script when script selection or data type changes
   useEffect(() => {
-    if (activeTab !== 'script') return
+    if (activeMode !== 'script') return
     const origin = typeof window !== 'undefined' ? window.location.origin : ''
     setScriptContent(generateScript(selectedScript.id, payload, origin))
-  }, [activeTab, selectedScript, payload])
+  }, [activeMode, selectedScript, payload])
 
   // Show coaching hint after 5 seconds of running (user alert holds the connection)
   useEffect(() => {
@@ -481,71 +482,94 @@ export function DlpTestRunner({ initialHistory }: Props) {
   // RENDER
   // ════════════════════════════════════════════════════════════════════════════
 
-  const scenariosToShow = activeTab === 'web' ? WEB_TESTS : SCRIPT_DEFS
-
   return (
     <div className="grid grid-cols-3 gap-5">
 
       {/* ════════════════════════════════════
           LEFT — Scenario selector
           ════════════════════════════════════ */}
-      <div className="col-span-1 space-y-4">
+      <div className="col-span-1 space-y-3">
 
-        {/* Tab toggle */}
-        <div className="flex items-center gap-1 p-1 bg-zinc-800 rounded-lg">
-          <button
-            onClick={() => setActiveTab('web')}
-            className={cn('flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-semibold transition-all',
-              activeTab === 'web' ? 'bg-blue-600 text-white' : 'text-zinc-500 hover:text-zinc-300')}
-          >
-            <Zap className="h-3 w-3" /> Web Channel
-          </button>
-          <button
-            onClick={() => setActiveTab('script')}
-            className={cn('flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-semibold transition-all',
-              activeTab === 'script' ? 'bg-purple-600 text-white' : 'text-zinc-500 hover:text-zinc-300')}
-          >
-            <Terminal className="h-3 w-3" /> Scripts
-          </button>
-        </div>
-
-        {/* Scenario cards */}
+        {/* Main tests */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 space-y-1.5">
-          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">
-            {activeTab === 'web' ? 'Web Channel Tests' : 'Protocol Scripts'}
-          </p>
-          {scenariosToShow.map(s => {
-            const selected = activeTab === 'web' ? selectedWeb.id === s.id : selectedScript.id === s.id
+          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Quick Tests</p>
+          {MAIN_TESTS.map(s => {
+            const selected = activeMode === 'web' && selectedWeb.id === s.id
             return (
               <button
                 key={s.id}
-                onClick={() => { if (activeTab === 'web') { setSelectedWeb(s); setRunResult(null); setUploadFile(null) } else setSelectedScript(s) }}
+                onClick={() => { setSelectedWeb(s); setActiveMode('web'); setRunResult(null); setUploadFile(null) }}
                 className={cn(
                   'w-full text-left rounded-lg border p-3 transition-all',
-                  selected
-                    ? activeTab === 'web'
-                      ? 'border-blue-500/50 bg-blue-500/8'
-                      : 'border-purple-500/50 bg-purple-500/8'
-                    : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-600 hover:bg-zinc-700/40'
+                  selected ? 'border-blue-500/50 bg-blue-500/8' : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-600 hover:bg-zinc-700/40'
                 )}
               >
                 <div className="flex items-start gap-2">
-                  <span className={cn(
-                    'mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0',
-                    PROTOCOL_COLORS[s.category]
-                  )}>
-                    {s.category === 'web' ? 'WEB' : 'SCRIPT'}
-                  </span>
+                  <span className="mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 bg-blue-500/15 text-blue-400">WEB</span>
                   <div className="min-w-0">
-                    <p className={cn('text-[11px] font-semibold leading-tight', selected ? (activeTab === 'web' ? 'text-blue-300' : 'text-purple-300') : 'text-white')}>
-                      {s.name}
-                    </p>
+                    <p className={cn('text-[11px] font-semibold leading-tight', selected ? 'text-blue-300' : 'text-white')}>{s.name}</p>
                     <p className="text-[9px] text-zinc-500 mt-0.5 leading-tight line-clamp-2">{s.protocol}</p>
                   </div>
                 </div>
               </button>
             )
           })}
+        </div>
+
+        {/* Advanced — collapsible */}
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
+          <button
+            onClick={() => setAdvancedOpen(o => !o)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-zinc-800/40 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Zap className="h-3.5 w-3.5 text-zinc-500" />
+              <span className="text-[11px] font-semibold text-zinc-400">Advanced Testing</span>
+            </div>
+            <ChevronDown className={cn('h-3.5 w-3.5 text-zinc-600 transition-transform', advancedOpen && 'rotate-180')} />
+          </button>
+
+          {advancedOpen && (
+            <div className="px-4 pb-4 space-y-1.5 border-t border-zinc-800/60 pt-3">
+              {/* Additional web tests */}
+              <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest mb-2">Web Channel</p>
+              {ADVANCED_WEB.map(s => {
+                const selected = activeMode === 'web' && selectedWeb.id === s.id
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => { setSelectedWeb(s); setActiveMode('web'); setRunResult(null); setUploadFile(null) }}
+                    className={cn(
+                      'w-full text-left rounded-lg border p-2.5 transition-all',
+                      selected ? 'border-blue-500/50 bg-blue-500/8' : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-600 hover:bg-zinc-700/40'
+                    )}
+                  >
+                    <p className={cn('text-[10px] font-semibold', selected ? 'text-blue-300' : 'text-white')}>{s.name}</p>
+                    <p className="text-[9px] text-zinc-600 mt-0.5">{s.protocol}</p>
+                  </button>
+                )
+              })}
+
+              {/* Scripts */}
+              <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest mt-3 mb-2">Protocol Scripts</p>
+              {SCRIPT_DEFS.map(s => {
+                const selected = activeMode === 'script' && selectedScript.id === s.id
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => { setSelectedScript(s); setActiveMode('script') }}
+                    className={cn(
+                      'w-full text-left rounded-lg border p-2.5 transition-all',
+                      selected ? 'border-purple-500/50 bg-purple-500/8' : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-600 hover:bg-zinc-700/40'
+                    )}
+                  >
+                    <p className={cn('text-[10px] font-semibold', selected ? 'text-purple-300' : 'text-white')}>{s.name}</p>
+                    <p className="text-[9px] text-zinc-600 mt-0.5">{s.protocol}</p>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -555,7 +579,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
       <div className="col-span-2 space-y-5">
 
         {/* ─── WEB TEST RUNNER ─── */}
-        {activeTab === 'web' && (
+        {activeMode === 'web' && (
           <>
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
               {/* Header */}
@@ -801,7 +825,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
         )}
 
         {/* ─── SCRIPT VIEWER ─── */}
-        {activeTab === 'script' && (
+        {activeMode === 'script' && (
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
             <div className="flex items-start justify-between mb-4">
               <div>
