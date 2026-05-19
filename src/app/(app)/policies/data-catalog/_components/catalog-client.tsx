@@ -256,6 +256,64 @@ function DataTypeRow({
   )
 }
 
+// ─── Subcategory group ────────────────────────────────────────────────────────
+
+function SubcategoryGroup({
+  subcat,
+  items,
+  labels,
+  onToggle,
+  onClassify,
+  forceExpand,
+}: {
+  subcat:      string
+  items:       EnrichedCatalogType[]
+  labels:      OrgClassificationLabel[]
+  onToggle:    (id: string, inScope: boolean) => void
+  onClassify:  (orgDataTypeId: string, labelId: string) => void
+  forceExpand: boolean
+}) {
+  const [collapsed, setCollapsed] = useState(false)
+
+  useEffect(() => {
+    if (forceExpand) setCollapsed(false)
+  }, [forceExpand])
+
+  const inScopeCount = items.filter(i => i.is_in_scope).length
+
+  return (
+    <div>
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        className="w-full px-5 py-2.5 bg-zinc-950/50 flex items-center justify-between hover:bg-zinc-950/70 transition-colors group/subcat"
+      >
+        <div className="flex items-center gap-2">
+          {collapsed
+            ? <ChevronRight className="w-3 h-3 text-zinc-600 group-hover/subcat:text-zinc-400 transition-colors" />
+            : <ChevronDown  className="w-3 h-3 text-zinc-600 group-hover/subcat:text-zinc-400 transition-colors" />}
+          <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest group-hover/subcat:text-zinc-400 transition-colors">{subcat}</p>
+        </div>
+        <p className="text-[10px] text-zinc-700">{inScopeCount}/{items.length} in scope</p>
+      </button>
+      {!collapsed && (
+        <table className="w-full">
+          <tbody>
+            {items.map(item => (
+              <DataTypeRow
+                key={item.id}
+                item={item}
+                labels={labels}
+                onToggle={onToggle}
+                onClassify={onClassify}
+              />
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
 // ─── Classification section ───────────────────────────────────────────────────
 
 function ClassificationSection({
@@ -348,30 +406,17 @@ function ClassificationSection({
 
           {/* Subcategory groups */}
           <div className="divide-y divide-zinc-800/30">
-            {subcats.map(subcat => {
-              const subcatItems = items.filter(i => (i.subcategory ?? 'General') === subcat)
-              return (
-                <div key={subcat}>
-                  <div className="px-5 py-2 bg-zinc-950/40 flex items-center justify-between">
-                    <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest">{subcat}</p>
-                    <p className="text-[10px] text-zinc-700">{subcatItems.filter(i => i.is_in_scope).length}/{subcatItems.length} in scope</p>
-                  </div>
-                  <table className="w-full">
-                    <tbody>
-                      {subcatItems.map(item => (
-                        <DataTypeRow
-                          key={item.id}
-                          item={item}
-                          labels={labels}
-                          onToggle={onToggle}
-                          onClassify={onClassify}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )
-            })}
+            {subcats.map(subcat => (
+              <SubcategoryGroup
+                key={subcat}
+                subcat={subcat}
+                items={items.filter(i => (i.subcategory ?? 'General') === subcat)}
+                labels={labels}
+                onToggle={onToggle}
+                onClassify={onClassify}
+                forceExpand={forceExpand}
+              />
+            ))}
           </div>
         </>
       )}
@@ -392,6 +437,7 @@ export function CatalogClient({
 }) {
   const [search,       setSearch]       = useState('')
   const [levelFilter,  setLevelFilter]  = useState<string>('all')
+  const [subcatFilter, setSubcatFilter] = useState<string>('all')
   const [scopeFilter,  setScopeFilter]  = useState<string>('all')
   const [showAddModal, setShowAddModal] = useState(false)
   const [isPending,    startTransition] = useTransition()
@@ -441,19 +487,24 @@ export function CatalogClient({
     ...labels.map(l => ({ value: l.id, label: l.name })),
   ], [labels])
 
+  // Unique subcategories from the full catalog (sorted alphabetically)
+  const subcatOptions = useMemo(() => {
+    const all = [...new Set(catalog.map(i => i.subcategory ?? 'General'))].sort()
+    return [{ value: 'all', label: 'All categories' }, ...all.map(s => ({ value: s, label: s }))]
+  }, [catalog])
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     const selectedLabel = levelFilter !== 'all' ? labelById.get(levelFilter) : null
     return optimisticCatalog.filter(item => {
       if (selectedLabel) {
         if (selectedLabel.system_level) {
-          // System label: filter by catalog section
           if (item.system_level !== selectedLabel.system_level) return false
         } else {
-          // Custom label: filter by classification assignment
           if (item.classification_label_id !== levelFilter) return false
         }
       }
+      if (subcatFilter !== 'all' && (item.subcategory ?? 'General') !== subcatFilter) return false
       if (scopeFilter === 'in_scope'     && !item.is_in_scope) return false
       if (scopeFilter === 'not_selected' &&  item.is_in_scope) return false
       if (!q) return true
@@ -463,7 +514,7 @@ export function CatalogClient({
         item.examples.some(e => e.toLowerCase().includes(q))
       )
     })
-  }, [optimisticCatalog, search, levelFilter, scopeFilter, labelById])
+  }, [optimisticCatalog, search, levelFilter, subcatFilter, scopeFilter, labelById])
 
   const totalInScope = optimisticCatalog.filter(i => i.is_in_scope).length + customTypes.length
   const totalMapped  = optimisticCatalog.filter(i => i.is_in_scope && i.classification_label_id).length
@@ -526,7 +577,8 @@ export function CatalogClient({
         </div>
 
         {[
-          { value: levelFilter, onChange: setLevelFilter, options: levelFilterOptions },
+          { value: levelFilter,  onChange: setLevelFilter,  options: levelFilterOptions },
+          { value: subcatFilter, onChange: setSubcatFilter, options: subcatOptions },
           {
             value: scopeFilter,
             onChange: setScopeFilter,
@@ -537,7 +589,7 @@ export function CatalogClient({
             <select
               value={sel.value}
               onChange={e => sel.onChange(e.target.value)}
-              className="appearance-none bg-zinc-800/60 border border-zinc-700 rounded-lg pl-3 pr-7 py-2 text-xs text-zinc-300 focus:outline-none cursor-pointer"
+              className="appearance-none bg-zinc-800/60 border border-zinc-700 rounded-lg pl-3 pr-7 py-2 text-xs text-zinc-300 focus:outline-none cursor-pointer max-w-[200px]"
             >
               {sel.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
@@ -545,9 +597,9 @@ export function CatalogClient({
           </div>
         ))}
 
-        {(search || levelFilter !== 'all' || scopeFilter !== 'all') && (
+        {(search || levelFilter !== 'all' || subcatFilter !== 'all' || scopeFilter !== 'all') && (
           <button
-            onClick={() => { setSearch(''); setLevelFilter('all'); setScopeFilter('all') }}
+            onClick={() => { setSearch(''); setLevelFilter('all'); setSubcatFilter('all'); setScopeFilter('all') }}
             className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
           >
             Clear
@@ -567,6 +619,7 @@ export function CatalogClient({
           // Force expand when: search active with results, system label matches, or custom label has results here
           const forceExpand =
             (search.length > 0 && sectionItems.length > 0) ||
+            (subcatFilter !== 'all' && sectionItems.length > 0) ||
             (selectedLabel?.system_level === level) ||
             (!!selectedLabel && !selectedLabel.system_level && sectionItems.length > 0)
           return (
