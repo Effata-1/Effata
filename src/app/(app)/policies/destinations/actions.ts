@@ -24,6 +24,7 @@ export interface OrgDestination {
   risk_level:       RiskLevel | null
   risk_notes:       string | null
   notes:            string | null
+  applications:     string[]
   created_at:       string
   updated_at:       string
 }
@@ -48,6 +49,23 @@ export async function getDestinations(): Promise<{ destinations: OrgDestination[
   }
 }
 
+export async function searchApps(query: string): Promise<string[]> {
+  if (!query || query.length < 2) return []
+  try {
+    const user = await requireRole('analyst')
+    const supabase = await createClient()
+    const { data } = await supabase
+      .from('catalog_apps')
+      .select('name')
+      .ilike('name', `%${query}%`)
+      .order('name')
+      .limit(20)
+    return (data ?? []).map((d: { name: string }) => d.name)
+  } catch {
+    return []
+  }
+}
+
 export async function addDestination(fields: {
   name:             string
   destination_type: string
@@ -55,6 +73,7 @@ export async function addDestination(fields: {
   risk_level:       RiskLevel | null
   risk_notes:       string
   notes:            string
+  applications:     string[]
 }): Promise<{ destination?: OrgDestination; error?: string }> {
   const user = await requireRole('analyst')
   const supabase = await createClient()
@@ -69,6 +88,7 @@ export async function addDestination(fields: {
       risk_level:       fields.risk_level,
       risk_notes:       fields.risk_notes.trim() || null,
       notes:            fields.notes.trim() || null,
+      applications:     fields.applications,
     })
     .select()
     .single()
@@ -80,7 +100,7 @@ export async function addDestination(fields: {
 
 export async function updateDestination(
   id: string,
-  fields: Partial<Pick<OrgDestination, 'name' | 'destination_type' | 'trust_tag' | 'risk_level' | 'risk_notes' | 'notes'>>,
+  fields: Partial<Pick<OrgDestination, 'name' | 'destination_type' | 'trust_tag' | 'risk_level' | 'risk_notes' | 'notes' | 'applications'>>,
 ): Promise<{ error?: string }> {
   const user = await requireRole('analyst')
   const supabase = await createClient()

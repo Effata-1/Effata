@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useMemo, useTransition, useOptimistic } from 'react'
+import { useState, useMemo, useTransition, useOptimistic, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { Search, X, Plus, ChevronDown, ChevronRight, Trash2, AlertTriangle } from 'lucide-react'
 import { FilterSelect, MultiFilterSelect } from '@/components/ui/filter-select'
-import { addDestination, updateDestination, deleteDestination } from '../actions'
+import { addDestination, updateDestination, deleteDestination, searchApps } from '../actions'
 import type { OrgDestination, TrustTag, RiskLevel } from '../actions'
 
 // ─── Trust tag config ─────────────────────────────────────────────────────────
@@ -151,6 +151,127 @@ const RISK_LEVELS: Record<RiskLevel, { label: string; className: string }> = {
   critical: { label: 'Critical', className: 'text-rose-400 bg-rose-500/10 border-rose-500/25'    },
 }
 
+// ─── App search input ─────────────────────────────────────────────────────────
+
+function AppSearchInput({
+  selected,
+  onChange,
+}: {
+  selected: string[]
+  onChange: (apps: string[]) => void
+}) {
+  const [query,   setQuery]   = useState('')
+  const [results, setResults] = useState<string[]>([])
+  const [loading, setLoading] = useState(false)
+  const [open,    setOpen]    = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function onMouseDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [])
+
+  useEffect(() => {
+    if (query.length < 2) { setResults([]); setOpen(false); return }
+    const timer = setTimeout(async () => {
+      setLoading(true)
+      const res = await searchApps(query)
+      setResults(res)
+      setLoading(false)
+      setOpen(true)
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [query])
+
+  function addApp(name: string) {
+    const trimmed = name.trim()
+    if (!trimmed || selected.includes(trimmed)) return
+    onChange([...selected, trimmed])
+    setQuery('')
+    setResults([])
+    setOpen(false)
+  }
+
+  function removeApp(name: string) {
+    onChange(selected.filter(a => a !== name))
+  }
+
+  const showCustomOption = query.trim().length >= 1 &&
+    !results.some(r => r.toLowerCase() === query.trim().toLowerCase()) &&
+    !selected.includes(query.trim())
+
+  return (
+    <div ref={ref} className="space-y-2">
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selected.map(app => (
+            <span key={app} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-md bg-zinc-800 border border-zinc-700 text-zinc-300">
+              {app}
+              <button type="button" onClick={() => removeApp(app)} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+                <X className="w-2.5 h-2.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600 pointer-events-none" />
+        <input
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') { e.preventDefault(); if (query.trim()) addApp(query) }
+            if (e.key === 'Escape') { setOpen(false); setQuery('') }
+          }}
+          placeholder="Search apps or type a custom name…"
+          className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-8 pr-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+        />
+
+        {open && (loading || results.length > 0 || showCustomOption) && (
+          <div className="absolute top-full mt-1 left-0 right-0 z-50 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden max-h-52 overflow-y-auto">
+            {loading && (
+              <p className="px-4 py-3 text-xs text-zinc-600">Searching…</p>
+            )}
+            {!loading && results.map(app => (
+              <button
+                key={app}
+                type="button"
+                onClick={() => addApp(app)}
+                disabled={selected.includes(app)}
+                className={cn(
+                  'w-full flex items-center px-4 py-2.5 text-sm text-left transition-colors',
+                  selected.includes(app)
+                    ? 'text-zinc-700 cursor-default'
+                    : 'text-zinc-300 hover:bg-zinc-800/80',
+                )}
+              >
+                {app}
+              </button>
+            ))}
+            {!loading && showCustomOption && (
+              <>
+                {results.length > 0 && <div className="border-t border-zinc-800" />}
+                <button
+                  type="button"
+                  onClick={() => addApp(query)}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-zinc-400 hover:bg-zinc-800/80 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
+                  Add &ldquo;{query}&rdquo; as custom app
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Add Destination modal ────────────────────────────────────────────────────
 
 function AddDestinationModal({
@@ -160,26 +281,28 @@ function AddDestinationModal({
   onClose: () => void
   onAdd:   (d: OrgDestination) => void
 }) {
-  const [tag,        setTag]        = useState<TrustTag>('enterprise_approved')
-  const [name,       setName]       = useState('')
-  const [destType,   setDestType]   = useState(DESTINATION_TYPES.enterprise_approved[0])
-  const [riskLevel,  setRiskLevel]  = useState<RiskLevel>(TRUST_TAGS.enterprise_approved.riskDefault)
-  const [riskNotes,  setRiskNotes]  = useState('')
-  const [notes,      setNotes]      = useState('')
-  const [error,      setError]      = useState<string | null>(null)
-  const [isPending,  startTransition] = useTransition()
+  const [tag,          setTag]          = useState<TrustTag>('enterprise_approved')
+  const [name,         setName]         = useState('')
+  const [destType,     setDestType]     = useState(DESTINATION_TYPES.enterprise_approved[0])
+  const [applications, setApplications] = useState<string[]>([])
+  const [riskLevel,    setRiskLevel]    = useState<RiskLevel>(TRUST_TAGS.enterprise_approved.riskDefault)
+  const [riskNotes,    setRiskNotes]    = useState('')
+  const [notes,        setNotes]        = useState('')
+  const [error,        setError]        = useState<string | null>(null)
+  const [isPending,    startTransition] = useTransition()
 
   function handleTagChange(t: TrustTag) {
     setTag(t)
     setDestType(DESTINATION_TYPES[t][0])
     setRiskLevel(TRUST_TAGS[t].riskDefault)
+    setApplications([])
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) { setError('Name is required.'); return }
     startTransition(async () => {
-      const result = await addDestination({ name, destination_type: destType, trust_tag: tag, risk_level: riskLevel, risk_notes: riskNotes, notes })
+      const result = await addDestination({ name, destination_type: destType, trust_tag: tag, risk_level: riskLevel, risk_notes: riskNotes, notes, applications })
       if (result.error) { setError(result.error); return }
       if (result.destination) onAdd(result.destination)
       onClose()
@@ -245,6 +368,14 @@ function AddDestinationModal({
                 <option key={dt} value={dt}>{dt}</option>
               ))}
             </select>
+          </div>
+
+          {/* Applications */}
+          <div>
+            <label className="block text-xs font-medium text-zinc-400 mb-1.5">
+              Applications <span className="text-zinc-600">(optional)</span>
+            </label>
+            <AppSearchInput selected={applications} onChange={setApplications} />
           </div>
 
           {/* Risk level */}
@@ -402,6 +533,18 @@ function DestinationRow({
         <tr className="border-b border-zinc-700/50">
           <td colSpan={4} className="px-5 py-4 bg-zinc-950/60">
             <div className="pl-4 border-l-2 border-zinc-700 space-y-2.5">
+              {item.applications.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest mb-1.5">Applications</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {item.applications.map(app => (
+                      <span key={app} className="text-[10px] px-2 py-0.5 rounded-md bg-zinc-800 border border-zinc-700 text-zinc-400">
+                        {app}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
               {item.risk_notes && (
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="w-3.5 h-3.5 text-amber-500/70 shrink-0 mt-0.5" />
@@ -411,7 +554,7 @@ function DestinationRow({
               {item.notes && (
                 <p className="text-xs text-zinc-400 leading-relaxed">{item.notes}</p>
               )}
-              {!item.risk_notes && !item.notes && (
+              {!item.risk_notes && !item.notes && item.applications.length === 0 && (
                 <p className="text-xs text-zinc-700 italic">No notes added.</p>
               )}
               <p className="text-[10px] text-zinc-700">
