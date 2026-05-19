@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useTransition, useOptimistic, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { Search, X, Plus, ChevronDown, ChevronRight, Info, AlertTriangle, Wand2 } from 'lucide-react'
+import { Search, X, Plus, ChevronDown, ChevronRight, Info, AlertTriangle, Wand2, FlaskConical } from 'lucide-react'
 import { toggleInScope, setClassification, addCustomDataType, batchToggleInScope } from '@/lib/data-catalog/actions'
 import { colorClasses, SYSTEM_LEVEL_META } from '@/lib/data-catalog/types'
 import type { OrgClassificationLabel, SystemLevel } from '@/lib/data-catalog/types'
@@ -389,6 +389,27 @@ function DataTypeRow({
                   </div>
                 </div>
               )}
+
+              {/* Data Lab deep link */}
+              <div>
+                <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                  <FlaskConical className="w-3 h-3" />
+                  Generate test data
+                </p>
+                <a
+                  href={`/tools/test-data?` + new URLSearchParams({
+                    name:   item.name,
+                    prompt: `Generate synthetic test data for DLP testing of ${item.name}. Include realistic fake examples covering: ${item.examples.slice(0, 6).join(', ')}. Each row should have a service or context field plus realistic-looking (but entirely fake) ${item.name.toLowerCase()} values.`,
+                  }).toString()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className="inline-flex items-center gap-1.5 text-[11px] font-medium text-violet-400 bg-violet-500/10 border border-violet-500/20 hover:bg-violet-500/20 hover:text-violet-300 px-2.5 py-1 rounded transition-colors"
+                >
+                  <FlaskConical className="w-3 h-3" />
+                  Open in Data Lab →
+                </a>
+              </div>
             </div>
           </td>
         </tr>

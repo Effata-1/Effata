@@ -2,8 +2,13 @@ import { Suspense } from 'react'
 import { getDatasets } from './actions'
 import { TestDataGenerator } from './_components/test-data-generator'
 
-export default async function TestDataPage() {
+export default async function TestDataPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ name?: string; prompt?: string }>
+}) {
   const { datasets } = await getDatasets()
+  const { name, prompt } = await searchParams
 
   return (
     <div>
@@ -12,7 +17,10 @@ export default async function TestDataPage() {
         <p className="text-zinc-500 text-sm">Generate synthetic DLP test data with AI or 44 ready-made templates across 7 categories — save to your library and export as CSV, TXT, or XML</p>
       </div>
       <Suspense fallback={<div className="text-sm text-zinc-600 italic">Loading Data Lab...</div>}>
-        <TestDataGenerator initialDatasets={datasets} />
+        <TestDataGenerator
+          initialDatasets={datasets}
+          prefill={name ? { name, prompt } : undefined}
+        />
       </Suspense>
     </div>
   )

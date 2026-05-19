@@ -429,19 +429,20 @@ const ROW_COUNT_TPL_OPTIONS = [5, 10, 25, 50, 100, 250, 500]
 
 interface Props {
   initialDatasets: SavedDataset[]
+  prefill?: { name?: string; prompt?: string }
 }
 
-export function TestDataGenerator({ initialDatasets }: Props) {
+export function TestDataGenerator({ initialDatasets, prefill }: Props) {
   const [activeTab,       setActiveTab]       = useState<'data' | 'file'>('data')
   const [generatedData,   setGeneratedData]   = useState<GeneratedData | null>(null)
-  const [aiPrompt,        setAiPrompt]        = useState('')
+  const [aiPrompt,        setAiPrompt]        = useState(prefill?.prompt ?? '')
   const [aiRowCount,      setAiRowCount]      = useState(25)
   const [tplRowCount,     setTplRowCount]     = useState(25)
   const [aiLoading,       startAiTransition]  = useTransition()
   const [aiError,         setAiError]         = useState<string | null>(null)
   const [downloadFormat,  setDownloadFormat]  = useState<Format>('csv')
   const [savedDatasets,   setSavedDatasets]   = useState<SavedDataset[]>(initialDatasets)
-  const [saveName,        setSaveName]        = useState('')
+  const [saveName,        setSaveName]        = useState(prefill?.name ?? '')
   const [saveDescription, setSaveDescription] = useState('')
   const [saveLoading,     startSaveTransition] = useTransition()
   const [saveSuccess,     setSaveSuccess]     = useState(false)
