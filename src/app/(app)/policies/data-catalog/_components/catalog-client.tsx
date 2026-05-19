@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useTransition, useOptimistic } from 'react'
+import { useState, useMemo, useTransition, useOptimistic, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { Search, X, Plus, ChevronDown, ChevronRight, Info, AlertTriangle } from 'lucide-react'
 import { toggleInScope, setClassification, addCustomDataType } from '@/lib/data-catalog/actions'
@@ -163,12 +163,12 @@ function ClassificationSelect({
   const cc    = label ? colorClasses(label.color) : null
 
   return (
-    <div className="relative">
+    <div className="relative w-full">
       <select
         value={value ?? ''}
         onChange={e => onChange(e.target.value)}
         className={cn(
-          'appearance-none text-xs font-medium pl-2.5 pr-6 py-1.5 rounded-lg border cursor-pointer focus:outline-none transition-colors',
+          'appearance-none text-xs font-medium pl-2.5 pr-7 py-1.5 rounded-lg border cursor-pointer focus:outline-none transition-colors w-full',
           cc
             ? `${cc.text} ${cc.bg} ${cc.border} hover:opacity-90`
             : 'text-zinc-600 bg-zinc-800/60 border-zinc-700 hover:border-zinc-600',
@@ -177,7 +177,7 @@ function ClassificationSelect({
         <option value="">— Select label —</option>
         {labels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
       </select>
-      <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none opacity-50" />
+      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none opacity-50" />
     </div>
   )
 }
@@ -264,15 +264,20 @@ function ClassificationSection({
   labels,
   onToggle,
   onClassify,
+  forceExpand,
 }: {
-  level:      SystemLevel
-  items:      EnrichedCatalogType[]
-  labels:     OrgClassificationLabel[]
-  onToggle:   (id: string, inScope: boolean) => void
-  onClassify: (orgDataTypeId: string, labelId: string) => void
+  level:       SystemLevel
+  items:       EnrichedCatalogType[]
+  labels:      OrgClassificationLabel[]
+  onToggle:    (id: string, inScope: boolean) => void
+  onClassify:  (orgDataTypeId: string, labelId: string) => void
+  forceExpand: boolean
 }) {
-  // Collapsed by default
   const [collapsed, setCollapsed] = useState(true)
+
+  useEffect(() => {
+    setCollapsed(!forceExpand)
+  }, [forceExpand])
 
   const meta    = SYSTEM_LEVEL_META[level]
   const cc      = colorClasses(meta.color)
@@ -427,10 +432,28 @@ export function CatalogClient({
 
   const levels: SystemLevel[] = ['secret', 'highly_confidential', 'confidential', 'internal', 'public']
 
+  // Map label id → label for filter logic
+  const labelById = useMemo(() => new Map(labels.map(l => [l.id, l])), [labels])
+
+  // Filter options use label IDs so custom labels appear in the dropdown
+  const levelFilterOptions = useMemo(() => [
+    { value: 'all', label: 'All levels' },
+    ...labels.map(l => ({ value: l.id, label: l.name })),
+  ], [labels])
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
+    const selectedLabel = levelFilter !== 'all' ? labelById.get(levelFilter) : null
     return optimisticCatalog.filter(item => {
-      if (levelFilter !== 'all' && item.system_level !== levelFilter) return false
+      if (selectedLabel) {
+        if (selectedLabel.system_level) {
+          // System label: filter by catalog section
+          if (item.system_level !== selectedLabel.system_level) return false
+        } else {
+          // Custom label: filter by classification assignment
+          if (item.classification_label_id !== levelFilter) return false
+        }
+      }
       if (scopeFilter === 'in_scope'     && !item.is_in_scope) return false
       if (scopeFilter === 'not_selected' &&  item.is_in_scope) return false
       if (!q) return true
@@ -440,7 +463,7 @@ export function CatalogClient({
         item.examples.some(e => e.toLowerCase().includes(q))
       )
     })
-  }, [optimisticCatalog, search, levelFilter, scopeFilter])
+  }, [optimisticCatalog, search, levelFilter, scopeFilter, labelById])
 
   const totalInScope = optimisticCatalog.filter(i => i.is_in_scope).length + customTypes.length
   const totalMapped  = optimisticCatalog.filter(i => i.is_in_scope && i.classification_label_id).length
@@ -503,11 +526,7 @@ export function CatalogClient({
         </div>
 
         {[
-          {
-            value: levelFilter,
-            onChange: setLevelFilter,
-            options: [{ value: 'all', label: 'All levels' }, ...levels.map(l => ({ value: l, label: SYSTEM_LEVEL_META[l].label }))],
-          },
+          { value: levelFilter, onChange: setLevelFilter, options: levelFilterOptions },
           {
             value: scopeFilter,
             onChange: setScopeFilter,
@@ -542,16 +561,26 @@ export function CatalogClient({
 
       {/* Classification sections */}
       <div className="space-y-2">
-        {levels.map(level => (
+        {levels.map(level => {
+          const sectionItems = filtered.filter(i => i.system_level === level)
+          const selectedLabel = levelFilter !== 'all' ? labelById.get(levelFilter) : null
+          // Force expand when: search active with results, system label matches, or custom label has results here
+          const forceExpand =
+            (search.length > 0 && sectionItems.length > 0) ||
+            (selectedLabel?.system_level === level) ||
+            (!!selectedLabel && !selectedLabel.system_level && sectionItems.length > 0)
+          return (
           <ClassificationSection
             key={level}
             level={level}
-            items={filtered.filter(i => i.system_level === level)}
+            items={sectionItems}
             labels={labels}
             onToggle={handleToggle}
             onClassify={handleClassify}
+            forceExpand={forceExpand}
           />
-        ))}
+          )
+        })}
 
         {/* Custom types */}
         {customTypes.length > 0 && (
