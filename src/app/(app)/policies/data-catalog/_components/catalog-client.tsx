@@ -337,11 +337,13 @@ function ClassificationSection({
     setCollapsed(!forceExpand)
   }, [forceExpand])
 
-  const meta    = SYSTEM_LEVEL_META[level]
-  const cc      = colorClasses(meta.color)
-  const inScope = items.filter(i => i.is_in_scope).length
-  const pct     = items.length > 0 ? Math.round((inScope / items.length) * 100) : 0
-  const subcats = [...new Set(items.map(i => i.subcategory ?? 'General'))]
+  const meta      = SYSTEM_LEVEL_META[level]
+  const orgLabel  = labels.find(l => l.system_level === level)
+  const cc        = orgLabel ? colorClasses(orgLabel.color) : colorClasses(meta.color)
+  const inScope   = items.filter(i => i.is_in_scope).length
+  const pct       = items.length > 0 ? Math.round((inScope / items.length) * 100) : 0
+  const subcats   = [...new Set(items.map(i => i.subcategory ?? 'General'))]
+  const labelName = orgLabel?.name ?? meta.label
 
   if (items.length === 0) return null
 
@@ -361,8 +363,8 @@ function ClassificationSection({
         {/* Level info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-0.5">
-            <span className={cn('text-sm font-bold tracking-wider', cc.text)}>{meta.label.toUpperCase()}</span>
-            <span className="text-xs text-zinc-600">Priority {meta.priority}</span>
+            <span className={cn('text-sm font-bold tracking-wider', cc.text)}>{labelName.toUpperCase()}</span>
+            <span className="text-xs text-zinc-600">Priority {orgLabel?.priority ?? meta.priority}</span>
             <span className="text-zinc-700 text-xs">·</span>
             <span className="text-xs text-zinc-500">{items.length} types</span>
             {inScope > 0 && (
