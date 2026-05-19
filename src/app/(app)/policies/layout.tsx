@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/auth'
 const ITEMS = [
   { label: 'Policy Library',         href: '/policies/library' },
   { label: 'Data Catalog',           href: '/policies/data-catalog' },
+  { label: 'Destinations',           href: '/policies/destinations' },
   { label: 'Classification Labels',  href: '/policies/classifications' },
 ]
 
