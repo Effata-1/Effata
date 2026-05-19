@@ -400,24 +400,24 @@ function DataTypeRow({
               )}
 
               {/* Data Lab deep link */}
-              <div>
-                <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                  <FlaskConical className="w-3 h-3" />
-                  Generate test data
-                </p>
-                <a
-                  href={`/tools/test-data?` + new URLSearchParams({
-                    name:   item.name,
-                    prompt: `Generate synthetic test data for DLP testing of ${item.name}. Include realistic fake examples covering: ${item.examples.slice(0, 6).join(', ')}. Each row should have a service or context field plus realistic-looking (but entirely fake) ${item.name.toLowerCase()} values.`,
-                  }).toString()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={e => e.stopPropagation()}
-                  className="inline-flex items-center gap-1.5 text-[11px] font-medium text-violet-400 bg-violet-500/10 border border-violet-500/20 hover:bg-violet-500/20 hover:text-violet-300 px-2.5 py-1 rounded transition-colors"
-                >
-                  <FlaskConical className="w-3 h-3" />
-                  Open in Data Lab →
-                </a>
+              <div className="flex items-center gap-2 min-h-[22px]">
+                <FlaskConical className={cn('w-3 h-3 shrink-0 transition-colors', selectedExample ? 'text-violet-400' : 'text-zinc-700')} />
+                {selectedExample ? (
+                  <a
+                    href={`/tools/test-data?` + new URLSearchParams({
+                      name:   `${item.name} — ${selectedExample}`,
+                      prompt: `Generate synthetic test data for DLP testing of ${selectedExample} (a type of ${item.name}). Each row should have a service or context field plus realistic-looking (but entirely fake) values.`,
+                    }).toString()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    className="text-[11px] font-medium text-violet-400 hover:text-violet-300 transition-colors"
+                  >
+                    Generate test data for &ldquo;{selectedExample}&rdquo; →
+                  </a>
+                ) : (
+                  <span className="text-[11px] text-zinc-700 select-none">Select an example to generate test data</span>
+                )}
               </div>
             </div>
           </td>
