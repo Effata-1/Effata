@@ -363,23 +363,32 @@ function DataTypeRow({
                 </div>
               )}
 
-              {/* Regex Lab deep link */}
-              <div className="pt-0.5">
-                <a
-                  href={`/tools/regex-lab?` + new URLSearchParams({
-                    name:     item.name,
-                    prompt:   `Generate a DLP regex pattern to detect ${item.name}. Examples: ${item.examples.slice(0, 5).join(', ')}`,
-                    testData: item.examples.slice(0, 6).join('\n'),
-                  }).toString()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={e => e.stopPropagation()}
-                  className="inline-flex items-center gap-1.5 text-[11px] font-medium text-blue-400 hover:text-blue-300 transition-colors"
-                >
-                  <Wand2 className="w-3 h-3" />
-                  Create regex pattern in Regex Lab →
-                </a>
-              </div>
+              {/* Regex Lab deep links — one per example type */}
+              {item.examples.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                    <Wand2 className="w-3 h-3" />
+                    Create regex pattern for
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {item.examples.map(ex => (
+                      <a
+                        key={ex}
+                        href={`/tools/regex-lab?` + new URLSearchParams({
+                          name:   `${item.name} — ${ex}`,
+                          prompt: `Generate a DLP regex pattern to detect ${ex}. This is a type of ${item.name}.`,
+                        }).toString()}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        className="text-[10px] font-medium text-blue-400 bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 hover:text-blue-300 px-2 py-0.5 rounded transition-colors"
+                      >
+                        {ex}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </td>
         </tr>
