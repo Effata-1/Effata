@@ -325,7 +325,7 @@ function DataTypeRow({
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest">Examples</p>
-                    <p className="text-[10px] text-zinc-700">Select one to create a regex pattern</p>
+                    <p className="text-[10px] text-zinc-700">Select one to use the tools below</p>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {item.examples.map(ex => (
@@ -344,25 +344,47 @@ function DataTypeRow({
                       </button>
                     ))}
                   </div>
-                  {/* Regex CTA — enabled only when an example is selected */}
-                  <div className="mt-2 flex items-center gap-2 min-h-[22px]">
-                    <Wand2 className={cn('w-3 h-3 shrink-0 transition-colors', selectedExample ? 'text-blue-400' : 'text-zinc-700')} />
-                    {selectedExample ? (
-                      <a
-                        href={`/tools/regex-lab?` + new URLSearchParams({
-                          name:   `${item.name} — ${selectedExample}`,
-                          prompt: `Generate a DLP regex pattern to detect ${selectedExample}. This is a type of ${item.name}.`,
-                        }).toString()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={e => e.stopPropagation()}
-                        className="text-[11px] font-medium text-blue-400 hover:text-blue-300 transition-colors"
-                      >
-                        Create regex pattern for &ldquo;{selectedExample}&rdquo; →
-                      </a>
-                    ) : (
-                      <span className="text-[11px] text-zinc-700 select-none">Select an example to create a regex pattern</span>
-                    )}
+                  {/* Regex + Data Lab CTAs — side by side, enabled only when an example is selected */}
+                  <div className="mt-2 flex items-center gap-4 min-h-[22px]">
+                    <div className="flex items-center gap-2">
+                      <Wand2 className={cn('w-3 h-3 shrink-0 transition-colors', selectedExample ? 'text-blue-400' : 'text-zinc-700')} />
+                      {selectedExample ? (
+                        <a
+                          href={`/tools/regex-lab?` + new URLSearchParams({
+                            name:   `${item.name} — ${selectedExample}`,
+                            prompt: `Generate a DLP regex pattern to detect ${selectedExample}. This is a type of ${item.name}.`,
+                          }).toString()}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          className="text-[11px] font-medium text-blue-400 hover:text-blue-300 transition-colors"
+                        >
+                          Create regex pattern for &ldquo;{selectedExample}&rdquo; →
+                        </a>
+                      ) : (
+                        <span className="text-[11px] text-zinc-700 select-none">Create regex pattern</span>
+                      )}
+                    </div>
+                    <div className="w-px h-3 bg-zinc-800 shrink-0" />
+                    <div className="flex items-center gap-2">
+                      <FlaskConical className={cn('w-3 h-3 shrink-0 transition-colors', selectedExample ? 'text-violet-400' : 'text-zinc-700')} />
+                      {selectedExample ? (
+                        <a
+                          href={`/tools/test-data?` + new URLSearchParams({
+                            name:   `${item.name} — ${selectedExample}`,
+                            prompt: `Generate synthetic test data for DLP testing of ${selectedExample} (a type of ${item.name}). Each row should have a service or context field plus realistic-looking (but entirely fake) values.`,
+                          }).toString()}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          className="text-[11px] font-medium text-violet-400 hover:text-violet-300 transition-colors"
+                        >
+                          Generate test data for &ldquo;{selectedExample}&rdquo; →
+                        </a>
+                      ) : (
+                        <span className="text-[11px] text-zinc-700 select-none">Generate test data</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -399,26 +421,6 @@ function DataTypeRow({
                 </div>
               )}
 
-              {/* Data Lab deep link */}
-              <div className="flex items-center gap-2 min-h-[22px]">
-                <FlaskConical className={cn('w-3 h-3 shrink-0 transition-colors', selectedExample ? 'text-violet-400' : 'text-zinc-700')} />
-                {selectedExample ? (
-                  <a
-                    href={`/tools/test-data?` + new URLSearchParams({
-                      name:   `${item.name} — ${selectedExample}`,
-                      prompt: `Generate synthetic test data for DLP testing of ${selectedExample} (a type of ${item.name}). Each row should have a service or context field plus realistic-looking (but entirely fake) values.`,
-                    }).toString()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={e => e.stopPropagation()}
-                    className="text-[11px] font-medium text-violet-400 hover:text-violet-300 transition-colors"
-                  >
-                    Generate test data for &ldquo;{selectedExample}&rdquo; →
-                  </a>
-                ) : (
-                  <span className="text-[11px] text-zinc-700 select-none">Select an example to generate test data</span>
-                )}
-              </div>
             </div>
           </td>
         </tr>
