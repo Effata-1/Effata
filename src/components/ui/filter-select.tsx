@@ -51,19 +51,31 @@ export function FilterSelect({
 
   return (
     <div ref={ref} className={cn('relative', className)}>
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setOpen(o => !o)}
+        onKeyDown={e => e.key === 'Enter' && setOpen(o => !o)}
         className={cn(
-          'flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-colors whitespace-nowrap',
+          'flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-colors whitespace-nowrap cursor-pointer select-none',
           open ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700',
           selected ? 'text-white' : 'text-zinc-500',
         )}
       >
         <span>{selected?.label ?? placeholder}</span>
+        {selected && (
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); onChange(''); setSearch(''); setOpen(false) }}
+            className="flex items-center justify-center w-3.5 h-3.5 rounded-full text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
+          >
+            <X className="w-2.5 h-2.5" />
+          </button>
+        )}
         {open
           ? <ChevronUp   className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
           : <ChevronDown className="w-3.5 h-3.5 text-zinc-500 shrink-0" />}
-      </button>
+      </div>
 
       {open && (
         <div className="absolute top-full mt-1.5 left-0 z-50 w-64 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden">
@@ -107,7 +119,7 @@ export function FilterSelect({
   )
 }
 
-// ─── Multi-select ──────────────────────────────────────────────────────────────
+// ─── Multi-select ─────────────────────────────────────────────────────────────
 
 interface MultiFilterSelectProps {
   options:     FilterOption[]

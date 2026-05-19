@@ -188,15 +188,28 @@ function ClassificationSelect({
 // ─── Compliance tag config ────────────────────────────────────────────────────
 
 const COMPLIANCE_TAGS: Record<string, { label: string; className: string }> = {
-  gdpr:             { label: 'GDPR',      className: 'text-blue-400 bg-blue-500/10 border-blue-500/25' },
-  hipaa:            { label: 'HIPAA',     className: 'text-green-400 bg-green-500/10 border-green-500/25' },
-  pci:              { label: 'PCI-DSS',   className: 'text-purple-400 bg-purple-500/10 border-purple-500/25' },
-  pii:              { label: 'PII',       className: 'text-amber-400 bg-amber-500/10 border-amber-500/25' },
-  'special-category': { label: 'Special Category', className: 'text-red-400 bg-red-500/10 border-red-500/25' },
-  regulated:        { label: 'Regulated', className: 'text-orange-400 bg-orange-500/10 border-orange-500/25' },
+  gdpr:               { label: 'GDPR',             className: 'text-blue-400 bg-blue-500/10 border-blue-500/25'   },
+  hipaa:              { label: 'HIPAA',             className: 'text-green-400 bg-green-500/10 border-green-500/25' },
+  pci:                { label: 'PCI-DSS',           className: 'text-purple-400 bg-purple-500/10 border-purple-500/25' },
+  pii:                { label: 'Privacy / PII',     className: 'text-amber-400 bg-amber-500/10 border-amber-500/25'  },
+  'special-category': { label: 'Special Category',  className: 'text-red-400 bg-red-500/10 border-red-500/25'       },
+  regulated:          { label: 'SOX / Financial',   className: 'text-orange-400 bg-orange-500/10 border-orange-500/25' },
+  'security-critical':{ label: 'NIS2 / DORA / CMMC', className: 'text-rose-400 bg-rose-500/10 border-rose-500/25'  },
+  security:           { label: 'Security',          className: 'text-zinc-400 bg-zinc-500/10 border-zinc-500/25'    },
+  credentials:        { label: 'Credentials',       className: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/25' },
 }
 
-const COMPLIANCE_FILTER_TAGS = Object.entries(COMPLIANCE_TAGS).map(([value, { label }]) => ({ value, label }))
+// Filter options shown in the compliance dropdown — maps regulation names to catalog tags
+const COMPLIANCE_FILTER_TAGS = [
+  { value: 'gdpr',               label: 'GDPR / UK GDPR' },
+  { value: 'hipaa',              label: 'HIPAA' },
+  { value: 'pci',                label: 'PCI-DSS' },
+  { value: 'pii',                label: 'Privacy / PII (CCPA, PIPL, DPDP…)' },
+  { value: 'special-category',   label: 'GDPR Special Category (Art. 9)' },
+  { value: 'security-critical',  label: 'NIS2 / DORA / CMMC' },
+  { value: 'regulated',          label: 'SOX / GLBA / Financial' },
+  { value: 'credentials',        label: 'Credentials & Secrets' },
+]
 
 const DLP_TREATMENT: Record<SystemLevel, string> = {
   secret:              'Block by default outside explicitly approved workflows. Inspect all traffic.',
@@ -472,8 +485,6 @@ function ClassificationSection({
   const pct        = items.length > 0 ? Math.round((inScope / items.length) * 100) : 0
   const subcats    = [...new Set(items.map(i => i.subcategory ?? 'General'))]
   const labelName  = orgLabel?.name ?? meta.label
-  const allInScope = inScope === items.length
-  const anyInScope = inScope > 0
 
   if (items.length === 0) return null
 
@@ -519,26 +530,6 @@ function ClassificationSection({
             <span className="text-[10px] text-zinc-600 w-8">{pct}%</span>
           </div>
         )}
-
-        {/* Bulk actions */}
-        <div className="hidden sm:flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-          {!allInScope && (
-            <button
-              onClick={() => onBulkToggle(items.filter(i => !i.is_in_scope), true)}
-              className="text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-500 hover:text-blue-400 hover:border-blue-500/40 transition-colors"
-            >
-              Add all
-            </button>
-          )}
-          {anyInScope && (
-            <button
-              onClick={() => onBulkToggle(items.filter(i => i.is_in_scope), false)}
-              className="text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-500 hover:text-red-400 hover:border-red-500/40 transition-colors"
-            >
-              Remove all
-            </button>
-          )}
-        </div>
 
         {/* Expand/collapse icon */}
         {collapsed
