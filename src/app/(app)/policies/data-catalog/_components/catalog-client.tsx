@@ -246,7 +246,8 @@ function DataTypeRow({
   onToggle:   (id: string, inScope: boolean) => void
   onClassify: (orgDataTypeId: string, labelId: string) => void
 }) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded,         setExpanded]         = useState(false)
+  const [selectedExample,  setSelectedExample]  = useState<string | null>(null)
   const hasTreatment = DLP_TREATMENT[item.system_level]
 
   return (
@@ -319,14 +320,49 @@ function DataTypeRow({
                 <p className="text-xs text-zinc-400 leading-relaxed">{item.description}</p>
               )}
 
-              {/* All examples */}
+              {/* Examples — click to select, then create regex pattern */}
               {item.examples.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest mb-1.5">Examples</p>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest">Examples</p>
+                    <p className="text-[10px] text-zinc-700">Select one to create a regex pattern</p>
+                  </div>
                   <div className="flex flex-wrap gap-1.5">
                     {item.examples.map(ex => (
-                      <span key={ex} className="text-[10px] text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded border border-zinc-700">{ex}</span>
+                      <button
+                        key={ex}
+                        type="button"
+                        onClick={e => { e.stopPropagation(); setSelectedExample(selectedExample === ex ? null : ex) }}
+                        className={cn(
+                          'text-[10px] px-2 py-0.5 rounded border transition-all',
+                          selectedExample === ex
+                            ? 'text-blue-300 bg-blue-500/20 border-blue-500/50 shadow-[0_0_6px_rgba(59,130,246,0.35)]'
+                            : 'text-zinc-400 bg-zinc-800 border-zinc-700 hover:border-blue-500/40 hover:text-blue-300 hover:bg-blue-500/8 hover:shadow-[0_0_4px_rgba(59,130,246,0.2)]',
+                        )}
+                      >
+                        {ex}
+                      </button>
                     ))}
+                  </div>
+                  {/* Regex CTA — enabled only when an example is selected */}
+                  <div className="mt-2 flex items-center gap-2 min-h-[22px]">
+                    <Wand2 className={cn('w-3 h-3 shrink-0 transition-colors', selectedExample ? 'text-blue-400' : 'text-zinc-700')} />
+                    {selectedExample ? (
+                      <a
+                        href={`/tools/regex-lab?` + new URLSearchParams({
+                          name:   `${item.name} — ${selectedExample}`,
+                          prompt: `Generate a DLP regex pattern to detect ${selectedExample}. This is a type of ${item.name}.`,
+                        }).toString()}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        className="text-[11px] font-medium text-blue-400 hover:text-blue-300 transition-colors"
+                      >
+                        Create regex pattern for &ldquo;{selectedExample}&rdquo; →
+                      </a>
+                    ) : (
+                      <span className="text-[11px] text-zinc-700 select-none">Select an example to create a regex pattern</span>
+                    )}
                   </div>
                 </div>
               )}
@@ -360,33 +396,6 @@ function DataTypeRow({
                 <div className="flex items-start gap-2 bg-amber-500/5 border border-amber-500/20 rounded-lg px-3 py-2.5">
                   <AlertTriangle className="w-3.5 h-3.5 text-amber-500/70 shrink-0 mt-0.5" />
                   <p className="text-[11px] text-amber-400/80 leading-relaxed">{item.notes}</p>
-                </div>
-              )}
-
-              {/* Regex Lab deep links — one per example type */}
-              {item.examples.length > 0 && (
-                <div>
-                  <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                    <Wand2 className="w-3 h-3" />
-                    Create regex pattern for
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {item.examples.map(ex => (
-                      <a
-                        key={ex}
-                        href={`/tools/regex-lab?` + new URLSearchParams({
-                          name:   `${item.name} — ${ex}`,
-                          prompt: `Generate a DLP regex pattern to detect ${ex}. This is a type of ${item.name}.`,
-                        }).toString()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={e => e.stopPropagation()}
-                        className="text-[10px] font-medium text-blue-400 bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 hover:text-blue-300 px-2 py-0.5 rounded transition-colors"
-                      >
-                        {ex}
-                      </a>
-                    ))}
-                  </div>
                 </div>
               )}
 
