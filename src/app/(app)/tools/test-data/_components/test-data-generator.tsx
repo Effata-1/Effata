@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useMemo, useTransition, useCallback } from 'react'
-import { Loader2, Trash2, Check, Sparkles, Search, Download } from 'lucide-react'
+import { Loader2, Trash2, Check, Sparkles, Search, Download, Table, FileCode } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { generateTestData, saveDataset, deleteDataset } from '../actions'
 import type { GeneratedData, SavedDataset } from '../actions'
+import { FileFormatGenerator } from './file-format-generator'
 
 // ── Template Definitions ──────────────────────────────────────────────────────
 
@@ -431,6 +432,7 @@ interface Props {
 }
 
 export function TestDataGenerator({ initialDatasets }: Props) {
+  const [activeTab,       setActiveTab]       = useState<'data' | 'file'>('data')
   const [generatedData,   setGeneratedData]   = useState<GeneratedData | null>(null)
   const [aiPrompt,        setAiPrompt]        = useState('')
   const [aiRowCount,      setAiRowCount]      = useState(25)
@@ -536,8 +538,31 @@ export function TestDataGenerator({ initialDatasets }: Props) {
   // RENDER
   // ══════════════════════════════════════════════════════════════════════════
 
+  const tabCls = (active: boolean) =>
+    `flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+      active
+        ? 'bg-zinc-800 text-white'
+        : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900'
+    }`
+
   return (
-    <div className="grid grid-cols-3 gap-5">
+    <div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-5 bg-zinc-900/50 border border-zinc-800 rounded-xl p-1 w-fit">
+        <button onClick={() => setActiveTab('data')} className={tabCls(activeTab === 'data')}>
+          <Table className="w-4 h-4" />
+          Data Generator
+        </button>
+        <button onClick={() => setActiveTab('file')} className={tabCls(activeTab === 'file')}>
+          <FileCode className="w-4 h-4" />
+          File Generator
+        </button>
+      </div>
+
+      {activeTab === 'file' && <FileFormatGenerator />}
+
+      {activeTab === 'data' && <div className="grid grid-cols-3 gap-5">
 
       {/* ══════════════════════════════════════════════════
           LEFT COLUMN (2/3)
@@ -852,6 +877,8 @@ export function TestDataGenerator({ initialDatasets }: Props) {
         </div>
 
       </div>
+    </div>}
+
     </div>
   )
 }
