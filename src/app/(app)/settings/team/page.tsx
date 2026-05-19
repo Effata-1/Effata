@@ -23,24 +23,9 @@ export default async function TeamPage() {
           {error}
         </div>
       ) : (
-        <TeamClient members={members} currentUserId={user.id} />
+        <TeamClient members={members} currentUserId={user.id} currentUserRole={user.role} />
       )}
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
-        <h3 className="text-xs font-semibold text-zinc-400 mb-3">Role permissions</h3>
-        <div className="grid grid-cols-3 gap-4 text-xs">
-          {[
-            { role: 'Admin',     color: 'text-blue-400',  desc: 'Full access — settings, team management, all tools and reports.' },
-            { role: 'Analyst',   color: 'text-green-400', desc: 'All tools and compliance sections. No settings access.' },
-            { role: 'Read-only', color: 'text-zinc-400',  desc: 'Dashboard only. Cannot access tools, compliance, or settings.' },
-          ].map(r => (
-            <div key={r.role}>
-              <p className={`font-semibold mb-1 ${r.color}`}>{r.role}</p>
-              <p className="text-zinc-600 leading-relaxed">{r.desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   )
 }
