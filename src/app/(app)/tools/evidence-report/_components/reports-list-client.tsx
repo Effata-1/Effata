@@ -1,0 +1,201 @@
+'use client'
+
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { Plus, Trash2, Eye, FileText, Loader2 } from 'lucide-react'
+import { deleteReport } from '../actions'
+import type { ReportSummary, OverallResult, ReportType } from '../actions'
+
+// ── Label helpers ─────────────────────────────────────────────────────────────
+
+const REPORT_TYPE_LABELS: Record<ReportType, string> = {
+  single_test:        'Single Test',
+  control_validation: 'Control Validation',
+  regulation:         'Regulation',
+  executive:          'Executive',
+  regression:         'Regression',
+}
+
+const RESULT_LABELS: Record<OverallResult, string> = {
+  passed:           'Passed',
+  partially_passed: 'Partially Passed',
+  failed:           'Failed',
+  inconclusive:     'Inconclusive',
+}
+
+function ResultBadge({ result }: { result: OverallResult }) {
+  const colours: Record<OverallResult, string> = {
+    passed:           'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+    partially_passed: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+    failed:           'bg-red-500/15 text-red-400 border-red-500/30',
+    inconclusive:     'bg-zinc-700/50 text-zinc-400 border-zinc-600/30',
+  }
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${colours[result]}`}>
+      {RESULT_LABELS[result]}
+    </span>
+  )
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+interface Props {
+  reports: ReportSummary[]
+  error?: string
+}
+
+export function ReportsListClient({ reports, error }: Props) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmId, setConfirmId] = useState<string | null>(null)
+
+  function handleView(id: string) {
+    router.push(`/tools/evidence-report/${id}`)
+  }
+
+  function handleDelete(id: string) {
+    if (confirmId !== id) {
+      setConfirmId(id)
+      return
+    }
+    setConfirmId(null)
+    setDeletingId(id)
+    startTransition(async () => {
+      await deleteReport(id)
+      setDeletingId(null)
+      router.refresh()
+    })
+  }
+
+  return (
+    <div>
+      {/* Header bar */}
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-zinc-500 text-xs">{reports.length} report{reports.length !== 1 ? 's' : ''}</p>
+        <button
+          onClick={() => router.push('/tools/evidence-report/new')}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          New Report
+        </button>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-xs">
+          {error}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!error && reports.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <FileText className="w-10 h-10 text-zinc-700 mb-4" />
+          <p className="text-zinc-400 text-sm font-medium mb-1">No reports yet</p>
+          <p className="text-zinc-600 text-xs max-w-xs">
+            Create your first evidence report to document DLP control testing for audits and compliance reviews.
+          </p>
+          <button
+            onClick={() => router.push('/tools/evidence-report/new')}
+            className="mt-5 flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Create First Report
+          </button>
+        </div>
+      )}
+
+      {/* Reports table */}
+      {reports.length > 0 && (
+        <div className="border border-zinc-800 rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 bg-zinc-900/60">
+                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500">Report Name</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500">Type</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500">Environment</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500">Assessed</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500">Result</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-zinc-500">Tests</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {reports.map((r, i) => (
+                <tr
+                  key={r.id}
+                  className={`${i < reports.length - 1 ? 'border-b border-zinc-800/50' : ''} hover:bg-zinc-900/40 transition-colors`}
+                >
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => handleView(r.id)}
+                      className="text-white hover:text-blue-400 font-medium text-sm text-left transition-colors"
+                    >
+                      {r.name}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3 text-zinc-400 text-xs">
+                    {REPORT_TYPE_LABELS[r.report_type]}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="px-2 py-0.5 bg-zinc-800 text-zinc-300 text-xs rounded">
+                      {r.environment}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-zinc-400 text-xs">
+                    {new Date(r.assessed_on).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </td>
+                  <td className="px-4 py-3">
+                    <ResultBadge result={r.overall_result} />
+                  </td>
+                  <td className="px-4 py-3 text-right text-zinc-400 text-xs">
+                    {r.test_count}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => handleView(r.id)}
+                        className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded transition-colors"
+                        title="View report"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                      {confirmId === r.id ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-zinc-500">Delete?</span>
+                          <button
+                            onClick={() => handleDelete(r.id)}
+                            disabled={isPending}
+                            className="px-2 py-1 text-xs bg-red-600 hover:bg-red-500 text-white rounded transition-colors"
+                          >
+                            {deletingId === r.id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Yes'}
+                          </button>
+                          <button
+                            onClick={() => setConfirmId(null)}
+                            className="px-2 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded transition-colors"
+                          >
+                            No
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleDelete(r.id)}
+                          className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-zinc-800 rounded transition-colors"
+                          title="Delete report"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
