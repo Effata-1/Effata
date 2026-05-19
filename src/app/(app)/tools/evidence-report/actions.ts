@@ -424,9 +424,11 @@ export async function importFromValidator(
 
   // Map dlp_test_results result to report_tests fields
   function mapResult(r: string): { actual_result: ActualResult; final_status: FinalStatus } {
-    if (r === 'blocked')     return { actual_result: 'blocked',         final_status: 'passed' }
-    if (r === 'not_blocked') return { actual_result: 'allowed_no_alert', final_status: 'failed' }
-    return                          { actual_result: 'test_failed',      final_status: 'inconclusive' }
+    if (r === 'blocked')            return { actual_result: 'blocked',           final_status: 'passed' }
+    if (r === 'not_blocked')        return { actual_result: 'allowed_no_alert',   final_status: 'failed' }
+    if (r === 'user_alert_proceed') return { actual_result: 'allowed_with_coach', final_status: 'failed' }
+    if (r === 'user_alert_stop')    return { actual_result: 'allowed_with_coach', final_status: 'inconclusive' }
+    return                                 { actual_result: 'test_failed',        final_status: 'inconclusive' }
   }
 
   const rows = (results ?? []).map(r => {

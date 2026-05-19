@@ -7,8 +7,8 @@ import {
   UploadCloud, FileText, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { saveTestResult } from '../actions'
-import type { TestHistoryEntry } from '../actions'
+import { saveTestResult, updateTestResultUserAlert } from '../actions'
+import type { TestHistoryEntry, TestResult } from '../actions'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 
 // ── Test Scenarios ────────────────────────────────────────────────────────────
@@ -299,10 +299,15 @@ function formatTime(iso: string) {
   })
 }
 
-const RESULT_META = {
-  blocked:     { label: 'BLOCKED',     color: 'text-green-400', border: 'border-green-500/40', bg: 'bg-green-500/8',  Icon: ShieldCheck,  headline: 'DLP intercepted this request', sub: 'The request never reached our server — your DLP control is working for this vector.' },
-  not_blocked: { label: 'NOT BLOCKED', color: 'text-red-400',   border: 'border-red-500/40',   bg: 'bg-red-500/8',    Icon: ShieldAlert,  headline: 'Our server received the payload', sub: 'DLP did not intercept this request. This channel / data-type combination is not being caught.' },
-  error:       { label: 'ERROR',       color: 'text-amber-400', border: 'border-amber-500/40', bg: 'bg-amber-500/8',  Icon: AlertTriangle, headline: 'Test failed with an error', sub: 'The request failed for a non-DLP reason (check console). Try again or inspect network logs.' },
+const RESULT_META: Record<TestResult, {
+  label: string; color: string; border: string; bg: string
+  Icon: React.ElementType; headline: string; sub: string
+}> = {
+  blocked:           { label: 'BLOCKED',              color: 'text-green-400', border: 'border-green-500/40', bg: 'bg-green-500/8',  Icon: ShieldCheck,   headline: 'DLP intercepted this request',                         sub: 'The request never reached our server — your DLP control is working for this vector.' },
+  not_blocked:       { label: 'NOT BLOCKED',           color: 'text-red-400',   border: 'border-red-500/40',   bg: 'bg-red-500/8',    Icon: ShieldAlert,   headline: 'Our server received the payload',                      sub: 'DLP did not intercept this request. This channel / data-type combination is not being caught.' },
+  error:             { label: 'ERROR',                 color: 'text-zinc-400',  border: 'border-zinc-600/40',  bg: 'bg-zinc-800/40',  Icon: AlertTriangle, headline: 'Test failed with an error',                            sub: 'The request failed for a non-DLP reason (check console). Try again or inspect network logs.' },
+  user_alert_proceed:{ label: 'COACHING — PROCEEDED',  color: 'text-amber-400', border: 'border-amber-500/40', bg: 'bg-amber-500/8',  Icon: AlertTriangle, headline: 'DLP showed a coaching popup — analyst clicked Proceed', sub: 'The request was allowed after user justification. This DLP control is in coaching mode — it relies on the user to stop exfiltration, not an automated block.' },
+  user_alert_stop:   { label: 'COACHING — STOPPED',    color: 'text-blue-400',  border: 'border-blue-500/40',  bg: 'bg-blue-500/8',   Icon: ShieldCheck,   headline: 'DLP showed a coaching popup — analyst clicked Stop',    sub: 'Data was not exfiltrated, but the control relies on user judgment rather than automatic blocking. Consider whether this gap requires remediation.' },
 }
 
 const PROTOCOL_COLORS: Record<string, string> = {
@@ -317,11 +322,12 @@ const DATA_TYPE_LABELS: Record<string, string> = Object.fromEntries(DATA_TYPES.m
 interface Props { initialHistory: TestHistoryEntry[] }
 
 interface RunResult {
-  status:       'blocked' | 'not_blocked' | 'error'
+  status:        TestResult
   responseCode?: number
   responseMs?:   number
   serverData?:   Record<string, unknown>
   errMsg?:       string
+  proxyDetected?: boolean
 }
 
 export function DlpTestRunner({ initialHistory }: Props) {
@@ -337,6 +343,9 @@ export function DlpTestRunner({ initialHistory }: Props) {
   const [scriptContent,   setScriptContent]   = useState('')
   const [uploadFile,      setUploadFile]      = useState<File | null>(null)
   const [isDragging,      setIsDragging]      = useState(false)
+  const [slowTest,        setSlowTest]        = useState(false)
+  const [lastResultId,    setLastResultId]    = useState<string | null>(null)
+  const [showAlertPrompt, setShowAlertPrompt] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Re-fill payload when data type changes (unless custom)
@@ -351,6 +360,13 @@ export function DlpTestRunner({ initialHistory }: Props) {
     setScriptContent(generateScript(selectedScript.id, payload, origin))
   }, [activeTab, selectedScript, payload])
 
+  // Show coaching hint after 5 seconds of running (user alert holds the connection)
+  useEffect(() => {
+    if (!isRunning) { setSlowTest(false); return }
+    const t = setTimeout(() => setSlowTest(true), 5000)
+    return () => clearTimeout(t)
+  }, [isRunning])
+
   // ── Run web channel test ──────────────────────────────────────────────────
 
   const handleRun = useCallback(async () => {
@@ -359,6 +375,8 @@ export function DlpTestRunner({ initialHistory }: Props) {
     if (isRunning) return
     setIsRunning(true)
     setRunResult(null)
+    setShowAlertPrompt(false)
+    setLastResultId(null)
 
     const origin   = window.location.origin
     const dest     = `${origin}/api/dlp-test`
@@ -395,15 +413,22 @@ export function DlpTestRunner({ initialHistory }: Props) {
 
       const ms   = Date.now() - start
       const json = await response.json() as Record<string, unknown>
-      setRunResult({ status: 'not_blocked', responseCode: response.status, responseMs: ms, serverData: json })
+      const proxyDetected = json.proxy_detected === true
+
+      setRunResult({ status: 'not_blocked', responseCode: response.status, responseMs: ms, serverData: json, proxyDetected })
 
       const { id } = await saveTestResult({
         testName: nameForHistory, protocol: selectedWeb.id,
         dataType: isFileTest ? 'custom_file' : dataType.id,
         destination: dest, result: 'not_blocked', responseCode: response.status, responseTimeMs: ms,
       })
+      const newId = id ?? crypto.randomUUID()
+      setLastResultId(newId)
+      // Auto-show alert prompt if response was slow (likely a user alert held the connection)
+      if (ms > 5000 || proxyDetected) setShowAlertPrompt(true)
+
       setHistory(prev => [{
-        id: id ?? crypto.randomUUID(), test_name: nameForHistory,
+        id: newId, test_name: nameForHistory,
         protocol: selectedWeb.id, data_type: isFileTest ? 'custom_file' : dataType.id,
         destination: dest, result: 'not_blocked', response_code: response.status,
         response_time_ms: ms, created_at: new Date().toISOString(),
@@ -419,8 +444,13 @@ export function DlpTestRunner({ initialHistory }: Props) {
         dataType: isFileTest ? 'custom_file' : dataType.id,
         destination: dest, result: 'blocked', responseTimeMs: ms,
       })
+      const newId = id ?? crypto.randomUUID()
+      setLastResultId(newId)
+      // A slow blocked result (>5s) often means the user saw a coaching popup and clicked Stop
+      if (ms > 5000) setShowAlertPrompt(true)
+
       setHistory(prev => [{
-        id: id ?? crypto.randomUUID(), test_name: nameForHistory,
+        id: newId, test_name: nameForHistory,
         protocol: selectedWeb.id, data_type: isFileTest ? 'custom_file' : dataType.id,
         destination: dest, result: 'blocked', response_code: null,
         response_time_ms: ms, created_at: new Date().toISOString(),
@@ -640,11 +670,16 @@ export function DlpTestRunner({ initialHistory }: Props) {
 
             {/* Result panel */}
             {isRunning && (
-              <div className="rounded-xl border border-zinc-700 bg-zinc-900/50 p-5 flex items-center gap-3">
-                <Loader2 className="h-5 w-5 text-zinc-400 animate-spin shrink-0" />
+              <div className="rounded-xl border border-zinc-700 bg-zinc-900/50 p-5 flex items-start gap-3">
+                <Loader2 className="h-5 w-5 text-zinc-400 animate-spin shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-semibold text-white">Test in progress…</p>
                   <p className="text-xs text-zinc-500 mt-0.5">If DLP intercepts this request, it will never arrive at our server and the test will time out or fail.</p>
+                  {slowTest && (
+                    <p className="text-xs text-amber-400 mt-2 font-medium">
+                      Taking longer than usual — if a DLP coaching or justify popup appeared, interact with it. The result will be recorded automatically.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -653,30 +688,82 @@ export function DlpTestRunner({ initialHistory }: Props) {
               const m = RESULT_META[runResult.status]
               const { Icon } = m
               return (
-                <div className={cn('rounded-xl border p-5', m.border, m.bg)}>
-                  <div className="flex items-start gap-3">
-                    <Icon className={cn('h-6 w-6 shrink-0 mt-0.5', m.color)} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={cn('text-xs font-bold uppercase tracking-widest', m.color)}>{m.label}</span>
-                        {runResult.responseMs != null && (
-                          <span className="text-[10px] text-zinc-600 tabular-nums">{runResult.responseMs}ms</span>
+                <>
+                  <div className={cn('rounded-xl border p-5', m.border, m.bg)}>
+                    <div className="flex items-start gap-3">
+                      <Icon className={cn('h-6 w-6 shrink-0 mt-0.5', m.color)} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={cn('text-xs font-bold uppercase tracking-widest', m.color)}>{m.label}</span>
+                          {runResult.responseMs != null && (
+                            <span className="text-[10px] text-zinc-600 tabular-nums">{runResult.responseMs}ms</span>
+                          )}
+                          {runResult.responseCode != null && (
+                            <span className="text-[10px] font-mono bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded">HTTP {runResult.responseCode}</span>
+                          )}
+                          {runResult.proxyDetected && (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400">DLP proxy headers detected</span>
+                          )}
+                        </div>
+                        <p className="text-sm font-semibold text-white">{m.headline}</p>
+                        <p className="text-xs text-zinc-400 mt-1">{m.sub}</p>
+                        {/* Subtle link to show alert prompt if user missed the auto-trigger */}
+                        {!showAlertPrompt && (runResult.status === 'not_blocked' || runResult.status === 'blocked') && lastResultId && (
+                          <button
+                            onClick={() => setShowAlertPrompt(true)}
+                            className="mt-2 text-[10px] text-zinc-600 hover:text-zinc-400 underline transition-colors"
+                          >
+                            Did a DLP coaching or justify popup appear?
+                          </button>
                         )}
-                        {runResult.responseCode != null && (
-                          <span className="text-[10px] font-mono bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded">HTTP {runResult.responseCode}</span>
+                        {runResult.serverData && (
+                          <div className="mt-3 bg-zinc-900/60 rounded-lg p-3 border border-zinc-700">
+                            <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">Server confirmation</p>
+                            <pre className="text-[10px] text-zinc-400 font-mono overflow-x-auto">{JSON.stringify(runResult.serverData, null, 2)}</pre>
+                          </div>
                         )}
                       </div>
-                      <p className="text-sm font-semibold text-white">{m.headline}</p>
-                      <p className="text-xs text-zinc-400 mt-1">{m.sub}</p>
-                      {runResult.serverData && (
-                        <div className="mt-3 bg-zinc-900/60 rounded-lg p-3 border border-zinc-700">
-                          <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">Server confirmation</p>
-                          <pre className="text-[10px] text-zinc-400 font-mono overflow-x-auto">{JSON.stringify(runResult.serverData, null, 2)}</pre>
-                        </div>
-                      )}
                     </div>
                   </div>
-                </div>
+
+                  {/* User alert confirmation prompt */}
+                  {showAlertPrompt && lastResultId && (runResult.status === 'not_blocked' || runResult.status === 'blocked') && (
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                      <p className="text-xs font-semibold text-amber-300 mb-1">Was a DLP coaching or justify popup shown during this test?</p>
+                      <p className="text-[10px] text-zinc-500 mb-3">If a popup appeared asking you to justify or stop the upload, select what you did:</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={async () => {
+                            await updateTestResultUserAlert(lastResultId, 'user_alert_proceed')
+                            setRunResult(prev => prev ? { ...prev, status: 'user_alert_proceed' } : prev)
+                            setHistory(prev => prev.map(e => e.id === lastResultId ? { ...e, result: 'user_alert_proceed' } : e))
+                            setShowAlertPrompt(false)
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-semibold transition-colors"
+                        >
+                          Yes — I clicked Proceed
+                        </button>
+                        <button
+                          onClick={async () => {
+                            await updateTestResultUserAlert(lastResultId, 'user_alert_stop')
+                            setRunResult(prev => prev ? { ...prev, status: 'user_alert_stop' } : prev)
+                            setHistory(prev => prev.map(e => e.id === lastResultId ? { ...e, result: 'user_alert_stop' } : e))
+                            setShowAlertPrompt(false)
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/40 text-blue-300 text-xs font-semibold transition-colors"
+                        >
+                          Yes — I clicked Stop
+                        </button>
+                        <button
+                          onClick={() => setShowAlertPrompt(false)}
+                          className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs font-medium transition-colors"
+                        >
+                          No popup shown
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )
             })()}
           </>
@@ -768,14 +855,21 @@ export function DlpTestRunner({ initialHistory }: Props) {
                         <span className="text-zinc-400">{DATA_TYPE_LABELS[entry.data_type] ?? entry.data_type}</span>
                       </td>
                       <td className="px-3 py-2.5">
-                        <span className={cn(
-                          'text-[10px] font-bold px-2 py-0.5 rounded uppercase',
-                          entry.result === 'blocked'     ? 'bg-green-500/15 text-green-400' :
-                          entry.result === 'not_blocked' ? 'bg-red-500/15 text-red-400' :
-                          'bg-amber-500/15 text-amber-400'
-                        )}>
-                          {entry.result === 'blocked' ? 'Blocked' : entry.result === 'not_blocked' ? 'Not Blocked' : 'Error'}
-                        </span>
+                        {(() => {
+                          const BADGE: Record<string, { cls: string; label: string }> = {
+                            blocked:            { cls: 'bg-green-500/15 text-green-400',  label: 'Blocked' },
+                            not_blocked:        { cls: 'bg-red-500/15 text-red-400',      label: 'Not Blocked' },
+                            error:              { cls: 'bg-zinc-700/50 text-zinc-400',    label: 'Error' },
+                            user_alert_proceed: { cls: 'bg-amber-500/15 text-amber-400', label: 'Coaching — Proceeded' },
+                            user_alert_stop:    { cls: 'bg-blue-500/15 text-blue-400',   label: 'Coaching — Stopped' },
+                          }
+                          const b = BADGE[entry.result] ?? BADGE.error
+                          return (
+                            <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded uppercase', b.cls)}>
+                              {b.label}
+                            </span>
+                          )
+                        })()}
                       </td>
                       <td className="px-3 py-2.5">
                         <span className="text-zinc-600 tabular-nums text-[10px]">

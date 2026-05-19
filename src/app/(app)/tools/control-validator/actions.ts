@@ -5,13 +5,15 @@ import { logAuditEvent } from '@/lib/audit'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export type TestResult = 'blocked' | 'not_blocked' | 'error' | 'user_alert_proceed' | 'user_alert_stop'
+
 export interface TestHistoryEntry {
   id:               string
   test_name:        string
   protocol:         string
   data_type:        string
   destination:      string
-  result:           'blocked' | 'not_blocked' | 'error'
+  result:           TestResult
   response_code:    number | null
   response_time_ms: number | null
   created_at:       string
@@ -24,7 +26,7 @@ export async function saveTestResult(data: {
   protocol:       string
   dataType:       string
   destination:    string
-  result:         'blocked' | 'not_blocked' | 'error'
+  result:         TestResult
   responseCode?:  number
   responseTimeMs?: number
 }): Promise<{ id?: string; error?: string }> {
@@ -68,6 +70,25 @@ export async function saveTestResult(data: {
   })
 
   return { id: inserted.id }
+}
+
+// ── Update result for user alert ──────────────────────────────────────────────
+
+export async function updateTestResultUserAlert(
+  id: string,
+  newResult: 'user_alert_proceed' | 'user_alert_stop'
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const { error } = await supabase
+    .from('dlp_test_results')
+    .update({ result: newResult })
+    .eq('id', id)
+    .eq('user_id', user.id)
+
+  return error ? { error: error.message } : {}
 }
 
 // ── Get history ───────────────────────────────────────────────────────────────

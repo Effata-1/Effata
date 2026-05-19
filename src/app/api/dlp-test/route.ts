@@ -18,9 +18,22 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS })
 }
 
+const DLP_HEADER_PREFIXES = [
+  'x-netskope', 'x-zscaler', 'x-forcepoint', 'x-bluecoat',
+  'x-proxy',    'x-dlp',     'x-coach',      'x-justify',   'x-policy',
+]
+
 async function handle(req: NextRequest) {
   const contentType = req.headers.get('content-type') ?? 'unknown'
   const start       = Date.now()
+
+  // Sniff for DLP/proxy vendor headers added by the forwarding proxy
+  const dlpHeaders: Record<string, string> = {}
+  req.headers.forEach((value, key) => {
+    if (DLP_HEADER_PREFIXES.some(p => key.toLowerCase().startsWith(p))) {
+      dlpHeaders[key] = value
+    }
+  })
 
   let payloadBytes = 0
   try {
@@ -30,14 +43,16 @@ async function handle(req: NextRequest) {
 
   return NextResponse.json(
     {
-      received:     true,
-      test_id:      crypto.randomUUID(),
-      timestamp:    new Date().toISOString(),
-      method:       req.method,
-      content_type: contentType,
-      payload_size: payloadBytes,
-      elapsed_ms:   Date.now() - start,
-      note:         'DLP test endpoint — payload is not stored or logged',
+      received:       true,
+      test_id:        crypto.randomUUID(),
+      timestamp:      new Date().toISOString(),
+      method:         req.method,
+      content_type:   contentType,
+      payload_size:   payloadBytes,
+      elapsed_ms:     Date.now() - start,
+      proxy_detected: Object.keys(dlpHeaders).length > 0,
+      dlp_headers:    Object.keys(dlpHeaders).length > 0 ? dlpHeaders : undefined,
+      note:           'DLP test endpoint — payload is not stored or logged',
     },
     { headers: CORS }
   )
