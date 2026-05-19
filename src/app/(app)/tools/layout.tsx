@@ -1,4 +1,5 @@
 import { SectionSidebar } from '@/components/nav/section-sidebar'
+import { requireRole } from '@/lib/auth'
 
 const ITEMS = [
   { label: 'Regex Lab',         href: '/tools/regex-lab' },
@@ -7,7 +8,8 @@ const ITEMS = [
   { label: 'Evidence Report',   href: '/tools/evidence-report' },
 ]
 
-export default function ToolsLayout({ children }: { children: React.ReactNode }) {
+export default async function ToolsLayout({ children }: { children: React.ReactNode }) {
+  await requireRole('analyst')
   return (
     <div className="flex h-screen overflow-hidden bg-zinc-950">
       <SectionSidebar title="Tools" items={ITEMS} />

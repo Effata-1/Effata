@@ -1,4 +1,5 @@
 import { SectionSidebar } from '@/components/nav/section-sidebar'
+import { requireRole } from '@/lib/auth'
 
 const ITEMS = [
   { label: 'Overview',                 href: '/compliance' },
@@ -7,7 +8,8 @@ const ITEMS = [
   { label: 'Audit Trail',              href: '/compliance/audit-trail' },
 ]
 
-export default function ComplianceLayout({ children }: { children: React.ReactNode }) {
+export default async function ComplianceLayout({ children }: { children: React.ReactNode }) {
+  await requireRole('analyst')
   return (
     <div className="flex h-screen overflow-hidden bg-zinc-950">
       <SectionSidebar title="Compliance" items={ITEMS} />

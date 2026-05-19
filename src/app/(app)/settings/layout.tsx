@@ -1,9 +1,9 @@
-import { getSessionUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth'
 import { SettingsSidebar } from './_components/settings-sidebar'
 
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
-  const user = await getSessionUser()
-  const role = user?.role ?? 'read_only'
+  const user = await requireRole('admin')
+  const role = user.role
 
   return (
     <div className="flex h-screen overflow-hidden bg-zinc-950">
