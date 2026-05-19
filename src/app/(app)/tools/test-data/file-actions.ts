@@ -1,6 +1,11 @@
 'use server'
 
 import Anthropic from '@anthropic-ai/sdk'
+import { logAiSearch, saveLearnedTemplate } from '@/lib/ai-log'
+
+const KNOWN_EXTS = new Set([
+  '.pem','.key','.env','.yaml','.yml','.conf','.json','.sql','.log','.csv','.xlsx','.txt',
+])
 
 export interface GeneratedFileResult {
   filename:    string
@@ -72,13 +77,35 @@ export async function generateFileWithAI(prompt: string): Promise<GeneratedFileR
       return { ...EMPTY, error: 'Unexpected response format from AI. Please try again.' }
     }
 
-    return {
+    const result: GeneratedFileResult = {
       filename:    typeof parsed.filename    === 'string' ? parsed.filename    : 'output.txt',
       fileType:    parsed.fileType === 'xlsx' ? 'xlsx' : 'text',
       mimeType:    typeof parsed.mimeType    === 'string' ? parsed.mimeType    : 'text/plain',
       description: typeof parsed.description === 'string' ? parsed.description : '',
       content:     typeof parsed.content     === 'string' ? parsed.content     : '',
     }
+
+    // Log the AI search (fire-and-forget)
+    logAiSearch('file_generator', prompt, `${result.filename} — ${result.description}`)
+
+    // Auto-template: persist if ext is new and result is clean
+    const dotIdx = result.filename.lastIndexOf('.')
+    const ext = dotIdx >= 0 ? result.filename.slice(dotIdx).toLowerCase() : ''
+    const highConfidence =
+      ext.length >= 2 && ext.length <= 7 &&
+      result.content.length > 50 &&
+      result.fileType !== 'xlsx'
+    if (highConfidence && !KNOWN_EXTS.has(ext)) {
+      saveLearnedTemplate({
+        ext,
+        filename:    result.filename,
+        description: result.description || `AI-generated ${ext} file`,
+        content:     result.content,
+        mimeType:    result.mimeType,
+      })
+    }
+
+    return result
   } catch (err) {
     return { ...EMPTY, error: err instanceof Error ? err.message : String(err) }
   }

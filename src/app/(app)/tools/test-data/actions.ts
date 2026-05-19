@@ -3,6 +3,27 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { logAuditEvent } from '@/lib/audit'
+import { logAiSearch } from '@/lib/ai-log'
+
+// ── AI Log Types ──────────────────────────────────────────────────────────────
+
+export interface AiSearchLog {
+  id:         string
+  source:     string
+  prompt:     string
+  result:     string | null
+  created_at: string
+}
+
+export interface LearnedTemplate {
+  id:          string
+  ext:         string
+  filename:    string
+  description: string
+  content:     string
+  mime_type:   string | null
+  created_at:  string
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -93,15 +114,17 @@ export async function generateTestData(
       return { error: 'AI returned an unexpected response format' }
     }
 
-    return {
-      result: {
-        columns:     parsed.columns as string[],
-        records:     (parsed.records as unknown[]).filter(
-          (r): r is Record<string, string> => typeof r === 'object' && r !== null
-        ),
-        description: parsed.description,
-      },
+    const data: GeneratedData = {
+      columns:     parsed.columns as string[],
+      records:     (parsed.records as unknown[]).filter(
+        (r): r is Record<string, string> => typeof r === 'object' && r !== null
+      ),
+      description: parsed.description,
     }
+
+    logAiSearch('test_data', prompt, data.description)
+
+    return { result: data }
   } catch (e) {
     if (e instanceof SyntaxError) return { error: 'AI returned invalid JSON — please try again' }
     if (e instanceof Error) return { error: e.message }
@@ -209,4 +232,39 @@ export async function deleteDataset(id: string): Promise<{ error?: string }> {
   })
 
   return {}
+}
+
+// ── AI Search Logs ────────────────────────────────────────────────────────────
+
+export async function getAiSearchLogs(
+  source?: string,
+  limit = 10
+): Promise<AiSearchLog[]> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  let query = supabase
+    .from('ai_search_logs')
+    .select('id, source, prompt, result, created_at')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (source) query = query.eq('source', source)
+
+  const { data } = await query
+  return (data as AiSearchLog[]) ?? []
+}
+
+export async function getLearnedTemplates(): Promise<LearnedTemplate[]> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data } = await supabase
+    .from('ai_learned_templates')
+    .select('id, ext, filename, description, content, mime_type, created_at')
+    .order('created_at', { ascending: false })
+
+  return (data as LearnedTemplate[]) ?? []
 }

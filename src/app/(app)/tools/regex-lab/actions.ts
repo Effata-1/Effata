@@ -3,6 +3,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { logAuditEvent } from '@/lib/audit'
+import { logAiSearch } from '@/lib/ai-log'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -133,21 +134,23 @@ export async function generateRegex(
       recommendation:    typeof c.recommendation === 'string' ? c.recommendation : 'Test thoroughly before deploying in production.',
     }
 
-    return {
-      result: {
-        title,
-        pattern: parsed.pattern,
-        flags: safeFlags,
-        explanation: parsed.explanation,
-        testExamples: (parsed.testExamples as unknown[])
-          .filter((s): s is string => typeof s === 'string')
-          .slice(0, 5),
-        nonMatchExamples: (parsed.nonMatchExamples as unknown[])
-          .filter((s): s is string => typeof s === 'string')
-          .slice(0, 3),
-        confidence,
-      },
+    const result: AiRegexResult = {
+      title,
+      pattern: parsed.pattern,
+      flags: safeFlags,
+      explanation: parsed.explanation,
+      testExamples: (parsed.testExamples as unknown[])
+        .filter((s): s is string => typeof s === 'string')
+        .slice(0, 5),
+      nonMatchExamples: (parsed.nonMatchExamples as unknown[])
+        .filter((s): s is string => typeof s === 'string')
+        .slice(0, 3),
+      confidence,
     }
+
+    logAiSearch('regex_lab', prompt, `${result.title}: /${result.pattern}/${result.flags}`)
+
+    return { result }
   } catch (e) {
     if (e instanceof SyntaxError) return { error: 'AI returned invalid JSON — please try again' }
     if (e instanceof Error) return { error: e.message }

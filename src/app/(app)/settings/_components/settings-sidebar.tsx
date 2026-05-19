@@ -20,6 +20,7 @@ const SECTIONS = [
     items: [
       { label: 'Audit Log',  href: '/settings/admin/audit-log' },
       { label: 'Cron Runs',  href: '/settings/admin/cron-runs' },
+      { label: 'AI Logs',    href: '/settings/admin/ai-logs' },
     ],
   },
 ]

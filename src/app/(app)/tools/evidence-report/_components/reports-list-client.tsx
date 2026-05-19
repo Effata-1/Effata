@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Eye, FileText, Loader2 } from 'lucide-react'
 import { deleteReport } from '../actions'
 import type { ReportSummary, OverallResult, ReportType } from '../actions'
+import { usePagination } from '@/hooks/use-pagination'
 
 // ── Label helpers ─────────────────────────────────────────────────────────────
 
@@ -48,7 +49,9 @@ export function ReportsListClient({ reports, error }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [confirmId, setConfirmId]   = useState<string | null>(null)
+  const pg = usePagination(reports, 25)
+  const PER_PAGE_OPTIONS = [10, 25, 50, 100]
 
   function handleView(id: string) {
     router.push(`/tools/evidence-report/${id}`)
@@ -123,10 +126,10 @@ export function ReportsListClient({ reports, error }: Props) {
               </tr>
             </thead>
             <tbody>
-              {reports.map((r, i) => (
+              {pg.slice.map((r, i) => (
                 <tr
                   key={r.id}
-                  className={`${i < reports.length - 1 ? 'border-b border-zinc-800/50' : ''} hover:bg-zinc-900/40 transition-colors`}
+                  className={`${i < pg.slice.length - 1 ? 'border-b border-zinc-800/50' : ''} hover:bg-zinc-900/40 transition-colors`}
                 >
                   <td className="px-4 py-3">
                     <button
@@ -194,6 +197,46 @@ export function ReportsListClient({ reports, error }: Props) {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Pagination footer */}
+      {reports.length > pg.perPage && (
+        <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-800/60">
+          <span className="text-xs text-zinc-600 tabular-nums">
+            Showing {pg.from}–{pg.to} of {pg.total}
+          </span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => pg.setPage(pg.page - 1)}
+                disabled={pg.page === 1}
+                className="px-2.5 py-1 text-xs rounded bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                ←
+              </button>
+              <span className="text-xs text-zinc-600 px-2 tabular-nums">{pg.page} / {pg.pages}</span>
+              <button
+                onClick={() => pg.setPage(pg.page + 1)}
+                disabled={pg.page === pg.pages}
+                className="px-2.5 py-1 text-xs rounded bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                →
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-zinc-600">Rows per page:</span>
+              <select
+                value={pg.perPage}
+                onChange={e => pg.setPerPage(Number(e.target.value))}
+                className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs rounded px-2 py-0.5 focus:outline-none focus:border-zinc-500"
+              >
+                {PER_PAGE_OPTIONS.map(n => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
       )}
     </div>

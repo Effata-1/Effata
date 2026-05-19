@@ -1,10 +1,21 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import * as XLSX from 'xlsx'
-import { Sparkles, Loader2, Download, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Sparkles, Loader2, Download, CheckCircle2, AlertCircle, ChevronDown, Clock } from 'lucide-react'
 import { generateFileWithAI } from '../file-actions'
 import type { GeneratedFileResult } from '../file-actions'
+import { getAiSearchLogs, getLearnedTemplates } from '../actions'
+import type { AiSearchLog, LearnedTemplate } from '../actions'
+import { cn } from '@/lib/utils'
+
+function timeAgo(iso: string): string {
+  const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+  if (secs < 60)  return `${secs}s ago`
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`
+  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`
+  return `${Math.floor(secs / 86400)}d ago`
+}
 
 // ── Synthetic data helpers (for quick templates) ───────────────────────────────
 
@@ -292,10 +303,18 @@ const TEMPLATE_GROUPS: { title: string; color: string; cards: TplCard[] }[] = [
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function FileFormatGenerator() {
-  const [aiPrompt, setAiPrompt] = useState('')
+  const [aiPrompt, setAiPrompt]   = useState('')
   const [isPending, startTransition] = useTransition()
-  const [result, setResult]     = useState<GeneratedFileResult | null>(null)
-  const [aiError, setAiError]   = useState<string | null>(null)
+  const [result, setResult]       = useState<GeneratedFileResult | null>(null)
+  const [aiError, setAiError]     = useState<string | null>(null)
+  const [recentSearches, setRecentSearches]   = useState<AiSearchLog[]>([])
+  const [learnedTemplates, setLearnedTemplates] = useState<LearnedTemplate[]>([])
+  const [historyOpen, setHistoryOpen] = useState(true)
+
+  useEffect(() => {
+    getAiSearchLogs('file_generator', 10).then(setRecentSearches)
+    getLearnedTemplates().then(setLearnedTemplates)
+  }, [])
 
   function handleGenerate() {
     const text = aiPrompt.trim()
@@ -307,6 +326,16 @@ export function FileFormatGenerator() {
       const res = await generateFileWithAI(text)
       if (res.error) { setAiError(res.error); return }
       setResult(res)
+
+      // Optimistically add to recent searches
+      setRecentSearches(prev => [{
+        id: crypto.randomUUID(), source: 'file_generator',
+        prompt: text, result: `${res.filename} — ${res.description}`,
+        created_at: new Date().toISOString(),
+      }, ...prev.slice(0, 9)])
+
+      // Refresh learned templates (AI may have added one)
+      getLearnedTemplates().then(setLearnedTemplates)
 
       if (res.fileType === 'xlsx') {
         try {
@@ -332,11 +361,13 @@ export function FileFormatGenerator() {
     amber:   'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/20 hover:border-amber-500/40',
     blue:    'bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/20 hover:border-blue-500/40',
     emerald: 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/20 hover:border-emerald-500/40',
+    violet:  'bg-violet-500/10 hover:bg-violet-500/20 border-violet-500/20 hover:border-violet-500/40',
   }
   const colorText: Record<string, string> = {
     amber:   'text-amber-400',
     blue:    'text-blue-400',
     emerald: 'text-emerald-400',
+    violet:  'text-violet-400',
   }
 
   return (
@@ -391,6 +422,47 @@ export function FileFormatGenerator() {
         )}
       </div>
 
+      {/* ── Recent AI Searches ── */}
+      {recentSearches.length > 0 && (
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
+          <button
+            onClick={() => setHistoryOpen(o => !o)}
+            className="w-full flex items-center justify-between px-5 py-3 hover:bg-zinc-800/40 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Clock className="w-3.5 h-3.5 text-zinc-500" />
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Recent AI Searches</span>
+              <span className="text-[10px] text-zinc-600">{recentSearches.length}</span>
+            </div>
+            <ChevronDown className={cn('w-3.5 h-3.5 text-zinc-600 transition-transform', historyOpen && 'rotate-180')} />
+          </button>
+          {historyOpen && (
+            <div className="border-t border-zinc-800/60 divide-y divide-zinc-800/40">
+              {recentSearches.map(s => (
+                <div key={s.id} className="flex items-start justify-between gap-3 px-5 py-2.5 hover:bg-zinc-800/20 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] text-zinc-300 truncate">{s.prompt}</p>
+                    {s.result && (
+                      <p className="text-[10px] text-zinc-600 mt-0.5 truncate">{s.result}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] text-zinc-600 tabular-nums">{timeAgo(s.created_at)}</span>
+                    <button
+                      onClick={() => { setAiPrompt(s.prompt); setResult(null); setAiError(null) }}
+                      className="text-[10px] text-zinc-600 hover:text-blue-400 transition-colors"
+                      title="Re-run this prompt"
+                    >
+                      ↺
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Quick Templates ── */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
         <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Quick Templates</p>
@@ -415,6 +487,31 @@ export function FileFormatGenerator() {
               </div>
             </div>
           ))}
+
+          {/* Discovered by AI — only shown if there are learned templates */}
+          {learnedTemplates.length > 0 && (
+            <div>
+              <div className="flex items-center gap-1.5 mb-2">
+                <p className="text-[10px] font-semibold text-zinc-500">Discovered by AI</p>
+                <Sparkles className="w-2.5 h-2.5 text-violet-400" />
+              </div>
+              <div className="space-y-1.5">
+                {learnedTemplates.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => dlText(t.content, t.filename, t.mime_type ?? 'text/plain')}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-all ${colorBg.violet}`}
+                  >
+                    <span className={`font-mono text-[11px] font-bold ${colorText.violet} w-11 shrink-0`}>
+                      {t.ext}
+                    </span>
+                    <span className="text-xs text-zinc-400">{t.description}</span>
+                    <Download className="w-3 h-3 text-zinc-600 shrink-0 ml-auto" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

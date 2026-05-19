@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { saveTestResult, updateTestResultUserAlert } from '../actions'
 import type { TestHistoryEntry, TestResult } from '../actions'
 import { SearchableSelect } from '@/components/ui/searchable-select'
+import { usePagination } from '@/hooks/use-pagination'
 
 // ── Test Scenarios ────────────────────────────────────────────────────────────
 
@@ -882,23 +883,53 @@ export function DlpTestRunner({ initialHistory }: Props) {
         )}
 
         {/* ─── TEST HISTORY ─── */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
-          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Test History</p>
+        <HistoryTable history={history} />
+      </div>
+    </div>
+  )
+}
 
-          {history.length === 0 ? (
-            <p className="text-sm text-zinc-600 italic py-4 text-center">No tests run yet — run a web channel test above to see results here</p>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border border-zinc-800">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-zinc-800">
-                    {['Time', 'Test', 'Data Type', 'Result', 'Response'].map(h => (
-                      <th key={h} className="text-left text-[9px] font-bold text-zinc-600 uppercase tracking-wide px-3 py-2">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800/60">
-                  {history.map(entry => (
+// ── Separate component so usePagination works cleanly ─────────────────────────
+
+const HISTORY_BADGE: Record<string, { cls: string; label: string }> = {
+  blocked:            { cls: 'bg-green-500/15 text-green-400',   label: 'Blocked' },
+  not_blocked:        { cls: 'bg-red-500/15 text-red-400',       label: 'Not Blocked' },
+  error:              { cls: 'bg-zinc-700/50 text-zinc-400',     label: 'Error' },
+  user_alert_proceed: { cls: 'bg-amber-500/15 text-amber-400',   label: 'Coaching — Proceeded' },
+  user_alert_stop:    { cls: 'bg-blue-500/15 text-blue-400',     label: 'Coaching — Stopped' },
+  blocked_coached:    { cls: 'bg-orange-500/15 text-orange-400', label: 'Blocked — Notified' },
+}
+
+function HistoryTable({ history }: { history: TestHistoryEntry[] }) {
+  const PER_PAGE_OPTIONS = [10, 25, 50, 100]
+  const pg = usePagination(history, 25)
+
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Test History</p>
+        {history.length > 0 && (
+          <span className="text-[10px] text-zinc-600 tabular-nums">{history.length} total</span>
+        )}
+      </div>
+
+      {history.length === 0 ? (
+        <p className="text-sm text-zinc-600 italic py-4 text-center">No tests run yet — run a web channel test above to see results here</p>
+      ) : (
+        <>
+          <div className="overflow-x-auto rounded-lg border border-zinc-800">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-zinc-800">
+                  {['Time', 'Test', 'Data Type', 'Result', 'Response'].map(h => (
+                    <th key={h} className="text-left text-[9px] font-bold text-zinc-600 uppercase tracking-wide px-3 py-2">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800/60">
+                {pg.slice.map(entry => {
+                  const b = HISTORY_BADGE[entry.result] ?? HISTORY_BADGE.error
+                  return (
                     <tr key={entry.id} className="hover:bg-zinc-900/40 transition-colors">
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <span className="text-[10px] tabular-nums text-zinc-500">{formatTime(entry.created_at)}</span>
@@ -910,22 +941,9 @@ export function DlpTestRunner({ initialHistory }: Props) {
                         <span className="text-zinc-400">{DATA_TYPE_LABELS[entry.data_type] ?? entry.data_type}</span>
                       </td>
                       <td className="px-3 py-2.5">
-                        {(() => {
-                          const BADGE: Record<string, { cls: string; label: string }> = {
-                            blocked:            { cls: 'bg-green-500/15 text-green-400',  label: 'Blocked' },
-                            not_blocked:        { cls: 'bg-red-500/15 text-red-400',      label: 'Not Blocked' },
-                            error:              { cls: 'bg-zinc-700/50 text-zinc-400',    label: 'Error' },
-                            user_alert_proceed: { cls: 'bg-amber-500/15 text-amber-400',  label: 'Coaching — Proceeded' },
-                            user_alert_stop:    { cls: 'bg-blue-500/15 text-blue-400',    label: 'Coaching — Stopped' },
-                            blocked_coached:    { cls: 'bg-orange-500/15 text-orange-400', label: 'Blocked — Notified' },
-                          }
-                          const b = BADGE[entry.result] ?? BADGE.error
-                          return (
-                            <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded uppercase', b.cls)}>
-                              {b.label}
-                            </span>
-                          )
-                        })()}
+                        <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded uppercase', b.cls)}>
+                          {b.label}
+                        </span>
                       </td>
                       <td className="px-3 py-2.5">
                         <span className="text-zinc-600 tabular-nums text-[10px]">
@@ -934,13 +952,53 @@ export function DlpTestRunner({ initialHistory }: Props) {
                         </span>
                       </td>
                     </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination footer */}
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800/60">
+            <span className="text-[10px] text-zinc-600 tabular-nums">
+              Showing {pg.from}–{pg.to} of {pg.total}
+            </span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => pg.setPage(pg.page - 1)}
+                  disabled={pg.page === 1}
+                  className="px-2 py-1 text-[10px] rounded bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  ←
+                </button>
+                <span className="text-[10px] text-zinc-600 tabular-nums">
+                  {pg.page} / {pg.pages}
+                </span>
+                <button
+                  onClick={() => pg.setPage(pg.page + 1)}
+                  disabled={pg.page === pg.pages}
+                  className="px-2 py-1 text-[10px] rounded bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  →
+                </button>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-zinc-600">Rows per page:</span>
+                <select
+                  value={pg.perPage}
+                  onChange={e => pg.setPerPage(Number(e.target.value))}
+                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-[10px] rounded px-1.5 py-0.5 focus:outline-none focus:border-zinc-500"
+                >
+                  {PER_PAGE_OPTIONS.map(n => (
+                    <option key={n} value={n}>{n}</option>
                   ))}
-                </tbody>
-              </table>
+                </select>
+              </div>
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

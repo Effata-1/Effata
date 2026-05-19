@@ -2,6 +2,7 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
+import { logAiSearch } from '@/lib/ai-log'
 import type {
   ReportType, OverallResult, Severity, ExpectedResult, ActualResult, FinalStatus, GapReason,
 } from './actions'
@@ -159,6 +160,9 @@ export async function chatWithAI(
     } catch {
       return { message: text, ready: false, draft: EMPTY_DRAFT }
     }
+
+    const userPrompt = messages[messages.length - 1]?.content ?? ''
+    logAiSearch('evidence_report', userPrompt, typeof parsed.message === 'string' ? parsed.message.slice(0, 200) : undefined)
 
     return {
       message: typeof parsed.message === 'string' ? parsed.message : 'Understood.',
