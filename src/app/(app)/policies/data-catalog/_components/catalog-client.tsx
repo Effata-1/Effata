@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useMemo, useTransition, useOptimistic, useEffect } from 'react'
+import { useState, useMemo, useTransition, useOptimistic, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
-import { Search, X, Plus, ChevronDown, ChevronRight, Info, AlertTriangle, Wand2, FlaskConical } from 'lucide-react'
+import { Search, X, Plus, ChevronDown, ChevronRight, Info, AlertTriangle, Wand2, FlaskConical, Check } from 'lucide-react'
 import { toggleInScope, setClassification, addCustomDataType, batchToggleInScope } from '@/lib/data-catalog/actions'
 import { colorClasses, SYSTEM_LEVEL_META } from '@/lib/data-catalog/types'
 import type { OrgClassificationLabel, SystemLevel } from '@/lib/data-catalog/types'
@@ -162,25 +162,66 @@ function ClassificationSelect({
   labels:   OrgClassificationLabel[]
   onChange: (labelId: string) => void
 }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function onMouseDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [])
+
   const label = labels.find(l => l.id === value)
   const cc    = label ? colorClasses(label.color) : null
 
   return (
-    <div className="relative w-full">
-      <select
-        value={value ?? ''}
-        onChange={e => onChange(e.target.value)}
+    <div ref={ref} className="relative w-full">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setOpen(o => !o)}
+        onKeyDown={e => e.key === 'Enter' && setOpen(o => !o)}
         className={cn(
-          'appearance-none text-xs font-medium pl-2.5 pr-7 py-1.5 rounded-lg border cursor-pointer focus:outline-none transition-colors w-full',
+          'flex items-center justify-between gap-1.5 pl-2.5 pr-2 py-1.5 rounded-lg border text-xs font-medium cursor-pointer select-none transition-colors w-full',
           cc
             ? `${cc.text} ${cc.bg} ${cc.border} hover:opacity-90`
             : 'text-zinc-600 bg-zinc-800/60 border-zinc-700 hover:border-zinc-600',
         )}
       >
-        <option value="">— Select label —</option>
-        {labels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-      </select>
-      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none opacity-50" />
+        <span className="truncate">{label?.name ?? '— Select label —'}</span>
+        <ChevronDown className="w-3 h-3 shrink-0 opacity-60" />
+      </div>
+
+      {open && (
+        <div className="absolute top-full mt-1 right-0 z-50 w-52 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden">
+          <button
+            onClick={() => { onChange(''); setOpen(false) }}
+            className={cn(
+              'w-full flex items-center px-3 py-2.5 text-xs text-left transition-colors',
+              !value ? 'bg-blue-600/20 text-blue-300' : 'text-zinc-500 hover:bg-zinc-800/80',
+            )}
+          >
+            — No label —
+          </button>
+          {labels.map(l => {
+            const lcc = colorClasses(l.color)
+            return (
+              <button
+                key={l.id}
+                onClick={() => { onChange(l.id); setOpen(false) }}
+                className="w-full flex items-center justify-between px-3 py-2 text-left transition-colors hover:bg-zinc-800/80"
+              >
+                <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded border', lcc.text, lcc.bg, lcc.border)}>
+                  {l.name}
+                </span>
+                {l.id === value && <Check className="w-3 h-3 text-blue-400 shrink-0" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
