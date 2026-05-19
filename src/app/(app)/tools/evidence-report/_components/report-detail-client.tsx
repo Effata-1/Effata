@@ -4,9 +4,9 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Edit3, Eye, Printer, Plus, Trash2, Pencil, Loader2,
-  CheckCircle2, XCircle, AlertCircle, ChevronDown, Save,
+  CheckCircle2, XCircle, AlertCircle, Save, Copy,
 } from 'lucide-react'
-import { updateReport, deleteTest } from '../actions'
+import { updateReport, deleteTest, addTest, getTests } from '../actions'
 import type {
   EvidenceReport, ReportTest, OverallResult, ReportType,
   Severity, ActualResult, FinalStatus, GapReason,
@@ -421,11 +421,12 @@ function ViewMode({ report, tests }: { report: EvidenceReport; tests: ReportTest
 // ── Edit Mode — test card ─────────────────────────────────────────────────────
 
 function TestCard({
-  test, onEdit, onDelete,
+  test, onEdit, onDuplicate, onDelete,
 }: {
-  test: ReportTest
-  onEdit: () => void
-  onDelete: () => void
+  test:        ReportTest
+  onEdit:      () => void
+  onDuplicate: () => void
+  onDelete:    () => void
 }) {
   const [confirming, setConfirming] = useState(false)
 
@@ -453,8 +454,11 @@ function TestCard({
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <button onClick={onEdit} className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded transition-colors">
+          <button onClick={onEdit} title="Edit" className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded transition-colors">
             <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={onDuplicate} title="Duplicate" className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded transition-colors">
+            <Copy className="w-3.5 h-3.5" />
           </button>
           {confirming ? (
             <div className="flex items-center gap-1">
@@ -464,7 +468,7 @@ function TestCard({
               <button onClick={() => setConfirming(false)} className="p-1.5 text-zinc-500 hover:bg-zinc-800 rounded transition-colors text-[10px]">✕</button>
             </div>
           ) : (
-            <button onClick={() => setConfirming(true)} className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-zinc-800 rounded transition-colors">
+            <button onClick={() => setConfirming(true)} title="Delete" className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-zinc-800 rounded transition-colors">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
@@ -590,14 +594,43 @@ export function ReportDetailClient({ report: initialReport, tests: initialTests,
     })
   }
 
-  function handleModalDone(newTests?: ReportTest[]) {
+  function handleDuplicateTest(test: ReportTest) {
+    startTransition(async () => {
+      await addTest(report.id, {
+        testCode:            test.test_code + ' (copy)',
+        channel:             test.channel,
+        testVector:          test.test_vector,
+        dataType:            test.data_type,
+        regulationTags:      test.regulation_tags,
+        controlMapping:      test.control_mapping ?? '',
+        severity:            test.severity,
+        expectedResult:      test.expected_result,
+        expectedPolicy:      test.expected_policy ?? '',
+        expectedAlert:       test.expected_alert,
+        expectedDescription: test.expected_description ?? '',
+        actualResult:        test.actual_result,
+        httpResponseCode:    test.http_response_code ?? null,
+        responseTimeMs:      test.response_time_ms ?? null,
+        dlpAlertGenerated:   test.dlp_alert_generated ?? null,
+        finalStatus:         test.final_status,
+        gapReason:           test.gap_reason ?? null,
+        gapNotes:            test.gap_notes ?? '',
+        recommendation:      test.recommendation ?? '',
+        payloadSummary:      test.payload_summary ?? '',
+        dataSource:          test.data_source,
+        evidenceNotes:       test.evidence_notes ?? '',
+        linkedTestId:        null,
+        sortOrder:           tests.length,
+      })
+      const { tests: fresh } = await getTests(report.id)
+      setTests(fresh)
+    })
+  }
+
+  function handleModalDone(freshTests: ReportTest[]) {
     setModalOpen(false)
     setEditingTest(undefined)
-    if (newTests) {
-      setTests(newTests)
-    }
-    // Refresh to get latest from DB
-    router.refresh()
+    setTests(freshTests)
   }
 
   const overallColour = OVERALL_COLOURS[report.overall_result]
@@ -713,6 +746,7 @@ export function ReportDetailClient({ report: initialReport, tests: initialTests,
                   key={t.id}
                   test={t}
                   onEdit={() => { setEditingTest(t); setModalOpen(true) }}
+                  onDuplicate={() => handleDuplicateTest(t)}
                   onDelete={() => handleDeleteTest(t.id)}
                 />
               ))}

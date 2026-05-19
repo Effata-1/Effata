@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect } from 'react'
 import { X, Loader2, CheckSquare, Square, Import, PenLine } from 'lucide-react'
 import {
-  addTest, updateTest, getValidatorResults, importFromValidator,
+  addTest, updateTest, getValidatorResults, importFromValidator, getTests,
 } from '../actions'
 import type {
   ReportTest, ValidatorResult,
@@ -73,12 +73,14 @@ const labelCls    = 'block text-[10px] font-medium text-zinc-500 mb-1'
 
 // ── Import Tab ────────────────────────────────────────────────────────────────
 
+type ResultFilter = 'all' | 'blocked' | 'not_blocked' | 'error'
+
 function ImportTab({
   reportId, currentTests, onDone, onClose,
 }: {
   reportId:     string
   currentTests: ReportTest[]
-  onDone:       (tests?: ReportTest[]) => void
+  onDone:       (tests: ReportTest[]) => void
   onClose:      () => void
 }) {
   const [isPending, startTransition] = useTransition()
@@ -86,6 +88,8 @@ function ImportTab({
   const [results, setResults]        = useState<ValidatorResult[]>([])
   const [selected, setSelected]      = useState<Set<string>>(new Set())
   const [error, setError]            = useState<string | null>(null)
+  const [filterText, setFilterText]  = useState('')
+  const [filterResult, setFilterResult] = useState<ResultFilter>('all')
 
   const alreadyLinked = new Set(currentTests.map(t => t.linked_test_id).filter(Boolean) as string[])
 
@@ -97,10 +101,27 @@ function ImportTab({
     })
   }, [])
 
+  const filtered = results.filter(r => {
+    const q = filterText.toLowerCase()
+    const matchesText = !q ||
+      (r.test_name ?? '').toLowerCase().includes(q) ||
+      r.protocol.toLowerCase().includes(q) ||
+      r.data_type.toLowerCase().includes(q) ||
+      r.destination.toLowerCase().includes(q)
+    const matchesResult = filterResult === 'all' || r.result === filterResult
+    return matchesText && matchesResult
+  })
+
+  const availableFiltered = filtered.filter(r => !alreadyLinked.has(r.id))
+  const allFilteredSelected = availableFiltered.length > 0 && availableFiltered.every(r => selected.has(r.id))
+
   function toggleAll() {
-    const available = results.filter(r => !alreadyLinked.has(r.id))
-    if (selected.size === available.length) setSelected(new Set())
-    else setSelected(new Set(available.map(r => r.id)))
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (allFilteredSelected) availableFiltered.forEach(r => next.delete(r.id))
+      else availableFiltered.forEach(r => next.add(r.id))
+      return next
+    })
   }
 
   function toggle(id: string) {
@@ -117,7 +138,8 @@ function ImportTab({
     startTransition(async () => {
       const result = await importFromValidator(reportId, Array.from(selected))
       if (result.error) { setError(result.error); return }
-      onDone()
+      const { tests } = await getTests(reportId)
+      onDone(tests)
     })
   }
 
@@ -129,7 +151,12 @@ function ImportTab({
     )
   }
 
-  const available = results.filter(r => !alreadyLinked.has(r.id))
+  const RESULT_FILTERS: { value: ResultFilter; label: string }[] = [
+    { value: 'all',         label: 'All' },
+    { value: 'blocked',     label: 'Blocked' },
+    { value: 'not_blocked', label: 'Not Blocked' },
+    { value: 'error',       label: 'Error' },
+  ]
 
   return (
     <div>
@@ -144,16 +171,46 @@ function ImportTab({
         </div>
       ) : (
         <>
+          {/* Filter bar */}
+          <div className="flex gap-2 mb-2">
+            <input
+              type="text"
+              value={filterText}
+              onChange={e => setFilterText(e.target.value)}
+              placeholder="Search by name, protocol, data type…"
+              className="flex-1 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-blue-500 transition-colors"
+            />
+            <div className="flex gap-1">
+              {RESULT_FILTERS.map(f => (
+                <button
+                  key={f.value}
+                  onClick={() => setFilterResult(f.value)}
+                  className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+                    filterResult === f.value
+                      ? 'bg-zinc-700 text-white'
+                      : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
+                  }`}
+                >{f.label}</button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex items-center justify-between mb-2">
-            <p className="text-xs text-zinc-500">{results.length} recent test{results.length !== 1 ? 's' : ''} · {selected.size} selected</p>
-            {available.length > 0 && (
+            <p className="text-xs text-zinc-500">
+              {filtered.length} result{filtered.length !== 1 ? 's' : ''}
+              {filterText || filterResult !== 'all' ? ` (filtered from ${results.length})` : ''}
+              {selected.size > 0 ? ` · ${selected.size} selected` : ''}
+            </p>
+            {availableFiltered.length > 0 && (
               <button onClick={toggleAll} className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors">
-                {selected.size === available.length ? 'Deselect all' : 'Select all'}
+                {allFilteredSelected ? 'Deselect visible' : 'Select visible'}
               </button>
             )}
           </div>
-          <div className="space-y-1 max-h-72 overflow-y-auto">
-            {results.map(r => {
+          <div className="space-y-1 max-h-64 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="text-center py-6 text-zinc-600 text-xs">No results match the filter</p>
+            ) : filtered.map(r => {
               const linked = alreadyLinked.has(r.id)
               const checked = selected.has(r.id)
               return (
@@ -298,7 +355,7 @@ function ManualForm({
   reportId:  string
   editTest?: ReportTest
   sortOrder: number
-  onDone:    (tests?: ReportTest[]) => void
+  onDone:    (tests: ReportTest[]) => void
   onClose:   () => void
 }) {
   const [isPending, startTransition] = useTransition()
@@ -360,7 +417,8 @@ function ManualForm({
         const result = await addTest(reportId, buildPayload())
         if (result.error) { setError(result.error); return }
       }
-      onDone()
+      const { tests } = await getTests(reportId)
+      onDone(tests)
     })
   }
 
@@ -575,7 +633,7 @@ interface ModalProps {
   reportId:     string
   editTest?:    ReportTest
   currentTests: ReportTest[]
-  onDone:       (tests?: ReportTest[]) => void
+  onDone:       (tests: ReportTest[]) => void
   onClose:      () => void
 }
 

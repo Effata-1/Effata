@@ -459,3 +459,18 @@ export async function importFromValidator(
 
   return { count: rows.length }
 }
+
+// ── Read tests for a report (used for live state updates post-mutation) ────────
+
+export async function getTests(reportId: string): Promise<{ tests: ReportTest[]; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { tests: [], error: 'Not authenticated' }
+  const { data, error } = await supabase
+    .from('report_tests')
+    .select('*')
+    .eq('report_id', reportId)
+    .order('sort_order')
+  if (error) return { tests: [], error: error.message }
+  return { tests: (data ?? []) as ReportTest[] }
+}
