@@ -18,8 +18,13 @@ async function fetchPatterns(): Promise<SavedPattern[]> {
   }
 }
 
-export default async function RegexLabPage() {
+export default async function RegexLabPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ name?: string; prompt?: string; testData?: string }>
+}) {
   const patterns = await fetchPatterns()
+  const { name, prompt, testData } = await searchParams
   return (
     <div>
       <div className="mb-6">
@@ -27,7 +32,10 @@ export default async function RegexLabPage() {
         <p className="text-zinc-500 text-sm">Build, test, and save DLP regex patterns — AI-assisted or hand-crafted — with 50 built-in patterns across 7 categories</p>
       </div>
       <Suspense fallback={<div className="text-sm text-zinc-600 italic">Loading regex lab...</div>}>
-        <RegexLab initialPatterns={patterns} />
+        <RegexLab
+          initialPatterns={patterns}
+          prefill={name ? { name, prompt, testData } : undefined}
+        />
       </Suspense>
     </div>
   )

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useTransition, useOptimistic, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { Search, X, Plus, ChevronDown, ChevronRight, Info, AlertTriangle } from 'lucide-react'
+import { Search, X, Plus, ChevronDown, ChevronRight, Info, AlertTriangle, Wand2 } from 'lucide-react'
 import { toggleInScope, setClassification, addCustomDataType, batchToggleInScope } from '@/lib/data-catalog/actions'
 import { colorClasses, SYSTEM_LEVEL_META } from '@/lib/data-catalog/types'
 import type { OrgClassificationLabel, SystemLevel } from '@/lib/data-catalog/types'
@@ -362,6 +362,24 @@ function DataTypeRow({
                   <p className="text-[11px] text-amber-400/80 leading-relaxed">{item.notes}</p>
                 </div>
               )}
+
+              {/* Regex Lab deep link */}
+              <div className="pt-0.5">
+                <a
+                  href={`/tools/regex-lab?` + new URLSearchParams({
+                    name:     item.name,
+                    prompt:   `Generate a DLP regex pattern to detect ${item.name}. Examples: ${item.examples.slice(0, 5).join(', ')}`,
+                    testData: item.examples.slice(0, 6).join('\n'),
+                  }).toString()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className="inline-flex items-center gap-1.5 text-[11px] font-medium text-blue-400 hover:text-blue-300 transition-colors"
+                >
+                  <Wand2 className="w-3 h-3" />
+                  Create regex pattern in Regex Lab →
+                </a>
+              </div>
             </div>
           </td>
         </tr>

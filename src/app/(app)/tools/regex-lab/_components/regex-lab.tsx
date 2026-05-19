@@ -601,23 +601,24 @@ const OVERLAY_STYLE: React.CSSProperties = {
 
 interface Props {
   initialPatterns: SavedPattern[]
+  prefill?: { name?: string; prompt?: string; testData?: string }
 }
 
-export function RegexLab({ initialPatterns }: Props) {
+export function RegexLab({ initialPatterns, prefill }: Props) {
   // Core editor
   const [pattern,  setPattern]  = useState('')
   const [flags,    setFlags]    = useState('gi')
-  const [testData, setTestData] = useState('')
+  const [testData, setTestData] = useState(prefill?.testData ?? '')
 
   // AI
-  const [aiPrompt, setAiPrompt] = useState('')
+  const [aiPrompt, setAiPrompt] = useState(prefill?.prompt ?? '')
   const [aiLoading, startAiTransition] = useTransition()
   const [aiResult, setAiResult] = useState<AiRegexResult | null>(null)
   const [aiError,  setAiError]  = useState<string | null>(null)
 
   // Save
   const [savedPatterns, setSavedPatterns] = useState<SavedPattern[]>(initialPatterns)
-  const [saveName,        setSaveName]        = useState('')
+  const [saveName,        setSaveName]        = useState(prefill?.name ?? '')
   const [saveDescription, setSaveDescription] = useState('')
   const [saveLoading, startSaveTransition] = useTransition()
   const [saveSuccess, setSaveSuccess] = useState(false)
