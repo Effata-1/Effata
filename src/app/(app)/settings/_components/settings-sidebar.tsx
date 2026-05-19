@@ -6,27 +6,35 @@ import { logout } from '@/app/auth/actions'
 import { cn } from '@/lib/utils'
 import { Shield, ArrowLeft, LogOut } from 'lucide-react'
 
-const SECTIONS = [
-  {
-    title: 'General',
-    items: [
-      { label: 'Tools Connected', href: '/settings/tools' },
-      { label: 'Team',            href: '/settings/team' },
-      { label: 'Integrations',    href: '/settings/integrations' },
-    ],
-  },
-  {
-    title: 'Admin',
-    items: [
-      { label: 'Audit Log',  href: '/settings/admin/audit-log' },
-      { label: 'Cron Runs',  href: '/settings/admin/cron-runs' },
-      { label: 'AI Logs',    href: '/settings/admin/ai-logs' },
-    ],
-  },
+const GENERAL_ITEMS = [
+  { label: 'Tools Connected', href: '/settings/tools' },
+  { label: 'Team',            href: '/settings/team' },
+  { label: 'Integrations',    href: '/settings/integrations' },
 ]
 
-export function SettingsSidebar() {
+const ADMIN_ITEMS = [
+  { label: 'Audit Log', href: '/settings/admin/audit-log' },
+  { label: 'Cron Runs', href: '/settings/admin/cron-runs' },
+  { label: 'AI Logs',   href: '/settings/admin/ai-logs' },
+]
+
+export function SettingsSidebar({ role }: { role: string }) {
   const pathname = usePathname()
+
+  const navLink = (item: { label: string; href: string }) => (
+    <Link
+      key={item.href}
+      href={item.href}
+      className={cn(
+        'block px-3 py-2 rounded-md text-sm transition-colors',
+        pathname === item.href || pathname.startsWith(item.href + '/')
+          ? 'bg-white/10 text-white font-medium'
+          : 'text-zinc-400 hover:text-zinc-300 hover:bg-white/5'
+      )}
+    >
+      {item.label}
+    </Link>
+  )
 
   return (
     <aside className="w-52 shrink-0 flex flex-col h-screen bg-zinc-900 border-r border-zinc-800">
@@ -54,29 +62,25 @@ export function SettingsSidebar() {
 
       {/* Nav sections */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
-        {SECTIONS.map(section => (
-          <div key={section.title}>
+        <div>
+          <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest px-3 mb-1">
+            General
+          </p>
+          <div className="space-y-0.5">
+            {GENERAL_ITEMS.map(navLink)}
+          </div>
+        </div>
+
+        {role === 'admin' && (
+          <div>
             <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest px-3 mb-1">
-              {section.title}
+              Admin
             </p>
             <div className="space-y-0.5">
-              {section.items.map(item => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    'block px-3 py-2 rounded-md text-sm transition-colors',
-                    pathname === item.href || pathname.startsWith(item.href + '/')
-                      ? 'bg-white/10 text-white font-medium'
-                      : 'text-zinc-400 hover:text-zinc-300 hover:bg-white/5'
-                  )}
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {ADMIN_ITEMS.map(navLink)}
             </div>
           </div>
-        ))}
+        )}
       </nav>
 
       {/* Footer: sign out */}
