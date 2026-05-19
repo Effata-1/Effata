@@ -303,11 +303,12 @@ const RESULT_META: Record<TestResult, {
   label: string; color: string; border: string; bg: string
   Icon: React.ElementType; headline: string; sub: string
 }> = {
-  blocked:           { label: 'BLOCKED',              color: 'text-green-400', border: 'border-green-500/40', bg: 'bg-green-500/8',  Icon: ShieldCheck,   headline: 'DLP intercepted this request',                         sub: 'The request never reached our server — your DLP control is working for this vector.' },
-  not_blocked:       { label: 'NOT BLOCKED',           color: 'text-red-400',   border: 'border-red-500/40',   bg: 'bg-red-500/8',    Icon: ShieldAlert,   headline: 'Our server received the payload',                      sub: 'DLP did not intercept this request. This channel / data-type combination is not being caught.' },
-  error:             { label: 'ERROR',                 color: 'text-zinc-400',  border: 'border-zinc-600/40',  bg: 'bg-zinc-800/40',  Icon: AlertTriangle, headline: 'Test failed with an error',                            sub: 'The request failed for a non-DLP reason (check console). Try again or inspect network logs.' },
-  user_alert_proceed:{ label: 'COACHING — PROCEEDED',  color: 'text-amber-400', border: 'border-amber-500/40', bg: 'bg-amber-500/8',  Icon: AlertTriangle, headline: 'DLP showed a coaching popup — analyst clicked Proceed', sub: 'The request was allowed after user justification. This DLP control is in coaching mode — it relies on the user to stop exfiltration, not an automated block.' },
-  user_alert_stop:   { label: 'COACHING — STOPPED',    color: 'text-blue-400',  border: 'border-blue-500/40',  bg: 'bg-blue-500/8',   Icon: ShieldCheck,   headline: 'DLP showed a coaching popup — analyst clicked Stop',    sub: 'Data was not exfiltrated, but the control relies on user judgment rather than automatic blocking. Consider whether this gap requires remediation.' },
+  blocked:           { label: 'BLOCKED',              color: 'text-green-400',  border: 'border-green-500/40',  bg: 'bg-green-500/8',   Icon: ShieldCheck,   headline: 'DLP intercepted this request',                         sub: 'The request never reached our server — your DLP control is working for this vector.' },
+  not_blocked:       { label: 'NOT BLOCKED',           color: 'text-red-400',    border: 'border-red-500/40',    bg: 'bg-red-500/8',     Icon: ShieldAlert,   headline: 'Our server received the payload',                      sub: 'DLP did not intercept this request. This channel / data-type combination is not being caught.' },
+  error:             { label: 'ERROR',                 color: 'text-zinc-400',   border: 'border-zinc-600/40',   bg: 'bg-zinc-800/40',   Icon: AlertTriangle, headline: 'Test failed with an error',                            sub: 'The request failed for a non-DLP reason (check console). Try again or inspect network logs.' },
+  user_alert_proceed:{ label: 'COACHING — PROCEEDED',  color: 'text-amber-400',  border: 'border-amber-500/40',  bg: 'bg-amber-500/8',   Icon: AlertTriangle, headline: 'DLP showed a coaching popup — analyst clicked Proceed', sub: 'The request was allowed after user justification. This DLP control is in coaching mode — it relies on the user to stop exfiltration, not an automated block.' },
+  user_alert_stop:   { label: 'COACHING — STOPPED',    color: 'text-blue-400',   border: 'border-blue-500/40',   bg: 'bg-blue-500/8',    Icon: ShieldCheck,   headline: 'DLP showed a coaching popup — analyst clicked Stop',    sub: 'Data was not exfiltrated, but the control relies on user judgment rather than automatic blocking. Consider whether this gap requires remediation.' },
+  blocked_coached:   { label: 'BLOCKED — NOTIFIED',    color: 'text-orange-400', border: 'border-orange-500/40', bg: 'bg-orange-500/8',  Icon: ShieldAlert,   headline: 'DLP blocked the transfer and showed a notification popup', sub: 'The upload was blocked and you were shown a block notification (OK only). Data did not leave. The control is enforcing but includes user notification.' },
 }
 
 const PROTOCOL_COLORS: Record<string, string> = {
@@ -343,9 +344,10 @@ export function DlpTestRunner({ initialHistory }: Props) {
   const [scriptContent,   setScriptContent]   = useState('')
   const [uploadFile,      setUploadFile]      = useState<File | null>(null)
   const [isDragging,      setIsDragging]      = useState(false)
-  const [slowTest,        setSlowTest]        = useState(false)
-  const [lastResultId,    setLastResultId]    = useState<string | null>(null)
-  const [showAlertPrompt, setShowAlertPrompt] = useState(false)
+  const [slowTest,          setSlowTest]          = useState(false)
+  const [lastResultId,      setLastResultId]      = useState<string | null>(null)
+  const [lastInitialResult, setLastInitialResult] = useState<'blocked' | 'not_blocked' | null>(null)
+  const [showAlertPrompt,   setShowAlertPrompt]   = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Re-fill payload when data type changes (unless custom)
@@ -377,6 +379,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
     setRunResult(null)
     setShowAlertPrompt(false)
     setLastResultId(null)
+    setLastInitialResult(null)
 
     const origin   = window.location.origin
     const dest     = `${origin}/api/dlp-test`
@@ -424,6 +427,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
       })
       const newId = id ?? crypto.randomUUID()
       setLastResultId(newId)
+      setLastInitialResult('not_blocked')
       // Auto-show alert prompt if response was slow (likely a user alert held the connection)
       if (ms > 5000 || proxyDetected) setShowAlertPrompt(true)
 
@@ -446,7 +450,8 @@ export function DlpTestRunner({ initialHistory }: Props) {
       })
       const newId = id ?? crypto.randomUUID()
       setLastResultId(newId)
-      // A slow blocked result (>5s) often means the user saw a coaching popup and clicked Stop
+      setLastInitialResult('blocked')
+      // A slow blocked result (>5s) means either a block-notification popup or coaching stop
       if (ms > 5000) setShowAlertPrompt(true)
 
       setHistory(prev => [{
@@ -726,11 +731,11 @@ export function DlpTestRunner({ initialHistory }: Props) {
                     </div>
                   </div>
 
-                  {/* User alert confirmation prompt */}
-                  {showAlertPrompt && lastResultId && (runResult.status === 'not_blocked' || runResult.status === 'blocked') && (
+                  {/* User alert confirmation prompt — split by initial result */}
+                  {showAlertPrompt && lastResultId && lastInitialResult === 'not_blocked' && (
                     <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
-                      <p className="text-xs font-semibold text-amber-300 mb-1">Was a DLP coaching or justify popup shown during this test?</p>
-                      <p className="text-[10px] text-zinc-500 mb-3">If a popup appeared asking you to justify or stop the upload, select what you did:</p>
+                      <p className="text-xs font-semibold text-amber-300 mb-1">Did a DLP popup appear during this test?</p>
+                      <p className="text-[10px] text-zinc-500 mb-3">The request got through, but the delay suggests a coaching popup may have appeared first:</p>
                       <div className="flex items-center gap-2 flex-wrap">
                         <button
                           onClick={async () => {
@@ -741,7 +746,33 @@ export function DlpTestRunner({ initialHistory }: Props) {
                           }}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-semibold transition-colors"
                         >
-                          Yes — I clicked Proceed
+                          Coaching popup — I clicked Proceed
+                        </button>
+                        <button
+                          onClick={() => setShowAlertPrompt(false)}
+                          className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs font-medium transition-colors"
+                        >
+                          No popup — allow as-is
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {showAlertPrompt && lastResultId && lastInitialResult === 'blocked' && (
+                    <div className="rounded-xl border border-zinc-600/40 bg-zinc-800/40 p-4">
+                      <p className="text-xs font-semibold text-zinc-300 mb-1">Did a DLP popup appear before the block?</p>
+                      <p className="text-[10px] text-zinc-500 mb-3">The test was slow — if a popup appeared, tell us which type so we can record the correct outcome:</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={async () => {
+                            await updateTestResultUserAlert(lastResultId, 'blocked_coached')
+                            setRunResult(prev => prev ? { ...prev, status: 'blocked_coached' } : prev)
+                            setHistory(prev => prev.map(e => e.id === lastResultId ? { ...e, result: 'blocked_coached' } : e))
+                            setShowAlertPrompt(false)
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/40 text-orange-300 text-xs font-semibold transition-colors"
+                        >
+                          Block notification (OK only)
                         </button>
                         <button
                           onClick={async () => {
@@ -752,13 +783,13 @@ export function DlpTestRunner({ initialHistory }: Props) {
                           }}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/40 text-blue-300 text-xs font-semibold transition-colors"
                         >
-                          Yes — I clicked Stop
+                          Coaching popup — I clicked Stop
                         </button>
                         <button
                           onClick={() => setShowAlertPrompt(false)}
                           className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs font-medium transition-colors"
                         >
-                          No popup shown
+                          No popup / silent block
                         </button>
                       </div>
                     </div>
@@ -860,8 +891,9 @@ export function DlpTestRunner({ initialHistory }: Props) {
                             blocked:            { cls: 'bg-green-500/15 text-green-400',  label: 'Blocked' },
                             not_blocked:        { cls: 'bg-red-500/15 text-red-400',      label: 'Not Blocked' },
                             error:              { cls: 'bg-zinc-700/50 text-zinc-400',    label: 'Error' },
-                            user_alert_proceed: { cls: 'bg-amber-500/15 text-amber-400', label: 'Coaching — Proceeded' },
-                            user_alert_stop:    { cls: 'bg-blue-500/15 text-blue-400',   label: 'Coaching — Stopped' },
+                            user_alert_proceed: { cls: 'bg-amber-500/15 text-amber-400',  label: 'Coaching — Proceeded' },
+                            user_alert_stop:    { cls: 'bg-blue-500/15 text-blue-400',    label: 'Coaching — Stopped' },
+                            blocked_coached:    { cls: 'bg-orange-500/15 text-orange-400', label: 'Blocked — Notified' },
                           }
                           const b = BADGE[entry.result] ?? BADGE.error
                           return (

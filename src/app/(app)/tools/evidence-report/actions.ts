@@ -428,6 +428,7 @@ export async function importFromValidator(
     if (r === 'not_blocked')        return { actual_result: 'allowed_no_alert',   final_status: 'failed' }
     if (r === 'user_alert_proceed') return { actual_result: 'allowed_with_coach', final_status: 'failed' }
     if (r === 'user_alert_stop')    return { actual_result: 'allowed_with_coach', final_status: 'inconclusive' }
+    if (r === 'blocked_coached')    return { actual_result: 'blocked',            final_status: 'passed' }
     return                                 { actual_result: 'test_failed',        final_status: 'inconclusive' }
   }
 

@@ -5,7 +5,7 @@ import { logAuditEvent } from '@/lib/audit'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type TestResult = 'blocked' | 'not_blocked' | 'error' | 'user_alert_proceed' | 'user_alert_stop'
+export type TestResult = 'blocked' | 'not_blocked' | 'error' | 'user_alert_proceed' | 'user_alert_stop' | 'blocked_coached'
 
 export interface TestHistoryEntry {
   id:               string
@@ -76,7 +76,7 @@ export async function saveTestResult(data: {
 
 export async function updateTestResultUserAlert(
   id: string,
-  newResult: 'user_alert_proceed' | 'user_alert_stop'
+  newResult: 'user_alert_proceed' | 'user_alert_stop' | 'blocked_coached'
 ): Promise<{ error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
