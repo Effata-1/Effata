@@ -171,6 +171,65 @@ export async function toggleInScope(
   return {}
 }
 
+export async function batchToggleInScope(
+  items: Array<{ catalogDataTypeId: string; systemLevel: SystemLevel; name: string }>,
+  addToScope: boolean,
+): Promise<{ error?: string }> {
+  const user = await requireRole('analyst')
+  const supabase = await createClient()
+
+  if (!addToScope) {
+    const { error } = await supabase
+      .from('org_data_types')
+      .delete()
+      .eq('org_id', user.orgId)
+      .in('catalog_data_type_id', items.map(i => i.catalogDataTypeId))
+    if (error) return { error: error.message }
+  } else {
+    // Upsert org_data_types (skip existing)
+    const { data: inserted, error: insertErr } = await supabase
+      .from('org_data_types')
+      .upsert(
+        items.map(i => ({ org_id: user.orgId, catalog_data_type_id: i.catalogDataTypeId, name: i.name })),
+        { onConflict: 'org_id,catalog_data_type_id' },
+      )
+      .select('id, catalog_data_type_id')
+    if (insertErr) return { error: insertErr.message }
+
+    // Fetch org labels for all system levels present in the batch
+    const systemLevels = [...new Set(items.map(i => i.systemLevel))]
+    const { data: labels } = await supabase
+      .from('org_classification_labels')
+      .select('id, system_level')
+      .eq('org_id', user.orgId)
+      .in('system_level', systemLevels)
+
+    if (inserted?.length && labels?.length) {
+      const labelByLevel = new Map(labels.map(l => [l.system_level, l.id]))
+      const catLevelMap  = new Map(items.map(i => [i.catalogDataTypeId, i.systemLevel]))
+
+      const classRows = inserted
+        .filter(ins => ins.catalog_data_type_id && labelByLevel.has(catLevelMap.get(ins.catalog_data_type_id!)!))
+        .map(ins => ({
+          org_id:                      user.orgId,
+          org_data_type_id:            ins.id,
+          org_classification_label_id: labelByLevel.get(catLevelMap.get(ins.catalog_data_type_id!)!)!,
+          mapped_by:                   'system' as const,
+          confidence:                  1.0,
+        }))
+
+      if (classRows.length) {
+        await supabase
+          .from('org_data_type_classifications')
+          .upsert(classRows, { onConflict: 'org_id,org_data_type_id' })
+      }
+    }
+  }
+
+  revalidatePolicies()
+  return {}
+}
+
 export async function setClassification(
   orgDataTypeId: string,
   labelId: string,

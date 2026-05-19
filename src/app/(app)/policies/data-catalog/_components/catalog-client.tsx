@@ -3,7 +3,7 @@
 import { useState, useMemo, useTransition, useOptimistic, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { Search, X, Plus, ChevronDown, ChevronRight, Info, AlertTriangle } from 'lucide-react'
-import { toggleInScope, setClassification, addCustomDataType } from '@/lib/data-catalog/actions'
+import { toggleInScope, setClassification, addCustomDataType, batchToggleInScope } from '@/lib/data-catalog/actions'
 import { colorClasses, SYSTEM_LEVEL_META } from '@/lib/data-catalog/types'
 import type { OrgClassificationLabel, SystemLevel } from '@/lib/data-catalog/types'
 
@@ -15,8 +15,10 @@ interface EnrichedCatalogType {
   name:                    string
   system_level:            SystemLevel
   subcategory:             string | null
+  description:             string | null
   examples:                string[]
   notes:                   string | null
+  tags:                    string[]
   priority:                number
   org_data_type_id:        string | null
   is_in_scope:             boolean
@@ -182,6 +184,41 @@ function ClassificationSelect({
   )
 }
 
+// ─── Compliance tag config ────────────────────────────────────────────────────
+
+const COMPLIANCE_TAGS: Record<string, { label: string; className: string }> = {
+  gdpr:             { label: 'GDPR',      className: 'text-blue-400 bg-blue-500/10 border-blue-500/25' },
+  hipaa:            { label: 'HIPAA',     className: 'text-green-400 bg-green-500/10 border-green-500/25' },
+  pci:              { label: 'PCI-DSS',   className: 'text-purple-400 bg-purple-500/10 border-purple-500/25' },
+  pii:              { label: 'PII',       className: 'text-amber-400 bg-amber-500/10 border-amber-500/25' },
+  'special-category': { label: 'Special Category', className: 'text-red-400 bg-red-500/10 border-red-500/25' },
+  regulated:        { label: 'Regulated', className: 'text-orange-400 bg-orange-500/10 border-orange-500/25' },
+}
+
+const COMPLIANCE_FILTER_TAGS = Object.entries(COMPLIANCE_TAGS).map(([value, { label }]) => ({ value, label }))
+
+const DLP_TREATMENT: Record<SystemLevel, string> = {
+  secret:              'Block by default outside explicitly approved workflows. Inspect all traffic.',
+  highly_confidential: 'Strongly restrict. Alert on any external movement. Coach users before upload.',
+  confidential:        'Control external movement. Block high-risk destinations. Monitor cloud sharing.',
+  internal:            'Monitor and guide. Alert on suspicious volume or unusual destinations.',
+  public:              'Allow. Inspect for hidden sensitive content before release.',
+}
+
+function ComplianceBadges({ tags }: { tags: string[] }) {
+  const relevant = tags.filter(t => COMPLIANCE_TAGS[t])
+  if (!relevant.length) return null
+  return (
+    <div className="flex flex-wrap gap-1 mt-1.5">
+      {relevant.map(t => (
+        <span key={t} className={cn('text-[9px] font-semibold px-1.5 py-0.5 rounded border', COMPLIANCE_TAGS[t].className)}>
+          {COMPLIANCE_TAGS[t].label}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 // ─── Data type row ────────────────────────────────────────────────────────────
 
 function DataTypeRow({
@@ -195,64 +232,127 @@ function DataTypeRow({
   onToggle:   (id: string, inScope: boolean) => void
   onClassify: (orgDataTypeId: string, labelId: string) => void
 }) {
+  const [expanded, setExpanded] = useState(false)
+  const hasTreatment = DLP_TREATMENT[item.system_level]
+
   return (
-    <tr className={cn(
-      'group border-b border-zinc-800/40 last:border-0 transition-colors',
-      item.is_in_scope ? 'bg-zinc-900/20 hover:bg-zinc-900/40' : 'hover:bg-zinc-900/20',
-    )}>
-      {/* Name + examples */}
-      <td className="px-5 py-3.5">
-        <div className="flex items-start gap-2.5">
-          {/* Scope dot indicator */}
-          <div className={cn(
-            'w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 transition-colors',
-            item.is_in_scope ? 'bg-blue-400' : 'bg-zinc-700',
-          )} />
-          <div className="min-w-0">
-            <p className={cn('text-sm font-medium leading-tight', item.is_in_scope ? 'text-white' : 'text-zinc-400')}>{item.name}</p>
-            {item.examples.length > 0 && (
-              <p className="text-xs text-zinc-600 mt-0.5 leading-relaxed">
-                {item.examples.slice(0, 3).join('  ·  ')}
-              </p>
-            )}
-            {item.notes && (
-              <div className="flex items-center gap-1 mt-1">
-                <AlertTriangle className="w-3 h-3 text-amber-500/60 shrink-0" />
-                <p className="text-[10px] text-amber-500/60">{item.notes}</p>
+    <>
+      <tr className={cn(
+        'group border-b border-zinc-800/40 transition-colors cursor-pointer',
+        expanded ? 'border-zinc-700' : 'last:border-0',
+        item.is_in_scope ? 'bg-zinc-900/20 hover:bg-zinc-900/40' : 'hover:bg-zinc-900/20',
+      )}
+        onClick={() => setExpanded(e => !e)}
+      >
+        {/* Name + examples + compliance badges */}
+        <td className="px-5 py-3.5">
+          <div className="flex items-start gap-2.5">
+            <div className={cn(
+              'w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 transition-colors',
+              item.is_in_scope ? 'bg-blue-400' : 'bg-zinc-700',
+            )} />
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className={cn('text-sm font-medium leading-tight', item.is_in_scope ? 'text-white' : 'text-zinc-400')}>{item.name}</p>
+                <ChevronRight className={cn('w-3 h-3 text-zinc-700 transition-transform shrink-0', expanded && 'rotate-90')} />
               </div>
-            )}
+              {item.examples.length > 0 && (
+                <p className="text-xs text-zinc-600 mt-0.5 leading-relaxed">
+                  {item.examples.slice(0, 3).join('  ·  ')}
+                </p>
+              )}
+              <ComplianceBadges tags={item.tags ?? []} />
+            </div>
           </div>
-        </div>
-      </td>
+        </td>
 
-      {/* Classification */}
-      <td className="px-4 py-3.5 w-44">
-        {item.is_in_scope ? (
-          <ClassificationSelect
-            value={item.classification_label_id}
-            labels={labels}
-            onChange={labelId => item.org_data_type_id && onClassify(item.org_data_type_id, labelId)}
-          />
-        ) : (
-          <span className="text-xs text-zinc-700">—</span>
-        )}
-      </td>
-
-      {/* Scope toggle */}
-      <td className="px-5 py-3.5 w-32 text-right">
-        <button
-          onClick={() => onToggle(item.id, item.is_in_scope)}
-          className={cn(
-            'text-xs px-3 py-1.5 rounded-lg border font-medium transition-all',
-            item.is_in_scope
-              ? 'text-blue-400 bg-blue-500/10 border-blue-500/25 hover:bg-blue-500/20'
-              : 'text-zinc-600 bg-transparent border-zinc-800 hover:border-zinc-600 hover:text-zinc-400',
+        {/* Classification */}
+        <td className="px-4 py-3.5 w-44" onClick={e => e.stopPropagation()}>
+          {item.is_in_scope ? (
+            <ClassificationSelect
+              value={item.classification_label_id}
+              labels={labels}
+              onChange={labelId => item.org_data_type_id && onClassify(item.org_data_type_id, labelId)}
+            />
+          ) : (
+            <span className="text-xs text-zinc-700">—</span>
           )}
-        >
-          {item.is_in_scope ? 'In scope ✓' : '+ Add'}
-        </button>
-      </td>
-    </tr>
+        </td>
+
+        {/* Scope toggle */}
+        <td className="px-5 py-3.5 w-32 text-right" onClick={e => e.stopPropagation()}>
+          <button
+            onClick={() => onToggle(item.id, item.is_in_scope)}
+            className={cn(
+              'text-xs px-3 py-1.5 rounded-lg border font-medium transition-all',
+              item.is_in_scope
+                ? 'text-blue-400 bg-blue-500/10 border-blue-500/25 hover:bg-blue-500/20'
+                : 'text-zinc-600 bg-transparent border-zinc-800 hover:border-zinc-600 hover:text-zinc-400',
+            )}
+          >
+            {item.is_in_scope ? 'In scope ✓' : '+ Add'}
+          </button>
+        </td>
+      </tr>
+
+      {/* Expandable detail panel */}
+      {expanded && (
+        <tr className="border-b border-zinc-700/50">
+          <td colSpan={3} className="px-5 py-4 bg-zinc-950/60">
+            <div className="pl-4 border-l-2 border-zinc-700 space-y-3">
+              {/* Description */}
+              {item.description && (
+                <p className="text-xs text-zinc-400 leading-relaxed">{item.description}</p>
+              )}
+
+              {/* All examples */}
+              {item.examples.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest mb-1.5">Examples</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {item.examples.map(ex => (
+                      <span key={ex} className="text-[10px] text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded border border-zinc-700">{ex}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* DLP treatment */}
+                {hasTreatment && (
+                  <div className="bg-zinc-900/60 rounded-lg p-3 border border-zinc-800">
+                    <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mb-1">DLP Treatment</p>
+                    <p className="text-xs text-zinc-400 leading-relaxed">{DLP_TREATMENT[item.system_level]}</p>
+                  </div>
+                )}
+
+                {/* Compliance relevance */}
+                {(item.tags ?? []).some(t => COMPLIANCE_TAGS[t]) && (
+                  <div className="bg-zinc-900/60 rounded-lg p-3 border border-zinc-800">
+                    <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mb-2">Compliance Relevance</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(item.tags ?? []).filter(t => COMPLIANCE_TAGS[t]).map(t => (
+                        <span key={t} className={cn('text-[10px] font-semibold px-2 py-1 rounded border', COMPLIANCE_TAGS[t].className)}>
+                          {COMPLIANCE_TAGS[t].label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Elevation note */}
+              {item.notes && (
+                <div className="flex items-start gap-2 bg-amber-500/5 border border-amber-500/20 rounded-lg px-3 py-2.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500/70 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-amber-400/80 leading-relaxed">{item.notes}</p>
+                </div>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   )
 }
 
@@ -264,14 +364,16 @@ function SubcategoryGroup({
   labels,
   onToggle,
   onClassify,
+  onBulkToggle,
   forceExpand,
 }: {
-  subcat:      string
-  items:       EnrichedCatalogType[]
-  labels:      OrgClassificationLabel[]
-  onToggle:    (id: string, inScope: boolean) => void
-  onClassify:  (orgDataTypeId: string, labelId: string) => void
-  forceExpand: boolean
+  subcat:        string
+  items:         EnrichedCatalogType[]
+  labels:        OrgClassificationLabel[]
+  onToggle:      (id: string, inScope: boolean) => void
+  onClassify:    (orgDataTypeId: string, labelId: string) => void
+  onBulkToggle:  (items: EnrichedCatalogType[], addToScope: boolean) => void
+  forceExpand:   boolean
 }) {
   const [collapsed, setCollapsed] = useState(false)
 
@@ -279,22 +381,45 @@ function SubcategoryGroup({
     if (forceExpand) setCollapsed(false)
   }, [forceExpand])
 
-  const inScopeCount = items.filter(i => i.is_in_scope).length
+  const inScopeCount  = items.filter(i => i.is_in_scope).length
+  const allInScope    = inScopeCount === items.length
+  const noneInScope   = inScopeCount === 0
 
   return (
-    <div>
-      <button
-        onClick={() => setCollapsed(c => !c)}
-        className="w-full px-5 py-2.5 bg-zinc-950/50 flex items-center justify-between hover:bg-zinc-950/70 transition-colors group/subcat"
-      >
-        <div className="flex items-center gap-2">
+    <div className="group/subcatrow">
+      <div className="px-5 py-2.5 bg-zinc-950/50 flex items-center justify-between hover:bg-zinc-950/70 transition-colors">
+        <button
+          onClick={() => setCollapsed(c => !c)}
+          className="flex items-center gap-2 flex-1 text-left"
+        >
           {collapsed
-            ? <ChevronRight className="w-3 h-3 text-zinc-600 group-hover/subcat:text-zinc-400 transition-colors" />
-            : <ChevronDown  className="w-3 h-3 text-zinc-600 group-hover/subcat:text-zinc-400 transition-colors" />}
-          <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest group-hover/subcat:text-zinc-400 transition-colors">{subcat}</p>
+            ? <ChevronRight className="w-3 h-3 text-zinc-600 group-hover/subcatrow:text-zinc-400 transition-colors" />
+            : <ChevronDown  className="w-3 h-3 text-zinc-600 group-hover/subcatrow:text-zinc-400 transition-colors" />}
+          <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest group-hover/subcatrow:text-zinc-400 transition-colors">{subcat}</p>
+        </button>
+        <div className="flex items-center gap-3">
+          <p className="text-[10px] text-zinc-700">{inScopeCount}/{items.length} in scope</p>
+          {/* Bulk buttons — visible on hover */}
+          <div className="flex items-center gap-1 opacity-0 group-hover/subcatrow:opacity-100 transition-opacity">
+            {!allInScope && (
+              <button
+                onClick={e => { e.stopPropagation(); onBulkToggle(items.filter(i => !i.is_in_scope), true) }}
+                className="text-[10px] px-2 py-0.5 rounded border border-zinc-700 text-zinc-500 hover:text-blue-400 hover:border-blue-500/40 transition-colors"
+              >
+                Add all
+              </button>
+            )}
+            {!noneInScope && (
+              <button
+                onClick={e => { e.stopPropagation(); onBulkToggle(items.filter(i => i.is_in_scope), false) }}
+                className="text-[10px] px-2 py-0.5 rounded border border-zinc-700 text-zinc-500 hover:text-red-400 hover:border-red-500/40 transition-colors"
+              >
+                Remove all
+              </button>
+            )}
+          </div>
         </div>
-        <p className="text-[10px] text-zinc-700">{inScopeCount}/{items.length} in scope</p>
-      </button>
+      </div>
       {!collapsed && (
         <table className="w-full">
           <tbody>
@@ -322,14 +447,16 @@ function ClassificationSection({
   labels,
   onToggle,
   onClassify,
+  onBulkToggle,
   forceExpand,
 }: {
-  level:       SystemLevel
-  items:       EnrichedCatalogType[]
-  labels:      OrgClassificationLabel[]
-  onToggle:    (id: string, inScope: boolean) => void
-  onClassify:  (orgDataTypeId: string, labelId: string) => void
-  forceExpand: boolean
+  level:        SystemLevel
+  items:        EnrichedCatalogType[]
+  labels:       OrgClassificationLabel[]
+  onToggle:     (id: string, inScope: boolean) => void
+  onClassify:   (orgDataTypeId: string, labelId: string) => void
+  onBulkToggle: (items: EnrichedCatalogType[], addToScope: boolean) => void
+  forceExpand:  boolean
 }) {
   const [collapsed, setCollapsed] = useState(true)
 
@@ -337,13 +464,15 @@ function ClassificationSection({
     setCollapsed(!forceExpand)
   }, [forceExpand])
 
-  const meta      = SYSTEM_LEVEL_META[level]
-  const orgLabel  = labels.find(l => l.system_level === level)
-  const cc        = orgLabel ? colorClasses(orgLabel.color) : colorClasses(meta.color)
-  const inScope   = items.filter(i => i.is_in_scope).length
-  const pct       = items.length > 0 ? Math.round((inScope / items.length) * 100) : 0
-  const subcats   = [...new Set(items.map(i => i.subcategory ?? 'General'))]
-  const labelName = orgLabel?.name ?? meta.label
+  const meta       = SYSTEM_LEVEL_META[level]
+  const orgLabel   = labels.find(l => l.system_level === level)
+  const cc         = orgLabel ? colorClasses(orgLabel.color) : colorClasses(meta.color)
+  const inScope    = items.filter(i => i.is_in_scope).length
+  const pct        = items.length > 0 ? Math.round((inScope / items.length) * 100) : 0
+  const subcats    = [...new Set(items.map(i => i.subcategory ?? 'General'))]
+  const labelName  = orgLabel?.name ?? meta.label
+  const allInScope = inScope === items.length
+  const anyInScope = inScope > 0
 
   if (items.length === 0) return null
 
@@ -390,6 +519,26 @@ function ClassificationSection({
           </div>
         )}
 
+        {/* Bulk actions */}
+        <div className="hidden sm:flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+          {!allInScope && (
+            <button
+              onClick={() => onBulkToggle(items.filter(i => !i.is_in_scope), true)}
+              className="text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-500 hover:text-blue-400 hover:border-blue-500/40 transition-colors"
+            >
+              Add all
+            </button>
+          )}
+          {anyInScope && (
+            <button
+              onClick={() => onBulkToggle(items.filter(i => i.is_in_scope), false)}
+              className="text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-500 hover:text-red-400 hover:border-red-500/40 transition-colors"
+            >
+              Remove all
+            </button>
+          )}
+        </div>
+
         {/* Expand/collapse icon */}
         {collapsed
           ? <ChevronRight className="w-4 h-4 text-zinc-600 shrink-0" />
@@ -416,6 +565,7 @@ function ClassificationSection({
                 labels={labels}
                 onToggle={onToggle}
                 onClassify={onClassify}
+                onBulkToggle={onBulkToggle}
                 forceExpand={forceExpand}
               />
             ))}
@@ -437,12 +587,13 @@ export function CatalogClient({
   customTypes: CustomType[]
   labels:      OrgClassificationLabel[]
 }) {
-  const [search,       setSearch]       = useState('')
-  const [levelFilter,  setLevelFilter]  = useState<string>('all')
-  const [subcatFilter, setSubcatFilter] = useState<string>('all')
-  const [scopeFilter,  setScopeFilter]  = useState<string>('all')
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [isPending,    startTransition] = useTransition()
+  const [search,           setSearch]           = useState('')
+  const [levelFilter,      setLevelFilter]      = useState<string>('all')
+  const [subcatFilter,     setSubcatFilter]     = useState<string>('all')
+  const [complianceFilter, setComplianceFilter] = useState<string>('all')
+  const [scopeFilter,      setScopeFilter]      = useState<string>('all')
+  const [showAddModal,     setShowAddModal]     = useState(false)
+  const [isPending,        startTransition]     = useTransition()
 
   type OptimisticAction =
     | { type: 'toggle';   catalogId: string;    inScope: boolean }
@@ -478,6 +629,17 @@ export function CatalogClient({
     startTransition(async () => { await setClassification(orgDataTypeId, labelId) })
   }
 
+  function handleBulkToggle(items: EnrichedCatalogType[], addToScope: boolean) {
+    // Optimistic: flip all at once
+    items.forEach(item => setOptimisticCatalog({ type: 'toggle', catalogId: item.id, inScope: addToScope }))
+    startTransition(async () => {
+      await batchToggleInScope(
+        items.map(i => ({ catalogDataTypeId: i.id, systemLevel: i.system_level, name: i.name })),
+        addToScope,
+      )
+    })
+  }
+
   const levels: SystemLevel[] = ['secret', 'highly_confidential', 'confidential', 'internal', 'public']
 
   // Map label id → label for filter logic
@@ -507,6 +669,7 @@ export function CatalogClient({
         }
       }
       if (subcatFilter !== 'all' && (item.subcategory ?? 'General') !== subcatFilter) return false
+      if (complianceFilter !== 'all' && !(item.tags ?? []).includes(complianceFilter)) return false
       if (scopeFilter === 'in_scope'     && !item.is_in_scope) return false
       if (scopeFilter === 'not_selected' &&  item.is_in_scope) return false
       if (!q) return true
@@ -516,7 +679,7 @@ export function CatalogClient({
         item.examples.some(e => e.toLowerCase().includes(q))
       )
     })
-  }, [optimisticCatalog, search, levelFilter, subcatFilter, scopeFilter, labelById])
+  }, [optimisticCatalog, search, levelFilter, subcatFilter, complianceFilter, scopeFilter, labelById])
 
   const totalInScope = optimisticCatalog.filter(i => i.is_in_scope).length + customTypes.length
   const totalMapped  = optimisticCatalog.filter(i => i.is_in_scope && i.classification_label_id).length
@@ -579,8 +742,13 @@ export function CatalogClient({
         </div>
 
         {[
-          { value: levelFilter,  onChange: setLevelFilter,  options: levelFilterOptions },
-          { value: subcatFilter, onChange: setSubcatFilter, options: subcatOptions },
+          { value: levelFilter,      onChange: setLevelFilter,      options: levelFilterOptions },
+          { value: subcatFilter,     onChange: setSubcatFilter,     options: subcatOptions },
+          {
+            value: complianceFilter,
+            onChange: setComplianceFilter,
+            options: [{ value: 'all', label: 'All compliance' }, ...COMPLIANCE_FILTER_TAGS],
+          },
           {
             value: scopeFilter,
             onChange: setScopeFilter,
@@ -599,9 +767,9 @@ export function CatalogClient({
           </div>
         ))}
 
-        {(search || levelFilter !== 'all' || subcatFilter !== 'all' || scopeFilter !== 'all') && (
+        {(search || levelFilter !== 'all' || subcatFilter !== 'all' || complianceFilter !== 'all' || scopeFilter !== 'all') && (
           <button
-            onClick={() => { setSearch(''); setLevelFilter('all'); setSubcatFilter('all'); setScopeFilter('all') }}
+            onClick={() => { setSearch(''); setLevelFilter('all'); setSubcatFilter('all'); setComplianceFilter('all'); setScopeFilter('all') }}
             className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
           >
             Clear
@@ -622,6 +790,7 @@ export function CatalogClient({
           const forceExpand =
             (search.length > 0 && sectionItems.length > 0) ||
             (subcatFilter !== 'all' && sectionItems.length > 0) ||
+            (complianceFilter !== 'all' && sectionItems.length > 0) ||
             (selectedLabel?.system_level === level) ||
             (!!selectedLabel && !selectedLabel.system_level && sectionItems.length > 0)
           return (
@@ -632,6 +801,7 @@ export function CatalogClient({
             labels={labels}
             onToggle={handleToggle}
             onClassify={handleClassify}
+            onBulkToggle={handleBulkToggle}
             forceExpand={forceExpand}
           />
           )
