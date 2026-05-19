@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { Search, X } from 'lucide-react'
 import type { AuditEntry, RegulationRef } from '../page'
 import { SearchableSelect } from '@/components/ui/searchable-select'
+import { usePagination } from '@/hooks/use-pagination'
 
 const STATUS_STYLE: Record<string, { label: string; color: string; bg: string }> = {
   implemented:     { label: 'Implemented',     color: 'text-green-400',  bg: 'bg-green-500/15' },
@@ -65,6 +66,11 @@ export function AuditTrailClient({
     return true
   })
 
+  const pg = usePagination(visible, 10, 'audit_trail')
+  const PER_PAGE_OPTIONS = [10, 25, 50, 100]
+
+  useEffect(() => { pg.setPage(1) }, [search, regFilter, ctrlFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="space-y-4">
       {/* Filters */}
@@ -106,7 +112,7 @@ export function AuditTrailClient({
         />
 
         <span className="text-xs text-zinc-600 ml-auto">
-          {visible.length} {visible.length === 1 ? 'entry' : 'entries'}
+          {pg.total} {pg.total === 1 ? 'entry' : 'entries'}
           {entries.length >= 200 && ' (last 200)'}
         </span>
       </div>
@@ -132,7 +138,7 @@ export function AuditTrailClient({
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/60">
-              {visible.map(e => {
+              {pg.slice.map(e => {
                 const reg  = regMap.get(e.details?.regulation_id ?? '')
                 const ctrl = controls.find(c => c.key === e.entity_name)
                 return (
@@ -161,6 +167,40 @@ export function AuditTrailClient({
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Pagination footer */}
+      {pg.total > pg.perPage && (
+        <div className="flex items-center justify-between pt-2">
+          <span className="text-xs text-zinc-600 tabular-nums">
+            Showing {pg.from}–{pg.to} of {pg.total}
+          </span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => pg.setPage(pg.page - 1)}
+                disabled={pg.page === 1}
+                className="px-2.5 py-1 text-xs rounded bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >←</button>
+              <span className="text-xs text-zinc-600 px-2 tabular-nums">{pg.page} / {pg.pages}</span>
+              <button
+                onClick={() => pg.setPage(pg.page + 1)}
+                disabled={pg.page === pg.pages}
+                className="px-2.5 py-1 text-xs rounded bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >→</button>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-zinc-600">Rows per page:</span>
+              <select
+                value={pg.perPage}
+                onChange={e => pg.setPerPage(Number(e.target.value))}
+                className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs rounded px-2 py-0.5 focus:outline-none focus:border-zinc-500"
+              >
+                {PER_PAGE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+          </div>
         </div>
       )}
 

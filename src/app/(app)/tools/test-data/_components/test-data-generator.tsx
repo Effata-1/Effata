@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useMemo, useTransition, useCallback } from 'react'
-import { Loader2, Trash2, Check, Sparkles, Search, Download, Table, FileCode } from 'lucide-react'
+import { useState, useMemo, useTransition, useCallback, useEffect } from 'react'
+import { Loader2, Trash2, Check, Sparkles, Search, Download, Table, FileCode, ChevronDown, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { generateTestData, saveDataset, deleteDataset } from '../actions'
-import type { GeneratedData, SavedDataset } from '../actions'
+import { generateTestData, saveDataset, deleteDataset, getAiSearchLogs } from '../actions'
+import type { GeneratedData, SavedDataset, AiSearchLog } from '../actions'
 import { FileFormatGenerator } from './file-format-generator'
 
 // ── Template Definitions ──────────────────────────────────────────────────────
@@ -448,6 +448,12 @@ export function TestDataGenerator({ initialDatasets }: Props) {
   const [saveError,       setSaveError]       = useState<string | null>(null)
   const [tplSearch,       setTplSearch]       = useState('')
   const [tplCategory,     setTplCategory]     = useState('All')
+  const [recentSearches,  setRecentSearches]  = useState<AiSearchLog[]>([])
+  const [historyOpen,     setHistoryOpen]     = useState(true)
+
+  useEffect(() => {
+    getAiSearchLogs('test_data', 10).then(setRecentSearches)
+  }, [])
 
   // ── Template filter ────────────────────────────────────────────────────────
   const filteredTemplates = useMemo(() => {
@@ -463,10 +469,21 @@ export function TestDataGenerator({ initialDatasets }: Props) {
   const handleGenerate = useCallback(() => {
     if (!aiPrompt.trim()) return
     setAiError(null)
+    const capturedPrompt = aiPrompt
     startAiTransition(async () => {
-      const { result, error } = await generateTestData(aiPrompt, aiRowCount)
+      const { result, error } = await generateTestData(capturedPrompt, aiRowCount)
       if (error) { setAiError(error); return }
-      if (result) setGeneratedData(result)
+      if (result) {
+        setGeneratedData(result)
+        const entry: AiSearchLog = {
+          id: crypto.randomUUID(),
+          source: 'test_data',
+          prompt: capturedPrompt,
+          result: result.description,
+          created_at: new Date().toISOString(),
+        }
+        setRecentSearches(prev => [entry, ...prev].slice(0, 10))
+      }
     })
   }, [aiPrompt, aiRowCount])
 
@@ -609,6 +626,40 @@ export function TestDataGenerator({ initialDatasets }: Props) {
 
           {aiError && <p className="mt-2 text-xs text-red-400">{aiError}</p>}
           <p className="mt-1.5 text-[10px] text-zinc-600">Tip: ⌘ + Enter to generate</p>
+
+          {/* Recent AI Searches */}
+          {recentSearches.length > 0 && (
+            <div className="mt-4 border-t border-zinc-800 pt-3">
+              <button
+                onClick={() => setHistoryOpen(o => !o)}
+                className="flex items-center gap-1.5 text-[10px] font-semibold text-zinc-500 uppercase tracking-widest hover:text-zinc-300 transition-colors w-full text-left"
+              >
+                <Clock className="w-3 h-3" />
+                Recent AI Searches
+                <ChevronDown className={cn('w-3 h-3 ml-auto transition-transform', historyOpen ? 'rotate-180' : '')} />
+              </button>
+              {historyOpen && (
+                <div className="mt-2 space-y-1">
+                  {recentSearches.map(s => (
+                    <div
+                      key={s.id}
+                      className="flex items-start justify-between gap-2 px-2 py-1.5 rounded-lg bg-zinc-800/50 hover:bg-zinc-800 transition-colors cursor-pointer group"
+                      onClick={() => setAiPrompt(s.prompt)}
+                      title="Click to reuse this prompt"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-[11px] text-zinc-300 truncate group-hover:text-white transition-colors">{s.prompt}</p>
+                        {s.result && <p className="text-[10px] text-zinc-600 truncate mt-0.5">{s.result}</p>}
+                      </div>
+                      <span className="text-[9px] text-zinc-600 shrink-0 tabular-nums whitespace-nowrap">
+                        {new Date(s.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Data Preview */}

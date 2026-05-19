@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import {
   Play, Download, Copy, Check, Loader2,
   ShieldCheck, ShieldAlert, AlertTriangle, Terminal, Zap,
-  UploadCloud, FileText, X, ChevronDown,
+  UploadCloud, FileText, X, ChevronDown, Search,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { saveTestResult, updateTestResultUserAlert } from '../actions'
@@ -900,9 +900,59 @@ const HISTORY_BADGE: Record<string, { cls: string; label: string }> = {
   blocked_coached:    { cls: 'bg-orange-500/15 text-orange-400', label: 'Blocked — Notified' },
 }
 
+const RESULT_FILTER_OPTIONS: { value: string; label: string }[] = [
+  { value: 'all',               label: 'All Results' },
+  { value: 'blocked',           label: 'Blocked' },
+  { value: 'not_blocked',       label: 'Not Blocked' },
+  { value: 'user_alert_proceed',label: 'Coaching — Proceeded' },
+  { value: 'user_alert_stop',   label: 'Coaching — Stopped' },
+  { value: 'blocked_coached',   label: 'Blocked — Notified' },
+  { value: 'error',             label: 'Error' },
+]
+
+const DATE_RANGE_OPTIONS = [
+  { value: 'all',   label: 'All time' },
+  { value: 'today', label: 'Today' },
+  { value: '7',     label: 'Last 7 days' },
+  { value: '30',    label: 'Last 30 days' },
+]
+
 function HistoryTable({ history }: { history: TestHistoryEntry[] }) {
   const PER_PAGE_OPTIONS = [10, 25, 50, 100]
-  const pg = usePagination(history, 25)
+
+  const [search,      setSearch]      = useState('')
+  const [resultFilter,setResultFilter]= useState('all')
+  const [dateRange,   setDateRange]   = useState('all')
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim()
+    const now = Date.now()
+    return history.filter(e => {
+      if (resultFilter !== 'all' && e.result !== resultFilter) return false
+      if (dateRange === 'today') {
+        const start = new Date(); start.setHours(0, 0, 0, 0)
+        if (new Date(e.created_at) < start) return false
+      } else if (dateRange === '7' || dateRange === '30') {
+        const ms = parseInt(dateRange) * 24 * 60 * 60 * 1000
+        if (now - new Date(e.created_at).getTime() > ms) return false
+      }
+      if (q) {
+        const searchable = [
+          e.test_name,
+          DATA_TYPE_LABELS[e.data_type] ?? e.data_type,
+          HISTORY_BADGE[e.result]?.label ?? e.result,
+        ].join(' ').toLowerCase()
+        if (!searchable.includes(q)) return false
+      }
+      return true
+    })
+  }, [history, search, resultFilter, dateRange])
+
+  const pg = usePagination(filtered, 10, 'test_history')
+
+  useEffect(() => { pg.setPage(1) }, [search, resultFilter, dateRange]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const hasFilters = search || resultFilter !== 'all' || dateRange !== 'all'
 
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
@@ -917,86 +967,131 @@ function HistoryTable({ history }: { history: TestHistoryEntry[] }) {
         <p className="text-sm text-zinc-600 italic py-4 text-center">No tests run yet — run a web channel test above to see results here</p>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-lg border border-zinc-800">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-zinc-800">
-                  {['Time', 'Test', 'Data Type', 'Result', 'Response'].map(h => (
-                    <th key={h} className="text-left text-[9px] font-bold text-zinc-600 uppercase tracking-wide px-3 py-2">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800/60">
-                {pg.slice.map(entry => {
-                  const b = HISTORY_BADGE[entry.result] ?? HISTORY_BADGE.error
-                  return (
-                    <tr key={entry.id} className="hover:bg-zinc-900/40 transition-colors">
-                      <td className="px-3 py-2.5 whitespace-nowrap">
-                        <span className="text-[10px] tabular-nums text-zinc-500">{formatTime(entry.created_at)}</span>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <span className="text-zinc-300 font-medium">{entry.test_name}</span>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <span className="text-zinc-400">{DATA_TYPE_LABELS[entry.data_type] ?? entry.data_type}</span>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded uppercase', b.cls)}>
-                          {b.label}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <span className="text-zinc-600 tabular-nums text-[10px]">
-                          {entry.response_code ? `HTTP ${entry.response_code}` : '—'}
-                          {entry.response_time_ms ? ` · ${entry.response_time_ms}ms` : ''}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          {/* Filter bar */}
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500 pointer-events-none" />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search test or data type…"
+                className="pl-7 pr-7 py-1.5 text-[11px] bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 w-44"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+            <select
+              value={resultFilter}
+              onChange={e => setResultFilter(e.target.value)}
+              className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-[11px] rounded-lg px-2 py-1.5 focus:outline-none focus:border-zinc-500"
+            >
+              {RESULT_FILTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <select
+              value={dateRange}
+              onChange={e => setDateRange(e.target.value)}
+              className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-[11px] rounded-lg px-2 py-1.5 focus:outline-none focus:border-zinc-500"
+            >
+              {DATE_RANGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            {hasFilters && (
+              <button
+                onClick={() => { setSearch(''); setResultFilter('all'); setDateRange('all') }}
+                className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                Clear
+              </button>
+            )}
+            <span className="ml-auto text-[10px] text-zinc-600 tabular-nums">
+              {filtered.length !== history.length ? `${filtered.length} of ${history.length}` : `${history.length}`} entries
+            </span>
           </div>
 
+          {filtered.length === 0 ? (
+            <div className="py-10 text-center rounded-lg border border-zinc-800">
+              <p className="text-sm text-zinc-500">No entries match your filters.</p>
+              <button onClick={() => { setSearch(''); setResultFilter('all'); setDateRange('all') }} className="text-xs text-zinc-600 hover:text-zinc-400 mt-1 transition-colors">Clear filters</button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-zinc-800">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-zinc-800">
+                    {['Time', 'Test', 'Data Type', 'Result', 'Response'].map(h => (
+                      <th key={h} className="text-left text-[9px] font-bold text-zinc-600 uppercase tracking-wide px-3 py-2">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800/60">
+                  {pg.slice.map(entry => {
+                    const b = HISTORY_BADGE[entry.result] ?? HISTORY_BADGE.error
+                    return (
+                      <tr key={entry.id} className="hover:bg-zinc-900/40 transition-colors">
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          <span className="text-[10px] tabular-nums text-zinc-500">{formatTime(entry.created_at)}</span>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span className="text-zinc-300 font-medium">{entry.test_name}</span>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span className="text-zinc-400">{DATA_TYPE_LABELS[entry.data_type] ?? entry.data_type}</span>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded uppercase', b.cls)}>
+                            {b.label}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span className="text-zinc-600 tabular-nums text-[10px]">
+                            {entry.response_code ? `HTTP ${entry.response_code}` : '—'}
+                            {entry.response_time_ms ? ` · ${entry.response_time_ms}ms` : ''}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {/* Pagination footer */}
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800/60">
-            <span className="text-[10px] text-zinc-600 tabular-nums">
-              Showing {pg.from}–{pg.to} of {pg.total}
-            </span>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => pg.setPage(pg.page - 1)}
-                  disabled={pg.page === 1}
-                  className="px-2 py-1 text-[10px] rounded bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  ←
-                </button>
-                <span className="text-[10px] text-zinc-600 tabular-nums">
-                  {pg.page} / {pg.pages}
-                </span>
-                <button
-                  onClick={() => pg.setPage(pg.page + 1)}
-                  disabled={pg.page === pg.pages}
-                  className="px-2 py-1 text-[10px] rounded bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  →
-                </button>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-zinc-600">Rows per page:</span>
-                <select
-                  value={pg.perPage}
-                  onChange={e => pg.setPerPage(Number(e.target.value))}
-                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-[10px] rounded px-1.5 py-0.5 focus:outline-none focus:border-zinc-500"
-                >
-                  {PER_PAGE_OPTIONS.map(n => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
+          {pg.total > pg.perPage && (
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800/60">
+              <span className="text-[10px] text-zinc-600 tabular-nums">
+                Showing {pg.from}–{pg.to} of {pg.total}
+              </span>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => pg.setPage(pg.page - 1)}
+                    disabled={pg.page === 1}
+                    className="px-2 py-1 text-[10px] rounded bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >←</button>
+                  <span className="text-[10px] text-zinc-600 tabular-nums">{pg.page} / {pg.pages}</span>
+                  <button
+                    onClick={() => pg.setPage(pg.page + 1)}
+                    disabled={pg.page === pg.pages}
+                    className="px-2 py-1 text-[10px] rounded bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >→</button>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-zinc-600">Rows per page:</span>
+                  <select
+                    value={pg.perPage}
+                    onChange={e => pg.setPerPage(Number(e.target.value))}
+                    className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-[10px] rounded px-1.5 py-0.5 focus:outline-none focus:border-zinc-500"
+                  >
+                    {PER_PAGE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </>
       )}
     </div>

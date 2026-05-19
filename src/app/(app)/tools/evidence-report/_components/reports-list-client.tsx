@@ -50,7 +50,7 @@ export function ReportsListClient({ reports, error }: Props) {
   const [isPending, startTransition] = useTransition()
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [confirmId, setConfirmId]   = useState<string | null>(null)
-  const pg = usePagination(reports, 25)
+  const pg = usePagination(reports, 10, 'reports_list')
   const PER_PAGE_OPTIONS = [10, 25, 50, 100]
 
   function handleView(id: string) {
