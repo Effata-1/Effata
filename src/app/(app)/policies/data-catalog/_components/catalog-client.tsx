@@ -391,24 +391,37 @@ export function CatalogClient({
   const [showAddModal, setShowAddModal] = useState(false)
   const [isPending,    startTransition] = useTransition()
 
+  type OptimisticAction =
+    | { type: 'toggle';   catalogId: string;    inScope: boolean }
+    | { type: 'classify'; orgDataTypeId: string; labelId: string }
+
   const [optimisticCatalog, setOptimisticCatalog] = useOptimistic(
     catalog,
-    (state, { id, inScope }: { id: string; inScope: boolean }) =>
-      state.map(item =>
-        item.id === id
-          ? { ...item, is_in_scope: inScope, org_data_type_id: inScope ? (item.org_data_type_id ?? 'pending') : null }
+    (state, action: OptimisticAction) => {
+      if (action.type === 'toggle') {
+        return state.map(item =>
+          item.id === action.catalogId
+            ? { ...item, is_in_scope: action.inScope, org_data_type_id: action.inScope ? (item.org_data_type_id ?? 'pending') : null }
+            : item,
+        )
+      }
+      return state.map(item =>
+        item.org_data_type_id === action.orgDataTypeId
+          ? { ...item, classification_label_id: action.labelId }
           : item,
-      ),
+      )
+    },
   )
 
   function handleToggle(catalogId: string, currentlyInScope: boolean) {
     const item = catalog.find(c => c.id === catalogId)
     if (!item) return
-    setOptimisticCatalog({ id: catalogId, inScope: !currentlyInScope })
+    setOptimisticCatalog({ type: 'toggle', catalogId, inScope: !currentlyInScope })
     startTransition(async () => { await toggleInScope(catalogId, currentlyInScope, item.system_level) })
   }
 
   function handleClassify(orgDataTypeId: string, labelId: string) {
+    setOptimisticCatalog({ type: 'classify', orgDataTypeId, labelId })
     startTransition(async () => { await setClassification(orgDataTypeId, labelId) })
   }
 

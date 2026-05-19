@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useTransition, useMemo, useOptimistic } from 'react'
 import { cn } from '@/lib/utils'
 import { Plus, X, Check, Loader2, Sparkles, ChevronDown, GripVertical, Pencil } from 'lucide-react'
 import { upsertLabel, deleteLabel, setClassification, suggestClassificationsAI, acceptAISuggestions } from '@/lib/data-catalog/actions'
@@ -360,23 +360,43 @@ function MappingTab({
   const [search,       setSearch]       = useState('')
   const [mapFilter,    setMapFilter]    = useState<string>('all')
   const [showAI,       setShowAI]       = useState(false)
-  const [isPending,    startTransition] = useTransition()
+  const [,             startTransition] = useTransition()
 
-  const unclassified = orgTypes.filter(t => !t.classification_label_id)
-  const mapped       = orgTypes.filter(t => !!t.classification_label_id)
+  const [optimisticTypes, setOptimisticTypes] = useOptimistic(
+    orgTypes,
+    (state, action: { id: string; labelId: string; mappedBy: string } | { bulk: { id: string; labelId: string }[] }) => {
+      if ('bulk' in action) {
+        const map = new Map(action.bulk.map(a => [a.id, a.labelId]))
+        return state.map(t => map.has(t.id) ? { ...t, classification_label_id: map.get(t.id)!, mapped_by: 'ai', confidence: null } : t)
+      }
+      return state.map(t =>
+        t.id === action.id
+          ? { ...t, classification_label_id: action.labelId, mapped_by: action.mappedBy, confidence: null }
+          : t,
+      )
+    },
+  )
+
+  const unclassified = optimisticTypes.filter(t => !t.classification_label_id)
+  const mapped       = optimisticTypes.filter(t => !!t.classification_label_id)
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    return orgTypes.filter(t => {
+    return optimisticTypes.filter(t => {
       if (mapFilter === 'unclassified' && t.classification_label_id) return false
       if (mapFilter === 'classified' && !t.classification_label_id) return false
       if (q) return t.name.toLowerCase().includes(q)
       return true
     })
-  }, [orgTypes, search, mapFilter])
+  }, [optimisticTypes, search, mapFilter])
 
   function handleClassify(orgDataTypeId: string, labelId: string) {
+    setOptimisticTypes({ id: orgDataTypeId, labelId, mappedBy: 'user' })
     startTransition(async () => { await setClassification(orgDataTypeId, labelId) })
+  }
+
+  function handleAIAccept(suggestions: AISuggestion[]) {
+    setOptimisticTypes({ bulk: suggestions.filter(s => s.label_id).map(s => ({ id: s.org_data_type_id, labelId: s.label_id! })) })
   }
 
   const labelMap = new Map(labels.map(l => [l.id, l]))
@@ -388,7 +408,7 @@ function MappingTab({
           unclassified={unclassified}
           labels={labels}
           onClose={() => setShowAI(false)}
-          onAccept={() => {}}
+          onAccept={handleAIAccept}
         />
       )}
 

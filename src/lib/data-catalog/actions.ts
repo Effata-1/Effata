@@ -1,10 +1,16 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
 import Anthropic from '@anthropic-ai/sdk'
 import type { OrgClassificationLabel, OrgDataType, AISuggestion, SystemLevel } from './types'
+
+function revalidatePolicies() {
+  revalidatePath('/policies/data-catalog')
+  revalidatePath('/policies/classifications')
+}
 
 // ─── Classification label seeding ────────────────────────────────────────────
 
@@ -63,6 +69,7 @@ export async function upsertLabel(
     if (error) return { error: error.message }
     await logAuditEvent({ action: 'classification_label.created', entity_type: 'org_classification_labels', entity_name: fields.name, details: fields })
   }
+  revalidatePolicies()
   return {}
 }
 
@@ -89,6 +96,7 @@ export async function deleteLabel(labelId: string): Promise<{ error?: string }> 
 
   if (error) return { error: error.message }
   await logAuditEvent({ action: 'classification_label.deleted', entity_type: 'org_classification_labels', entity_id: labelId, details: {} })
+  revalidatePolicies()
   return {}
 }
 
@@ -102,6 +110,7 @@ export async function reorderLabels(orderedIds: string[]): Promise<{ error?: str
   const results = await Promise.all(updates)
   const failed = results.find(r => r.error)
   if (failed?.error) return { error: failed.error.message }
+  revalidatePolicies()
   return {}
 }
 
@@ -123,6 +132,7 @@ export async function toggleInScope(
       .eq('org_id', user.orgId)
       .eq('catalog_data_type_id', catalogDataTypeId)
     if (error) return { error: error.message }
+    revalidatePolicies()
   } else {
     // Fetch catalog type name
     const { data: cat } = await supabase
@@ -156,6 +166,7 @@ export async function toggleInScope(
         confidence: 1.0,
       })
     }
+    revalidatePolicies()
   }
   return {}
 }
@@ -179,6 +190,7 @@ export async function setClassification(
     }, { onConflict: 'org_id,org_data_type_id' })
 
   if (error) return { error: error.message }
+  revalidatePolicies()
   return {}
 }
 
@@ -218,6 +230,7 @@ export async function addCustomDataType(fields: {
   }
 
   await logAuditEvent({ action: 'data_type.custom_created', entity_type: 'org_data_types', entity_name: fields.name, details: {} })
+  revalidatePolicies()
   return {}
 }
 
@@ -310,6 +323,7 @@ export async function acceptAISuggestions(
 
   if (error) return { error: error.message }
   await logAuditEvent({ action: 'classification.ai_mapping_accepted', entity_type: 'org_data_type_classifications', details: { count: rows.length } })
+  revalidatePolicies()
   return {}
 }
 
