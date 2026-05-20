@@ -2,7 +2,15 @@ import { getClassificationsPageData } from '@/lib/data-catalog/actions'
 import { ClassificationsClient } from './_components/classifications-client'
 
 export default async function ClassificationsPage() {
-  const { labels, orgTypes, mappings, userRole } = await getClassificationsPageData()
+  const {
+    labels,
+    trustLabels,
+    destCountByTag,
+    subcategoriesByTag,
+    orgTypes,
+    mappings,
+    userRole,
+  } = await getClassificationsPageData()
 
   const mappingMap = new Map(mappings.map(m => [m.org_data_type_id, m]))
   const countByLabel = new Map<string, number>()
@@ -12,9 +20,9 @@ export default async function ClassificationsPage() {
 
   const enrichedOrgTypes = orgTypes.map(t => ({
     ...t,
-    classification_label_id:    mappingMap.get(t.id)?.org_classification_label_id ?? null,
-    mapped_by:                  mappingMap.get(t.id)?.mapped_by ?? null,
-    confidence:                 mappingMap.get(t.id)?.confidence ?? null,
+    classification_label_id: mappingMap.get(t.id)?.org_classification_label_id ?? null,
+    mapped_by:               mappingMap.get(t.id)?.mapped_by ?? null,
+    confidence:              mappingMap.get(t.id)?.confidence ?? null,
   }))
 
   return (
@@ -22,6 +30,9 @@ export default async function ClassificationsPage() {
       labels={labels}
       orgTypes={enrichedOrgTypes}
       countByLabel={Object.fromEntries(countByLabel)}
+      trustLabels={trustLabels}
+      destCountByTag={destCountByTag}
+      subcategoriesByTag={subcategoriesByTag}
       userRole={userRole}
     />
   )

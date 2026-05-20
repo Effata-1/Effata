@@ -13,11 +13,14 @@ export type TrustTag =
   | 'unknown'
   | 'prohibited'
 
+export type RiskLevel = 'critical' | 'high' | 'medium' | 'low'
+
 export interface CatalogDestination {
   id:          string
   slug:        string
   name:        string
   trust_tag:   TrustTag
+  risk_level:  RiskLevel
   subcategory: string
   description: string | null
   examples:    string[]
@@ -48,6 +51,7 @@ export interface EnrichedDestination {
   slug:        string
   name:        string
   trust_tag:   TrustTag
+  risk_level:  RiskLevel
   subcategory: string
   description: string | null
   examples:    string[]
@@ -115,6 +119,7 @@ export async function getDestinationsPageData(): Promise<{
         slug:           c.slug,
         name:           p?.name ?? c.name,
         trust_tag:      (p?.trust_tag ?? c.trust_tag) as TrustTag,
+        risk_level:     (c.risk_level ?? 'medium') as RiskLevel,
         subcategory:    p?.subcategory ?? c.subcategory,
         description:    c.description,
         examples:       c.examples ?? [],

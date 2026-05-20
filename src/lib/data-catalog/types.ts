@@ -1,5 +1,36 @@
 export type SystemLevel = 'secret' | 'highly_confidential' | 'confidential' | 'internal' | 'public'
 
+export type TrustTag =
+  | 'enterprise_approved'
+  | 'approved_with_conditions'
+  | 'permitted_with_restriction'
+  | 'personal'
+  | 'public'
+  | 'unknown'
+  | 'prohibited'
+
+export interface OrgDestinationTrustLabel {
+  id:          string
+  org_id:      string
+  system_tag:  TrustTag | null
+  name:        string
+  color:       string
+  priority:    number
+  description: string | null
+  is_system:   boolean
+  active:      boolean
+}
+
+export const SYSTEM_TRUST_DEFAULTS: Omit<OrgDestinationTrustLabel, 'id' | 'org_id'>[] = [
+  { system_tag: 'enterprise_approved',        name: 'Enterprise Approved',        color: 'emerald', priority: 1, description: 'Fully managed and approved for corporate use.',                    is_system: true, active: true },
+  { system_tag: 'approved_with_conditions',   name: 'Approved with Conditions',   color: 'blue',    priority: 2, description: 'Permitted with specific controls in place.',                       is_system: true, active: true },
+  { system_tag: 'permitted_with_restriction', name: 'Permitted with Restriction', color: 'amber',   priority: 3, description: 'Allowed for low-risk use only — not for sensitive data.',          is_system: true, active: true },
+  { system_tag: 'personal',                   name: 'Personal',                   color: 'purple',  priority: 4, description: 'Personal consumer accounts — outside corporate oversight.',        is_system: true, active: true },
+  { system_tag: 'public',                     name: 'Public',                     color: 'sky',     priority: 5, description: 'Approved public-facing channels — low or no sensitivity allowed.', is_system: true, active: true },
+  { system_tag: 'unknown',                    name: 'Unknown',                    color: 'zinc',    priority: 6, description: 'Not yet assessed — treat as high risk until reviewed.',            is_system: true, active: true },
+  { system_tag: 'prohibited',                 name: 'Prohibited',                 color: 'red',     priority: 7, description: 'Blocked for all corporate data — no exceptions.',                 is_system: true, active: true },
+]
+
 export interface CatalogDataType {
   id:          string
   slug:        string
@@ -92,26 +123,30 @@ export const SYSTEM_LEVEL_META: Record<SystemLevel, {
 }
 
 export const COLOR_OPTIONS = [
-  { value: 'red',    label: 'Red',    class: 'bg-red-500' },
-  { value: 'orange', label: 'Orange', class: 'bg-orange-500' },
-  { value: 'amber',  label: 'Amber',  class: 'bg-amber-500' },
-  { value: 'yellow', label: 'Yellow', class: 'bg-yellow-500' },
-  { value: 'green',  label: 'Green',  class: 'bg-green-500' },
-  { value: 'blue',   label: 'Blue',   class: 'bg-blue-500' },
-  { value: 'purple', label: 'Purple', class: 'bg-purple-500' },
-  { value: 'zinc',   label: 'Grey',   class: 'bg-zinc-500' },
+  { value: 'red',     label: 'Red',     class: 'bg-red-500' },
+  { value: 'orange',  label: 'Orange',  class: 'bg-orange-500' },
+  { value: 'amber',   label: 'Amber',   class: 'bg-amber-500' },
+  { value: 'yellow',  label: 'Yellow',  class: 'bg-yellow-500' },
+  { value: 'green',   label: 'Green',   class: 'bg-green-500' },
+  { value: 'emerald', label: 'Emerald', class: 'bg-emerald-500' },
+  { value: 'sky',     label: 'Sky',     class: 'bg-sky-500' },
+  { value: 'blue',    label: 'Blue',    class: 'bg-blue-500' },
+  { value: 'purple',  label: 'Purple',  class: 'bg-purple-500' },
+  { value: 'zinc',    label: 'Grey',    class: 'bg-zinc-500' },
 ]
 
 export function colorClasses(color: string) {
   const map: Record<string, { text: string; bg: string; border: string; dot: string }> = {
-    red:    { text: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/25',    dot: 'bg-red-400' },
-    orange: { text: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/25', dot: 'bg-orange-400' },
-    amber:  { text: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/25',  dot: 'bg-amber-400' },
-    yellow: { text: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-yellow-500/25', dot: 'bg-yellow-400' },
-    green:  { text: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/25',  dot: 'bg-green-400' },
-    blue:   { text: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/25',   dot: 'bg-blue-400' },
-    purple: { text: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/25', dot: 'bg-purple-400' },
-    zinc:   { text: 'text-zinc-400',   bg: 'bg-zinc-700/40',   border: 'border-zinc-700',      dot: 'bg-zinc-400' },
+    red:     { text: 'text-red-400',     bg: 'bg-red-500/10',     border: 'border-red-500/25',     dot: 'bg-red-400' },
+    orange:  { text: 'text-orange-400',  bg: 'bg-orange-500/10',  border: 'border-orange-500/25',  dot: 'bg-orange-400' },
+    amber:   { text: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/25',   dot: 'bg-amber-400' },
+    yellow:  { text: 'text-yellow-400',  bg: 'bg-yellow-500/10',  border: 'border-yellow-500/25',  dot: 'bg-yellow-400' },
+    green:   { text: 'text-green-400',   bg: 'bg-green-500/10',   border: 'border-green-500/25',   dot: 'bg-green-400' },
+    emerald: { text: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/25', dot: 'bg-emerald-400' },
+    sky:     { text: 'text-sky-400',     bg: 'bg-sky-500/10',     border: 'border-sky-500/25',     dot: 'bg-sky-400' },
+    blue:    { text: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/25',    dot: 'bg-blue-400' },
+    purple:  { text: 'text-purple-400',  bg: 'bg-purple-500/10',  border: 'border-purple-500/25',  dot: 'bg-purple-400' },
+    zinc:    { text: 'text-zinc-400',    bg: 'bg-zinc-700/40',    border: 'border-zinc-700',       dot: 'bg-zinc-400' },
   }
   return map[color] ?? map['zinc']
 }

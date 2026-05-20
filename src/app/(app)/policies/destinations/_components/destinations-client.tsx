@@ -14,7 +14,7 @@ import {
   deleteCustomDestination,
   searchApps,
 } from '../actions'
-import type { EnrichedDestination, CustomDestination, TrustTag } from '../actions'
+import type { EnrichedDestination, CustomDestination, TrustTag, RiskLevel } from '../actions'
 import { FilterSelect, MultiFilterSelect } from '@/components/ui/filter-select'
 
 // ─── Trust tag metadata ────────────────────────────────────────────────────────
@@ -75,6 +75,17 @@ const TRUST_TAG_ORDER: TrustTag[] = [
   'enterprise_approved', 'approved_with_conditions', 'permitted_with_restriction',
   'personal', 'public', 'unknown', 'prohibited',
 ]
+
+// ─── Risk level metadata ───────────────────────────────────────────────────────
+
+const RISK_META: Record<RiskLevel, { label: string; text: string; bg: string }> = {
+  critical: { label: 'CRITICAL', text: 'text-red-400',    bg: 'bg-red-500/15' },
+  high:     { label: 'HIGH',     text: 'text-orange-400', bg: 'bg-orange-500/15' },
+  medium:   { label: 'MEDIUM',   text: 'text-amber-400',  bg: 'bg-amber-500/15' },
+  low:      { label: 'LOW',      text: 'text-green-400',  bg: 'bg-green-500/15' },
+}
+
+const RISK_LEVEL_ORDER: RiskLevel[] = ['critical', 'high', 'medium', 'low']
 
 // ─── App search input ─────────────────────────────────────────────────────────
 
@@ -233,6 +244,14 @@ function CatalogRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className={cn('text-sm font-medium', item.is_in_scope ? 'text-white' : 'text-zinc-500')}>{item.name}</span>
+            {(() => {
+              const rm = RISK_META[item.risk_level]
+              return (
+                <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded', rm.text, rm.bg)}>
+                  {rm.label}
+                </span>
+              )
+            })()}
             {saving && <span className="text-xs text-zinc-600">saving…</span>}
           </div>
           {item.description && (
@@ -747,6 +766,7 @@ export function DestinationsClient({
 
   const [search, setSearch]           = useState('')
   const [filterTags, setFilterTags]   = useState<string[]>([])
+  const [filterRisk, setFilterRisk]   = useState<string[]>([])
   const [filterSub, setFilterSub]     = useState('')
   const [filterScope, setFilterScope] = useState('')
   const [addModalTag, setAddModalTag] = useState<TrustTag | null>(null)
@@ -762,11 +782,12 @@ export function DestinationsClient({
   const filteredEnriched = useMemo(() => enrichedItems.filter(e => {
     if (search && !e.name.toLowerCase().includes(search.toLowerCase())) return false
     if (filterTags.length && !filterTags.includes(e.trust_tag)) return false
+    if (filterRisk.length && !filterRisk.includes(e.risk_level)) return false
     if (filterSub && e.subcategory !== filterSub) return false
     if (filterScope === 'in_scope' && !e.is_in_scope) return false
     if (filterScope === 'out_of_scope' && e.is_in_scope) return false
     return true
-  }), [enrichedItems, search, filterTags, filterSub, filterScope])
+  }), [enrichedItems, search, filterTags, filterRisk, filterSub, filterScope])
 
   const filteredCustom = useMemo(() => customItems.filter(c => {
     if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false
@@ -821,10 +842,10 @@ export function DestinationsClient({
   }
 
   function clearFilters() {
-    setSearch(''); setFilterTags([]); setFilterSub(''); setFilterScope('')
+    setSearch(''); setFilterTags([]); setFilterRisk([]); setFilterSub(''); setFilterScope('')
   }
 
-  const hasFilters = search || filterTags.length || filterSub || filterScope
+  const hasFilters = search || filterTags.length || filterRisk.length || filterSub || filterScope
 
   return (
     <div className="space-y-6">
@@ -865,6 +886,12 @@ export function DestinationsClient({
           value={filterTags}
           onChange={setFilterTags}
           options={TRUST_TAG_ORDER.map(t => ({ value: t, label: TRUST_TAGS[t].label }))}
+        />
+        <MultiFilterSelect
+          placeholder="Risk Level"
+          value={filterRisk}
+          onChange={setFilterRisk}
+          options={RISK_LEVEL_ORDER.map(r => ({ value: r, label: RISK_META[r].label }))}
         />
         <FilterSelect
           placeholder="Category"

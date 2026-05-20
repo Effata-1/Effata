@@ -5,7 +5,8 @@ import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
 import Anthropic from '@anthropic-ai/sdk'
-import type { OrgClassificationLabel, OrgDataType, AISuggestion, SystemLevel } from './types'
+import type { OrgClassificationLabel, OrgDataType, AISuggestion, SystemLevel, OrgDestinationTrustLabel, TrustTag } from './types'
+import { SYSTEM_TRUST_DEFAULTS } from './types'
 
 function revalidatePolicies() {
   revalidatePath('/policies/data-catalog')
@@ -406,12 +407,140 @@ export async function getClassificationsPageData() {
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
-  const labels = await ensureClassificationLabels()
-
-  const [{ data: orgTypes }, { data: mappings }] = await Promise.all([
-    supabase.from('org_data_types').select('*').eq('org_id', user.orgId).eq('is_in_scope', true),
-    supabase.from('org_data_type_classifications').select('*').eq('org_id', user.orgId),
+  const [labels, trustLabels] = await Promise.all([
+    ensureClassificationLabels(),
+    ensureDestinationTrustLabels(),
   ])
 
-  return { labels, orgTypes: orgTypes ?? [], mappings: mappings ?? [], orgId: user.orgId, userRole: user.role }
+  const [{ data: orgTypes }, { data: mappings }, { data: destProfiles }, { data: catalogSubcats }] = await Promise.all([
+    supabase.from('org_data_types').select('*').eq('org_id', user.orgId).eq('is_in_scope', true),
+    supabase.from('org_data_type_classifications').select('*').eq('org_id', user.orgId),
+    supabase.from('org_destination_profiles').select('trust_tag, subcategory').eq('org_id', user.orgId).eq('is_in_scope', true),
+    supabase.from('catalog_destinations').select('trust_tag, subcategory').eq('active', true),
+  ])
+
+  // destCountByTag — in-scope org_destination_profiles per trust_tag
+  const destCountByTag: Record<string, number> = {}
+  for (const p of (destProfiles ?? [])) {
+    if (p.trust_tag) destCountByTag[p.trust_tag] = (destCountByTag[p.trust_tag] ?? 0) + 1
+  }
+
+  // subcategoriesByTag — catalog baseline overridden by org-level trust_tag assignments
+  const subcatTrustMap = new Map<string, string>()
+  for (const c of (catalogSubcats ?? [])) {
+    if (c.subcategory && !subcatTrustMap.has(c.subcategory)) subcatTrustMap.set(c.subcategory, c.trust_tag)
+  }
+  const orgSubcatTrust = new Map<string, string>()
+  for (const p of (destProfiles ?? [])) {
+    if (p.subcategory && p.trust_tag) orgSubcatTrust.set(p.subcategory, p.trust_tag)
+  }
+  for (const [sub, tag] of orgSubcatTrust) subcatTrustMap.set(sub, tag)
+
+  const subcategoriesByTag: Record<string, string[]> = {}
+  for (const [sub, tag] of subcatTrustMap) {
+    if (!subcategoriesByTag[tag]) subcategoriesByTag[tag] = []
+    subcategoriesByTag[tag].push(sub)
+  }
+  for (const tag of Object.keys(subcategoriesByTag)) subcategoriesByTag[tag].sort()
+
+  return {
+    labels,
+    trustLabels,
+    destCountByTag,
+    subcategoriesByTag,
+    orgTypes:  orgTypes  ?? [],
+    mappings:  mappings  ?? [],
+    orgId:     user.orgId,
+    userRole:  user.role,
+  }
+}
+
+// ─── Destination trust label management ──────────────────────────────────────
+
+export async function ensureDestinationTrustLabels(): Promise<OrgDestinationTrustLabel[]> {
+  const user = await requireRole('analyst')
+  const supabase = await createClient()
+
+  const { data: existing } = await supabase
+    .from('org_destination_trust_labels')
+    .select('*')
+    .eq('org_id', user.orgId)
+    .order('priority')
+
+  const existingTags = new Set((existing ?? []).map(r => r.system_tag).filter(Boolean))
+  const missing = SYSTEM_TRUST_DEFAULTS.filter(d => d.system_tag && !existingTags.has(d.system_tag))
+
+  if (missing.length === 0) return (existing ?? []) as OrgDestinationTrustLabel[]
+
+  await supabase
+    .from('org_destination_trust_labels')
+    .insert(missing.map(d => ({ ...d, org_id: user.orgId })))
+
+  const { data: refreshed } = await supabase
+    .from('org_destination_trust_labels')
+    .select('*')
+    .eq('org_id', user.orgId)
+    .order('priority')
+
+  return (refreshed ?? []) as OrgDestinationTrustLabel[]
+}
+
+export async function upsertDestinationTrustLabel(
+  labelId: string | null,
+  fields: { name: string; color: string; priority: number; description: string },
+): Promise<{ error?: string }> {
+  const user = await requireRole('admin')
+  const supabase = await createClient()
+
+  if (labelId) {
+    const { error } = await supabase
+      .from('org_destination_trust_labels')
+      .update({ name: fields.name, color: fields.color, priority: fields.priority, description: fields.description })
+      .eq('id', labelId)
+      .eq('org_id', user.orgId)
+    if (error) return { error: error.message }
+  } else {
+    const { error } = await supabase
+      .from('org_destination_trust_labels')
+      .insert({ org_id: user.orgId, ...fields, is_system: false })
+    if (error) return { error: error.message }
+  }
+
+  revalidatePolicies()
+  return {}
+}
+
+export async function deleteDestinationTrustLabel(labelId: string): Promise<{ error?: string }> {
+  const user = await requireRole('admin')
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('org_destination_trust_labels')
+    .delete()
+    .eq('id', labelId)
+    .eq('org_id', user.orgId)
+    .eq('is_system', false)
+
+  if (error) return { error: error.message }
+  revalidatePolicies()
+  return {}
+}
+
+export async function moveSubcategoryToTrust(
+  subcategory: string,
+  newTrustTag: TrustTag,
+): Promise<{ error?: string }> {
+  const user = await requireRole('analyst')
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('org_destination_profiles')
+    .update({ trust_tag: newTrustTag })
+    .eq('org_id', user.orgId)
+    .eq('subcategory', subcategory)
+
+  if (error) return { error: error.message }
+  revalidatePolicies()
+  revalidatePath('/policies/destinations')
+  return {}
 }
