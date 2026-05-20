@@ -17,6 +17,17 @@ import {
 } from '@/lib/data-catalog/types'
 import type { OrgClassificationLabel, OrgDestinationTrustLabel, TrustTag } from '@/lib/data-catalog/types'
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const ACRONYMS = new Set(['ai', 'crm', 'hr', 'erp', 'itsm', 'saas', 'bi', 'etl', 'api', 'it'])
+
+function formatSubcategory(slug: string): string {
+  return slug
+    .split('_')
+    .map(w => ACRONYMS.has(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface EnrichedOrgType {
@@ -476,7 +487,7 @@ function DestinationsTab({
                                 ? 'bg-zinc-700 border-zinc-600 text-zinc-200'
                                 : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600',
                             )}>
-                              <span>{subcat}</span>
+                              <span>{formatSubcategory(subcat)}</span>
                               <button
                                 title="Reassign subcategory to a different trust level"
                                 onClick={() => setOpenReassign(

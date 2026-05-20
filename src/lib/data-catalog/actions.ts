@@ -425,23 +425,20 @@ export async function getClassificationsPageData() {
     if (p.trust_tag) destCountByTag[p.trust_tag] = (destCountByTag[p.trust_tag] ?? 0) + 1
   }
 
-  // subcategoriesByTag — catalog baseline overridden by org-level trust_tag assignments
-  const subcatTrustMap = new Map<string, string>()
+  // subcategoriesByTag — every trust_tag that has catalog entries for a subcategory.
+  // A subcategory intentionally appears under multiple trust tags when the catalog
+  // distributes its entries across trust levels (e.g. collaboration spans enterprise,
+  // approved_with_conditions, and permitted_with_restriction).
+  const subcatByTagSet: Record<string, Set<string>> = {}
   for (const c of (catalogSubcats ?? [])) {
-    if (c.subcategory && !subcatTrustMap.has(c.subcategory)) subcatTrustMap.set(c.subcategory, c.trust_tag)
+    if (!c.subcategory || !c.trust_tag) continue
+    if (!subcatByTagSet[c.trust_tag]) subcatByTagSet[c.trust_tag] = new Set()
+    subcatByTagSet[c.trust_tag].add(c.subcategory)
   }
-  const orgSubcatTrust = new Map<string, string>()
-  for (const p of (destProfiles ?? [])) {
-    if (p.subcategory && p.trust_tag) orgSubcatTrust.set(p.subcategory, p.trust_tag)
-  }
-  for (const [sub, tag] of orgSubcatTrust) subcatTrustMap.set(sub, tag)
-
   const subcategoriesByTag: Record<string, string[]> = {}
-  for (const [sub, tag] of subcatTrustMap) {
-    if (!subcategoriesByTag[tag]) subcategoriesByTag[tag] = []
-    subcategoriesByTag[tag].push(sub)
+  for (const [tag, subs] of Object.entries(subcatByTagSet)) {
+    subcategoriesByTag[tag] = [...subs].sort()
   }
-  for (const tag of Object.keys(subcategoriesByTag)) subcategoriesByTag[tag].sort()
 
   return {
     labels,
