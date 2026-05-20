@@ -303,7 +303,7 @@ INSERT INTO catalog_destinations (slug, name, trust_tag, subcategory, descriptio
 -- ── Public: Web Publishing ────────────────────────────────────────────────────
 ('company_website',     'Company Website',          'public', 'web_publishing',
   'Officially approved public-facing website. All content published here is classified as Public.',
-  ARRAY[], 1),
+  ARRAY[]::TEXT[], 1),
 ('public_github_repos', 'Public GitHub Repositories','public', 'developer_tools',
   'Open-source code repositories approved for public release. Must pass secret scanning before push.',
   ARRAY['github.com'], 2),
@@ -317,13 +317,13 @@ INSERT INTO catalog_destinations (slug, name, trust_tag, subcategory, descriptio
 -- ── Unknown: Unclassified ────────────────────────────────────────────────────
 ('unreviewed_saas',     'Unreviewed SaaS Application','unknown', 'unclassified',
   'A cloud application that has not yet been assessed by the security team. Treat as untrusted until reviewed.',
-  ARRAY[], 3),
+  ARRAY[]::TEXT[], 3),
 ('unknown_fileshare',   'Unknown File-Sharing Service','unknown', 'unclassified',
   'An unidentified file hosting or transfer URL. Block confidential data until service is identified and assessed.',
-  ARRAY[], 3),
+  ARRAY[]::TEXT[], 3),
 ('shadow_it_app',       'Shadow IT Application',    'unknown', 'unclassified',
   'Application discovered in network or DLP logs not on the approved software list. Requires security review.',
-  ARRAY[], 2),
+  ARRAY[]::TEXT[], 2),
 
 -- ── Prohibited: AI Tools ──────────────────────────────────────────────────────
 ('deepseek',            'DeepSeek',                 'prohibited', 'ai_tools',
@@ -331,7 +331,7 @@ INSERT INTO catalog_destinations (slug, name, trust_tag, subcategory, descriptio
   ARRAY['deepseek.com','chat.deepseek.com'], 1),
 ('unvetted_ai',         'Unvetted AI Tools',        'prohibited', 'ai_tools',
   'Any AI assistant or code generation tool not on the approved list. Prohibit until a security and privacy assessment is complete.',
-  ARRAY[], 1),
+  ARRAY[]::TEXT[], 1),
 
 -- ── Prohibited: File Transfer ─────────────────────────────────────────────────
 ('pastebin',            'Pastebin',                 'prohibited', 'file_transfer',
