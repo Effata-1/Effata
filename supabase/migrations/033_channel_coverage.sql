@@ -7,7 +7,7 @@ CREATE TABLE channel_coverage (
   channel_slug        text        NOT NULL,
   assessment_answers  jsonb       NOT NULL DEFAULT '{}',
   notes               text,
-  last_updated_by     uuid        REFERENCES users(id),
+  last_updated_by     uuid        REFERENCES auth.users(id),
   created_at          timestamptz NOT NULL DEFAULT now(),
   updated_at          timestamptz NOT NULL DEFAULT now(),
   UNIQUE (org_id, channel_slug)
