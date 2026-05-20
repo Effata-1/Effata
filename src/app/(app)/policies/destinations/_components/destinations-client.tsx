@@ -528,7 +528,8 @@ function TrustTagSection({
   onDeleteCustom: (id: string) => void
   onAddCustom:    (tag: TrustTag) => void
 }) {
-  const [collapsed, setCollapsed] = useState(false)
+  // Layer 1: collapsed by default
+  const [collapsed, setCollapsed] = useState(true)
   const meta = TRUST_TAGS[tag]
   const inScopeCount = items.filter(i => i.is_in_scope).length + customItems.length
 
@@ -545,6 +546,7 @@ function TrustTagSection({
 
   return (
     <div className={cn('rounded-xl border overflow-hidden', meta.border, meta.bg)}>
+      {/* Layer 1 header */}
       <button
         onClick={() => setCollapsed(c => !c)}
         className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-zinc-800/20 transition-colors"
@@ -566,30 +568,25 @@ function TrustTagSection({
 
       {!collapsed && (
         <div className="border-t border-zinc-800/60">
+          {/* Layer 2: subcategory groups, each collapsed by default */}
           {[...bySubcategory.entries()].map(([sub, subItems]) => (
-            <div key={sub}>
-              <div className="px-4 py-2 bg-zinc-900/40 border-b border-zinc-800/40">
-                <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
-                  {sub.replace(/_/g, ' ')}
-                </span>
-                <span className="text-xs text-zinc-700 ml-2">
-                  {subItems.filter(i => i.is_in_scope).length}/{subItems.length} in scope
-                </span>
-              </div>
-              {subItems.map(item => (
-                <CatalogRow key={item.catalog_id} item={item} onToggle={onToggle} onUpdate={onUpdate} />
-              ))}
-            </div>
+            <SubcategoryGroup
+              key={sub}
+              sub={sub}
+              subItems={subItems}
+              onToggle={onToggle}
+              onUpdate={onUpdate}
+            />
           ))}
           {customItems.length > 0 && (
-            <div>
-              <div className="px-4 py-2 bg-zinc-900/40 border-b border-zinc-800/40 border-t border-zinc-800/60">
-                <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Custom</span>
-              </div>
-              {customItems.map(item => (
-                <CustomRow key={item.org_profile_id} item={item} onDelete={onDeleteCustom} onUpdate={onUpdate} />
-              ))}
-            </div>
+            <SubcategoryGroup
+              sub="custom"
+              subItems={[]}
+              customItems={customItems}
+              onToggle={onToggle}
+              onUpdate={onUpdate}
+              onDeleteCustom={onDeleteCustom}
+            />
           )}
           <div className="px-5 py-3 border-t border-zinc-800/40">
             <button
@@ -600,6 +597,67 @@ function TrustTagSection({
               Add custom {meta.label.toLowerCase()} destination
             </button>
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Layer 2: collapsible subcategory group ───────────────────────────────────
+
+function SubcategoryGroup({
+  sub,
+  subItems,
+  customItems = [],
+  onToggle,
+  onUpdate,
+  onDeleteCustom,
+}: {
+  sub:            string
+  subItems:       EnrichedDestination[]
+  customItems?:   CustomDestination[]
+  onToggle:       (id: string, name: string, tag: TrustTag, sub: string, inScope: boolean) => void
+  onUpdate:       (id: string, fields: Partial<{ name: string; applications: string[]; notes: string | null }>) => void
+  onDeleteCustom?: (id: string) => void
+}) {
+  const [collapsed, setCollapsed] = useState(true)
+  const inScopeCount = subItems.filter(i => i.is_in_scope).length + customItems.length
+  const totalCount   = subItems.length + customItems.length
+
+  return (
+    <div className="border-b border-zinc-800/40 last:border-0">
+      {/* Layer 2 header */}
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-zinc-900/40 hover:bg-zinc-900/60 transition-colors text-left"
+      >
+        <div className="flex items-center gap-2">
+          {collapsed
+            ? <ChevronRight className="w-3.5 h-3.5 text-zinc-600" />
+            : <ChevronDown className="w-3.5 h-3.5 text-zinc-600" />}
+          <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
+            {sub.replace(/_/g, ' ')}
+          </span>
+        </div>
+        <span className="text-xs text-zinc-600">
+          {inScopeCount}/{totalCount} in scope
+        </span>
+      </button>
+
+      {/* Layer 3: individual rows */}
+      {!collapsed && (
+        <div>
+          {subItems.map(item => (
+            <CatalogRow key={item.catalog_id} item={item} onToggle={onToggle} onUpdate={onUpdate} />
+          ))}
+          {customItems.map(item => (
+            <CustomRow
+              key={item.org_profile_id}
+              item={item}
+              onDelete={onDeleteCustom ?? (() => {})}
+              onUpdate={onUpdate}
+            />
+          ))}
         </div>
       )}
     </div>
