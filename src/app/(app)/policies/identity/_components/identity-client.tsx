@@ -14,13 +14,12 @@ import type {
   RiskLevel,
   EnrichedIdentityValue,
   OrgIdentityMapping,
-  CatalogIdentityValue,
 } from '../actions'
 import {
   FIELD_LABELS,
   FIELD_DESCRIPTIONS,
   SOURCE_TYPE_LABELS,
-} from '../actions'
+} from '../constants'
 import { FilterSelect } from '@/components/ui/filter-select'
 
 // ─── Risk badge metadata ───────────────────────────────────────────────────────
