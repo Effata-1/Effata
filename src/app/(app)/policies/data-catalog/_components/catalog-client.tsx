@@ -489,7 +489,7 @@ function SubcategoryGroup({
   onBulkToggle:  (items: EnrichedCatalogType[], addToScope: boolean) => void
   forceExpand:   boolean
 }) {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(true)
 
   useEffect(() => {
     if (forceExpand) setCollapsed(false)
@@ -501,17 +501,17 @@ function SubcategoryGroup({
 
   return (
     <div className="group/subcatrow">
-      <div className="px-5 py-2.5 bg-zinc-950/50 flex items-center justify-between hover:bg-zinc-950/70 transition-colors">
-        <button
-          onClick={() => setCollapsed(c => !c)}
-          className="flex items-center gap-2 flex-1 text-left"
-        >
+      <div
+        className="px-5 py-2.5 bg-zinc-950/50 flex items-center justify-between hover:bg-zinc-950/70 transition-colors cursor-pointer"
+        onClick={() => setCollapsed(c => !c)}
+      >
+        <div className="flex items-center gap-2 flex-1 min-w-0">
           {collapsed
-            ? <ChevronRight className="w-3 h-3 text-zinc-600 group-hover/subcatrow:text-zinc-400 transition-colors" />
-            : <ChevronDown  className="w-3 h-3 text-zinc-600 group-hover/subcatrow:text-zinc-400 transition-colors" />}
-          <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest group-hover/subcatrow:text-zinc-400 transition-colors">{subcat}</p>
-        </button>
-        <div className="flex items-center gap-3">
+            ? <ChevronRight className="w-3 h-3 text-zinc-600 group-hover/subcatrow:text-zinc-400 transition-colors shrink-0" />
+            : <ChevronDown  className="w-3 h-3 text-zinc-600 group-hover/subcatrow:text-zinc-400 transition-colors shrink-0" />}
+          <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest group-hover/subcatrow:text-zinc-400 transition-colors truncate">{subcat}</p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0 ml-4" onClick={e => e.stopPropagation()}>
           <p className="text-[10px] text-zinc-700">{inScopeCount}/{items.length} in scope</p>
           {/* Bulk buttons — visible on hover */}
           <div className="flex items-center gap-1 opacity-0 group-hover/subcatrow:opacity-100 transition-opacity">
@@ -520,7 +520,7 @@ function SubcategoryGroup({
                 onClick={e => { e.stopPropagation(); onBulkToggle(items.filter(i => !i.is_in_scope), true) }}
                 className="text-[10px] px-2 py-0.5 rounded border border-zinc-700 text-zinc-500 hover:text-blue-400 hover:border-blue-500/40 transition-colors"
               >
-                Add all
+                + Add all
               </button>
             )}
             {!noneInScope && (
@@ -528,7 +528,7 @@ function SubcategoryGroup({
                 onClick={e => { e.stopPropagation(); onBulkToggle(items.filter(i => i.is_in_scope), false) }}
                 className="text-[10px] px-2 py-0.5 rounded border border-zinc-700 text-zinc-500 hover:text-red-400 hover:border-red-500/40 transition-colors"
               >
-                Remove all
+                − Remove all
               </button>
             )}
           </div>
