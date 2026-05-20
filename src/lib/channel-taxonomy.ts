@@ -2,10 +2,17 @@ export type RiskLevel = 'critical' | 'high' | 'medium' | 'low'
 export type CoverageStatus = 'not_assessed' | 'partial' | 'covered'
 export type NetskopeSupportLevel = 'supported' | 'partial' | 'not_v1'
 
+export interface SubchannelProtocol {
+  name:      string
+  category:  string
+  ports:     string   // e.g. "TCP: 20, 21" or "UDP: 1812, 1813"
+}
+
 export interface ChannelSubchannel {
-  name: string
+  name:       string
   description: string
-  examples: string
+  examples:   string
+  protocols?: SubchannelProtocol[]
 }
 
 export interface ChannelActivity {
@@ -403,20 +410,141 @@ export const CHANNELS: Channel[] = [
       'Covers sensitive data leaving through network-level or protocol-level paths not fully represented as Email, Web/SaaS Inline, Endpoint, SaaS API, Cloud, or GenAI — including FTP, SFTP, SMTP relay, HTTP/S from workloads, SMB/NFS, DNS tunnelling, and legacy network paths.',
     netskopeSupport: 'supported',
     subchannels: [
-      { name: 'FTP Transfer',           description: 'File transfer using FTP.',                                            examples: 'FTP to external server' },
-      { name: 'SFTP Transfer',          description: 'Secure file transfer observed as network egress.',                    examples: 'SFTP to unknown host' },
-      { name: 'FTPS Transfer',          description: 'FTPS-based file transfer.',                                           examples: 'FTPS vendor transfer' },
-      { name: 'SMTP Relay',             description: 'Email-like relay traffic outside standard email channel.',            examples: 'App server SMTP relay' },
-      { name: 'HTTP Egress',            description: 'Data transmitted through HTTP.',                                      examples: 'Server posts data to external site' },
-      { name: 'HTTPS Egress',           description: 'Data transmitted through HTTPS.',                                     examples: 'Workload uploads data to external host' },
-      { name: 'SMB Network Transfer',   description: 'File movement over SMB/CIFS protocol.',                               examples: 'SMB transfer to untrusted path' },
-      { name: 'NFS Network Transfer',   description: 'File movement over NFS protocol.',                                    examples: 'NFS copy to external mount' },
-      { name: 'Database Protocol Egress', description: 'Database-related network movement.',                               examples: 'SQL export over network' },
-      { name: 'DNS Tunneling Indicator', description: 'Suspicious DNS-based data movement indicator.',                     examples: 'Abnormal DNS payload patterns' },
-      { name: 'Data Center Egress',     description: 'Data leaving data centre network.',                                   examples: 'Server to external IP transfer' },
-      { name: 'Cloud Workload Egress',  description: 'Data leaving cloud workload or cloud network.',                       examples: 'VM or container sends data externally' },
-      { name: 'Legacy Protocol',        description: 'Older or custom protocol movement.',                                  examples: 'Mainframe or legacy app transfer' },
-      { name: 'Unmanaged Protocol',     description: 'Protocol not mapped to approved business application.',               examples: 'Unknown TCP/UDP transfer' },
+      {
+        name: 'FTP Transfer',
+        description: 'Plaintext file transfer using the File Transfer Protocol — a primary DLP egress path for bulk data movement to external servers.',
+        examples: 'FTP to external server, vendor file drop, batch data export',
+        protocols: [
+          { name: 'FTP', category: 'File Access', ports: 'TCP: 20, 21' },
+        ],
+      },
+      {
+        name: 'SFTP Transfer',
+        description: 'Encrypted file transfer over SSH — commonly used for automated server-to-server transfers and vendor integrations.',
+        examples: 'SFTP to unknown host, automated payroll export, vendor data feed',
+        protocols: [
+          { name: 'SSH / SFTP', category: 'Remote Access', ports: 'TCP: 22' },
+        ],
+      },
+      {
+        name: 'FTPS Transfer',
+        description: 'FTP secured with TLS/SSL — used for legacy encrypted file transfers where SFTP is not supported.',
+        examples: 'FTPS vendor transfer, legacy banking file exchange',
+        protocols: [
+          { name: 'FTPS', category: 'Network Services', ports: 'TCP/UDP: 989, 990' },
+        ],
+      },
+      {
+        name: 'SMTP Relay',
+        description: 'Email relay traffic from application servers or mail gateways — outside the standard monitored email channel.',
+        examples: 'App server SMTP relay, transactional email with sensitive data, outbound mail relay',
+        protocols: [
+          { name: 'SMTP',  category: 'Email', ports: 'TCP: 25, 587' },
+          { name: 'SMTPS', category: 'Email', ports: 'TCP: 465' },
+        ],
+      },
+      {
+        name: 'HTTP Egress',
+        description: 'Data transmitted over HTTP or HTTP/3 (QUIC) from workloads, servers, or cloud-native applications to external destinations.',
+        examples: 'Server posts data to external site, application webhook, QUIC-based transfer',
+        protocols: [
+          { name: 'QUIC (HTTP/3)', category: 'Network Services', ports: 'UDP: 443' },
+        ],
+      },
+      {
+        name: 'HTTPS Egress',
+        description: 'Encrypted HTTPS traffic from workloads or data centre servers to external hosts — difficult to inspect without TLS decryption.',
+        examples: 'Workload uploads data to external host, cloud-to-cloud API call, server-side SaaS integration',
+        protocols: [],
+      },
+      {
+        name: 'SMB Network Transfer',
+        description: 'File movement over SMB/CIFS protocol between servers or to untrusted network paths.',
+        examples: 'SMB transfer to untrusted path, file copy to external share, lateral movement via network share',
+        protocols: [
+          { name: 'SMB / CIFS', category: 'File Access', ports: 'TCP/UDP: 137–139, 445' },
+        ],
+      },
+      {
+        name: 'NFS Network Transfer',
+        description: 'File movement over NFS or TFTP protocol to external or untrusted mounts.',
+        examples: 'NFS copy to external mount, TFTP firmware/config transfer',
+        protocols: [
+          { name: 'NFS',  category: 'File Access', ports: 'TCP/UDP: 111, 2049' },
+          { name: 'TFTP', category: 'File Access', ports: 'UDP: 69' },
+        ],
+      },
+      {
+        name: 'Database Protocol Egress',
+        description: 'Database-related network movement — bulk data leaving via database protocols rather than application layers.',
+        examples: 'SQL export over network, database replication to external host, direct DB connection from external client',
+        protocols: [],
+      },
+      {
+        name: 'DNS Tunneling Indicator',
+        description: 'Suspicious DNS-based data movement — DNS is frequently abused for covert data exfiltration due to its universal firewall allowance.',
+        examples: 'Abnormal DNS payload, high-volume DNS queries, data encoded in DNS subdomains',
+        protocols: [
+          { name: 'DNS',          category: 'Network Services', ports: 'TCP/UDP: 53' },
+          { name: 'DNS over TLS', category: 'Network Services', ports: 'TCP: 853' },
+          { name: 'mDNS',         category: 'Network Services', ports: 'TCP/UDP: 5353' },
+        ],
+      },
+      {
+        name: 'Data Center Egress',
+        description: 'Data leaving the controlled data centre network boundary — typically server-originated traffic not tied to a specific user session.',
+        examples: 'Server to external IP transfer, batch export from on-prem server, data centre to cloud sync',
+        protocols: [],
+      },
+      {
+        name: 'Cloud Workload Egress',
+        description: 'Data leaving cloud workloads or cloud network — VM, container, or serverless function sending data externally.',
+        examples: 'VM sends logs with sensitive data externally, Lambda writes to external S3, container sends data to vendor API',
+        protocols: [],
+      },
+      {
+        name: 'Legacy Protocol',
+        description: 'Older or unencrypted protocols that lack modern security, user context, or DLP inspection support — high risk due to absence of visibility.',
+        examples: 'Mainframe transfer, legacy app egress, Telnet session, IMAP/POP3 external mail access',
+        protocols: [
+          { name: 'Telnet',    category: 'Remote Access', ports: 'TCP: 23' },
+          { name: 'X-Windows', category: 'Remote Access', ports: 'TCP: 6000–6063' },
+          { name: 'WINS',      category: 'Remote Access', ports: 'TCP/UDP: 1512' },
+          { name: 'PPTP',      category: 'Tunneling',     ports: 'TCP: 1723' },
+          { name: 'L2TP',      category: 'Tunneling',     ports: 'TCP/UDP: 1701' },
+          { name: 'IMAP',      category: 'Email',         ports: 'TCP: 143' },
+          { name: 'IMAPS',     category: 'Email',         ports: 'TCP: 993' },
+          { name: 'POP3',      category: 'Email',         ports: 'TCP: 110' },
+          { name: 'POP3S',     category: 'Email',         ports: 'TCP: 995' },
+        ],
+      },
+      {
+        name: 'Unmanaged Protocol',
+        description: 'Protocols not mapped to an approved business application — traffic that cannot be tied to a known owner, workload, or data flow.',
+        examples: 'Unknown TCP/UDP transfer, RDP to external host, VNC over internet, LDAP to external directory, SOCKS proxy',
+        protocols: [
+          { name: 'RDP',         category: 'Remote Access',    ports: 'TCP/UDP: 3389' },
+          { name: 'VNC',         category: 'Remote Access',    ports: 'TCP: 5900' },
+          { name: 'WinRM-HTTP',  category: 'Remote Access',    ports: 'TCP: 5985' },
+          { name: 'WinRM-HTTPS', category: 'Remote Access',    ports: 'TCP: 5986' },
+          { name: 'SOCKS',       category: 'Tunneling',        ports: 'TCP/UDP: 1080' },
+          { name: 'IPSec NAT-T', category: 'Tunneling',        ports: 'UDP: 4500' },
+          { name: 'IKE',         category: 'Tunneling',        ports: 'UDP: 500' },
+          { name: 'STUN',        category: 'Network Services', ports: 'TCP/UDP: 3478 · UDP: 3478–3481' },
+          { name: 'STUNS',       category: 'Network Services', ports: 'TCP/UDP: 5349' },
+          { name: 'BGP',         category: 'Network Services', ports: 'TCP: 179' },
+          { name: 'SSDP',        category: 'Network Services', ports: 'TCP/UDP: 1900' },
+          { name: 'SNMP',        category: 'Network Services', ports: 'TCP/UDP: 161, 162' },
+          { name: 'SYSLOG',      category: 'Network Services', ports: 'UDP: 514 · TCP/UDP: 601, 6514' },
+          { name: 'NTP',         category: 'Network Services', ports: 'TCP/UDP: 123' },
+          { name: 'DHCP',        category: 'Network Services', ports: 'UDP: 67, 68' },
+          { name: 'DHCP6',       category: 'Network Services', ports: 'UDP: 546, 547' },
+          { name: 'LDAP',        category: 'Authentication',   ports: 'TCP/UDP: 389, 3268' },
+          { name: 'LDAPS',       category: 'Authentication',   ports: 'TCP: 636 · TCP/UDP: 3269' },
+          { name: 'Kerberos',    category: 'Authentication',   ports: 'TCP/UDP: 88, 464' },
+          { name: 'RADIUS',      category: 'Authentication',   ports: 'UDP: 1812, 1813' },
+        ],
+      },
     ],
     activities: [
       { name: 'Transmit',               description: 'Transmit data over network.' },
