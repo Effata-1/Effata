@@ -65,13 +65,15 @@ export default async function ChannelPage({ params }: { params: Promise<{ channe
       </div>
 
       {/* ── Subchannels ────────────────────────────────────────────────────── */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">Subchannels</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Specific movement or exposure paths within this channel. Click any row to expand.</p>
-        </div>
-        <SubchannelList subchannels={ch.subchannels} />
-      </section>
+      {ch.subchannels.length > 0 && (
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Subchannels</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Specific movement or exposure paths within this channel. Click any row to expand.</p>
+          </div>
+          <SubchannelList subchannels={ch.subchannels} />
+        </section>
+      )}
 
       {/* ── Risks ──────────────────────────────────────────────────────────── */}
       <section className="space-y-4">

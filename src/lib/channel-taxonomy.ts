@@ -56,53 +56,7 @@ export const CHANNELS: Channel[] = [
     definition:
       'Covers data movement through email systems — body, attachments, forwarding, reply-all, distribution lists, shared mailboxes, auto-forwarding, calendar invitations, and mailbox exports. Email is one of the most common paths for accidental or intentional data leakage.',
     netskopeSupport: 'partial',
-    subchannels: [
-      {
-        name: 'Email Body / Message Content',
-        description: 'Sensitive data written or pasted directly into the message body — the most common form of accidental email leakage.',
-        examples: 'Customer PII in email text, credentials pasted into body, contract terms copied into message',
-      },
-      {
-        name: 'Email Attachment',
-        description: 'Files attached to an email message — high-volume leakage path due to ease of attaching sensitive documents.',
-        examples: 'PDF, DOCX, XLSX, ZIP, CSV, source code file, database export',
-      },
-      {
-        name: 'Subject / Header Content',
-        description: 'Sensitive data included in the subject line, email headers, or message metadata — often overlooked by DLP policies.',
-        examples: 'Customer name in subject, case ID, legal matter reference, incident title, contract number',
-      },
-      {
-        name: 'Forwarded Email Thread',
-        description: 'An existing email thread forwarded to another recipient — the thread history may contain sensitive context that was not intended for the new recipient.',
-        examples: 'Internal legal discussion forwarded to vendor, HR thread forwarded externally, confidential pricing forwarded to competitor',
-      },
-      {
-        name: 'Mailbox Rule / Auto-Forwarding',
-        description: 'A mailbox rule that silently and automatically forwards email to another mailbox — a major insider threat and account compromise indicator.',
-        examples: 'Auto-forward to personal Gmail, rule forwarding all mail to external address, hidden forwarding rule set post-compromise',
-      },
-      {
-        name: 'Calendar Invite / Meeting Message',
-        description: 'Sensitive data included in a meeting invitation, agenda, meeting notes, or calendar attachment.',
-        examples: 'Strategy meeting invite with financial projections, legal meeting with case details, board meeting agenda attached',
-      },
-      {
-        name: 'Shared / Group Mailbox Email',
-        description: 'Email sent from or handled through a shared team mailbox — access is broader than individual mailboxes, increasing exposure risk.',
-        examples: 'HR mailbox reply with employee data, finance mailbox with salary info, support mailbox with customer PII',
-      },
-      {
-        name: 'Distribution List / Group Email',
-        description: 'Email sent to a large group or distribution list — a single send can expose data to hundreds of recipients simultaneously.',
-        examples: 'All-employees email with confidential announcement, regional group with customer data, customer distribution list',
-      },
-      {
-        name: 'Mailbox Export / Archive Export',
-        description: 'Export of an entire mailbox or email archive — typically a high-volume data movement containing years of business communications.',
-        examples: 'PST export of executive mailbox, OST archive download, email archive export for eDiscovery or offboarding',
-      },
-    ],
+    subchannels: [],
     activities: [
       { name: 'Send',                    description: 'Send an email message.' },
       { name: 'Forward',                 description: 'Forward an existing email or thread.' },
@@ -137,67 +91,91 @@ export const CHANNELS: Channel[] = [
   },
 
   // ─────────────────────────────────────────────────────────────────
-  // 2. Web & SaaS Inline DLP
+  // 2. Web DLP
   // ─────────────────────────────────────────────────────────────────
   {
-    slug: 'web-saas-inline',
-    name: 'Web & SaaS Inline DLP',
-    shortName: 'Web & SaaS Inline',
+    slug: 'web-dlp',
+    name: 'Web DLP',
+    shortName: 'Web DLP',
     definition:
-      'Covers real-time browser, proxy, secure web gateway, CASB inline, or traffic steering inspection of data moving to websites and SaaS applications — including uploads, posts, form submissions, paste activity, file transfer sites, and collaboration tools.',
+      'Covers sensitive data movement through general web destinations and browser-based web activity — uploads, posts, pastes, and submissions to public websites, web portals, public file-transfer services, paste sites, forums, social media platforms, unknown websites, and uncategorized web destinations. Applies when the destination is a generic website or public web service, not a clearly identified SaaS business application.',
     netskopeSupport: 'supported',
-    subchannels: [
-      { name: 'Browser Upload',         description: 'File uploaded through a browser to a generic website.',              examples: 'Upload to unknown website, upload to web portal' },
-      { name: 'Web Form Post',          description: 'Data submitted through an online form.',                              examples: 'Customer data entered into web form' },
-      { name: 'SaaS Upload',            description: 'File or content uploaded to SaaS through inline path.',              examples: 'SharePoint upload, Google Drive upload, Salesforce attachment' },
-      { name: 'SaaS Download',          description: 'File or content downloaded from SaaS through inline path.',          examples: 'Download report from SaaS app' },
-      { name: 'SaaS Post / Create',     description: 'Record, comment, page, case, or message created in SaaS.',          examples: 'Create ServiceNow case, post Teams message' },
-      { name: 'Public File Transfer',   description: 'Use of public file transfer services.',                              examples: 'WeTransfer, TransferNow, SendAnywhere' },
-      { name: 'Paste Site',             description: 'Use of public paste or text sharing sites.',                         examples: 'Pastebin, public Gist' },
-      { name: 'Forum / Community',      description: 'Posting content to public or semi-public communities.',             examples: 'Reddit, Stack Overflow, public forums' },
-      { name: 'Social Media',           description: 'Posting or uploading data to social platforms.',                     examples: 'LinkedIn, X, Facebook' },
-      { name: 'Collaboration Messaging', description: 'Chat, channel, meeting chat, or workspace messages.',              examples: 'Teams, Slack, Google Chat, Zoom Chat' },
-      { name: 'Personal SaaS Instance', description: 'Non-corporate or personal instance of SaaS/cloud app.',             examples: 'Personal Drive, personal Dropbox, personal Notion' },
-      { name: 'Unknown Website',        description: 'Website that is not categorised or trusted.',                       examples: 'New domain, uncategorised web app' },
-      { name: 'Browser Extension',      description: 'Browser extension that can read, capture, or send content.',        examples: 'Unknown Chrome extension, data capture add-on' },
-    ],
+    subchannels: [],
     activities: [
-      { name: 'Upload',                 description: 'Upload file or content through a website or SaaS application.' },
-      { name: 'Download',               description: 'Download file or content from a website or SaaS application.' },
-      { name: 'Post',                   description: 'Post content to a website, SaaS page, forum, or collaboration space.' },
-      { name: 'Submit Form',            description: 'Submit data through a web form.' },
-      { name: 'Paste',                  description: 'Paste content into a web field.' },
-      { name: 'Create Record',          description: 'Create a record, ticket, case, or object in SaaS.' },
-      { name: 'Attach File',            description: 'Attach file to a SaaS record, chat, ticket, or page.' },
-      { name: 'Share',                  description: 'Share content through SaaS or collaboration application.' },
-      { name: 'Create Public Link',     description: 'Create anyone-with-link or public sharing link through inline workflow.' },
-      { name: 'Add External Collaborator', description: 'Add guest, vendor, customer, or external participant.' },
-      { name: 'Extension Read',         description: 'Browser extension reads page or file content.' },
-      { name: 'Extension Send',         description: 'Browser extension sends content externally.' },
+      { name: 'Upload',               description: 'Upload file or content to a website or web portal.' },
+      { name: 'Post',                 description: 'Post content to a public website, forum, or social platform.' },
+      { name: 'Submit Form',          description: 'Submit data through a web form.' },
+      { name: 'Paste',                description: 'Paste content into a web field, paste site, or forum post.' },
+      { name: 'Attach File',          description: 'Attach a file to a web-based form or message.' },
+      { name: 'Download',             description: 'Download file or content from a website.' },
+      { name: 'Drag and Drop Upload', description: 'Upload content via drag-and-drop to a web destination.' },
+      { name: 'Publish',              description: 'Publish an article, document, or page to a public site.' },
+      { name: 'Create Public Page',   description: 'Create a publicly accessible page or snippet.' },
+      { name: 'Share Publicly',       description: 'Share content through a public link or social share action.' },
     ],
     risks: [
-      { area: 'Unknown Web Destination', level: 'high',     description: 'Data may be uploaded to websites with unknown ownership, trust, or security posture.',         example: 'Confidential file uploaded to uncategorised site.' },
-      { area: 'Public Exposure',         level: 'high',     description: 'Content posted to public sites can be indexed, copied, or viewed by anyone.',                  example: 'Internal notes posted to a public forum.' },
-      { area: 'SaaS Upload Leakage',     level: 'high',     description: 'Sensitive files may be uploaded to unapproved SaaS apps or inappropriate SaaS locations.',     example: 'HR report uploaded to unapproved project tool.' },
-      { area: 'Personal SaaS Upload',    level: 'high',     description: 'Corporate data may be stored in personal SaaS accounts outside enterprise control.',           example: 'Business file uploaded to personal Drive.' },
-      { area: 'File Transfer Leakage',   level: 'high',     description: 'Public file transfer tools may bypass approved sharing controls.',                             example: 'Payroll file sent through public transfer service.' },
-      { area: 'Form Submission Leakage', level: 'high',     description: 'Sensitive data may be submitted to unapproved, external, or unknown forms.',                   example: 'PII entered into unknown web form.' },
-      { area: 'Paste Site Exposure',     level: 'critical', description: 'Paste sites can expose secrets, source code, or confidential text publicly.',                  example: 'API key posted to Pastebin.' },
-      { area: 'Collaboration Leakage',   level: 'high',     description: 'Sensitive data may be posted into guest-enabled channels, shared workspaces, or external chats.', example: 'Confidential customer details shared in external Slack channel.' },
-      { area: 'Browser Extension Risk',  level: 'medium',   description: 'Extensions may read or transmit sensitive page content outside approved control paths.',       example: 'Extension captures data from business portal.' },
+      { area: 'Unknown Web Destination',      level: 'high',     description: 'Sensitive data uploaded or submitted to websites with unknown ownership or trust level.',                          example: 'Confidential file uploaded to an uncategorized website.' },
+      { area: 'Public Exposure',              level: 'high',     description: 'Content posted on public websites can be indexed, cached, copied, or viewed by anyone.',                          example: 'Internal project details posted on a public documentation site.' },
+      { area: 'Public File Transfer Leakage', level: 'high',     description: 'Public file-transfer tools bypass approved corporate sharing and retention controls.',                            example: 'Payroll file sent through WeTransfer.' },
+      { area: 'Web Form Leakage',             level: 'high',     description: 'Sensitive data entered into unapproved, unknown, or external online forms.',                                     example: 'Customer PII submitted into a public web form.' },
+      { area: 'Paste / Snippet Exposure',     level: 'critical', description: 'Paste sites can expose credentials, source code, logs, or confidential text publicly and permanently.',          example: 'API key pasted into Pastebin.' },
+      { area: 'Forum / Community Leakage',    level: 'high',     description: 'Internal technical details, logs, screenshots, or code posted into public communities.',                         example: 'Internal error logs posted on Stack Overflow.' },
+      { area: 'Social Media Exposure',        level: 'high',     description: 'Business-sensitive data shared publicly through social media posts, comments, or screenshots.',                  example: 'Internal dashboard screenshot posted on LinkedIn.' },
+      { area: 'External Portal Misuse',       level: 'medium',   description: 'Sensitive data submitted to legitimate external portals without classification, validation, or approval.',       example: 'Customer list uploaded to a vendor portal without approval.' },
+      { area: 'Uncontrolled Publishing',      level: 'high',     description: 'Users publish documents, articles, or content containing sensitive business information.',                       example: 'Strategy document content published on a public documentation site.' },
+      { area: 'Download Risk',                level: 'medium',   description: 'Files downloaded from unknown or external websites create uncontrolled copies outside corporate storage.',       example: 'Sensitive export downloaded from an external portal to a local device.' },
     ],
     assessmentQuestions: [
-      { key: 'inline_coverage',       area: 'Inline Coverage',        question: 'Can the tool inspect browser uploads, posts, form submissions, and paste activity?' },
-      { key: 'saas_activity_support', area: 'SaaS Activity Support',  question: 'Which activities are supported per SaaS app: upload, post, download, share, create record?' },
-      { key: 'instance_separation',   area: 'Instance Separation',    question: 'Can the tool distinguish corporate SaaS instance from personal or consumer instance?' },
-      { key: 'collaboration_controls', area: 'Collaboration Controls', question: 'Can external channels, shared workspaces, and guest collaboration be inspected?' },
-      { key: 'ssl_inspection',        area: 'SSL/TLS Inspection',      question: 'Are required traffic paths decrypted and inspected where allowed?' },
-      { key: 'bypass_handling',       area: 'Bypass Handling',         question: 'Are unmanaged browsers, extensions, and do-not-decrypt exceptions understood?' },
+      { key: 'web_traffic_coverage',   area: 'Web Traffic Coverage',           question: 'Can the DLP tool inspect browser-based web traffic?' },
+      { key: 'upload_inspection',      area: 'Upload Inspection',              question: 'Can the tool inspect file uploads to websites and web portals?' },
+      { key: 'form_inspection',        area: 'Form Inspection',                question: 'Can the tool inspect data submitted through web forms?' },
+      { key: 'paste_inspection',       area: 'Paste Inspection',               question: 'Can the tool inspect pasted content in web fields, forums, or public sites?' },
+      { key: 'file_transfer_control',  area: 'Public File Transfer Control',   question: 'Can the tool detect and control uploads to public file-transfer services?' },
+      { key: 'paste_site_control',     area: 'Paste Site Control',             question: 'Can the tool detect secrets, source code, or sensitive data posted to paste sites?' },
+      { key: 'ssl_inspection',         area: 'SSL/TLS Inspection',             question: 'Are required web destinations decrypted and inspected where legally and technically allowed?' },
+      { key: 'uncategorized_handling', area: 'Uncategorized Website Handling', question: 'Are unknown, newly registered, or uncategorized websites monitored or restricted?' },
+      { key: 'bypass_handling',        area: 'Bypass Handling',                question: 'Are unmanaged browsers, VPN bypass, Do Not Decrypt rules, and proxy bypass scenarios understood?' },
     ],
   },
 
   // ─────────────────────────────────────────────────────────────────
-  // 3. Endpoint & Device DLP
+  // 3. SaaS Inline DLP
+  // ─────────────────────────────────────────────────────────────────
+  {
+    slug: 'saas-inline',
+    name: 'SaaS Inline DLP',
+    shortName: 'SaaS Inline',
+    definition:
+      'Covers real-time inline inspection of data moving through business SaaS applications via browser or CASB traffic steering — including file uploads, downloads, posts, record creation, collaboration messages, public link creation, and external sharing in known SaaS platforms. Applies when the destination is a clearly identified SaaS business application. API-based scanning of data already stored in SaaS belongs under SaaS API / Data-at-Rest DLP.',
+    netskopeSupport: 'supported',
+    subchannels: [],
+    activities: [
+      { name: 'Upload',                    description: 'Upload file or content to a SaaS app through inline traffic.' },
+      { name: 'Download',                  description: 'Download file or content from a SaaS app through inline path.' },
+      { name: 'Post',                      description: 'Post content to a SaaS page, workspace, or collaboration tool.' },
+      { name: 'Create Record',             description: 'Create record, ticket, case, or object in a SaaS app inline.' },
+      { name: 'Attach File',               description: 'Attach file to a SaaS record, chat, or page inline.' },
+      { name: 'Share',                     description: 'Share content through SaaS sharing controls inline.' },
+      { name: 'Create Public Link',        description: 'Create anyone-with-link or public sharing link inline.' },
+      { name: 'Add External Collaborator', description: 'Add guest, vendor, or external participant to a SaaS workspace inline.' },
+    ],
+    risks: [
+      { area: 'SaaS Upload Leakage',    level: 'high',   description: 'Sensitive files may be uploaded to unapproved SaaS apps or inappropriate SaaS locations.',       example: 'HR report uploaded to an unapproved project management tool.' },
+      { area: 'Personal SaaS Upload',   level: 'high',   description: 'Corporate data stored in personal SaaS accounts falls outside enterprise control.',               example: 'Business file uploaded to personal Google Drive.' },
+      { area: 'Collaboration Leakage',  level: 'high',   description: 'Sensitive data posted into guest-enabled channels, shared workspaces, or external chats.',        example: 'Confidential customer details shared in an external Slack channel.' },
+      { area: 'Browser Extension Risk', level: 'medium', description: 'Browser extensions may read or transmit sensitive page content outside approved control paths.',  example: 'Unknown extension captures data from a business SaaS portal.' },
+    ],
+    assessmentQuestions: [
+      { key: 'saas_activity_support',  area: 'SaaS Activity Support',  question: 'Which activities are supported per SaaS app: upload, post, download, share, create record?' },
+      { key: 'instance_separation',    area: 'Instance Separation',    question: 'Can the tool distinguish corporate SaaS instance from personal or consumer instance?' },
+      { key: 'collaboration_controls', area: 'Collaboration Controls', question: 'Can external channels, shared workspaces, and guest collaboration be inspected?' },
+      { key: 'ssl_inspection',         area: 'SSL/TLS Inspection',     question: 'Are required SaaS traffic paths decrypted and inspected where legally allowed?' },
+      { key: 'bypass_handling',        area: 'Bypass Handling',        question: 'Are unmanaged browsers, extensions, and do-not-decrypt exceptions accounted for?' },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────
+  // 4. Endpoint & Device DLP
   // ─────────────────────────────────────────────────────────────────
   {
     slug: 'endpoint-device',
@@ -260,7 +238,7 @@ export const CHANNELS: Channel[] = [
   },
 
   // ─────────────────────────────────────────────────────────────────
-  // 4. SaaS API / Data-at-Rest DLP
+  // 5. SaaS API / Data-at-Rest DLP
   // ─────────────────────────────────────────────────────────────────
   {
     slug: 'saas-api-data-at-rest',
@@ -270,18 +248,16 @@ export const CHANNELS: Channel[] = [
       'Covers API-based scanning, discovery, classification, exposure analysis, and remediation of data stored inside SaaS applications. This channel applies when DLP control is applied through an API connector — not real-time inline traffic inspection.',
     netskopeSupport: 'supported',
     subchannels: [
-      { name: 'SaaS File Storage',       description: 'File storage, sync, and sharing platforms.',                          examples: 'SharePoint, OneDrive, Google Drive, Box, Dropbox' },
-      { name: 'CRM Data',                description: 'Customer relationship management systems.',                           examples: 'Salesforce, Dynamics, HubSpot, Zoho CRM' },
-      { name: 'Collaboration Workspace', description: 'Team collaboration and messaging workspaces.',                        examples: 'Teams, Slack, Google Chat' },
-      { name: 'HR SaaS',                 description: 'Human resources applications.',                                       examples: 'Workday, SuccessFactors, BambooHR' },
-      { name: 'Finance / ERP SaaS',      description: 'Finance and enterprise resource planning systems.',                   examples: 'SAP, Oracle ERP, NetSuite, Coupa, Concur' },
-      { name: 'ITSM / Ticketing',        description: 'IT service management and ticketing tools.',                          examples: 'ServiceNow, Jira Service Management, Freshservice' },
-      { name: 'Productivity SaaS',       description: 'Productivity and knowledge management platforms.',                    examples: 'Microsoft 365, Google Workspace, Notion, Confluence' },
-      { name: 'BI / Analytics',          description: 'Reporting, dashboarding, and analytics tools.',                       examples: 'Power BI, Tableau, Looker' },
-      { name: 'Design / Whiteboarding',  description: 'Design and collaborative whiteboarding platforms.',                   examples: 'Figma, Miro, FigJam, Canva' },
-      { name: 'E-Signature',             description: 'Digital document signing platforms.',                                 examples: 'DocuSign, Adobe Sign' },
-      { name: 'Customer Support SaaS',   description: 'Customer support and service tools.',                                 examples: 'Zendesk, Freshdesk, Intercom' },
-      { name: 'Marketing SaaS',          description: 'Marketing automation and campaign platforms.',                        examples: 'Marketo, Mailchimp, HubSpot Marketing' },
+      {
+        name: 'Near-Realtime Scan',
+        description: 'Event-triggered API scanning that runs immediately when content is created, modified, or shared — typically within seconds to minutes of the triggering event. Provides continuous protection without waiting for a scheduled sweep.',
+        examples: 'New file uploaded to SharePoint, new record created in Salesforce, new message posted in Slack workspace',
+      },
+      {
+        name: 'Retroactive Scan',
+        description: 'Scheduled or on-demand API scanning of all existing stored content in a SaaS application — used to discover historical exposure, establish a classification baseline, or audit after a policy change.',
+        examples: 'Full SharePoint site content scan, historical Salesforce record audit, complete Slack workspace content review',
+      },
     ],
     activities: [
       { name: 'Discover File',           description: 'Discover file, object, page, case, or record in SaaS.' },
@@ -308,71 +284,12 @@ export const CHANNELS: Channel[] = [
       { area: 'SaaS Bulk Exposure',      level: 'high',   description: 'Large volumes of sensitive data may exist in SaaS repositories with weak sharing controls.',     example: 'Large folder of customer records externally shared.' },
     ],
     assessmentQuestions: [
-      { key: 'connector_coverage', area: 'Connector Coverage', question: 'Which SaaS apps are integrated through API and at what permission scope?' },
-      { key: 'scan_scope',         area: 'Scan Scope',         question: 'Does scanning cover files, comments, pages, records, attachments, and metadata?' },
-      { key: 'sharing_visibility', area: 'Sharing Visibility', question: 'Can the tool detect public links, external users, guest access, and domain sharing?' },
-      { key: 'remediation_actions', area: 'Remediation Actions', question: 'Can it remove links, change permissions, quarantine, notify owners, or open tickets?' },
-      { key: 'scan_frequency',     area: 'Scan Frequency',    question: 'How often are scans performed and how quickly are new exposures detected?' },
-      { key: 'evidence_reporting', area: 'Evidence and Reporting', question: 'Can it generate exposure reports for admins, app owners, and auditors?' },
-    ],
-  },
-
-  // ─────────────────────────────────────────────────────────────────
-  // 5. Cloud / IaaS Data Protection
-  // ─────────────────────────────────────────────────────────────────
-  {
-    slug: 'cloud-iaas',
-    name: 'Cloud / IaaS Data Protection',
-    shortName: 'Cloud / IaaS',
-    definition:
-      'Covers data stored or exposed in cloud-native infrastructure services — including object storage, cloud databases, data warehouses, data lakes, snapshots, backups, logs, container registries, secrets stores, and public cloud exposure risks.',
-    netskopeSupport: 'partial',
-    subchannels: [
-      { name: 'Object Storage',         description: 'Cloud object storage services.',                                       examples: 'AWS S3, Azure Blob, Google Cloud Storage' },
-      { name: 'Cloud File Share',        description: 'Managed cloud file share services.',                                  examples: 'Azure Files, AWS EFS, FSx' },
-      { name: 'Cloud Database',         description: 'Managed relational or NoSQL cloud databases.',                         examples: 'RDS, Azure SQL, Cloud SQL, DynamoDB, Cosmos DB' },
-      { name: 'Data Warehouse',         description: 'Cloud analytics and warehouse platforms.',                             examples: 'Snowflake, BigQuery, Redshift, Synapse' },
-      { name: 'Data Lake',              description: 'Cloud data lake locations.',                                           examples: 'S3 data lake, ADLS, GCS data lake' },
-      { name: 'Backup / Snapshot',      description: 'Backups and point-in-time images.',                                   examples: 'EBS snapshot, database backup, VM snapshot' },
-      { name: 'Logs / Telemetry Storage', description: 'Logs, events, and telemetry stored in cloud.',                      examples: 'CloudWatch logs, Azure Monitor logs, GCP logs' },
-      { name: 'Container Registry',     description: 'Container image or artifact registries.',                             examples: 'ECR, ACR, GCR, Artifact Registry' },
-      { name: 'Secrets Store',          description: 'Cloud secret management services.',                                   examples: 'AWS Secrets Manager, Azure Key Vault, GCP Secret Manager' },
-      { name: 'Public Bucket / Object', description: 'Publicly exposed object storage.',                                    examples: 'Public S3 bucket, public blob' },
-      { name: 'Cross-Account Access',   description: 'Access shared to external cloud accounts.',                           examples: 'External account access, shared bucket policy' },
-      { name: 'Cloud Workload Storage', description: 'Data stored by VM, container, or workload.',                          examples: 'VM disk, container volume, ephemeral storage' },
-    ],
-    activities: [
-      { name: 'Discover Storage',        description: 'Discover cloud storage resources and datasets.' },
-      { name: 'Scan Object',             description: 'Scan object storage content.' },
-      { name: 'Scan Database',           description: 'Scan database, table, or dataset.' },
-      { name: 'Detect Public Exposure',  description: 'Identify public bucket, public object, or internet exposure.' },
-      { name: 'Detect Sensitive Data',   description: 'Find regulated or confidential data in cloud stores.' },
-      { name: 'Detect Secret',           description: 'Find keys, tokens, credentials, or certificates.' },
-      { name: 'Detect Over-Permission',  description: 'Identify excessive IAM, ACL, or policy permissions.' },
-      { name: 'Detect Cross-Account Access', description: 'Identify access granted to external accounts.' },
-      { name: 'Change Permission',       description: 'Modify cloud storage, IAM, or object permissions.' },
-      { name: 'Remove Public Access',    description: 'Disable public access or anonymous exposure.' },
-      { name: 'Encrypt Data',            description: 'Validate or apply encryption controls.' },
-      { name: 'Quarantine Object',       description: 'Move or restrict high-risk object.' },
-      { name: 'Generate Exposure Report', description: 'Produce cloud data exposure report.' },
-    ],
-    risks: [
-      { area: 'Public Cloud Exposure',         level: 'critical', description: 'Data may be publicly accessible over the internet due to bucket, object, or policy misconfiguration.',     example: 'Public S3 bucket exposes customer records.' },
-      { area: 'Sensitive Data in Object Storage', level: 'high', description: 'Sensitive data may be stored in cloud buckets without proper classification, encryption, or access control.', example: 'PII stored in unmanaged object storage.' },
-      { area: 'Secrets in Cloud Storage',      level: 'critical', description: 'Keys, tokens, credentials, certificates, or private keys may be stored in exposed locations.',            example: 'Access key found in cloud log bucket.' },
-      { area: 'Cross-Account Exposure',        level: 'high',     description: 'Data may be accessible by external cloud accounts or overly broad principals.',                           example: 'Bucket policy grants access to external account.' },
-      { area: 'Cloud Database Exposure',       level: 'high',     description: 'Databases may contain sensitive data with excessive access or weak configuration.',                       example: 'Customer table exposed to broad service role.' },
-      { area: 'Backup Exposure',               level: 'high',     description: 'Snapshots and backups may expose large historical datasets.',                                              example: 'Database backup shared externally.' },
-      { area: 'Logging Data Leakage',          level: 'medium',   description: 'Logs may contain tokens, PII, request payloads, or sensitive business data.',                            example: 'API token captured in application log.' },
-      { area: 'Container Artifact Exposure',   level: 'high',     description: 'Images or artifacts may contain source code, secrets, configuration files, or embedded credentials.',    example: 'Docker image contains private key.' },
-    ],
-    assessmentQuestions: [
-      { key: 'cloud_coverage',      area: 'Cloud Coverage',      question: 'Which AWS, Azure, and GCP services are supported?' },
-      { key: 'storage_discovery',   area: 'Storage Discovery',   question: 'Can the tool discover all object stores, databases, logs, backups, and snapshots?' },
-      { key: 'exposure_detection',  area: 'Exposure Detection',  question: 'Can public access, cross-account access, and excessive IAM be detected?' },
-      { key: 'data_inspection',     area: 'Data Inspection',     question: 'Can sensitive data and secrets be inspected at scale in cloud stores?' },
-      { key: 'remediation',         area: 'Remediation',         question: 'Can public access be removed or permissions remediated automatically or through workflow?' },
-      { key: 'ownership_mapping',   area: 'Ownership',           question: 'Can resources be mapped to application owners, cloud accounts, and business units?' },
+      { key: 'connector_coverage',  area: 'Connector Coverage',        question: 'Which SaaS apps are integrated through API and at what permission scope?' },
+      { key: 'scan_scope',          area: 'Scan Scope',                question: 'Does scanning cover files, comments, pages, records, attachments, and metadata?' },
+      { key: 'sharing_visibility',  area: 'Sharing Visibility',        question: 'Can the tool detect public links, external users, guest access, and domain sharing?' },
+      { key: 'remediation_actions', area: 'Remediation Actions',       question: 'Can it remove links, change permissions, quarantine, notify owners, or open tickets?' },
+      { key: 'scan_frequency',      area: 'Scan Frequency',            question: 'How often are scans performed and how quickly are new exposures detected?' },
+      { key: 'evidence_reporting',  area: 'Evidence and Reporting',    question: 'Can it generate exposure reports for admins, app owners, and auditors?' },
     ],
   },
 
@@ -387,16 +304,26 @@ export const CHANNELS: Channel[] = [
       'Covers data movement into or through generative AI systems, AI assistants, AI agents, AI connectors, AI plugins, coding assistants, meeting assistants, and AI automation platforms. AI introduces distinct risks: prompt leakage, file upload exposure, connector overreach, and autonomous agent actions.',
     netskopeSupport: 'supported',
     subchannels: [
-      { name: 'AI Chat Prompt',         description: 'Text prompt submitted to AI chat system.',                             examples: 'ChatGPT, Gemini, Claude, Copilot' },
-      { name: 'AI File Upload',         description: 'File uploaded for AI processing.',                                    examples: 'PDF, DOCX, XLSX, PPTX, source file' },
-      { name: 'AI Coding Assistant',    description: 'Code or development context sent to coding AI.',                      examples: 'GitHub Copilot, Cursor, Windsurf, Replit AI' },
-      { name: 'AI Meeting Assistant',   description: 'Meeting content processed by AI.',                                   examples: 'Meeting transcript, recording, summary' },
-      { name: 'AI Search / Research',   description: 'AI-based search or research tool.',                                   examples: 'Perplexity, enterprise AI search' },
-      { name: 'AI Agent',               description: 'Autonomous or semi-autonomous AI workflow.',                          examples: 'Agent reads, sends, updates, or posts data' },
-      { name: 'AI Connector / Plugin',  description: 'AI connected to business data sources.',                             examples: 'Gmail, Drive, SharePoint, GitHub, Slack, CRM connector' },
-      { name: 'AI Customer Support Bot', description: 'AI bot using customer or internal knowledge.',                      examples: 'Support chatbot, service assistant' },
-      { name: 'AI Automation Platform', description: 'Workflow automation platform using AI.',                              examples: 'n8n AI, Zapier AI, Make AI' },
-      { name: 'AI Document / Image Tool', description: 'AI tool used for document, OCR, image, or extraction tasks.',      examples: 'PDF summariser, OCR AI, image analysis tool' },
+      {
+        name: 'AI Web Applications',
+        description: 'Browser-based access to publicly available or enterprise AI tools — the most common and highest-volume AI data movement path. Includes AI chat tools, AI research tools, and AI document tools accessed through a standard web browser.',
+        examples: 'ChatGPT, Claude, Gemini, Perplexity, Grok, Microsoft Copilot web, Poe',
+      },
+      {
+        name: 'AI API Access',
+        description: 'Direct programmatic access to AI services from applications, scripts, pipelines, or developer workflows — typically carries structured or bulk business data and is harder to detect than browser-based usage.',
+        examples: 'OpenAI API, Anthropic Claude API, Google Vertex AI, Azure OpenAI API, Cohere API',
+      },
+      {
+        name: 'AI Desktop Applications',
+        description: 'AI tools installed or embedded in local desktop environments — including IDE extensions, standalone AI desktop apps, and AI coding assistants running as editor plugins.',
+        examples: 'GitHub Copilot (VS Code / JetBrains), Cursor, Windsurf, ChatGPT desktop app, Claude desktop app, Replit AI',
+      },
+      {
+        name: 'AI Copilots & Embedded AI',
+        description: 'AI assistants built directly into approved business applications — operating on enterprise data through service-level connectors and enterprise permissions. These have automatic broad access to business data (not just what a user pastes or uploads), require CASB API governance, and may take agentic autonomous actions inside approved business tools.',
+        examples: 'Microsoft 365 Copilot, GitHub Copilot Enterprise, Salesforce Einstein, Google Gemini for Workspace, Slack AI, Zoom AI Companion',
+      },
     ],
     activities: [
       { name: 'Prompt',             description: 'Submit text into AI prompt field.' },
@@ -411,22 +338,22 @@ export const CHANNELS: Channel[] = [
       { name: 'Export Output',      description: 'AI-generated output is exported or shared.' },
     ],
     risks: [
-      { area: 'Prompt Leakage',         level: 'high',     description: 'Data pasted into AI prompts may leave approved controls or be processed in unapproved environments.',           example: 'Customer PII entered into consumer AI.' },
-      { area: 'File Upload Exposure',   level: 'high',     description: 'Uploaded files may contain business, regulated, confidential, or secret data.',                                 example: 'Salary spreadsheet uploaded for summarisation.' },
-      { area: 'Source Code Exposure',   level: 'high',     description: 'Proprietary code may be submitted to AI coding tools or AI chat systems.',                                      example: 'Internal code pasted into unapproved coding assistant.' },
-      { area: 'Secret Leakage',         level: 'critical', description: 'Credentials, keys, tokens, private keys, or certificates may be pasted into AI tools.',                        example: 'API key submitted for debugging help.' },
-      { area: 'Connector Overreach',    level: 'high',     description: 'AI connectors may access more business data than intended.',                                                   example: 'AI connected to broad mailbox or drive access.' },
-      { area: 'Agentic Action Risk',    level: 'high',     description: 'AI agents may send, update, export, or move data without sufficient review.',                                  example: 'Agent emails sensitive report externally.' },
-      { area: 'Meeting Summary Exposure', level: 'medium', description: 'AI-generated meeting summaries may contain sensitive discussions and be shared broadly.',                      example: 'Strategy meeting summarised and shared with broad group.' },
-      { area: 'Retention or Training Concern', level: 'high', description: 'Submitted data may be retained, logged, reused, embedded, or used for training beyond intended purpose.', example: 'Internal document uploaded to consumer AI service.' },
+      { area: 'Prompt Leakage',               level: 'high',     description: 'Data pasted into AI prompts may leave approved controls or be processed in unapproved environments.',           example: 'Customer PII entered into consumer AI.' },
+      { area: 'File Upload Exposure',         level: 'high',     description: 'Uploaded files may contain business, regulated, confidential, or secret data.',                                 example: 'Salary spreadsheet uploaded for summarisation.' },
+      { area: 'Source Code Exposure',         level: 'high',     description: 'Proprietary code may be submitted to AI coding tools or AI chat systems.',                                      example: 'Internal code pasted into unapproved coding assistant.' },
+      { area: 'Secret Leakage',               level: 'critical', description: 'Credentials, keys, tokens, private keys, or certificates may be pasted into AI tools.',                        example: 'API key submitted for debugging help.' },
+      { area: 'Connector Overreach',          level: 'high',     description: 'AI connectors may access more business data than intended.',                                                   example: 'AI connected to broad mailbox or drive access.' },
+      { area: 'Agentic Action Risk',          level: 'high',     description: 'AI agents may send, update, export, or move data without sufficient review.',                                  example: 'Agent emails sensitive report externally.' },
+      { area: 'Meeting Summary Exposure',     level: 'medium',   description: 'AI-generated meeting summaries may contain sensitive discussions and be shared broadly.',                      example: 'Strategy meeting summarised and shared with broad group.' },
+      { area: 'Retention or Training Concern', level: 'high',    description: 'Submitted data may be retained, logged, reused, embedded, or used for training beyond intended purpose.',      example: 'Internal document uploaded to consumer AI service.' },
     ],
     assessmentQuestions: [
-      { key: 'ai_app_coverage',       area: 'AI App Coverage',       question: 'Which AI apps and AI categories are detected and controlled?' },
-      { key: 'activity_coverage',     area: 'Activity Coverage',     question: 'Can the tool inspect prompt/post, upload, response, download, and connector read activity?' },
-      { key: 'instance_separation',   area: 'Instance/Tenant Separation', question: 'Can enterprise AI instances be separated from consumer or personal AI usage?' },
-      { key: 'connector_governance',  area: 'Connector Governance',  question: 'Can connected sources, scopes, and permissions be assessed?' },
-      { key: 'agent_control',         area: 'Agent Control',         question: 'Can agent actions be monitored, approved, blocked, or logged?' },
-      { key: 'retention_risk',        area: 'Retention Risk',        question: 'Can the application record whether the AI service has enterprise retention and training controls?' },
+      { key: 'ai_app_coverage',      area: 'AI App Coverage',            question: 'Which AI apps and AI categories are detected and controlled?' },
+      { key: 'activity_coverage',    area: 'Activity Coverage',          question: 'Can the tool inspect prompt/post, upload, response, download, and connector read activity?' },
+      { key: 'instance_separation',  area: 'Instance/Tenant Separation', question: 'Can enterprise AI instances be separated from consumer or personal AI usage?' },
+      { key: 'connector_governance', area: 'Connector Governance',       question: 'Can connected sources, scopes, and permissions be assessed?' },
+      { key: 'agent_control',        area: 'Agent Control',              question: 'Can agent actions be monitored, approved, blocked, or logged?' },
+      { key: 'retention_risk',       area: 'Retention Risk',             question: 'Can the application record whether the AI service has enterprise retention and training controls?' },
     ],
   },
 
@@ -438,7 +365,7 @@ export const CHANNELS: Channel[] = [
     name: 'Network & Protocol Egress DLP',
     shortName: 'Network Egress',
     definition:
-      'Covers sensitive data leaving through network-level or protocol-level paths not fully represented as Email, Web/SaaS Inline, Endpoint, SaaS API, Cloud, or GenAI — including FTP, SFTP, SMTP relay, HTTP/S from workloads, SMB/NFS, DNS tunnelling, and legacy network paths.',
+      'Covers sensitive data leaving through network-level or protocol-level paths not fully represented as Email, Web/SaaS Inline, Endpoint, SaaS API, or GenAI — including FTP, SFTP, SMTP relay, HTTP/S from workloads, SMB/NFS, DNS tunnelling, and legacy network paths.',
     netskopeSupport: 'supported',
     subchannels: [
       {
@@ -599,11 +526,11 @@ export const CHANNELS: Channel[] = [
       { area: 'DNS Tunneling Risk',          level: 'critical', description: 'DNS traffic may indicate hidden or suspicious data movement.',                                     example: 'Abnormal DNS queries carrying encoded data.' },
     ],
     assessmentQuestions: [
-      { key: 'protocol_coverage',     area: 'Protocol Coverage',    question: 'Which protocols are inspected: FTP, SFTP, HTTP/S, SMTP relay, SMB, NFS, database protocols, DNS?' },
-      { key: 'egress_visibility',     area: 'Egress Visibility',    question: 'Can the tool identify sensitive data leaving data centre or cloud workload networks?' },
-      { key: 'encryption_handling',   area: 'Encryption Handling',  question: 'Can encrypted traffic be inspected where allowed, or at least identified by metadata?' },
-      { key: 'application_mapping',   area: 'Application Mapping',  question: 'Can protocol traffic be mapped to application, owner, server, or workload?' },
-      { key: 'legacy_coverage',       area: 'Legacy Coverage',      question: 'Are legacy systems and unmanaged protocols included in assessment?' },
+      { key: 'protocol_coverage',     area: 'Protocol Coverage',         question: 'Which protocols are inspected: FTP, SFTP, HTTP/S, SMTP relay, SMB, NFS, database protocols, DNS?' },
+      { key: 'egress_visibility',     area: 'Egress Visibility',         question: 'Can the tool identify sensitive data leaving data centre or cloud workload networks?' },
+      { key: 'encryption_handling',   area: 'Encryption Handling',       question: 'Can encrypted traffic be inspected where allowed, or at least identified by metadata?' },
+      { key: 'application_mapping',   area: 'Application Mapping',       question: 'Can protocol traffic be mapped to application, owner, server, or workload?' },
+      { key: 'legacy_coverage',       area: 'Legacy Coverage',           question: 'Are legacy systems and unmanaged protocols included in assessment?' },
       { key: 'separation_from_other', area: 'Separation from Web/Email', question: 'Are email and web controls tracked separately to avoid duplicate scoring?' },
     ],
   },
