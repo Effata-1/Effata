@@ -613,36 +613,71 @@ function SubcategoryGroup({
   onUpdate,
   onDeleteCustom,
 }: {
-  sub:            string
-  subItems:       EnrichedDestination[]
-  customItems?:   CustomDestination[]
-  onToggle:       (id: string, name: string, tag: TrustTag, sub: string, inScope: boolean) => void
-  onUpdate:       (id: string, fields: Partial<{ name: string; applications: string[]; notes: string | null }>) => void
+  sub:             string
+  subItems:        EnrichedDestination[]
+  customItems?:    CustomDestination[]
+  onToggle:        (id: string, name: string, tag: TrustTag, sub: string, inScope: boolean) => void
+  onUpdate:        (id: string, fields: Partial<{ name: string; applications: string[]; notes: string | null }>) => void
   onDeleteCustom?: (id: string) => void
 }) {
   const [collapsed, setCollapsed] = useState(true)
-  const inScopeCount = subItems.filter(i => i.is_in_scope).length + customItems.length
-  const totalCount   = subItems.length + customItems.length
+  const inScopeItems    = subItems.filter(i => i.is_in_scope)
+  const outOfScopeItems = subItems.filter(i => !i.is_in_scope)
+  const inScopeCount    = inScopeItems.length + customItems.length
+  const totalCount      = subItems.length + customItems.length
+
+  function addAll(e: React.MouseEvent) {
+    e.stopPropagation()
+    outOfScopeItems.forEach(item =>
+      onToggle(item.catalog_id, item.name, item.trust_tag, item.subcategory, false)
+    )
+  }
+
+  function removeAll(e: React.MouseEvent) {
+    e.stopPropagation()
+    inScopeItems.forEach(item =>
+      onToggle(item.catalog_id, item.name, item.trust_tag, item.subcategory, true)
+    )
+  }
 
   return (
     <div className="border-b border-zinc-800/40 last:border-0">
-      {/* Layer 2 header */}
-      <button
+      {/* Layer 2 header — div not button, so we can nest buttons */}
+      <div
+        className="flex items-center justify-between px-4 py-2.5 bg-zinc-900/40 hover:bg-zinc-900/60 transition-colors cursor-pointer"
         onClick={() => setCollapsed(c => !c)}
-        className="w-full flex items-center justify-between px-4 py-2.5 bg-zinc-900/40 hover:bg-zinc-900/60 transition-colors text-left"
       >
-        <div className="flex items-center gap-2">
+        {/* Left: chevron + name */}
+        <div className="flex items-center gap-2 min-w-0">
           {collapsed
-            ? <ChevronRight className="w-3.5 h-3.5 text-zinc-600" />
-            : <ChevronDown className="w-3.5 h-3.5 text-zinc-600" />}
-          <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
+            ? <ChevronRight className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
+            : <ChevronDown className="w-3.5 h-3.5 text-zinc-600 shrink-0" />}
+          <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider truncate">
             {sub.replace(/_/g, ' ')}
           </span>
         </div>
-        <span className="text-xs text-zinc-600">
-          {inScopeCount}/{totalCount} in scope
-        </span>
-      </button>
+
+        {/* Right: count + Add all / Remove all */}
+        <div className="flex items-center gap-3 shrink-0 ml-4" onClick={e => e.stopPropagation()}>
+          <span className="text-xs text-zinc-600">{inScopeCount}/{totalCount} in scope</span>
+          {outOfScopeItems.length > 0 && (
+            <button
+              onClick={addAll}
+              className="text-xs text-emerald-500 hover:text-emerald-400 transition-colors font-medium"
+            >
+              + Add all
+            </button>
+          )}
+          {inScopeItems.length > 0 && (
+            <button
+              onClick={removeAll}
+              className="text-xs text-red-500 hover:text-red-400 transition-colors font-medium"
+            >
+              − Remove all
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Layer 3: individual rows */}
       {!collapsed && (
