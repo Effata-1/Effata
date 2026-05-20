@@ -196,19 +196,21 @@ function CatalogRow({
 }: {
   item:     EnrichedDestination
   onToggle: (id: string, name: string, tag: TrustTag, sub: string, inScope: boolean) => void
-  onUpdate: (id: string, fields: Partial<{ name: string; applications: string[]; notes: string | null }>) => void
+  onUpdate: (id: string, fields: Partial<{ name: string; applications: string[]; notes: string | null; definition: string | null }>) => void
 }) {
   const [expanded, setExpanded]     = useState(false)
   const [editingName, setEditName]  = useState(false)
   const [draftName, setDraftName]   = useState(item.name)
   const [apps, setApps]             = useState<string[]>(item.applications)
   const [notes, setNotes]           = useState(item.notes ?? '')
+  const [definition, setDefinition] = useState(item.definition ?? '')
   const [saving, setSaving]         = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { setDraftName(item.name) }, [item.name])
   useEffect(() => { setApps(item.applications) }, [item.applications])
   useEffect(() => { setNotes(item.notes ?? '') }, [item.notes])
+  useEffect(() => { setDefinition(item.definition ?? '') }, [item.definition])
   useEffect(() => { if (editingName) nameRef.current?.focus() }, [editingName])
 
   async function saveName() {
@@ -228,6 +230,11 @@ function CatalogRow({
   async function saveNotes() {
     if (!item.org_profile_id) return
     await onUpdate(item.org_profile_id, { notes: notes.trim() || null })
+  }
+
+  async function saveDefinition() {
+    if (!item.org_profile_id) return
+    await onUpdate(item.org_profile_id, { definition: definition.trim() || null })
   }
 
   const meta = TRUST_TAGS[item.trust_tag]
@@ -348,6 +355,22 @@ function CatalogRow({
               />
             </div>
           )}
+          {item.is_in_scope && (
+            <div>
+              <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">
+                Definition
+                <span className="text-zinc-700 normal-case font-normal ml-1">— URLs, domains, IPs, RANGE: or CIDR: separated by newlines</span>
+              </p>
+              <textarea
+                value={definition}
+                onChange={e => setDefinition(e.target.value)}
+                onBlur={saveDefinition}
+                placeholder={"www.example.com\n*.example.com\nRANGE:1.1.1.1-1.1.1.10\nCIDR:1.1.1.0/24"}
+                rows={4}
+                className="w-full px-3 py-2 rounded-lg bg-zinc-800/60 border border-zinc-700 text-sm text-zinc-300 placeholder:text-zinc-600 outline-none focus:border-zinc-500 resize-none transition-colors font-mono"
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -363,12 +386,13 @@ function CustomRow({
 }: {
   item:     CustomDestination
   onDelete: (id: string) => void
-  onUpdate: (id: string, fields: Partial<{ name: string; applications: string[]; notes: string | null }>) => void
+  onUpdate: (id: string, fields: Partial<{ name: string; applications: string[]; notes: string | null; definition: string | null }>) => void
 }) {
   const [expanded, setExpanded]     = useState(false)
   const [confirmDelete, setConfirm] = useState(false)
-  const [apps, setApps]   = useState<string[]>(item.applications)
-  const [notes, setNotes] = useState(item.notes ?? '')
+  const [apps, setApps]             = useState<string[]>(item.applications)
+  const [notes, setNotes]           = useState(item.notes ?? '')
+  const [definition, setDefinition] = useState(item.definition ?? '')
 
   async function saveApps(newApps: string[]) {
     setApps(newApps)
@@ -377,6 +401,10 @@ function CustomRow({
 
   async function saveNotes() {
     await onUpdate(item.org_profile_id, { notes: notes.trim() || null })
+  }
+
+  async function saveDefinition() {
+    await onUpdate(item.org_profile_id, { definition: definition.trim() || null })
   }
 
   const meta = TRUST_TAGS[item.trust_tag]
@@ -434,6 +462,20 @@ function CustomRow({
               className="w-full px-3 py-2 rounded-lg bg-zinc-800/60 border border-zinc-700 text-sm text-zinc-300 placeholder:text-zinc-600 outline-none focus:border-zinc-500 resize-none transition-colors"
             />
           </div>
+          <div>
+            <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">
+              Definition
+              <span className="text-zinc-700 normal-case font-normal ml-1">— URLs, domains, IPs, RANGE: or CIDR: separated by newlines</span>
+            </p>
+            <textarea
+              value={definition}
+              onChange={e => setDefinition(e.target.value)}
+              onBlur={saveDefinition}
+              placeholder={"www.example.com\n*.example.com\nRANGE:1.1.1.1-1.1.1.10\nCIDR:1.1.1.0/24"}
+              rows={4}
+              className="w-full px-3 py-2 rounded-lg bg-zinc-800/60 border border-zinc-700 text-sm text-zinc-300 placeholder:text-zinc-600 outline-none focus:border-zinc-500 resize-none transition-colors font-mono"
+            />
+          </div>
         </div>
       )}
     </div>
@@ -449,13 +491,14 @@ function AddCustomModal({
 }: {
   defaultTrustTag: TrustTag
   onClose: () => void
-  onAdd:   (fields: { name: string; subcategory: string; trust_tag: TrustTag; applications: string[]; notes: string }) => Promise<void>
+  onAdd:   (fields: { name: string; subcategory: string; trust_tag: TrustTag; applications: string[]; notes: string; definition: string }) => Promise<void>
 }) {
   const [name, setName]         = useState('')
   const [subcategory, setSub]   = useState('')
   const [trustTag, setTrustTag] = useState<TrustTag>(defaultTrustTag)
   const [apps, setApps]         = useState<string[]>([])
   const [notes, setNotes]       = useState('')
+  const [definition, setDef]    = useState('')
   const [saving, setSaving]     = useState(false)
   const [error, setError]       = useState('')
 
@@ -463,7 +506,7 @@ function AddCustomModal({
     e.preventDefault()
     if (!name.trim()) { setError('Name is required.'); return }
     setSaving(true)
-    await onAdd({ name, subcategory, trust_tag: trustTag, applications: apps, notes })
+    await onAdd({ name, subcategory, trust_tag: trustTag, applications: apps, notes, definition })
     setSaving(false)
     onClose()
   }
@@ -518,6 +561,16 @@ function AddCustomModal({
               placeholder="Context, conditions, or restrictions…" rows={2}
               className="w-full px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-zinc-500 resize-none transition-colors" />
           </div>
+          <div>
+            <label className="block text-xs font-medium text-zinc-400 mb-1.5 uppercase tracking-wider">
+              Definition
+              <span className="text-zinc-600 normal-case font-normal ml-1">— URLs, domains, IPs, RANGE: or CIDR: per line</span>
+            </label>
+            <textarea value={definition} onChange={e => setDef(e.target.value)}
+              placeholder={"www.example.com\n*.example.com\nRANGE:1.1.1.1-1.1.1.10\nCIDR:1.1.1.0/24"}
+              rows={4}
+              className="w-full px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-zinc-500 resize-none transition-colors font-mono" />
+          </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose}
               className="px-4 py-2 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors">
@@ -543,7 +596,7 @@ function TrustTagSection({
   items:          EnrichedDestination[]
   customItems:    CustomDestination[]
   onToggle:       (id: string, name: string, tag: TrustTag, sub: string, inScope: boolean) => void
-  onUpdate:       (id: string, fields: Partial<{ name: string; applications: string[]; notes: string | null }>) => void
+  onUpdate:       (id: string, fields: Partial<{ name: string; applications: string[]; notes: string | null; definition: string | null }>) => void
   onDeleteCustom: (id: string) => void
   onAddCustom:    (tag: TrustTag) => void
 }) {
@@ -636,7 +689,7 @@ function SubcategoryGroup({
   subItems:        EnrichedDestination[]
   customItems?:    CustomDestination[]
   onToggle:        (id: string, name: string, tag: TrustTag, sub: string, inScope: boolean) => void
-  onUpdate:        (id: string, fields: Partial<{ name: string; applications: string[]; notes: string | null }>) => void
+  onUpdate:        (id: string, fields: Partial<{ name: string; applications: string[]; notes: string | null; definition: string | null }>) => void
   onDeleteCustom?: (id: string) => void
 }) {
   const [collapsed, setCollapsed] = useState(true)
@@ -734,12 +787,12 @@ export function DestinationsClient({
 
   type EnrichedAction =
     | { type: 'toggle'; id: string; inScope: boolean }
-    | { type: 'update'; profileId: string; fields: Partial<{ name: string; applications: string[]; notes: string | null }> }
+    | { type: 'update'; profileId: string; fields: Partial<{ name: string; applications: string[]; notes: string | null; definition: string | null }> }
 
   type CustomAction =
     | { type: 'add'; item: CustomDestination }
     | { type: 'delete'; id: string }
-    | { type: 'update'; profileId: string; fields: Partial<{ name: string; applications: string[]; notes: string | null }> }
+    | { type: 'update'; profileId: string; fields: Partial<{ name: string; applications: string[]; notes: string | null; definition: string | null }> }
 
   const [enrichedItems, setOptimisticEnriched] = useOptimistic(
     initialEnriched as OptEnriched[],
@@ -808,7 +861,7 @@ export function DestinationsClient({
     })
   }
 
-  function handleUpdate(profileId: string, fields: Partial<{ name: string; applications: string[]; notes: string | null }>) {
+  function handleUpdate(profileId: string, fields: Partial<{ name: string; applications: string[]; notes: string | null; definition: string | null }>) {
     startTransition(() => {
       setOptimisticEnriched({ type: 'update', profileId, fields })
       setOptimisticCustom({ type: 'update', profileId, fields })
@@ -823,7 +876,7 @@ export function DestinationsClient({
     })
   }
 
-  async function handleAddCustom(fields: { name: string; subcategory: string; trust_tag: TrustTag; applications: string[]; notes: string }) {
+  async function handleAddCustom(fields: { name: string; subcategory: string; trust_tag: TrustTag; applications: string[]; notes: string; definition: string }) {
     const tempItem: CustomDestination = {
       org_profile_id: `temp_${Date.now()}`,
       name:           fields.name,
@@ -831,6 +884,7 @@ export function DestinationsClient({
       subcategory:    fields.subcategory || 'custom',
       applications:   fields.applications,
       notes:          fields.notes || null,
+      definition:     fields.definition || null,
       is_in_scope:    true,
       is_custom:      true,
       created_at:     new Date().toISOString(),

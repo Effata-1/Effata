@@ -38,6 +38,7 @@ export interface OrgDestinationProfile {
   trust_tag:              TrustTag
   applications:           string[]
   notes:                  string | null
+  definition:             string | null
   is_in_scope:            boolean
   is_custom:              boolean
   created_at:             string
@@ -61,6 +62,7 @@ export interface EnrichedDestination {
   is_in_scope:    boolean
   applications:   string[]
   notes:          string | null
+  definition:     string | null
   is_custom:      false
 }
 
@@ -72,6 +74,7 @@ export interface CustomDestination {
   subcategory:    string
   applications:   string[]
   notes:          string | null
+  definition:     string | null
   is_in_scope:    boolean
   is_custom:      true
   created_at:     string
@@ -128,6 +131,7 @@ export async function getDestinationsPageData(): Promise<{
         is_in_scope:    p?.is_in_scope ?? false,
         applications:   p?.applications ?? [],
         notes:          p?.notes ?? null,
+        definition:     p?.definition ?? null,
         is_custom:      false,
       }
     })
@@ -141,6 +145,7 @@ export async function getDestinationsPageData(): Promise<{
         subcategory:    p.subcategory ?? 'custom',
         applications:   p.applications ?? [],
         notes:          p.notes,
+        definition:     p.definition ?? null,
         is_in_scope:    p.is_in_scope,
         is_custom:      true,
         created_at:     p.created_at,
@@ -195,7 +200,7 @@ export async function toggleDestinationInScope(
 
 export async function updateDestinationProfile(
   orgProfileId: string,
-  fields: Partial<Pick<OrgDestinationProfile, 'name' | 'subcategory' | 'trust_tag' | 'applications' | 'notes'>>,
+  fields: Partial<Pick<OrgDestinationProfile, 'name' | 'subcategory' | 'trust_tag' | 'applications' | 'notes' | 'definition'>>,
 ): Promise<{ error?: string }> {
   const user = await requireRole('analyst')
   const supabase = await createClient()
@@ -219,6 +224,7 @@ export async function addCustomDestination(fields: {
   trust_tag:   TrustTag
   applications: string[]
   notes:       string
+  definition:  string
 }): Promise<{ error?: string }> {
   const user = await requireRole('analyst')
   const supabase = await createClient()
@@ -233,6 +239,7 @@ export async function addCustomDestination(fields: {
       trust_tag:              fields.trust_tag,
       applications:           fields.applications,
       notes:                  fields.notes.trim() || null,
+      definition:             fields.definition.trim() || null,
       is_in_scope:            true,
       is_custom:              true,
     })
