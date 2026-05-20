@@ -14,6 +14,7 @@ import {
   Shield,
   Wrench,
   ClipboardList,
+  Layers,
   Settings,
   ChevronRight,
   LogOut,
@@ -67,6 +68,13 @@ const NAV_ITEMS = [
     href:  '/tools/regex-lab',
     base:  '/tools',
     icon:  <Wrench className="h-4 w-4" />,
+    sub:   true,
+  },
+  {
+    label: 'Channels',
+    href:  '/channels/email-dlp',
+    base:  '/channels',
+    icon:  <Layers className="h-4 w-4" />,
     sub:   true,
   },
   {
