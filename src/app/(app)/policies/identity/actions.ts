@@ -42,7 +42,8 @@ export interface OrgIdentityMapping {
 }
 
 export interface EnrichedIdentityValue extends CatalogIdentityValue {
-  mappings: OrgIdentityMapping[]
+  mappings:    OrgIdentityMapping[]
+  is_in_scope: boolean
 }
 
 const FIELD_ORDER: IdentityFieldName[] = [
@@ -71,7 +72,7 @@ export async function getIdentityPageData(): Promise<{
     const user = await requireRole('analyst')
     const supabase = await createClient()
 
-    const [{ data: catalog }, { data: mappings }] = await Promise.all([
+    const [{ data: catalog }, { data: mappings }, { data: scopeRows }] = await Promise.all([
       supabase
         .from('catalog_identity_values')
         .select('*')
@@ -83,7 +84,13 @@ export async function getIdentityPageData(): Promise<{
         .select('*')
         .eq('org_id', user.orgId)
         .order('created_at'),
+      supabase
+        .from('org_identity_scope')
+        .select('catalog_value_id')
+        .eq('org_id', user.orgId),
     ])
+
+    const inScopeIds = new Set((scopeRows ?? []).map(r => r.catalog_value_id as string))
 
     const mappingsByValueId = new Map<string, OrgIdentityMapping[]>()
     for (const m of (mappings ?? [])) {
@@ -109,6 +116,7 @@ export async function getIdentityPageData(): Promise<{
         risk_note:   c.risk_note ?? null,
         priority:    c.priority,
         mappings:    mappingsByValueId.get(c.id) ?? [],
+        is_in_scope: inScopeIds.has(c.id),
       })
     }
 
@@ -181,6 +189,33 @@ export async function deleteIdentityMapping(
     .eq('org_id', user.orgId)
 
   if (error) return { error: error.message }
+  revalidate()
+  return {}
+}
+
+// ─── Toggle identity value in scope ──────────────────────────────────────────
+
+export async function toggleIdentityValueInScope(
+  catalogValueId:   string,
+  currentlyInScope: boolean,
+): Promise<{ error?: string }> {
+  const user     = await requireRole('analyst')
+  const supabase = await createClient()
+
+  if (currentlyInScope) {
+    const { error } = await supabase
+      .from('org_identity_scope')
+      .delete()
+      .eq('org_id', user.orgId)
+      .eq('catalog_value_id', catalogValueId)
+    if (error) return { error: error.message }
+  } else {
+    const { error } = await supabase
+      .from('org_identity_scope')
+      .insert({ org_id: user.orgId, catalog_value_id: catalogValueId })
+    if (error) return { error: error.message }
+  }
+
   revalidate()
   return {}
 }

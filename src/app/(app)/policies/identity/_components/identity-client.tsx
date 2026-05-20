@@ -7,6 +7,7 @@ import {
   addIdentityMapping,
   updateIdentityMapping,
   deleteIdentityMapping,
+  toggleIdentityValueInScope,
 } from '../actions'
 import type {
   IdentityFieldName,
@@ -45,6 +46,7 @@ type OptAction =
   | { type: 'add';    catalogValueId: string; mapping: OrgIdentityMapping }
   | { type: 'update'; catalogValueId: string; mappingId: string; fields: Partial<OrgIdentityMapping> }
   | { type: 'delete'; catalogValueId: string; mappingId: string }
+  | { type: 'toggle'; catalogValueId: string; inScope: boolean }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -68,6 +70,8 @@ function applyAction(
           }
         case 'delete':
           return { ...v, mappings: v.mappings.filter(m => m.id !== action.mappingId) }
+        case 'toggle':
+          return { ...v, is_in_scope: action.inScope }
       }
     })
   }
@@ -285,11 +289,13 @@ function ValueRow({
   onAdd,
   onUpdate,
   onDelete,
+  onToggle,
 }: {
-  value: EnrichedIdentityValue
+  value:    EnrichedIdentityValue
   onAdd:    (mapping: OrgIdentityMapping) => void
   onUpdate: (mappingId: string, fields: Partial<OrgIdentityMapping>) => void
   onDelete: (mappingId: string) => void
+  onToggle: (inScope: boolean) => void
 }) {
   const [expanded, setExpanded]   = useState(false)
   const [addOpen, setAddOpen]     = useState(false)
@@ -318,12 +324,25 @@ function ValueRow({
           ? <ChevronDown className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
           : <ChevronRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
         }
-        <span className="flex-1 text-sm text-zinc-200 font-medium">{value.value_name}</span>
+        <span className={cn('flex-1 text-sm font-medium', value.is_in_scope ? 'text-zinc-200' : 'text-zinc-500')}>
+          {value.value_name}
+        </span>
         <span className={cn('text-xs font-semibold px-1.5 py-0.5 rounded shrink-0', risk.text, risk.bg)}>
           {risk.label}
         </span>
+        <button
+          onClick={e => { e.stopPropagation(); onToggle(!value.is_in_scope) }}
+          className={cn(
+            'text-xs px-2.5 py-1 rounded-lg border font-medium transition-all shrink-0',
+            value.is_in_scope
+              ? 'text-blue-400 bg-blue-500/10 border-blue-500/25 hover:bg-blue-500/20'
+              : 'text-zinc-600 bg-transparent border-zinc-800 hover:border-zinc-600 hover:text-zinc-400',
+          )}
+        >
+          {value.is_in_scope ? 'In scope ✓' : '+ Add'}
+        </button>
         {count > 0 && (
-          <span className="text-xs text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded-full shrink-0 ml-1">
+          <span className="text-xs text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded-full shrink-0">
             {count} {count === 1 ? 'mapping' : 'mappings'}
           </span>
         )}
@@ -381,17 +400,19 @@ function FieldCard({
   onAdd,
   onUpdate,
   onDelete,
+  onToggle,
 }: {
   fieldName: IdentityFieldName
   values:    EnrichedIdentityValue[]
   onAdd:    (catalogValueId: string, mapping: OrgIdentityMapping) => void
   onUpdate: (catalogValueId: string, mappingId: string, fields: Partial<OrgIdentityMapping>) => void
   onDelete: (catalogValueId: string, mappingId: string) => void
+  onToggle: (catalogValueId: string, inScope: boolean) => void
 }) {
   const [collapsed, setCollapsed] = useState(true)
 
-  const mappedCount = values.filter(v => v.mappings.length > 0).length
-  const gapCount    = values.filter(
+  const inScopeCount = values.filter(v => v.is_in_scope).length
+  const gapCount     = values.filter(
     v => (v.risk_level === 'critical' || v.risk_level === 'high') && v.mappings.length === 0
   ).length
 
@@ -417,7 +438,7 @@ function FieldCard({
             </span>
           )}
           <span className="text-xs text-zinc-400">
-            {mappedCount} / {values.length} mapped
+            {inScopeCount} / {values.length} in scope
           </span>
         </div>
       </button>
@@ -433,6 +454,7 @@ function FieldCard({
                 onAdd={mapping => onAdd(v.id, mapping)}
                 onUpdate={(mappingId, fields) => onUpdate(v.id, mappingId, fields)}
                 onDelete={mappingId => onDelete(v.id, mappingId)}
+                onToggle={inScope => onToggle(v.id, inScope)}
               />
             ))}
           </div>
@@ -457,10 +479,12 @@ export function IdentityClient({
       applyAction(state, action),
   )
 
-  const totalMapped    = fieldOrder.reduce((sum, f) => sum + fields[f].filter(v => v.mappings.length > 0).length, 0)
   const totalValues    = fieldOrder.reduce((sum, f) => sum + fields[f].length, 0)
+  const totalMapped    = fieldOrder.reduce((sum, f) => sum + fields[f].filter(v => v.mappings.length > 0).length, 0)
   const criticalGaps   = fieldOrder.reduce((sum, f) => sum + fields[f].filter(v => v.risk_level === 'critical' && v.mappings.length === 0).length, 0)
-  const highGaps       = fieldOrder.reduce((sum, f) => sum + fields[f].filter(v => v.risk_level === 'high' && v.mappings.length === 0).length, 0)
+  const inScopeTotal   = fieldOrder.reduce((sum, f) => sum + fields[f].filter(v => v.is_in_scope).length, 0)
+
+  const [, startToggleTransition] = useTransition()
 
   function handleAdd(catalogValueId: string, mapping: OrgIdentityMapping) {
     dispatch({ type: 'add', catalogValueId, mapping })
@@ -474,15 +498,23 @@ export function IdentityClient({
     dispatch({ type: 'delete', catalogValueId, mappingId })
   }
 
+  function handleToggle(catalogValueId: string, inScope: boolean) {
+    dispatch({ type: 'toggle', catalogValueId, inScope })
+    startToggleTransition(async () => {
+      const result = await toggleIdentityValueInScope(catalogValueId, !inScope)
+      if (result.error) dispatch({ type: 'toggle', catalogValueId, inScope: !inScope })
+    })
+  }
+
   return (
     <div>
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {[
-          { label: 'Total Values',      value: totalValues,  cls: 'text-white' },
-          { label: 'Mapped',            value: totalMapped,  cls: 'text-emerald-400' },
-          { label: 'Critical Gaps',     value: criticalGaps, cls: criticalGaps > 0 ? 'text-red-400' : 'text-zinc-500' },
-          { label: 'High-Risk Gaps',    value: highGaps,     cls: highGaps > 0 ? 'text-orange-400' : 'text-zinc-500' },
+          { label: 'Total Values',  value: totalValues,  cls: 'text-white' },
+          { label: 'Mapped',        value: totalMapped,  cls: 'text-emerald-400' },
+          { label: 'Critical Gaps', value: criticalGaps, cls: criticalGaps > 0 ? 'text-red-400' : 'text-zinc-500' },
+          { label: 'In Scope',      value: inScopeTotal, cls: inScopeTotal > 0 ? 'text-blue-400' : 'text-zinc-500' },
         ].map(stat => (
           <div key={stat.label} className="rounded-xl bg-zinc-900 border border-zinc-800 px-4 py-3">
             <p className={cn('text-2xl font-bold', stat.cls)}>{stat.value}</p>
@@ -505,6 +537,7 @@ export function IdentityClient({
             onAdd={handleAdd}
             onUpdate={handleUpdate}
             onDelete={handleDelete}
+            onToggle={handleToggle}
           />
         ))}
       </div>
