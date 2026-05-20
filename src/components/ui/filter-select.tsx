@@ -101,7 +101,7 @@ export function FilterSelect({
                 className={cn(
                   'w-full flex items-center justify-between px-4 py-2.5 text-sm text-left transition-colors',
                   opt.value === value
-                    ? 'bg-blue-600/20 text-blue-300'
+                    ? 'bg-blue-600/20 text-blue-500'
                     : 'text-foreground/70 hover:bg-muted/80',
                 )}
               >
@@ -177,7 +177,7 @@ export function MultiFilterSelect({
       >
         <span>{triggerLabel}</span>
         {value.length > 1 && (
-          <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-blue-600 text-foreground text-[10px] font-bold">
+          <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-blue-600 text-white text-[10px] font-bold">
             {value.length}
           </span>
         )}
@@ -212,7 +212,7 @@ export function MultiFilterSelect({
                   className={cn(
                     'w-full flex items-center justify-between px-4 py-2.5 text-sm text-left transition-colors',
                     selected
-                      ? 'bg-blue-600/20 text-blue-300'
+                      ? 'bg-blue-600/20 text-blue-500'
                       : 'text-foreground/70 hover:bg-muted/80',
                   )}
                 >

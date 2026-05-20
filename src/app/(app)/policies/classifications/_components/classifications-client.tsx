@@ -124,7 +124,7 @@ function EditLabelModal({
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground/70">Cancel</button>
             <button type="submit" disabled={isPending}
-              className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-foreground rounded-lg font-medium disabled:opacity-50">
+              className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium disabled:opacity-50">
               {isPending ? 'Saving…' : isNew ? 'Add label' : 'Save changes'}
             </button>
           </div>
@@ -204,7 +204,7 @@ function EditTrustLabelModal({
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground/70">Cancel</button>
             <button type="submit" disabled={isPending}
-              className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-foreground rounded-lg font-medium disabled:opacity-50">
+              className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium disabled:opacity-50">
               {isPending ? 'Saving…' : isNew ? 'Add trust level' : 'Save changes'}
             </button>
           </div>

@@ -374,7 +374,7 @@ export function FileFormatGenerator() {
     <div className="space-y-6 max-w-4xl">
 
       {/* ── AI Generator ── */}
-      <div className="rounded-xl border border-border bg-card/50 p-5">
+      <div className="rounded-xl border border-border bg-card/50 p-5 shadow-sm">
         <div className="flex items-center gap-2 mb-3">
           <p className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest">AI File Generator</p>
           <Sparkles className="w-3 h-3 text-purple-400 mb-0.5" />
@@ -392,7 +392,7 @@ export function FileFormatGenerator() {
           <button
             onClick={handleGenerate}
             disabled={isPending || !aiPrompt.trim()}
-            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap shrink-0"
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap shrink-0"
           >
             {isPending
               ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
@@ -424,7 +424,7 @@ export function FileFormatGenerator() {
 
       {/* ── Recent AI Searches ── */}
       {recentSearches.length > 0 && (
-        <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
+        <div className="rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm">
           <button
             onClick={() => setHistoryOpen(o => !o)}
             className="w-full flex items-center justify-between px-5 py-3 hover:bg-muted/40 transition-colors"
@@ -464,7 +464,7 @@ export function FileFormatGenerator() {
       )}
 
       {/* ── Quick Templates ── */}
-      <div className="rounded-xl border border-border bg-card/50 p-5">
+      <div className="rounded-xl border border-border bg-card/50 p-5 shadow-sm">
         <p className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest mb-4">Quick Templates</p>
         <div className="grid grid-cols-3 gap-5">
           {TEMPLATE_GROUPS.map(group => (

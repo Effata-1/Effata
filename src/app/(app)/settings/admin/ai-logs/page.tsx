@@ -87,7 +87,7 @@ export default async function AiLogsPage({
             className={cn(
               'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
               source === s
-                ? 'bg-blue-600 text-foreground'
+                ? 'bg-blue-600 text-white'
                 : 'bg-muted text-muted-foreground hover:text-foreground hover:bg-accent'
             )}
           >

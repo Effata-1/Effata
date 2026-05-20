@@ -278,7 +278,7 @@ export function GapReportClient({
       {needsReview && !reviewDismissed && (
         <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
           <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
-          <p className="text-sm text-amber-300 flex-1">
+          <p className="text-sm text-amber-500 flex-1">
             <span className="font-semibold">Regulation content was updated</span>
             {contentUpdatedAt && (
               <span className="font-normal text-amber-400/80"> on {new Date(contentUpdatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
@@ -297,7 +297,7 @@ export function GapReportClient({
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-xl border border-border bg-card/40 px-5 py-4">
+        <div className="rounded-xl border border-border bg-card/40 px-5 py-4 shadow-sm">
           <div className="text-2xl font-bold text-foreground tabular-nums">{score}%</div>
           <div className="text-xs text-muted-foreground/80 mt-0.5">Compliance score</div>
           <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
@@ -311,7 +311,7 @@ export function GapReportClient({
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-card/40 px-5 py-4">
+        <div className="rounded-xl border border-border bg-card/40 px-5 py-4 shadow-sm">
           <div className="text-2xl font-bold text-foreground tabular-nums">
             {implemented}<span className="text-muted-foreground/60 text-base">/{DLP_CONTROLS.length}</span>
           </div>
@@ -319,7 +319,7 @@ export function GapReportClient({
           {partial > 0 && <div className="text-xs text-amber-400 mt-1">{partial} partial</div>}
         </div>
 
-        <div className="rounded-xl border border-border bg-card/40 px-5 py-4">
+        <div className="rounded-xl border border-border bg-card/40 px-5 py-4 shadow-sm">
           <div className="text-sm font-semibold text-red-400 leading-tight mt-0.5 break-words">{exposure}</div>
           <div className="text-xs text-muted-foreground/80 mt-0.5">Penalty / exposure at risk</div>
           <div className="text-[10px] text-muted-foreground/60 mt-1">Based on unimplemented controls</div>

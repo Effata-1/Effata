@@ -80,7 +80,7 @@ export default async function RefreshLogsPage() {
           </Link>
           <h1 className="text-xl font-bold text-foreground">Research Run Logs</h1>
         </div>
-        <div className="rounded-xl border border-border bg-card/50 py-16 text-center">
+        <div className="rounded-xl border border-border bg-card/50 py-16 text-center shadow-sm">
           <Clock className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
           <p className="text-sm text-foreground font-medium mb-1">Service key not configured</p>
           <p className="text-xs text-muted-foreground/80 max-w-sm mx-auto">
@@ -141,7 +141,7 @@ export default async function RefreshLogsPage() {
             { label: 'Apps Discovered',   value: allRuns.reduce((s, r) => s + r.apps_added, 0) },
             { label: 'Field Changes',     value: totalChanges },
           ].map(stat => (
-            <div key={stat.label} className="rounded-xl border border-border bg-card/50 p-3">
+            <div key={stat.label} className="rounded-xl border border-border bg-card/50 p-3 shadow-sm">
               <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wide mb-1">{stat.label}</p>
               <p className="text-xl font-bold text-foreground">{stat.value}</p>
             </div>
@@ -151,7 +151,7 @@ export default async function RefreshLogsPage() {
 
       {/* Runs table */}
       {allRuns.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card/50 py-16 text-center">
+        <div className="rounded-xl border border-border bg-card/50 py-16 text-center shadow-sm">
           <Clock className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
           <p className="text-sm text-muted-foreground/80">No research runs yet.</p>
           <p className="text-xs text-muted-foreground/60 mt-1">

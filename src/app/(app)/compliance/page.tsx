@@ -175,12 +175,12 @@ export default async function CompliancePage() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="rounded-xl border border-border bg-card/40 px-5 py-4">
+        <div className="rounded-xl border border-border bg-card/40 px-5 py-4 shadow-sm">
           <div className="text-2xl font-bold text-foreground tabular-nums">{totalRegs}</div>
           <div className="text-xs text-muted-foreground/80 mt-0.5">Regulations tracked</div>
         </div>
 
-        <div className="rounded-xl border border-border bg-card/40 px-5 py-4">
+        <div className="rounded-xl border border-border bg-card/40 px-5 py-4 shadow-sm">
           <div className="text-2xl font-bold text-foreground tabular-nums">
             {assessedCount}
             <span className="text-muted-foreground/60 text-base font-normal">/{totalRegs}</span>
@@ -188,7 +188,7 @@ export default async function CompliancePage() {
           <div className="text-xs text-muted-foreground/80 mt-0.5">Regulations assessed</div>
         </div>
 
-        <div className="rounded-xl border border-border bg-card/40 px-5 py-4">
+        <div className="rounded-xl border border-border bg-card/40 px-5 py-4 shadow-sm">
           {avgScore !== null ? (
             <>
               <div className={cn(
@@ -232,7 +232,7 @@ export default async function CompliancePage() {
           )}
         </div>
 
-        <div className="rounded-xl border border-border bg-card/40 px-5 py-4">
+        <div className="rounded-xl border border-border bg-card/40 px-5 py-4 shadow-sm">
           <div className="text-2xl font-bold text-foreground tabular-nums">{relevantCount}</div>
           <div className="text-xs text-muted-foreground/80 mt-0.5">Apply to your org</div>
           {relevantCount === 0 && (
@@ -256,7 +256,7 @@ export default async function CompliancePage() {
           </div>
 
           {regScores.length === 0 ? (
-            <div className="rounded-xl border border-border bg-card/40 px-6 py-10 text-center">
+            <div className="rounded-xl border border-border bg-card/40 px-6 py-10 text-center shadow-sm">
               <BarChart2 className="h-8 w-8 text-muted-foreground/40 mx-auto mb-3" />
               <p className="text-sm text-muted-foreground font-medium">No assessments yet</p>
               <p className="text-xs text-muted-foreground/60 mt-1 mb-4">
@@ -368,7 +368,7 @@ export default async function CompliancePage() {
           </div>
 
           {logs.length === 0 ? (
-            <div className="rounded-xl border border-border bg-card/40 px-6 py-10 text-center">
+            <div className="rounded-xl border border-border bg-card/40 px-6 py-10 text-center shadow-sm">
               <FileText className="h-8 w-8 text-muted-foreground/40 mx-auto mb-3" />
               <p className="text-sm text-muted-foreground font-medium">No activity yet</p>
               <p className="text-xs text-muted-foreground/60 mt-1">
@@ -400,7 +400,7 @@ export default async function CompliancePage() {
           )}
 
           {/* Quick links */}
-          <div className="rounded-xl border border-border bg-card/40 overflow-hidden divide-y divide-border/60">
+          <div className="rounded-xl border border-border bg-card/40 overflow-hidden divide-y divide-border/60 shadow-sm">
             {[
               { href: '/compliance/regulations', icon: FileText,       label: 'Regulations & Frameworks', sub: `${totalRegs} tracked` },
               { href: '/compliance/gap-report',  icon: ClipboardCheck, label: 'Gap Report',           sub: `${assessedCount} assessed` },

@@ -10,10 +10,10 @@ interface Props {
 }
 
 const STATE_COLORS: Record<string, string> = {
-  'actively-blocking':      'border-green-500/60 bg-green-500/10 text-green-300',
+  'actively-blocking':      'border-green-500/60 bg-green-500/10 text-green-500',
   'coach-warn':             'border-orange-500/60 bg-orange-500/10 text-orange-300',
   'monitor-alert':          'border-yellow-500/60 bg-yellow-500/10 text-yellow-300',
-  'visibility-only':        'border-blue-500/60 bg-blue-500/10 text-blue-300',
+  'visibility-only':        'border-blue-500/60 bg-blue-500/10 text-blue-500',
   'licence-not-configured': 'border-red-500/60 bg-red-500/10 text-red-300',
   'partially-covered':      'border-purple-500/60 bg-purple-500/10 text-purple-300',
   'not-owned':              'border-border-strong bg-muted/40 text-muted-foreground/80',

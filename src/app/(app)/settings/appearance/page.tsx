@@ -10,7 +10,7 @@ export default function AppearancePage() {
         </p>
       </div>
 
-      <div className="rounded-xl border border-border bg-card/40 p-6 space-y-5">
+      <div className="rounded-xl border border-border bg-card/40 p-6 space-y-5 shadow-sm">
         <div>
           <p className="text-sm font-medium text-foreground">Theme</p>
           <p className="text-xs text-muted-foreground mt-0.5">

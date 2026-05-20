@@ -52,13 +52,13 @@ export function Step5({ data, onChange }: Props) {
                 className={cn(
                   'relative text-left px-3 py-2.5 rounded-lg border text-xs transition-all',
                   selected
-                    ? 'border-blue-500 bg-blue-500/10 text-foreground'
+                    ? 'border-blue-500 bg-blue-500/10 text-white'
                     : 'border-border bg-card/50 text-muted-foreground hover:border-border-strong hover:text-foreground/70'
                 )}
               >
                 <span className="font-medium block pr-5">{cat.label}</span>
                 {rank && (
-                  <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-blue-600 text-foreground text-[10px] font-bold flex items-center justify-center">
+                  <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
                     {rank}
                   </span>
                 )}
@@ -91,7 +91,7 @@ export function Step5({ data, onChange }: Props) {
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all',
                     rank
-                      ? 'border-blue-500 bg-blue-500/15 text-blue-300'
+                      ? 'border-blue-500 bg-blue-500/15 text-blue-500'
                       : 'border-border-strong bg-card text-muted-foreground hover:border-border-strong hover:text-foreground/70 disabled:opacity-40 disabled:cursor-not-allowed'
                   )}
                 >

@@ -492,7 +492,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
       <div className="col-span-1 space-y-3">
 
         {/* Main tests */}
-        <div className="rounded-xl border border-border bg-card/50 p-4 space-y-1.5">
+        <div className="rounded-xl border border-border bg-card/50 p-4 space-y-1.5 shadow-sm">
           <p className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest mb-3">Quick Tests</p>
           {MAIN_TESTS.map(s => {
             const selected = activeMode === 'web' && selectedWeb.id === s.id
@@ -508,7 +508,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
                 <div className="flex items-start gap-2">
                   <span className="mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 bg-blue-500/15 text-blue-400">WEB</span>
                   <div className="min-w-0">
-                    <p className={cn('text-[11px] font-semibold leading-tight', selected ? 'text-blue-300' : 'text-foreground')}>{s.name}</p>
+                    <p className={cn('text-[11px] font-semibold leading-tight', selected ? 'text-blue-500' : 'text-foreground')}>{s.name}</p>
                     <p className="text-[9px] text-muted-foreground/80 mt-0.5 leading-tight line-clamp-2">{s.protocol}</p>
                   </div>
                 </div>
@@ -518,7 +518,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
         </div>
 
         {/* Advanced — collapsible */}
-        <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
+        <div className="rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm">
           <button
             onClick={() => setAdvancedOpen(o => !o)}
             className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors"
@@ -545,7 +545,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
                       selected ? 'border-blue-500/50 bg-blue-500/8' : 'border-border-strong bg-muted/40 hover:border-border-strong hover:bg-accent/40'
                     )}
                   >
-                    <p className={cn('text-[10px] font-semibold', selected ? 'text-blue-300' : 'text-foreground')}>{s.name}</p>
+                    <p className={cn('text-[10px] font-semibold', selected ? 'text-blue-500' : 'text-foreground')}>{s.name}</p>
                     <p className="text-[9px] text-muted-foreground/60 mt-0.5">{s.protocol}</p>
                   </button>
                 )
@@ -582,7 +582,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
         {/* ─── WEB TEST RUNNER ─── */}
         {activeMode === 'web' && (
           <>
-            <div className="rounded-xl border border-border bg-card/50 p-5">
+            <div className="rounded-xl border border-border bg-card/50 p-5 shadow-sm">
               {/* Header */}
               <div className="flex items-start justify-between mb-4">
                 <div>
@@ -688,7 +688,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
                 <button
                   onClick={handleRun}
                   disabled={isRunning || (selectedWeb.id === 'custom_file' ? !uploadFile : !payload.trim())}
-                  className="flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+                  className="flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
                 >
                   {isRunning
                     ? <><Loader2 className="h-4 w-4 animate-spin" /> Running…</>
@@ -700,7 +700,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
 
             {/* Result panel */}
             {isRunning && (
-              <div className="rounded-xl border border-border-strong bg-card/50 p-5 flex items-start gap-3">
+              <div className="rounded-xl border border-border-strong bg-card/50 p-5 flex items-start gap-3 shadow-sm">
                 <Loader2 className="h-5 w-5 text-muted-foreground animate-spin shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-semibold text-foreground">Test in progress…</p>
@@ -759,7 +759,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
                   {/* User alert confirmation prompt — split by initial result */}
                   {showAlertPrompt && lastResultId && lastInitialResult === 'not_blocked' && (
                     <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
-                      <p className="text-xs font-semibold text-amber-300 mb-1">Did a DLP popup appear during this test?</p>
+                      <p className="text-xs font-semibold text-amber-500 mb-1">Did a DLP popup appear during this test?</p>
                       <p className="text-[10px] text-muted-foreground/80 mb-3">The request got through, but the delay suggests a coaching popup may have appeared first:</p>
                       <div className="flex items-center gap-2 flex-wrap">
                         <button
@@ -769,7 +769,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
                             setHistory(prev => prev.map(e => e.id === lastResultId ? { ...e, result: 'user_alert_proceed' } : e))
                             setShowAlertPrompt(false)
                           }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-semibold transition-colors"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-500 text-xs font-semibold transition-colors"
                         >
                           Coaching popup — I clicked Proceed
                         </button>
@@ -806,7 +806,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
                             setHistory(prev => prev.map(e => e.id === lastResultId ? { ...e, result: 'user_alert_stop' } : e))
                             setShowAlertPrompt(false)
                           }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/40 text-blue-300 text-xs font-semibold transition-colors"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/40 text-blue-500 text-xs font-semibold transition-colors"
                         >
                           Coaching popup — I clicked Stop
                         </button>
@@ -827,7 +827,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
 
         {/* ─── SCRIPT VIEWER ─── */}
         {activeMode === 'script' && (
-          <div className="rounded-xl border border-border bg-card/50 p-5">
+          <div className="rounded-xl border border-border bg-card/50 p-5 shadow-sm">
             <div className="flex items-start justify-between mb-4">
               <div>
                 <p className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest mb-1">Script Generator</p>
@@ -853,7 +853,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
             <div className="flex items-center gap-2 mb-3">
               <button
                 onClick={handleDownloadScript}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-foreground text-xs font-semibold transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold transition-colors"
               >
                 <Download className="h-3.5 w-3.5" />
                 Download .{selectedScript.ext}
@@ -955,7 +955,7 @@ function HistoryTable({ history }: { history: TestHistoryEntry[] }) {
   const hasFilters = search || resultFilter !== 'all' || dateRange !== 'all'
 
   return (
-    <div className="rounded-xl border border-border bg-card/50 p-5">
+    <div className="rounded-xl border border-border bg-card/50 p-5 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <p className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest">Test History</p>
         {history.length > 0 && (

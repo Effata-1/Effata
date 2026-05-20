@@ -33,7 +33,7 @@ export function Step1({ data, onChange }: Props) {
               className={cn(
                 'text-left px-3 py-2.5 rounded-lg border text-xs transition-all',
                 data.industry === industry.id
-                  ? 'border-blue-500 bg-blue-500/10 text-foreground'
+                  ? 'border-blue-500 bg-blue-500/10 text-white'
                   : 'border-border bg-card/50 text-muted-foreground hover:border-border-strong hover:text-foreground/70'
               )}
             >
@@ -57,7 +57,7 @@ export function Step1({ data, onChange }: Props) {
               className={cn(
                 'px-3 py-1.5 rounded-full border text-xs font-medium transition-all',
                 data.regions.includes(region.id)
-                  ? 'border-blue-500 bg-blue-500/15 text-blue-300'
+                  ? 'border-blue-500 bg-blue-500/15 text-blue-500'
                   : 'border-border-strong bg-card text-muted-foreground hover:border-border-strong hover:text-foreground/70'
               )}
             >

@@ -98,7 +98,7 @@ export function AuditFilters({ currentRange, currentSeverity, currentCategory, c
           <div className="relative" ref={rangeRef}>
             <button
               onClick={() => setOpenDropdown(openDropdown === 'range' ? null : 'range')}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-card border border-border-strong rounded-md text-foreground/70 hover:border-border-strong transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-card border border-border-strong rounded-lg text-foreground/70 hover:border-border-strong transition-colors"
             >
               {currentRangeLabel}
               <ChevronDown className={cn('w-3 h-3 transition-transform', openDropdown === 'range' && 'rotate-180')} />
@@ -135,7 +135,7 @@ export function AuditFilters({ currentRange, currentSeverity, currentCategory, c
             placeholder="Search user..."
             defaultValue={currentUser}
             onChange={e => handleUserSearch(e.target.value)}
-            className="pl-8 pr-3 py-1.5 text-xs bg-card border border-border-strong rounded-md text-foreground/70 placeholder-muted-foreground/50 focus:outline-none focus:border-border-strong w-52"
+            className="pl-8 pr-3 py-1.5 text-xs bg-card border border-border-strong rounded-lg text-foreground/70 placeholder-muted-foreground/50 focus:outline-none focus:border-border-strong w-52"
           />
         </div>
 
@@ -143,7 +143,7 @@ export function AuditFilters({ currentRange, currentSeverity, currentCategory, c
         <div className="relative" ref={filterRef}>
           <button
             onClick={() => { setOpenDropdown(openDropdown === 'filter' ? null : 'filter'); setActiveMenu(null) }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-500 text-foreground rounded-md transition-colors uppercase tracking-wide"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-colors uppercase tracking-wide"
           >
             + Add Filter
           </button>
@@ -162,7 +162,7 @@ export function AuditFilters({ currentRange, currentSeverity, currentCategory, c
                     onClick={() => setActiveMenu(menu.key)}
                     className={cn(
                       'w-full flex items-center justify-between px-4 py-3 text-sm text-left transition-colors',
-                      activeMenu === menu.key ? 'bg-blue-600 text-foreground' : 'text-foreground/70 hover:bg-accent'
+                      activeMenu === menu.key ? 'bg-blue-600 text-white' : 'text-foreground/70 hover:bg-accent'
                     )}
                   >
                     {menu.label}
@@ -215,7 +215,7 @@ export function AuditFilters({ currentRange, currentSeverity, currentCategory, c
 
         {/* Active filter chips */}
         {currentSeverity !== 'all' && (
-          <span className="flex items-center gap-1 px-2 py-1 text-xs bg-muted border border-border-strong rounded-md text-foreground/70">
+          <span className="flex items-center gap-1 px-2 py-1 text-xs bg-muted border border-border-strong rounded-lg text-foreground/70">
             Severity: <span className="capitalize ml-0.5">{currentSeverity}</span>
             <button onClick={() => navigate({ severity: 'all' })} className="text-muted-foreground/80 hover:text-foreground/70 ml-1">
               <X className="w-3 h-3" />
@@ -224,7 +224,7 @@ export function AuditFilters({ currentRange, currentSeverity, currentCategory, c
         )}
 
         {currentCategory !== 'all' && (
-          <span className="flex items-center gap-1 px-2 py-1 text-xs bg-muted border border-border-strong rounded-md text-foreground/70">
+          <span className="flex items-center gap-1 px-2 py-1 text-xs bg-muted border border-border-strong rounded-lg text-foreground/70">
             <span className="capitalize">{currentCategory}</span>
             <button onClick={() => navigate({ category: 'all' })} className="text-muted-foreground/80 hover:text-foreground/70 ml-1">
               <X className="w-3 h-3" />
@@ -233,7 +233,7 @@ export function AuditFilters({ currentRange, currentSeverity, currentCategory, c
         )}
 
         {currentUser && (
-          <span className="flex items-center gap-1 px-2 py-1 text-xs bg-muted border border-border-strong rounded-md text-foreground/70">
+          <span className="flex items-center gap-1 px-2 py-1 text-xs bg-muted border border-border-strong rounded-lg text-foreground/70">
             User: {currentUser}
             <button
               onClick={() => { navigate({ user: '' }); if (searchRef.current) searchRef.current.value = '' }}

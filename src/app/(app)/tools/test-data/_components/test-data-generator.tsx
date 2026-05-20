@@ -567,7 +567,7 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
     <div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-5 bg-card/50 border border-border rounded-xl p-1 w-fit">
+      <div className="flex gap-1 mb-5 bg-card/50 border border-border rounded-xl p-1 w-fit shadow-sm">
         <button onClick={() => setActiveTab('data')} className={tabCls(activeTab === 'data')}>
           <Table className="w-4 h-4" />
           Data Generator
@@ -588,7 +588,7 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
       <div className="col-span-2 space-y-5">
 
         {/* AI Assistant */}
-        <div className="rounded-xl border border-border bg-card/50 p-5">
+        <div className="rounded-xl border border-border bg-card/50 p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
             <SectionLabel>AI Assistant</SectionLabel>
             <Sparkles className="w-3 h-3 text-purple-400 mb-3" />
@@ -616,7 +616,7 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
               <button
                 onClick={handleGenerate}
                 disabled={aiLoading || !aiPrompt.trim()}
-                className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
               >
                 {aiLoading
                   ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
@@ -664,7 +664,7 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
         </div>
 
         {/* Data Preview */}
-        <div className="rounded-xl border border-border bg-card/50 p-5">
+        <div className="rounded-xl border border-border bg-card/50 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <SectionLabel>Data Preview</SectionLabel>
             {generatedData && (
@@ -721,7 +721,7 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
 
         {/* Download Bar */}
         {generatedData && (
-          <div className="rounded-xl border border-border bg-card/50 p-5">
+          <div className="rounded-xl border border-border bg-card/50 p-5 shadow-sm">
             <SectionLabel>Download</SectionLabel>
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
@@ -732,7 +732,7 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
                     className={cn(
                       'px-3 py-1.5 rounded-md text-xs font-bold transition-all',
                       downloadFormat === f.id
-                        ? 'bg-blue-600 text-foreground shadow-sm'
+                        ? 'bg-blue-600 text-white shadow-sm'
                         : 'text-muted-foreground/80 hover:text-foreground/70'
                     )}
                   >
@@ -742,7 +742,7 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
               </div>
               <button
                 onClick={handleDownload}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-foreground text-sm font-semibold transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white text-sm font-semibold transition-colors"
               >
                 <Download className="h-3.5 w-3.5" />
                 Download {downloadFormat.toUpperCase()}
@@ -761,7 +761,7 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
       <div className="col-span-1 space-y-5">
 
         {/* Quick Templates */}
-        <div className="rounded-xl border border-border bg-card/50 p-5">
+        <div className="rounded-xl border border-border bg-card/50 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <SectionLabel>Quick Templates</SectionLabel>
           </div>
@@ -801,7 +801,7 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
                 className={cn(
                   'px-2 py-0.5 rounded text-[10px] font-medium transition-colors',
                   tplCategory === cat
-                    ? 'bg-blue-600 text-foreground'
+                    ? 'bg-blue-600 text-white'
                     : 'bg-muted text-muted-foreground/80 hover:text-foreground/70'
                 )}
               >
@@ -838,7 +838,7 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
 
         {/* Save Dataset */}
         {generatedData && (
-          <div className="rounded-xl border border-border bg-card/50 p-5">
+          <div className="rounded-xl border border-border bg-card/50 p-5 shadow-sm">
             <SectionLabel>Save Dataset</SectionLabel>
             <div className="space-y-2">
               <input
@@ -860,7 +860,7 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
               <button
                 onClick={handleSave}
                 disabled={!saveName.trim() || saveLoading}
-                className="w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 {saveLoading
                   ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>
@@ -877,7 +877,7 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
         )}
 
         {/* Saved Datasets */}
-        <div className="rounded-xl border border-border bg-card/50 p-5">
+        <div className="rounded-xl border border-border bg-card/50 p-5 shadow-sm">
           <SectionLabel>Saved Datasets</SectionLabel>
           {savedDatasets.length === 0 ? (
             <p className="text-xs text-muted-foreground/60 italic">No saved datasets yet</p>

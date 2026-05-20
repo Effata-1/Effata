@@ -40,8 +40,8 @@ export function ClassificationSelector({ appId, orgId, currentClassification }: 
   }
 
   const COLOR_MAP: Record<string, string> = {
-    green:  'border-green-500/60 bg-green-500/10 text-green-300',
-    blue:   'border-blue-500/60 bg-blue-500/10 text-blue-300',
+    green:  'border-green-500/60 bg-green-500/10 text-green-500',
+    blue:   'border-blue-500/60 bg-blue-500/10 text-blue-500',
     amber:  'border-yellow-500/60 bg-yellow-500/10 text-yellow-300',
     purple: 'border-purple-500/60 bg-purple-500/10 text-purple-300',
     red:    'border-red-500/60 bg-red-500/10 text-red-300',

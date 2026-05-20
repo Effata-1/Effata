@@ -105,7 +105,7 @@ export function SearchableSelect(props: SearchableSelectProps) {
           {triggerLabel()}
         </span>
         {hasSelection && (
-          <span className="text-[10px] font-bold bg-blue-600 text-foreground rounded-full px-1.5 py-0.5 leading-none shrink-0 tabular-nums">
+          <span className="text-[10px] font-bold bg-blue-600 text-white rounded-full px-1.5 py-0.5 leading-none shrink-0 tabular-nums">
             {selectedCount}
           </span>
         )}
@@ -161,7 +161,7 @@ export function SearchableSelect(props: SearchableSelectProps) {
                     className={cn(
                       'w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between gap-2',
                       isActive
-                        ? 'bg-blue-600/20 text-blue-300'
+                        ? 'bg-blue-600/20 text-blue-500'
                         : 'text-foreground/70 hover:bg-muted/80'
                     )}
                   >

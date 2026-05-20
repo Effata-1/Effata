@@ -139,7 +139,7 @@ function ManualForm() {
         <button
           type="submit"
           disabled={isPending}
-          className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-foreground text-sm font-medium rounded transition-colors"
+          className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white text-sm font-medium rounded transition-colors"
         >
           {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
           Create Report
@@ -181,7 +181,7 @@ export default function NewReportPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-card/50 border border-border rounded-xl p-1 w-fit">
+      <div className="flex gap-1 mb-6 bg-card/50 border border-border rounded-xl p-1 w-fit shadow-sm">
         <button onClick={() => setTab('ai')} className={tabCls(tab === 'ai')}>
           <Sparkles className="w-4 h-4" />
           AI Assistant

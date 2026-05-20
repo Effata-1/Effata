@@ -119,14 +119,14 @@ function AddMappingForm({
           value={sourceName}
           onChange={e => { setSourceName(e.target.value); setErr('') }}
           placeholder="e.g. Domain Admins, HR Department OU"
-          className="flex-1 px-3 py-1.5 rounded-md bg-card border border-border-strong text-sm text-foreground/90 placeholder:text-muted-foreground/50 outline-none focus:border-border-strong"
+          className="flex-1 px-3 py-1.5 rounded-lg bg-card border border-border-strong text-sm text-foreground/90 placeholder:text-muted-foreground/50 outline-none focus:border-border-strong"
           onKeyDown={e => e.key === 'Enter' && handleSave()}
           autoFocus
         />
         <select
           value={sourceType}
           onChange={e => setSourceType(e.target.value as IdentitySourceType)}
-          className="px-3 py-1.5 rounded-md bg-card border border-border-strong text-sm text-foreground/90 outline-none focus:border-border-strong cursor-pointer"
+          className="px-3 py-1.5 rounded-lg bg-card border border-border-strong text-sm text-foreground/90 outline-none focus:border-border-strong cursor-pointer"
         >
           {SOURCE_TYPE_OPTIONS.map(opt => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -137,7 +137,7 @@ function AddMappingForm({
         value={notes}
         onChange={e => setNotes(e.target.value)}
         placeholder="Notes (optional)"
-        className="w-full px-3 py-1.5 rounded-md bg-card border border-border-strong text-sm text-foreground/90 placeholder:text-muted-foreground/50 outline-none focus:border-border-strong"
+        className="w-full px-3 py-1.5 rounded-lg bg-card border border-border-strong text-sm text-foreground/90 placeholder:text-muted-foreground/50 outline-none focus:border-border-strong"
       />
       {err && <p className="text-xs text-red-400">{err}</p>}
       <div className="flex items-center gap-2">
@@ -209,14 +209,14 @@ function MappingItem({
           <input
             value={sourceName}
             onChange={e => setSourceName(e.target.value)}
-            className="flex-1 px-3 py-1.5 rounded-md bg-card border border-border-strong text-sm text-foreground/90 outline-none focus:border-border-strong"
+            className="flex-1 px-3 py-1.5 rounded-lg bg-card border border-border-strong text-sm text-foreground/90 outline-none focus:border-border-strong"
             onKeyDown={e => e.key === 'Enter' && handleSave()}
             autoFocus
           />
           <select
             value={sourceType}
             onChange={e => setSourceType(e.target.value as IdentitySourceType)}
-            className="px-3 py-1.5 rounded-md bg-card border border-border-strong text-sm text-foreground/90 outline-none focus:border-border-strong cursor-pointer"
+            className="px-3 py-1.5 rounded-lg bg-card border border-border-strong text-sm text-foreground/90 outline-none focus:border-border-strong cursor-pointer"
           >
             {SOURCE_TYPE_OPTIONS.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -227,7 +227,7 @@ function MappingItem({
           value={notes}
           onChange={e => setNotes(e.target.value)}
           placeholder="Notes (optional)"
-          className="w-full px-3 py-1.5 rounded-md bg-card border border-border-strong text-sm text-foreground/90 placeholder:text-muted-foreground/50 outline-none focus:border-border-strong"
+          className="w-full px-3 py-1.5 rounded-lg bg-card border border-border-strong text-sm text-foreground/90 placeholder:text-muted-foreground/50 outline-none focus:border-border-strong"
         />
         {err && <p className="text-xs text-red-400">{err}</p>}
         <div className="flex gap-2">
@@ -417,7 +417,7 @@ function FieldCard({
   ).length
 
   return (
-    <div className="rounded-xl border border-border bg-card/30 overflow-hidden">
+    <div className="rounded-xl border border-border bg-card/30 overflow-hidden shadow-sm">
       {/* Card header */}
       <button
         onClick={() => setCollapsed(c => !c)}
@@ -516,7 +516,7 @@ export function IdentityClient({
           { label: 'Critical Gaps', value: criticalGaps, cls: criticalGaps > 0 ? 'text-red-400' : 'text-muted-foreground/80' },
           { label: 'In Scope',      value: inScopeTotal, cls: inScopeTotal > 0 ? 'text-blue-400' : 'text-muted-foreground/80' },
         ].map(stat => (
-          <div key={stat.label} className="rounded-xl bg-card border border-border px-4 py-3">
+          <div key={stat.label} className="rounded-xl bg-card border border-border px-4 py-3 shadow-sm">
             <p className={cn('text-2xl font-bold', stat.cls)}>{stat.value}</p>
             <p className="text-xs text-muted-foreground/80 mt-0.5">{stat.label}</p>
           </div>

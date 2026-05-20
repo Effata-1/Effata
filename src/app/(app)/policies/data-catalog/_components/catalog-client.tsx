@@ -50,7 +50,7 @@ const RULES = [
 function RulesPanel() {
   const [open, setOpen] = useState(false)
   return (
-    <div className="rounded-xl border border-border bg-card/40 overflow-hidden">
+    <div className="rounded-xl border border-border bg-card/40 overflow-hidden shadow-sm">
       <button
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/30 transition-colors"
@@ -141,7 +141,7 @@ function AddCustomModal({ labels, onClose }: { labels: OrgClassificationLabel[];
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground/70">Cancel</button>
             <button type="submit" disabled={isPending}
-              className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-foreground rounded-lg font-medium disabled:opacity-50 transition-colors">
+              className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium disabled:opacity-50 transition-colors">
               {isPending ? 'Adding…' : 'Add data type'}
             </button>
           </div>
@@ -200,7 +200,7 @@ function ClassificationSelect({
             onClick={() => { onChange(''); setOpen(false) }}
             className={cn(
               'w-full flex items-center px-3 py-2.5 text-xs text-left transition-colors',
-              !value ? 'bg-blue-600/20 text-blue-300' : 'text-muted-foreground/80 hover:bg-muted/80',
+              !value ? 'bg-blue-600/20 text-blue-500' : 'text-muted-foreground/80 hover:bg-muted/80',
             )}
           >
             — No label —
@@ -377,7 +377,7 @@ function DataTypeRow({
                         className={cn(
                           'text-[10px] px-2 py-0.5 rounded border transition-all',
                           selectedExample === ex
-                            ? 'text-blue-300 bg-blue-500/20 border-blue-500/50 shadow-[0_0_6px_rgba(59,130,246,0.35)]'
+                            ? 'text-blue-500 bg-blue-500/20 border-blue-500/50 shadow-[0_0_6px_rgba(59,130,246,0.35)]'
                             : 'text-muted-foreground bg-muted border-border-strong hover:border-blue-500/40 hover:text-blue-300 hover:bg-blue-500/8 hover:shadow-[0_0_4px_rgba(59,130,246,0.2)]',
                         )}
                       >
@@ -793,7 +793,7 @@ export function CatalogClient({
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-foreground text-xs font-medium rounded-lg transition-colors shrink-0"
+          className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
         >
           <Plus className="w-3.5 h-3.5" />
           Add custom type
@@ -807,7 +807,7 @@ export function CatalogClient({
           { label: 'In scope',        value: totalInScope,              sub: 'marked by your org',       accent: 'text-blue-400' },
           { label: 'Classified',      value: totalMapped,               sub: `of ${totalInScope} in-scope types`, accent: totalMapped === totalInScope && totalInScope > 0 ? 'text-green-400' : 'text-amber-400' },
         ].map(s => (
-          <div key={s.label} className="rounded-xl border border-border bg-card/40 px-5 py-3.5">
+          <div key={s.label} className="rounded-xl border border-border bg-card/40 px-5 py-3.5 shadow-sm">
             <p className={cn('text-2xl font-bold', s.accent ?? 'text-foreground')}>{s.value}</p>
             <p className="text-xs font-medium text-muted-foreground mt-0.5">{s.label}</p>
             <p className="text-[10px] text-muted-foreground/60 mt-0.5">{s.sub}</p>
@@ -926,7 +926,7 @@ export function CatalogClient({
                       />
                     </td>
                     <td className="px-5 py-3.5 w-32 text-right">
-                      <span className="text-[10px] text-muted-foreground/60 bg-muted px-2 py-1 rounded-md border border-border-strong">Custom</span>
+                      <span className="text-[10px] text-muted-foreground/60 bg-muted px-2 py-1 rounded-lg border border-border-strong">Custom</span>
                     </td>
                   </tr>
                 ))}

@@ -82,7 +82,7 @@ export function AuditTrailClient({
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search user, control, regulation…"
-            className="bg-card border border-border rounded-xl pl-8 pr-8 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-border-strong w-72"
+            className="bg-card border border-border rounded-xl pl-8 pr-8 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-border-strong w-72 shadow-sm"
           />
           {search && (
             <button

@@ -258,7 +258,7 @@ function ImportTab({
         <button
           onClick={handleImport}
           disabled={isPending || !selected.size}
-          className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-foreground text-xs font-medium rounded transition-colors"
+          className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-medium rounded transition-colors"
         >
           {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Import className="w-3.5 h-3.5" />}
           Import {selected.size > 0 ? `${selected.size} Test${selected.size !== 1 ? 's' : ''}` : 'Selected'}
@@ -616,7 +616,7 @@ function ManualForm({
         <button
           onClick={handleSave}
           disabled={isPending}
-          className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-foreground text-xs font-medium rounded transition-colors"
+          className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-medium rounded transition-colors"
         >
           {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
           {editTest ? 'Save Changes' : 'Add Test'}

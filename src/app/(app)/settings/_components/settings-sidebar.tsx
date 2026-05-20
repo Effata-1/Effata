@@ -42,8 +42,8 @@ export function SettingsSidebar({ role }: { role: string }) {
       {/* Logo */}
       <div className="px-4 py-5 border-b border-sidebar-border">
         <div className="flex items-center gap-2 mb-4">
-          <div className="w-7 h-7 rounded-md bg-blue-600 flex items-center justify-center">
-            <Shield className="h-4 w-4 text-foreground" />
+          <div className="w-8 h-8 rounded-md bg-blue-600 flex items-center justify-center">
+            <Shield className="h-4 w-4 text-white" />
           </div>
           <span className="font-semibold text-foreground text-sm">Effata</span>
         </div>

@@ -147,7 +147,7 @@ export default async function GenAIAppProfilePage({
       </Link>
 
       {/* App header */}
-      <div className="rounded-xl border border-border bg-card/50 p-5">
+      <div className="rounded-xl border border-border bg-card/50 p-5 shadow-sm">
         <div className="flex items-start gap-4">
           <div
             className="w-12 h-12 rounded-xl flex items-center justify-center text-foreground font-bold text-lg flex-shrink-0"
@@ -204,7 +204,7 @@ export default async function GenAIAppProfilePage({
       )}
 
       {/* Customer classification */}
-      <div className="rounded-xl border border-border bg-card/50 p-5">
+      <div className="rounded-xl border border-border bg-card/50 p-5 shadow-sm">
         <h2 className="text-sm font-semibold text-foreground mb-1">Your Classification</h2>
         <p className="text-xs text-muted-foreground/80 mb-4">
           This overrides the system suggestion in your organisation's DLP policy matrix. The system score does not change.
@@ -218,7 +218,7 @@ export default async function GenAIAppProfilePage({
 
       {/* Enterprise vs Personal comparison */}
       {enterpriseProfile && personalProfile && (
-        <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
+        <div className="rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm">
           <div className="px-5 py-3 border-b border-border bg-card">
             <h2 className="text-sm font-semibold text-foreground">Enterprise vs Personal Mode</h2>
           </div>
@@ -253,7 +253,7 @@ export default async function GenAIAppProfilePage({
 
       {/* Data Governance & Privacy */}
       {fields && (
-        <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
+        <div className="rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm">
           <div className="px-5 py-3 border-b border-border bg-card flex items-center justify-between">
             <h2 className="text-sm font-semibold text-foreground">Data Governance & Privacy</h2>
             {score && <span className={cn('text-sm font-bold', scoreColor(score.data_governance))}>{score.data_governance}/100</span>}
@@ -269,7 +269,7 @@ export default async function GenAIAppProfilePage({
 
       {/* DLP Activity Support */}
       {dlp && (
-        <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
+        <div className="rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm">
           <div className="px-5 py-3 border-b border-border bg-card flex items-center justify-between">
             <h2 className="text-sm font-semibold text-foreground">DLP Activity Support</h2>
             {score && <span className={cn('text-sm font-bold', scoreColor(score.dlp_activity))}>{score.dlp_activity}/100</span>}
@@ -299,7 +299,7 @@ export default async function GenAIAppProfilePage({
 
       {/* Enterprise Capability & Access */}
       {fields && (
-        <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
+        <div className="rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm">
           <div className="px-5 py-3 border-b border-border bg-card flex items-center justify-between">
             <h2 className="text-sm font-semibold text-foreground">Enterprise Capability & Access Control</h2>
             {score && <span className={cn('text-sm font-bold', scoreColor(score.enterprise_access))}>{score.enterprise_access}/100</span>}
@@ -314,7 +314,7 @@ export default async function GenAIAppProfilePage({
 
       {/* Security & Compliance */}
       {fields && (
-        <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
+        <div className="rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm">
           <div className="px-5 py-3 border-b border-border bg-card flex items-center justify-between">
             <h2 className="text-sm font-semibold text-foreground">Security & Compliance Assurance</h2>
             {score && <span className={cn('text-sm font-bold', scoreColor(score.security_compliance))}>{score.security_compliance}/100</span>}
@@ -329,7 +329,7 @@ export default async function GenAIAppProfilePage({
 
       {/* GenAI-Specific Risk */}
       {fields && (
-        <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
+        <div className="rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm">
           <div className="px-5 py-3 border-b border-border bg-card flex items-center justify-between">
             <h2 className="text-sm font-semibold text-foreground">GenAI-Specific Risk</h2>
             {score && <span className={cn('text-sm font-bold', scoreColor(score.genai_risk))}>{score.genai_risk}/100</span>}
@@ -345,7 +345,7 @@ export default async function GenAIAppProfilePage({
 
       {/* Breach & Transparency */}
       {breach && (
-        <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
+        <div className="rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm">
           <div className="px-5 py-3 border-b border-border bg-card flex items-center justify-between">
             <h2 className="text-sm font-semibold text-foreground">Breach & Transparency</h2>
             {score && <span className={cn('text-sm font-bold', scoreColor(score.breach_transparency))}>{score.breach_transparency}/100</span>}

@@ -24,7 +24,7 @@ export function ThemeSelector() {
             className={cn(
               'flex flex-col items-center gap-2.5 p-4 rounded-xl border transition-all text-center',
               active
-                ? 'border-blue-500/50 bg-blue-500/10 text-foreground'
+                ? 'border-blue-500/50 bg-blue-500/10 text-white'
                 : 'border-border bg-card/40 text-muted-foreground hover:border-border-strong hover:text-foreground',
             )}
           >

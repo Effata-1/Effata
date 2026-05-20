@@ -111,7 +111,7 @@ function VerifyButton({ reg }: { reg: RegulationRow }) {
       <button
         onClick={submit}
         disabled={isPending}
-        className="text-[10px] font-medium px-2 py-1 rounded bg-green-600 text-foreground hover:bg-green-500 disabled:opacity-50 transition-colors"
+        className="text-[10px] font-medium px-2 py-1 rounded bg-green-600 text-white hover:bg-green-500 disabled:opacity-50 transition-colors"
       >
         {isPending ? 'Saving…' : 'Confirm'}
       </button>
@@ -315,7 +315,7 @@ export function RegulationsClient({
       {staleCount > 0 && !bannerDismissed && (
         <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
           <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
-          <p className="text-sm text-amber-300 flex-1">
+          <p className="text-sm text-amber-500 flex-1">
             <span className="font-semibold">{staleCount} {staleCount === 1 ? "regulation hasn't" : "regulations haven't"} been AI-verified this month.</span>
             {' '}The monthly review runs on the 1st of each month — or verify manually using the official source links below.
           </p>
@@ -353,7 +353,7 @@ export function RegulationsClient({
           <button
             onClick={() => updateFilter('region', 'my-regions')}
             className={cn(PILL_BASE, currentRegion === 'my-regions'
-              ? 'border-blue-500 bg-blue-500/15 text-blue-300'
+              ? 'border-blue-500 bg-blue-500/15 text-blue-500'
               : PILL_DEFAULT
             )}
           >

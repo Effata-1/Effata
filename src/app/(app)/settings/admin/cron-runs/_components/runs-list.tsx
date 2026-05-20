@@ -65,7 +65,7 @@ export function RunsList({ runs }: { runs: UnifiedRun[] }) {
   return (
     <div className="space-y-3">
       {runs.map(run => (
-        <div key={run.id} className="rounded-xl border border-border bg-card/40 overflow-hidden">
+        <div key={run.id} className="rounded-xl border border-border bg-card/40 overflow-hidden shadow-sm">
           <div className="px-5 py-4 flex items-center gap-3 flex-wrap">
             <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded uppercase', TYPE_STYLES[run.type])}>
               {TYPE_LABELS[run.type]}

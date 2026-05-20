@@ -559,7 +559,7 @@ function HeaderEditForm({
       <button
         onClick={save}
         disabled={isPending}
-        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-foreground text-xs font-medium rounded transition-colors"
+        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white text-xs font-medium rounded transition-colors"
       >
         {isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
         Save Changes
@@ -720,7 +720,7 @@ export function ReportDetailClient({ report: initialReport, tests: initialTests,
             <p className="text-xs font-medium text-muted-foreground">Test Records ({tests.length})</p>
             <button
               onClick={() => { setEditingTest(undefined); setModalOpen(true) }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-foreground text-xs font-medium rounded transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               Add Test
@@ -733,7 +733,7 @@ export function ReportDetailClient({ report: initialReport, tests: initialTests,
               <p className="text-muted-foreground/60 text-xs mb-4">Import from Control Validator or add manually</p>
               <button
                 onClick={() => { setEditingTest(undefined); setModalOpen(true) }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-foreground text-xs font-medium rounded transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Add First Test

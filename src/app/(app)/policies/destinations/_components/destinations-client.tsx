@@ -138,7 +138,7 @@ function AppSearchInput({
       {selected.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {selected.map(app => (
-            <span key={app} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted border border-border-strong text-xs text-foreground/70">
+            <span key={app} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-muted border border-border-strong text-xs text-foreground/70">
               {app}
               <button type="button" onClick={() => onChange(selected.filter(a => a !== app))} className="text-muted-foreground/80 hover:text-foreground/70 transition-colors ml-0.5">
                 <X className="w-3 h-3" />
@@ -337,7 +337,7 @@ function CatalogRow({
               <p className="text-xs font-medium text-muted-foreground/80 uppercase tracking-wider mb-1.5">Applications</p>
               <div className="flex flex-wrap gap-1.5">
                 {apps.map(a => (
-                  <span key={a} className="px-2 py-0.5 rounded-md bg-muted border border-border-strong text-xs text-muted-foreground">{a}</span>
+                  <span key={a} className="px-2 py-0.5 rounded-lg bg-muted border border-border-strong text-xs text-muted-foreground">{a}</span>
                 ))}
               </div>
             </div>
@@ -581,7 +581,7 @@ function AddCustomModal({
               Cancel
             </button>
             <button type="submit" disabled={saving}
-              className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-foreground transition-colors disabled:opacity-50">
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-50">
               {saving ? 'Adding…' : 'Add Destination'}
             </button>
           </div>
@@ -915,7 +915,7 @@ export function DestinationsClient({
           { label: 'Enterprise Approved (in scope)',  value: enterpriseCount, cls: 'text-emerald-400' },
           { label: 'Prohibited',                      value: prohibitedCount, cls: 'text-red-400' },
         ].map(stat => (
-          <div key={stat.label} className="rounded-xl bg-card border border-border px-4 py-3">
+          <div key={stat.label} className="rounded-xl bg-card border border-border px-4 py-3 shadow-sm">
             <p className={cn('text-2xl font-bold', stat.cls)}>{stat.value}</p>
             <p className="text-xs text-muted-foreground/80 mt-0.5">{stat.label}</p>
           </div>

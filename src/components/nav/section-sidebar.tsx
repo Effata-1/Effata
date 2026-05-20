@@ -18,24 +18,24 @@ export function SectionSidebar({ title, items, backHref = '/dashboard' }: Props)
   const pathname = usePathname()
 
   return (
-    <aside className="w-56 shrink-0 flex flex-col h-screen bg-card border-r border-border">
-      <div className="px-4 py-5 border-b border-border">
+    <aside className="w-56 shrink-0 flex flex-col h-screen bg-sidebar border-r border-sidebar-border">
+      <div className="px-4 py-5 border-b border-sidebar-border">
         <div className="flex items-center gap-2 mb-4">
-          <div className="w-7 h-7 rounded-md bg-blue-600 flex items-center justify-center">
-            <Shield className="h-4 w-4 text-foreground" />
+          <div className="w-8 h-8 rounded-md bg-blue-600 flex items-center justify-center">
+            <Shield className="h-4 w-4 text-white" />
           </div>
           <span className="font-semibold text-foreground text-sm">Effata</span>
         </div>
         <Link
           href={backHref}
-          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/80 hover:text-foreground/70 transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="w-3 h-3" />
           Back to app
         </Link>
       </div>
 
-      <div className="px-4 py-4 border-b border-border">
+      <div className="px-4 py-4 border-b border-sidebar-border">
         <h1 className="text-base font-bold text-foreground">{title}</h1>
       </div>
 
@@ -49,8 +49,8 @@ export function SectionSidebar({ title, items, backHref = '/dashboard' }: Props)
               className={cn(
                 'block px-3 py-2 rounded-md text-sm transition-colors',
                 isActive
-                  ? 'bg-accent/50 text-foreground font-medium'
-                  : 'text-muted-foreground hover:text-foreground/70 hover:bg-accent/30'
+                  ? 'bg-sidebar-accent text-foreground font-medium'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50'
               )}
             >
               {item.label}
@@ -59,11 +59,11 @@ export function SectionSidebar({ title, items, backHref = '/dashboard' }: Props)
         })}
       </nav>
 
-      <div className="px-3 py-3 border-t border-border">
+      <div className="px-3 py-3 border-t border-sidebar-border">
         <form action={logout}>
           <button
             type="submit"
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs text-muted-foreground/80 hover:text-foreground/70 hover:bg-accent/30 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50 transition-colors"
           >
             <LogOut className="h-3.5 w-3.5" />
             Sign out

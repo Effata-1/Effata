@@ -40,7 +40,7 @@ function QuestionGroup({
             className={cn(
               'px-4 py-2 rounded-lg border text-sm font-medium transition-all',
               value === opt
-                ? 'border-blue-500 bg-blue-500/15 text-blue-300'
+                ? 'border-blue-500 bg-blue-500/15 text-blue-500'
                 : 'border-border-strong bg-card text-muted-foreground hover:border-border-strong hover:text-foreground/70'
             )}
           >

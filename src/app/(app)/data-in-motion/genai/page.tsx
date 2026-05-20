@@ -113,7 +113,7 @@ export default async function GenAIAppsPage() {
             <Link
               key={app.app_id}
               href={`/data-in-motion/genai/${app.app_id}`}
-              className="group block rounded-xl border border-border bg-card/50 p-4 hover:border-border-strong hover:bg-card transition-all"
+              className="group block rounded-xl border border-border bg-card/50 p-4 hover:border-border-strong hover:bg-card transition-all shadow-sm"
             >
               <div className="flex items-start gap-3 mb-4">
                 <div

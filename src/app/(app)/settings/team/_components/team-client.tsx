@@ -111,7 +111,7 @@ function InviteModal({ onClose }: { onClose: () => void }) {
               <button
                 type="submit"
                 disabled={pending}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-foreground rounded-lg font-medium disabled:opacity-50 transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium disabled:opacity-50 transition-colors"
               >
                 {pending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
                 Send invite
@@ -200,7 +200,7 @@ function RowMenu({
                   <button
                     onClick={() => { onRemove(); setOpen(false) }}
                     disabled={isPending}
-                    className="flex-1 py-1 text-xs bg-red-600 hover:bg-red-500 text-foreground rounded transition-colors disabled:opacity-50"
+                    className="flex-1 py-1 text-xs bg-red-600 hover:bg-red-500 text-white rounded transition-colors disabled:opacity-50"
                   >
                     Remove
                   </button>
@@ -386,7 +386,7 @@ function AdministratorsTab({
           <span className="text-xs text-muted-foreground/80">{filtered.length} found</span>
           <button
             onClick={() => setShowInvite(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-foreground text-xs font-medium rounded-lg transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors"
           >
             <UserPlus className="w-3.5 h-3.5" />
             Invite

@@ -91,8 +91,8 @@ export function OnboardingWizard({ initialData, initialStep }: Props) {
       {/* Header */}
       <div className="border-b border-border px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-md bg-blue-600 flex items-center justify-center">
-            <Shield className="h-4 w-4 text-foreground" />
+          <div className="w-8 h-8 rounded-md bg-blue-600 flex items-center justify-center">
+            <Shield className="h-4 w-4 text-white" />
           </div>
           <span className="font-semibold text-foreground text-sm">Effata</span>
         </div>
@@ -195,8 +195,8 @@ export function OnboardingWizard({ initialData, initialStep }: Props) {
               className={cn(
                 'flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold transition-all',
                 canProceed(step, data) && !isPending
-                  ? 'bg-blue-600 hover:bg-blue-500 text-foreground'
-                  : 'bg-muted text-muted-foreground/80 cursor-not-allowed'
+                  ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                  : 'bg-muted border border-border text-muted-foreground/60 cursor-not-allowed'
               )}
             >
               {isPending ? (
@@ -215,8 +215,8 @@ export function OnboardingWizard({ initialData, initialStep }: Props) {
               className={cn(
                 'flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold transition-all',
                 canProceed(5, data) && !isPending
-                  ? 'bg-blue-600 hover:bg-blue-500 text-foreground'
-                  : 'bg-muted text-muted-foreground/80 cursor-not-allowed'
+                  ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                  : 'bg-muted border border-border text-muted-foreground/60 cursor-not-allowed'
               )}
             >
               {isPending ? (

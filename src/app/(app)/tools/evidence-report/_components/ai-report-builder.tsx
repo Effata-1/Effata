@@ -134,7 +134,7 @@ function DraftPreview({
           <button
             onClick={onCreateReport}
             disabled={creating}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-foreground text-sm font-semibold rounded-lg transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors"
           >
             {creating
               ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating report…</>
@@ -160,7 +160,7 @@ function Bubble({ role, text }: { role: 'user' | 'assistant'; text: string }) {
   if (role === 'user') {
     return (
       <div className="flex justify-end mb-3">
-        <div className="max-w-[80%] px-3.5 py-2.5 bg-blue-600/90 rounded-2xl rounded-tr-sm text-xs text-foreground">
+        <div className="max-w-[80%] px-3.5 py-2.5 bg-blue-600/90 rounded-2xl rounded-tr-sm text-xs text-white">
           {text}
         </div>
       </div>
@@ -307,7 +307,7 @@ export function AIReportBuilder() {
             <button
               onClick={handleSend}
               disabled={isPending || !input.trim()}
-              className="p-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-foreground rounded-lg transition-colors shrink-0"
+              className="p-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-lg transition-colors shrink-0"
             >
               {isPending
                 ? <Loader2 className="w-4 h-4 animate-spin" />

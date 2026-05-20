@@ -76,9 +76,9 @@ function ToolCard({
                   key={mod.id}
                   onClick={() => onToggleModule(mod.id)}
                   className={cn(
-                    'px-2.5 py-1 rounded-md border text-xs font-medium transition-all',
+                    'px-2.5 py-1 rounded-lg border text-xs font-medium transition-all',
                     active
-                      ? 'border-blue-500/60 bg-blue-500/15 text-blue-300'
+                      ? 'border-blue-500/60 bg-blue-500/15 text-blue-500'
                       : 'border-border-strong bg-muted/60 text-muted-foreground hover:border-border-strong hover:text-foreground/70'
                   )}
                 >
