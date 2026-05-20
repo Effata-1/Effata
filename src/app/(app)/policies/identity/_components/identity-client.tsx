@@ -20,7 +20,6 @@ import {
   FIELD_DESCRIPTIONS,
   SOURCE_TYPE_LABELS,
 } from '../constants'
-import { FilterSelect } from '@/components/ui/filter-select'
 
 // ─── Risk badge metadata ───────────────────────────────────────────────────────
 
@@ -120,14 +119,15 @@ function AddMappingForm({
           onKeyDown={e => e.key === 'Enter' && handleSave()}
           autoFocus
         />
-        <div className="w-36">
-          <FilterSelect
-            placeholder="Source type"
-            value={sourceType}
-            onChange={v => setSourceType(v as IdentitySourceType)}
-            options={SOURCE_TYPE_OPTIONS}
-          />
-        </div>
+        <select
+          value={sourceType}
+          onChange={e => setSourceType(e.target.value as IdentitySourceType)}
+          className="px-3 py-1.5 rounded-md bg-zinc-900 border border-zinc-700 text-sm text-zinc-200 outline-none focus:border-zinc-500 cursor-pointer"
+        >
+          {SOURCE_TYPE_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
       </div>
       <input
         value={notes}
@@ -209,14 +209,15 @@ function MappingItem({
             onKeyDown={e => e.key === 'Enter' && handleSave()}
             autoFocus
           />
-          <div className="w-36">
-            <FilterSelect
-              placeholder="Source type"
-              value={sourceType}
-              onChange={v => setSourceType(v as IdentitySourceType)}
-              options={SOURCE_TYPE_OPTIONS}
-            />
-          </div>
+          <select
+            value={sourceType}
+            onChange={e => setSourceType(e.target.value as IdentitySourceType)}
+            className="px-3 py-1.5 rounded-md bg-zinc-900 border border-zinc-700 text-sm text-zinc-200 outline-none focus:border-zinc-500 cursor-pointer"
+          >
+            {SOURCE_TYPE_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
         </div>
         <input
           value={notes}
@@ -318,9 +319,6 @@ function ValueRow({
           : <ChevronRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
         }
         <span className="flex-1 text-sm text-zinc-200 font-medium">{value.value_name}</span>
-        {isGap && (
-          <span className="text-xs text-amber-500 mr-2">no mappings</span>
-        )}
         <span className={cn('text-xs font-semibold px-1.5 py-0.5 rounded shrink-0', risk.text, risk.bg)}>
           {risk.label}
         </span>
@@ -390,7 +388,7 @@ function FieldCard({
   onUpdate: (catalogValueId: string, mappingId: string, fields: Partial<OrgIdentityMapping>) => void
   onDelete: (catalogValueId: string, mappingId: string) => void
 }) {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(true)
 
   const mappedCount = values.filter(v => v.mappings.length > 0).length
   const gapCount    = values.filter(
@@ -459,17 +457,10 @@ export function IdentityClient({
       applyAction(state, action),
   )
 
-  const totalMapped = fieldOrder.reduce(
-    (sum, f) => sum + fields[f].filter(v => v.mappings.length > 0).length,
-    0,
-  )
-  const totalValues = fieldOrder.reduce((sum, f) => sum + fields[f].length, 0)
-  const totalGaps   = fieldOrder.reduce(
-    (sum, f) => sum + fields[f].filter(
-      v => (v.risk_level === 'critical' || v.risk_level === 'high') && v.mappings.length === 0
-    ).length,
-    0,
-  )
+  const totalMapped    = fieldOrder.reduce((sum, f) => sum + fields[f].filter(v => v.mappings.length > 0).length, 0)
+  const totalValues    = fieldOrder.reduce((sum, f) => sum + fields[f].length, 0)
+  const criticalGaps   = fieldOrder.reduce((sum, f) => sum + fields[f].filter(v => v.risk_level === 'critical' && v.mappings.length === 0).length, 0)
+  const highGaps       = fieldOrder.reduce((sum, f) => sum + fields[f].filter(v => v.risk_level === 'high' && v.mappings.length === 0).length, 0)
 
   function handleAdd(catalogValueId: string, mapping: OrgIdentityMapping) {
     dispatch({ type: 'add', catalogValueId, mapping })
@@ -485,20 +476,24 @@ export function IdentityClient({
 
   return (
     <div>
-      {/* Summary bar */}
-      <div className="flex items-center gap-4 mb-6 px-1">
-        <div className="text-sm text-zinc-400">
-          <span className="text-white font-medium">{totalMapped}</span>
-          <span className="text-zinc-600"> / </span>
-          <span>{totalValues} values mapped</span>
-        </div>
-        {totalGaps > 0 && (
-          <div className="flex items-center gap-1.5 text-sm text-amber-500">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
-            {totalGaps} high-priority gap{totalGaps > 1 ? 's' : ''} — critical or high-risk values with no mappings
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        {[
+          { label: 'Total Values',      value: totalValues,  cls: 'text-white' },
+          { label: 'Mapped',            value: totalMapped,  cls: 'text-emerald-400' },
+          { label: 'Critical Gaps',     value: criticalGaps, cls: criticalGaps > 0 ? 'text-red-400' : 'text-zinc-500' },
+          { label: 'High-Risk Gaps',    value: highGaps,     cls: highGaps > 0 ? 'text-orange-400' : 'text-zinc-500' },
+        ].map(stat => (
+          <div key={stat.label} className="rounded-xl bg-zinc-900 border border-zinc-800 px-4 py-3">
+            <p className={cn('text-2xl font-bold', stat.cls)}>{stat.value}</p>
+            <p className="text-xs text-zinc-500 mt-0.5">{stat.label}</p>
           </div>
-        )}
+        ))}
       </div>
+      <p className="text-xs text-zinc-600 mb-5">
+        Mappings are added manually — enter your AD groups, OUs, or HR attributes for each category.
+        Automatic sync from Active Directory, Okta, and Entra ID is on the roadmap.
+      </p>
 
       {/* Field cards */}
       <div className="space-y-4">
