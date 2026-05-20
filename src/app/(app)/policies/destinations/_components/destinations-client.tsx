@@ -859,24 +859,24 @@ export function DestinationsClient({
   const prohibitedCount = enrichedItems.filter(e => e.trust_tag === 'prohibited').length + customItems.filter(c => c.trust_tag === 'prohibited').length
 
   function handleToggle(catalogId: string, name: string, tag: TrustTag, sub: string, inScope: boolean) {
-    startTransition(() => {
+    startTransition(async () => {
       setOptimisticEnriched({ type: 'toggle', id: catalogId, inScope: !inScope })
-      toggleDestinationInScope(catalogId, name, tag, sub, inScope)
+      await toggleDestinationInScope(catalogId, name, tag, sub, inScope)
     })
   }
 
   function handleUpdate(profileId: string, fields: Partial<{ name: string; applications: string[]; notes: string | null; definition: string | null }>) {
-    startTransition(() => {
+    startTransition(async () => {
       setOptimisticEnriched({ type: 'update', profileId, fields })
       setOptimisticCustom({ type: 'update', profileId, fields })
-      updateDestinationProfile(profileId, fields)
+      await updateDestinationProfile(profileId, fields)
     })
   }
 
   function handleDeleteCustom(id: string) {
-    startTransition(() => {
+    startTransition(async () => {
       setOptimisticCustom({ type: 'delete', id })
-      deleteCustomDestination(id)
+      await deleteCustomDestination(id)
     })
   }
 
@@ -893,9 +893,9 @@ export function DestinationsClient({
       is_custom:      true,
       created_at:     new Date().toISOString(),
     }
-    startTransition(() => {
+    startTransition(async () => {
       setOptimisticCustom({ type: 'add', item: tempItem })
-      addCustomDestination(fields)
+      await addCustomDestination(fields)
     })
   }
 

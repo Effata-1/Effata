@@ -328,7 +328,7 @@ function DataTypeRow({
             <ClassificationSelect
               value={item.classification_label_id}
               labels={labels}
-              onChange={labelId => item.org_data_type_id && onClassify(item.org_data_type_id, labelId)}
+              onChange={labelId => item.org_data_type_id && !(item as EnrichedCatalogType & { _pending?: boolean })._pending && onClassify(item.org_data_type_id, labelId)}
             />
           ) : (
             <span className="text-xs text-zinc-700">—</span>
@@ -697,7 +697,7 @@ export function CatalogClient({
       if (action.type === 'toggle') {
         return state.map(item =>
           item.id === action.catalogId
-            ? { ...item, is_in_scope: action.inScope, org_data_type_id: action.inScope ? (item.org_data_type_id ?? 'pending') : null }
+            ? { ...item, is_in_scope: action.inScope, _pending: action.inScope && !item.org_data_type_id }
             : item,
         )
       }
