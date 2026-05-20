@@ -412,11 +412,12 @@ export async function getClassificationsPageData() {
     ensureDestinationTrustLabels(),
   ])
 
-  const [{ data: orgTypes }, { data: mappings }, { data: destProfiles }, { data: catalogSubcats }] = await Promise.all([
+  const [{ data: orgTypes }, { data: mappings }, { data: destProfiles }, { data: catalogSubcats }, { data: catalogDataSubcats }] = await Promise.all([
     supabase.from('org_data_types').select('*').eq('org_id', user.orgId).eq('is_in_scope', true),
     supabase.from('org_data_type_classifications').select('*').eq('org_id', user.orgId),
     supabase.from('org_destination_profiles').select('trust_tag, subcategory').eq('org_id', user.orgId).eq('is_in_scope', true),
     supabase.from('catalog_destinations').select('trust_tag, subcategory').eq('active', true),
+    supabase.from('catalog_data_types').select('system_level, subcategory').eq('active', true).not('subcategory', 'is', null),
   ])
 
   // destCountByTag — in-scope org_destination_profiles per trust_tag
@@ -440,11 +441,24 @@ export async function getClassificationsPageData() {
     subcategoriesByTag[tag] = [...subs].sort()
   }
 
+  // dataTypeSubcatsByLevel — distinct subcategories from catalog_data_types grouped by system_level
+  const subcatByLevelSet: Record<string, Set<string>> = {}
+  for (const c of (catalogDataSubcats ?? [])) {
+    if (!c.subcategory || !c.system_level) continue
+    if (!subcatByLevelSet[c.system_level]) subcatByLevelSet[c.system_level] = new Set()
+    subcatByLevelSet[c.system_level].add(c.subcategory)
+  }
+  const dataTypeSubcatsByLevel: Record<string, string[]> = {}
+  for (const [level, subs] of Object.entries(subcatByLevelSet)) {
+    dataTypeSubcatsByLevel[level] = [...subs].sort()
+  }
+
   return {
     labels,
     trustLabels,
     destCountByTag,
     subcategoriesByTag,
+    dataTypeSubcatsByLevel,
     orgTypes:  orgTypes  ?? [],
     mappings:  mappings  ?? [],
     orgId:     user.orgId,
@@ -539,5 +553,43 @@ export async function moveSubcategoryToTrust(
   if (error) return { error: error.message }
   revalidatePolicies()
   revalidatePath('/policies/destinations')
+  return {}
+}
+
+export async function moveDataTypeSubcategoryToLabel(
+  subcategory: string,
+  newLabelId: string,
+): Promise<{ error?: string }> {
+  const user = await requireRole('analyst')
+  const supabase = await createClient()
+
+  // Resolve which org_data_types belong to this subcategory (via catalog join)
+  const [{ data: catalogTypes }, { data: orgTypes }] = await Promise.all([
+    supabase.from('catalog_data_types').select('id').eq('subcategory', subcategory).eq('active', true),
+    supabase.from('org_data_types').select('id, catalog_data_type_id').eq('org_id', user.orgId),
+  ])
+
+  const catalogIds = new Set((catalogTypes ?? []).map(c => c.id))
+  const affectedOrgTypeIds = (orgTypes ?? [])
+    .filter(t => t.catalog_data_type_id && catalogIds.has(t.catalog_data_type_id))
+    .map(t => t.id)
+
+  if (affectedOrgTypeIds.length === 0) return {}
+
+  const rows = affectedOrgTypeIds.map(id => ({
+    org_id:                      user.orgId,
+    org_data_type_id:            id,
+    org_classification_label_id: newLabelId,
+    mapped_by:                   'user' as const,
+    confidence:                  null,
+  }))
+
+  const { error } = await supabase
+    .from('org_data_type_classifications')
+    .upsert(rows, { onConflict: 'org_id,org_data_type_id' })
+
+  if (error) return { error: error.message }
+  revalidatePolicies()
+  revalidatePath('/policies/data-catalog')
   return {}
 }

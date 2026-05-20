@@ -7,6 +7,7 @@ export default async function ClassificationsPage() {
     trustLabels,
     destCountByTag,
     subcategoriesByTag,
+    dataTypeSubcatsByLevel,
     orgTypes,
     mappings,
     userRole,
@@ -33,6 +34,7 @@ export default async function ClassificationsPage() {
       trustLabels={trustLabels}
       destCountByTag={destCountByTag}
       subcategoriesByTag={subcategoriesByTag}
+      dataTypeSubcatsByLevel={dataTypeSubcatsByLevel}
       userRole={userRole}
     />
   )

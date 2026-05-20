@@ -9,6 +9,7 @@ import {
   upsertDestinationTrustLabel,
   deleteDestinationTrustLabel,
   moveSubcategoryToTrust,
+  moveDataTypeSubcategoryToLabel,
 } from '@/lib/data-catalog/actions'
 import {
   colorClasses,
@@ -215,19 +216,43 @@ function EditTrustLabelModal({
 
 // ─── Labels tab ───────────────────────────────────────────────────────────────
 
+type LabelSubcatAction = { type: 'move'; subcategory: string; fromLevel: string; toLevel: string }
+
 function LabelsTab({
   labels,
   countByLabel,
+  dataTypeSubcatsByLevel,
   userRole,
 }: {
-  labels:       OrgClassificationLabel[]
-  countByLabel: Record<string, number>
-  userRole:     string
+  labels:                  OrgClassificationLabel[]
+  countByLabel:            Record<string, number>
+  dataTypeSubcatsByLevel:  Record<string, string[]>
+  userRole:                string
 }) {
-  const [editTarget, setEditTarget] = useState<OrgClassificationLabel | 'new' | null>(null)
-  const [delError,   setDelError]   = useState<string | null>(null)
-  const [isPending,  startTransition] = useTransition()
+  const [editTarget,   setEditTarget]   = useState<OrgClassificationLabel | 'new' | null>(null)
+  const [expanded,     setExpanded]     = useState<Set<string>>(new Set())
+  const [openReassign, setOpenReassign] = useState<{ subcategory: string; fromLevel: string } | null>(null)
+  const [delError,     setDelError]     = useState<string | null>(null)
+  const [isPending,    startTransition] = useTransition()
   const isAdmin = userRole === 'admin'
+
+  const [optimisticSubcats, setOptimisticSubcats] = useOptimistic(
+    dataTypeSubcatsByLevel,
+    (state: Record<string, string[]>, action: LabelSubcatAction) => {
+      const next = { ...state }
+      next[action.fromLevel] = (next[action.fromLevel] ?? []).filter(s => s !== action.subcategory)
+      next[action.toLevel]   = [...(next[action.toLevel] ?? []), action.subcategory].sort()
+      return next
+    },
+  )
+
+  function toggleExpand(labelId: string) {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      next.has(labelId) ? next.delete(labelId) : next.add(labelId)
+      return next
+    })
+  }
 
   function handleDelete(label: OrgClassificationLabel) {
     setDelError(null)
@@ -237,8 +262,15 @@ function LabelsTab({
     })
   }
 
-  const systemLabels = labels.filter(l => l.is_system).sort((a, b) => a.priority - b.priority)
-  const customLabels = labels.filter(l => !l.is_system).sort((a, b) => a.priority - b.priority)
+  function handleMoveSubcategory(subcategory: string, fromLevel: string, toLevel: string, newLabelId: string) {
+    setOpenReassign(null)
+    setOptimisticSubcats({ type: 'move', subcategory, fromLevel, toLevel })
+    startTransition(async () => {
+      await moveDataTypeSubcategoryToLabel(subcategory, newLabelId)
+    })
+  }
+
+  const sortedLabels = [...labels].sort((a, b) => a.priority - b.priority)
 
   return (
     <div className="space-y-4">
@@ -261,51 +293,126 @@ function LabelsTab({
       )}
 
       <div className="text-xs text-zinc-600 bg-zinc-900/40 border border-zinc-800 rounded-lg px-4 py-2.5">
-        You are using the system defaults. Rename or add labels to match your organisation&apos;s classification scheme.
+        Rename labels to match your organisation&apos;s classification scheme. Click a row to reassign data type categories between levels.
       </div>
 
       {delError && <p className="text-xs text-red-400 px-1">{delError}</p>}
 
       <div className="rounded-xl border border-zinc-800 overflow-hidden divide-y divide-zinc-800">
-        {[...systemLabels, ...customLabels].map(label => {
-          const cc    = colorClasses(label.color)
-          const count = countByLabel[label.id] ?? 0
+        {sortedLabels.map(label => {
+          const cc         = colorClasses(label.color)
+          const count      = countByLabel[label.id] ?? 0
+          const subcats    = label.system_level ? (optimisticSubcats[label.system_level] ?? []) : []
+          const isExpanded = expanded.has(label.id)
+
           return (
-            <div key={label.id} className="flex items-center gap-4 px-5 py-4 hover:bg-zinc-900/30 transition-colors">
-              <GripVertical className="w-4 h-4 text-zinc-700 shrink-0" />
-              <div className={cn('w-2.5 h-2.5 rounded-full shrink-0', cc.dot)} />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className={cn('text-sm font-semibold', cc.text)}>{label.name}</span>
-                  {label.is_system && (
-                    <span className="text-[10px] text-zinc-600 bg-zinc-800 px-1.5 py-0.5 rounded">System default</span>
+            <div key={label.id}>
+              {/* Label row */}
+              <div
+                className="flex items-center gap-4 px-5 py-4 hover:bg-zinc-900/30 transition-colors cursor-pointer select-none"
+                onClick={() => toggleExpand(label.id)}
+              >
+                <GripVertical className="w-4 h-4 text-zinc-700 shrink-0" />
+                <div className={cn('w-2.5 h-2.5 rounded-full shrink-0', cc.dot)} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={cn('text-sm font-semibold', cc.text)}>{label.name}</span>
+                    {label.is_system && (
+                      <span className="text-[10px] text-zinc-600 bg-zinc-800 px-1.5 py-0.5 rounded">System default</span>
+                    )}
+                    {label.system_level && (
+                      <span className="text-[10px] text-zinc-600">
+                        ↔ {SYSTEM_LEVEL_META[label.system_level as keyof typeof SYSTEM_LEVEL_META]?.label}
+                      </span>
+                    )}
+                  </div>
+                  {label.description && <p className="text-xs text-zinc-600 mt-0.5 truncate">{label.description}</p>}
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className={cn('text-xs font-medium tabular-nums', count > 0 ? cc.text : 'text-zinc-700')}>
+                    {count} {count === 1 ? 'type' : 'types'}
+                  </span>
+                  <span className="text-xs text-zinc-600">P{label.priority}</span>
+                  {isAdmin && (
+                    <button
+                      onClick={e => { e.stopPropagation(); setEditTarget(label) }}
+                      className="p-1.5 text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 rounded transition-colors">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
                   )}
-                  {label.system_level && (
-                    <span className="text-[10px] text-zinc-600">
-                      ↔ {SYSTEM_LEVEL_META[label.system_level as keyof typeof SYSTEM_LEVEL_META]?.label}
-                    </span>
+                  {isAdmin && !label.is_system && (
+                    <button
+                      onClick={e => { e.stopPropagation(); handleDelete(label) }}
+                      disabled={isPending}
+                      className="p-1.5 text-zinc-700 hover:text-red-400 hover:bg-zinc-800 rounded transition-colors disabled:opacity-50">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <ChevronDown className={cn('w-4 h-4 text-zinc-600 transition-transform', isExpanded && 'rotate-180')} />
+                </div>
+              </div>
+
+              {/* Subcategory section */}
+              {isExpanded && (
+                <div className="px-6 pb-4 pt-2 bg-zinc-900/20 border-t border-zinc-800/50">
+                  <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wide mb-2">Data Type Categories</p>
+                  {subcats.length === 0 ? (
+                    <p className="text-xs text-zinc-600">No data type categories assigned to this classification level.</p>
+                  ) : (
+                    <div
+                      className="flex flex-wrap gap-2"
+                      onClick={() => setOpenReassign(null)}
+                    >
+                      {subcats.map(subcat => {
+                        const isOpen = openReassign?.subcategory === subcat && openReassign?.fromLevel === (label.system_level ?? '')
+                        return (
+                          <div key={subcat} className="relative" onClick={e => e.stopPropagation()}>
+                            <div className={cn(
+                              'flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-lg text-xs border transition-colors',
+                              isOpen
+                                ? 'bg-zinc-700 border-zinc-600 text-zinc-200'
+                                : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600',
+                            )}>
+                              <span>{formatSubcategory(subcat)}</span>
+                              <button
+                                title="Reassign to a different classification level"
+                                onClick={() => setOpenReassign(
+                                  isOpen ? null : { subcategory: subcat, fromLevel: label.system_level ?? '' },
+                                )}
+                                className="ml-0.5 p-0.5 text-zinc-600 hover:text-zinc-400 rounded transition-colors"
+                              >
+                                <ArrowLeftRight className="w-3 h-3" />
+                              </button>
+                            </div>
+
+                            {/* Reassign dropdown */}
+                            {isOpen && (
+                              <div className="absolute top-full left-0 mt-1 z-50 bg-zinc-900 border border-zinc-700 rounded-lg overflow-hidden shadow-2xl min-w-48">
+                                <p className="text-[10px] text-zinc-600 px-3 pt-2 pb-1 font-medium uppercase tracking-wide">Move to</p>
+                                {sortedLabels
+                                  .filter(l => l.system_level && l.system_level !== label.system_level)
+                                  .map(l => {
+                                    const lcc = colorClasses(l.color)
+                                    return (
+                                      <button
+                                        key={l.id}
+                                        onClick={() => handleMoveSubcategory(subcat, label.system_level ?? '', l.system_level ?? '', l.id)}
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-zinc-800 text-left transition-colors"
+                                      >
+                                        <div className={cn('w-2 h-2 rounded-full shrink-0', lcc.dot)} />
+                                        <span className={lcc.text}>{l.name}</span>
+                                      </button>
+                                    )
+                                  })}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
                   )}
                 </div>
-                {label.description && <p className="text-xs text-zinc-600 mt-0.5 truncate">{label.description}</p>}
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <span className={cn('text-xs font-medium tabular-nums', count > 0 ? cc.text : 'text-zinc-700')}>
-                  {count} {count === 1 ? 'type' : 'types'}
-                </span>
-                <span className="text-xs text-zinc-600">P{label.priority}</span>
-                {isAdmin && (
-                  <button onClick={() => setEditTarget(label)}
-                    className="p-1.5 text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 rounded transition-colors">
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                )}
-                {isAdmin && !label.is_system && (
-                  <button onClick={() => handleDelete(label)} disabled={isPending}
-                    className="p-1.5 text-zinc-700 hover:text-red-400 hover:bg-zinc-800 rounded transition-colors disabled:opacity-50">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
+              )}
             </div>
           )
         })}
@@ -544,15 +651,17 @@ export function ClassificationsClient({
   trustLabels,
   destCountByTag,
   subcategoriesByTag,
+  dataTypeSubcatsByLevel,
   userRole,
 }: {
-  labels:             OrgClassificationLabel[]
-  orgTypes:           EnrichedOrgType[]
-  countByLabel:       Record<string, number>
-  trustLabels:        OrgDestinationTrustLabel[]
-  destCountByTag:     Record<string, number>
-  subcategoriesByTag: Record<string, string[]>
-  userRole:           string
+  labels:                  OrgClassificationLabel[]
+  orgTypes:                EnrichedOrgType[]
+  countByLabel:            Record<string, number>
+  trustLabels:             OrgDestinationTrustLabel[]
+  destCountByTag:          Record<string, number>
+  subcategoriesByTag:      Record<string, string[]>
+  dataTypeSubcatsByLevel:  Record<string, string[]>
+  userRole:                string
 }) {
   const [tab, setTab] = useState<'labels' | 'destinations'>('labels')
 
@@ -589,7 +698,7 @@ export function ClassificationsClient({
       </div>
 
       {tab === 'labels'
-        ? <LabelsTab labels={labels} countByLabel={countByLabel} userRole={userRole} />
+        ? <LabelsTab labels={labels} countByLabel={countByLabel} dataTypeSubcatsByLevel={dataTypeSubcatsByLevel} userRole={userRole} />
         : <DestinationsTab
             trustLabels={trustLabels}
             destCountByTag={destCountByTag}
