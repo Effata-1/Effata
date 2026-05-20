@@ -361,7 +361,8 @@ INSERT INTO catalog_destinations (slug, name, trust_tag, subcategory, descriptio
 -- ── Prohibited: Developer Tools ───────────────────────────────────────────────
 ('unapproved_repos',    'Unapproved External Code Repositories','prohibited','developer_tools',
   'Any external code repository (SourceForge, BitBucket personal, etc.) not on the approved list. Block source code uploads.',
-  ARRAY['sourceforge.net'], 2);
+  ARRAY['sourceforge.net'], 2)
+ON CONFLICT (slug) DO NOTHING;
 
 -- ─── 3. Org destination profiles ─────────────────────────────────────────────
 

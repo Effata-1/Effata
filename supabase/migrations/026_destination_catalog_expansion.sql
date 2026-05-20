@@ -423,4 +423,5 @@ INSERT INTO catalog_destinations (slug, name, trust_tag, subcategory, descriptio
   ARRAY['character.ai','beta.character.ai'], 1),
 ('poe_ai',              'Poe (Quora AI)',            'prohibited', 'ai_tools',
   'Multi-model AI chat platform. Prohibited — data handling and retention unclear. Use approved AI tools instead.',
-  ARRAY['poe.com'], 1);
+  ARRAY['poe.com'], 1)
+ON CONFLICT (slug) DO NOTHING;
