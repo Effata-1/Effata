@@ -20,10 +20,12 @@ CREATE TABLE IF NOT EXISTS org_destination_trust_labels (
 
 ALTER TABLE org_destination_trust_labels ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "org_isolation" ON org_destination_trust_labels;
 CREATE POLICY "org_isolation" ON org_destination_trust_labels
   USING  (org_id = (auth.jwt() ->> 'org_id')::UUID)
   WITH CHECK (org_id = (auth.jwt() ->> 'org_id')::UUID);
 
+DROP TRIGGER IF EXISTS set_org_dest_trust_labels_updated_at ON org_destination_trust_labels;
 CREATE TRIGGER set_org_dest_trust_labels_updated_at
   BEFORE UPDATE ON org_destination_trust_labels
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
