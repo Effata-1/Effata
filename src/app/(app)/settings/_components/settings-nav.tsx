@@ -27,11 +27,11 @@ export function SettingsNav() {
 
   return (
     <nav className="w-44 shrink-0">
-      <h1 className="text-xl font-bold text-white mb-6">Settings</h1>
+      <h1 className="text-xl font-bold text-foreground mb-6">Settings</h1>
       <div className="space-y-5">
         {SECTIONS.map(section => (
           <div key={section.title}>
-            <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest px-2 mb-1">
+            <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest px-2 mb-1">
               {section.title}
             </p>
             <div className="space-y-0.5">
@@ -42,8 +42,8 @@ export function SettingsNav() {
                   className={cn(
                     'block px-2 py-1.5 rounded-md text-sm transition-colors',
                     pathname === item.href || pathname.startsWith(item.href + '/')
-                      ? 'bg-white/10 text-white font-medium'
-                      : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
+                      ? 'bg-accent/50 text-foreground font-medium'
+                      : 'text-muted-foreground/80 hover:text-foreground/70 hover:bg-accent/30'
                   )}
                 >
                   {item.label}

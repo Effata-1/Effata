@@ -18,7 +18,7 @@ const SOURCE_META: Record<string, { label: string; cls: string }> = {
 }
 
 function SourceBadge({ source }: { source: string }) {
-  const m = SOURCE_META[source] ?? { label: source, cls: 'bg-zinc-700/50 text-zinc-400' }
+  const m = SOURCE_META[source] ?? { label: source, cls: 'bg-accent/50 text-muted-foreground' }
   return (
     <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded uppercase', m.cls)}>
       {m.label}
@@ -68,14 +68,14 @@ export default async function AiLogsPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-1.5 text-xs text-zinc-600">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
         <span>Admin</span><span>›</span>
-        <span className="text-zinc-400">AI Logs</span>
+        <span className="text-muted-foreground">AI Logs</span>
       </div>
 
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white">AI Search Logs</h2>
-        <span className="text-xs text-zinc-500 tabular-nums">{total} total entries</span>
+        <h2 className="text-2xl font-bold text-foreground">AI Search Logs</h2>
+        <span className="text-xs text-muted-foreground/80 tabular-nums">{total} total entries</span>
       </div>
 
       {/* Source filter */}
@@ -87,8 +87,8 @@ export default async function AiLogsPage({
             className={cn(
               'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
               source === s
-                ? 'bg-blue-600 text-white'
-                : 'bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700'
+                ? 'bg-blue-600 text-foreground'
+                : 'bg-muted text-muted-foreground hover:text-foreground hover:bg-accent'
             )}
           >
             {s === 'all' ? 'All sources' : (SOURCE_META[s]?.label ?? s)}
@@ -97,35 +97,35 @@ export default async function AiLogsPage({
       </div>
 
       {/* Table */}
-      <div className="rounded-xl border border-zinc-800 overflow-hidden">
+      <div className="rounded-xl border border-border overflow-hidden">
         {allLogs.length === 0 ? (
           <div className="py-16 text-center">
-            <p className="text-sm text-zinc-500">No AI searches recorded yet.</p>
-            <p className="text-xs text-zinc-600 mt-1">AI activity will appear here after users make their first searches.</p>
+            <p className="text-sm text-muted-foreground/80">No AI searches recorded yet.</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">AI activity will appear here after users make their first searches.</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-zinc-800">
+              <tr className="border-b border-border">
                 {['Time', 'Source', 'Prompt', 'Result'].map(h => (
-                  <th key={h} className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">{h}</th>
+                  <th key={h} className="text-left text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide px-4 py-2.5">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800/60">
+            <tbody className="divide-y divide-border/60">
               {allLogs.map(log => (
-                <tr key={log.id} className="hover:bg-zinc-900/40 transition-colors">
+                <tr key={log.id} className="hover:bg-card/40 transition-colors">
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="text-[10px] tabular-nums text-zinc-500">{formatTime(log.created_at)}</span>
+                    <span className="text-[10px] tabular-nums text-muted-foreground/80">{formatTime(log.created_at)}</span>
                   </td>
                   <td className="px-4 py-3">
                     <SourceBadge source={log.source} />
                   </td>
                   <td className="px-4 py-3 max-w-xs">
-                    <p className="text-xs text-zinc-300 truncate" title={log.prompt}>{log.prompt}</p>
+                    <p className="text-xs text-foreground/70 truncate" title={log.prompt}>{log.prompt}</p>
                   </td>
                   <td className="px-4 py-3 max-w-xs">
-                    <p className="text-xs text-zinc-500 truncate">{log.result ?? '—'}</p>
+                    <p className="text-xs text-muted-foreground/80 truncate">{log.result ?? '—'}</p>
                   </td>
                 </tr>
               ))}
@@ -136,19 +136,19 @@ export default async function AiLogsPage({
 
       {/* Pagination */}
       {pages > 1 && (
-        <div className="flex items-center justify-between text-xs text-zinc-500">
+        <div className="flex items-center justify-between text-xs text-muted-foreground/80">
           <span>Showing {from + 1}–{Math.min(from + perPage, total)} of {total}</span>
           <div className="flex items-center gap-1">
             {page > 1 && (
               <a href={`?source=${source}&page=${page - 1}`}
-                className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors">
+                className="px-3 py-1.5 rounded bg-muted hover:bg-accent text-foreground/70 transition-colors">
                 ← Prev
               </a>
             )}
-            <span className="px-3 py-1.5 text-zinc-600">Page {page} of {pages}</span>
+            <span className="px-3 py-1.5 text-muted-foreground/60">Page {page} of {pages}</span>
             {page < pages && (
               <a href={`?source=${source}&page=${page + 1}`}
-                className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors">
+                className="px-3 py-1.5 rounded bg-muted hover:bg-accent text-foreground/70 transition-colors">
                 Next →
               </a>
             )}

@@ -8,14 +8,14 @@ export default async function TeamPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-1.5 text-xs text-zinc-600">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
         <span>Settings</span><span>›</span>
-        <span className="text-zinc-400">Team</span>
+        <span className="text-muted-foreground">Team</span>
       </div>
 
       <div>
-        <h1 className="text-2xl font-bold text-white mb-1">Team</h1>
-        <p className="text-zinc-500 text-sm">Manage members and roles in your organisation.</p>
+        <h1 className="text-2xl font-bold text-foreground mb-1">Team</h1>
+        <p className="text-muted-foreground/80 text-sm">Manage members and roles in your organisation.</p>
       </div>
 
       {error ? (

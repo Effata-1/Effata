@@ -408,7 +408,7 @@ function toXML(columns: string[], records: Record<string, string>[]): string {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">
+    <p className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest mb-3">
       {children}
     </p>
   )
@@ -559,15 +559,15 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
   const tabCls = (active: boolean) =>
     `flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
       active
-        ? 'bg-zinc-800 text-white'
-        : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900'
+        ? 'bg-muted text-foreground'
+        : 'text-muted-foreground/80 hover:text-foreground/70 hover:bg-card'
     }`
 
   return (
     <div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-5 bg-zinc-900/50 border border-zinc-800 rounded-xl p-1 w-fit">
+      <div className="flex gap-1 mb-5 bg-card/50 border border-border rounded-xl p-1 w-fit">
         <button onClick={() => setActiveTab('data')} className={tabCls(activeTab === 'data')}>
           <Table className="w-4 h-4" />
           Data Generator
@@ -588,7 +588,7 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
       <div className="col-span-2 space-y-5">
 
         {/* AI Assistant */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+        <div className="rounded-xl border border-border bg-card/50 p-5">
           <div className="flex items-center gap-2 mb-3">
             <SectionLabel>AI Assistant</SectionLabel>
             <Sparkles className="w-3 h-3 text-purple-400 mb-3" />
@@ -601,13 +601,13 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
               onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleGenerate() }}
               placeholder='Describe the test data you need in plain English… e.g. "25 UK patient records with NHS numbers, ICD-10 codes and prescriptions" or "API configs with AWS keys and database URLs"'
               rows={2}
-              className="flex-1 bg-zinc-800 text-white text-sm px-3 py-2.5 rounded-lg border border-zinc-700 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 resize-none"
+              className="flex-1 bg-muted text-foreground text-sm px-3 py-2.5 rounded-lg border border-border-strong placeholder:text-muted-foreground/50 focus:outline-none focus:border-blue-500 resize-none"
             />
             <div className="flex flex-col gap-2 shrink-0">
               <select
                 value={aiRowCount}
                 onChange={e => setAiRowCount(Number(e.target.value))}
-                className="bg-zinc-800 text-zinc-300 text-xs px-2 py-2 rounded-lg border border-zinc-700 focus:outline-none focus:border-zinc-500"
+                className="bg-muted text-foreground/70 text-xs px-2 py-2 rounded-lg border border-border-strong focus:outline-none focus:border-border-strong"
               >
                 {ROW_COUNT_AI_OPTIONS.map(n => (
                   <option key={n} value={n}>{n} rows</option>
@@ -616,7 +616,7 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
               <button
                 onClick={handleGenerate}
                 disabled={aiLoading || !aiPrompt.trim()}
-                className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
               >
                 {aiLoading
                   ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
@@ -626,14 +626,14 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
           </div>
 
           {aiError && <p className="mt-2 text-xs text-red-400">{aiError}</p>}
-          <p className="mt-1.5 text-[10px] text-zinc-600">Tip: ⌘ + Enter to generate</p>
+          <p className="mt-1.5 text-[10px] text-muted-foreground/60">Tip: ⌘ + Enter to generate</p>
 
           {/* Recent AI Searches */}
           {recentSearches.length > 0 && (
-            <div className="mt-4 border-t border-zinc-800 pt-3">
+            <div className="mt-4 border-t border-border pt-3">
               <button
                 onClick={() => setHistoryOpen(o => !o)}
-                className="flex items-center gap-1.5 text-[10px] font-semibold text-zinc-500 uppercase tracking-widest hover:text-zinc-300 transition-colors w-full text-left"
+                className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-widest hover:text-foreground/70 transition-colors w-full text-left"
               >
                 <Clock className="w-3 h-3" />
                 Recent AI Searches
@@ -644,15 +644,15 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
                   {recentSearches.map(s => (
                     <div
                       key={s.id}
-                      className="flex items-start justify-between gap-2 px-2 py-1.5 rounded-lg bg-zinc-800/50 hover:bg-zinc-800 transition-colors cursor-pointer group"
+                      className="flex items-start justify-between gap-2 px-2 py-1.5 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer group"
                       onClick={() => setAiPrompt(s.prompt)}
                       title="Click to reuse this prompt"
                     >
                       <div className="min-w-0">
-                        <p className="text-[11px] text-zinc-300 truncate group-hover:text-white transition-colors">{s.prompt}</p>
-                        {s.result && <p className="text-[10px] text-zinc-600 truncate mt-0.5">{s.result}</p>}
+                        <p className="text-[11px] text-foreground/70 truncate group-hover:text-foreground transition-colors">{s.prompt}</p>
+                        {s.result && <p className="text-[10px] text-muted-foreground/60 truncate mt-0.5">{s.result}</p>}
                       </div>
-                      <span className="text-[9px] text-zinc-600 shrink-0 tabular-nums whitespace-nowrap">
+                      <span className="text-[9px] text-muted-foreground/60 shrink-0 tabular-nums whitespace-nowrap">
                         {new Date(s.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
@@ -664,12 +664,12 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
         </div>
 
         {/* Data Preview */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+        <div className="rounded-xl border border-border bg-card/50 p-5">
           <div className="flex items-center justify-between mb-3">
             <SectionLabel>Data Preview</SectionLabel>
             {generatedData && (
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono">
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">
                   {generatedData.columns.length} cols
                 </span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 font-bold">
@@ -681,30 +681,30 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
 
           {!generatedData ? (
             <div className="py-16 text-center">
-              <p className="text-sm text-zinc-600 italic">Generate data above or pick a template →</p>
-              <p className="text-xs text-zinc-700 mt-1">AI-generated or instant templates, your choice</p>
+              <p className="text-sm text-muted-foreground/60 italic">Generate data above or pick a template →</p>
+              <p className="text-xs text-muted-foreground/40 mt-1">AI-generated or instant templates, your choice</p>
             </div>
           ) : (
             <>
-              <p className="text-[10px] text-zinc-500 mb-3 italic">{generatedData.description}</p>
-              <div className="overflow-x-auto rounded-lg border border-zinc-700" style={{ maxHeight: '360px' }}>
+              <p className="text-[10px] text-muted-foreground/80 mb-3 italic">{generatedData.description}</p>
+              <div className="overflow-x-auto rounded-lg border border-border-strong" style={{ maxHeight: '360px' }}>
                 <table className="text-xs w-full">
                   <thead>
-                    <tr className="sticky top-0 bg-zinc-800 z-10">
-                      <th className="text-[9px] font-bold text-zinc-600 uppercase px-3 py-2 text-right w-8 border-r border-zinc-700">#</th>
+                    <tr className="sticky top-0 bg-muted z-10">
+                      <th className="text-[9px] font-bold text-muted-foreground/60 uppercase px-3 py-2 text-right w-8 border-r border-border-strong">#</th>
                       {generatedData.columns.map(col => (
-                        <th key={col} className="text-[9px] font-bold text-zinc-500 uppercase tracking-wide px-3 py-2 text-left whitespace-nowrap border-r border-zinc-700 last:border-r-0">
+                        <th key={col} className="text-[9px] font-bold text-muted-foreground/80 uppercase tracking-wide px-3 py-2 text-left whitespace-nowrap border-r border-border-strong last:border-r-0">
                           {col.replace(/_/g, ' ')}
                         </th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-zinc-800/60">
+                  <tbody className="divide-y divide-border/60">
                     {generatedData.records.map((row, i) => (
-                      <tr key={i} className="hover:bg-zinc-900/40 transition-colors">
-                        <td className="px-3 py-2 text-zinc-700 text-right tabular-nums text-[9px] border-r border-zinc-800">{i + 1}</td>
+                      <tr key={i} className="hover:bg-card/40 transition-colors">
+                        <td className="px-3 py-2 text-muted-foreground/40 text-right tabular-nums text-[9px] border-r border-border">{i + 1}</td>
                         {generatedData.columns.map(col => (
-                          <td key={col} className="px-3 py-2 font-mono text-zinc-300 whitespace-nowrap border-r border-zinc-800 last:border-r-0" title={row[col] ?? ''}>
+                          <td key={col} className="px-3 py-2 font-mono text-foreground/70 whitespace-nowrap border-r border-border last:border-r-0" title={row[col] ?? ''}>
                             {(row[col] ?? '').length > 28
                               ? (row[col] ?? '').slice(0, 28) + '…'
                               : (row[col] ?? '')}
@@ -721,10 +721,10 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
 
         {/* Download Bar */}
         {generatedData && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+          <div className="rounded-xl border border-border bg-card/50 p-5">
             <SectionLabel>Download</SectionLabel>
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-1 p-1 bg-zinc-800 rounded-lg">
+              <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
                 {FORMATS.map(f => (
                   <button
                     key={f.id}
@@ -732,8 +732,8 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
                     className={cn(
                       'px-3 py-1.5 rounded-md text-xs font-bold transition-all',
                       downloadFormat === f.id
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-zinc-500 hover:text-zinc-300'
+                        ? 'bg-blue-600 text-foreground shadow-sm'
+                        : 'text-muted-foreground/80 hover:text-foreground/70'
                     )}
                   >
                     {f.label}
@@ -742,12 +742,12 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
               </div>
               <button
                 onClick={handleDownload}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white text-sm font-semibold transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-foreground text-sm font-semibold transition-colors"
               >
                 <Download className="h-3.5 w-3.5" />
                 Download {downloadFormat.toUpperCase()}
               </button>
-              <span className="text-[10px] text-zinc-600">
+              <span className="text-[10px] text-muted-foreground/60">
                 {generatedData.records.length} records · {generatedData.columns.length} columns
               </span>
             </div>
@@ -761,18 +761,18 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
       <div className="col-span-1 space-y-5">
 
         {/* Quick Templates */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+        <div className="rounded-xl border border-border bg-card/50 p-5">
           <div className="flex items-center justify-between mb-3">
             <SectionLabel>Quick Templates</SectionLabel>
           </div>
 
           {/* Template row count */}
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-[10px] text-zinc-500 shrink-0">Rows:</span>
+            <span className="text-[10px] text-muted-foreground/80 shrink-0">Rows:</span>
             <select
               value={tplRowCount}
               onChange={e => setTplRowCount(Number(e.target.value))}
-              className="flex-1 bg-zinc-800 text-zinc-300 text-xs px-2 py-1.5 rounded-lg border border-zinc-700 focus:outline-none focus:border-zinc-500"
+              className="flex-1 bg-muted text-foreground/70 text-xs px-2 py-1.5 rounded-lg border border-border-strong focus:outline-none focus:border-border-strong"
             >
               {ROW_COUNT_TPL_OPTIONS.map(n => (
                 <option key={n} value={n}>{n} rows</option>
@@ -782,13 +782,13 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
 
           {/* Search */}
           <div className="relative mb-2">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500 pointer-events-none" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/80 pointer-events-none" />
             <input
               type="text"
               placeholder="Search templates..."
               value={tplSearch}
               onChange={e => setTplSearch(e.target.value)}
-              className="w-full pl-7 pr-3 py-1.5 text-xs bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+              className="w-full pl-7 pr-3 py-1.5 text-xs bg-muted border border-border-strong rounded-lg text-foreground/70 placeholder-muted-foreground/50 focus:outline-none focus:border-border-strong"
             />
           </div>
 
@@ -801,8 +801,8 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
                 className={cn(
                   'px-2 py-0.5 rounded text-[10px] font-medium transition-colors',
                   tplCategory === cat
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300'
+                    ? 'bg-blue-600 text-foreground'
+                    : 'bg-muted text-muted-foreground/80 hover:text-foreground/70'
                 )}
               >
                 {cat}
@@ -813,21 +813,21 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
           {/* Template grid */}
           <div className="grid grid-cols-2 gap-1 max-h-80 overflow-y-auto pr-0.5">
             {filteredTemplates.length === 0 ? (
-              <p className="col-span-2 text-xs text-zinc-600 italic">No templates match</p>
+              <p className="col-span-2 text-xs text-muted-foreground/60 italic">No templates match</p>
             ) : (
               filteredTemplates.map(t => (
                 <button
                   key={t.name}
                   onClick={() => handleTemplate(t)}
-                  className="text-left rounded-lg border border-zinc-700 bg-zinc-800/60 p-2.5 hover:border-blue-500/50 hover:bg-zinc-700/60 transition-all group"
+                  className="text-left rounded-lg border border-border-strong bg-muted/60 p-2.5 hover:border-blue-500/50 hover:bg-accent/60 transition-all group"
                 >
                   <div className="flex items-center gap-1 mb-0.5">
                     <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', CATEGORY_COLORS[t.category]?.split(' ')[0])} />
-                    <p className="text-[10px] font-semibold text-white group-hover:text-blue-300 transition-colors leading-tight truncate">
+                    <p className="text-[10px] font-semibold text-foreground group-hover:text-blue-300 transition-colors leading-tight truncate">
                       {t.name}
                     </p>
                   </div>
-                  <p className="text-[9px] text-zinc-500 leading-tight line-clamp-2 pl-2.5">
+                  <p className="text-[9px] text-muted-foreground/80 leading-tight line-clamp-2 pl-2.5">
                     {t.description}
                   </p>
                 </button>
@@ -838,7 +838,7 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
 
         {/* Save Dataset */}
         {generatedData && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+          <div className="rounded-xl border border-border bg-card/50 p-5">
             <SectionLabel>Save Dataset</SectionLabel>
             <div className="space-y-2">
               <input
@@ -847,7 +847,7 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
                 onChange={e => setSaveName(e.target.value)}
                 placeholder="Dataset name *"
                 maxLength={80}
-                className="w-full bg-zinc-800 text-white text-sm px-3 py-2 rounded-lg border border-zinc-700 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+                className="w-full bg-muted text-foreground text-sm px-3 py-2 rounded-lg border border-border-strong placeholder:text-muted-foreground/50 focus:outline-none focus:border-blue-500"
               />
               <input
                 type="text"
@@ -855,12 +855,12 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
                 onChange={e => setSaveDescription(e.target.value)}
                 placeholder="Description (optional)"
                 maxLength={200}
-                className="w-full bg-zinc-800 text-white text-sm px-3 py-2 rounded-lg border border-zinc-700 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+                className="w-full bg-muted text-foreground text-sm px-3 py-2 rounded-lg border border-border-strong placeholder:text-muted-foreground/50 focus:outline-none focus:border-blue-500"
               />
               <button
                 onClick={handleSave}
                 disabled={!saveName.trim() || saveLoading}
-                className="w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 {saveLoading
                   ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>
@@ -877,37 +877,37 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
         )}
 
         {/* Saved Datasets */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+        <div className="rounded-xl border border-border bg-card/50 p-5">
           <SectionLabel>Saved Datasets</SectionLabel>
           {savedDatasets.length === 0 ? (
-            <p className="text-xs text-zinc-600 italic">No saved datasets yet</p>
+            <p className="text-xs text-muted-foreground/60 italic">No saved datasets yet</p>
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
               {savedDatasets.map(ds => (
                 <div
                   key={ds.id}
-                  className="rounded-lg border border-zinc-700 bg-zinc-800/60 p-3 hover:border-zinc-600 transition-colors"
+                  className="rounded-lg border border-border-strong bg-muted/60 p-3 hover:border-border-strong transition-colors"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-white truncate">{ds.name}</p>
+                      <p className="text-xs font-semibold text-foreground truncate">{ds.name}</p>
                       {ds.description && (
-                        <p className="text-[10px] text-zinc-500 mt-0.5 truncate">{ds.description}</p>
+                        <p className="text-[10px] text-muted-foreground/80 mt-0.5 truncate">{ds.description}</p>
                       )}
-                      <p className="text-[10px] text-zinc-600 mt-1">
+                      <p className="text-[10px] text-muted-foreground/60 mt-1">
                         {new Date(ds.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </p>
                     </div>
                     <button
                       onClick={() => handleDelete(ds.id)}
                       title="Delete dataset"
-                      className="p-1 text-zinc-600 hover:text-red-400 transition-colors shrink-0 mt-0.5"
+                      className="p-1 text-muted-foreground/60 hover:text-red-400 transition-colors shrink-0 mt-0.5"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
                   <div className="flex items-center gap-2 mt-2">
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-400 font-mono">
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent text-muted-foreground font-mono">
                       {ds.row_count} rows
                     </span>
                     {ds.ai_generated && (

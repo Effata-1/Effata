@@ -63,7 +63,7 @@ function FieldLabel({ field }: { field: string }) {
   return (
     <span className={cn(
       'font-mono text-[10px] px-1.5 py-0.5 rounded',
-      field.startsWith('dlp.') ? 'bg-blue-500/10 text-blue-400' : 'bg-zinc-800 text-zinc-400'
+      field.startsWith('dlp.') ? 'bg-blue-500/10 text-blue-400' : 'bg-muted text-muted-foreground'
     )}>
       {name}
     </span>
@@ -75,16 +75,16 @@ export default async function RefreshLogsPage() {
     return (
       <div className="space-y-6">
         <div>
-          <Link href="/data-in-motion/genai" className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors mb-2">
+          <Link href="/data-in-motion/genai" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/80 hover:text-foreground/70 transition-colors mb-2">
             <ArrowLeft className="w-3 h-3" />Back to GenAI Apps
           </Link>
-          <h1 className="text-xl font-bold text-white">Research Run Logs</h1>
+          <h1 className="text-xl font-bold text-foreground">Research Run Logs</h1>
         </div>
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 py-16 text-center">
-          <Clock className="w-8 h-8 text-zinc-700 mx-auto mb-3" />
-          <p className="text-sm text-white font-medium mb-1">Service key not configured</p>
-          <p className="text-xs text-zinc-500 max-w-sm mx-auto">
-            Add <code className="text-zinc-300 bg-zinc-800 px-1 rounded">SUPABASE_SERVICE_ROLE_KEY</code> to your
+        <div className="rounded-xl border border-border bg-card/50 py-16 text-center">
+          <Clock className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
+          <p className="text-sm text-foreground font-medium mb-1">Service key not configured</p>
+          <p className="text-xs text-muted-foreground/80 max-w-sm mx-auto">
+            Add <code className="text-foreground/70 bg-muted px-1 rounded">SUPABASE_SERVICE_ROLE_KEY</code> to your
             Vercel environment variables and redeploy to enable research run logs.
           </p>
         </div>
@@ -113,20 +113,20 @@ export default async function RefreshLogsPage() {
         <div>
           <Link
             href="/data-in-motion/genai"
-            className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors mb-2"
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/80 hover:text-foreground/70 transition-colors mb-2"
           >
             <ArrowLeft className="w-3 h-3" />Back to GenAI Apps
           </Link>
-          <h1 className="text-xl font-bold text-white">Research Run Logs</h1>
-          <p className="text-sm text-zinc-500 mt-1">
+          <h1 className="text-xl font-bold text-foreground">Research Run Logs</h1>
+          <p className="text-sm text-muted-foreground/80 mt-1">
             Weekly auto-refresh — discovers new apps, refreshes all profiles, detects field changes. Runs every Monday 02:00 UTC.
           </p>
         </div>
         {lastRun && (
           <div className="text-right">
-            <p className="text-[10px] text-zinc-600 uppercase tracking-wide mb-1">Last run</p>
+            <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wide mb-1">Last run</p>
             <StatusBadge status={lastRun.status} />
-            <p className="text-xs text-zinc-500 mt-1">{timeAgo(lastRun.started_at)}</p>
+            <p className="text-xs text-muted-foreground/80 mt-1">{timeAgo(lastRun.started_at)}</p>
           </div>
         )}
       </div>
@@ -141,9 +141,9 @@ export default async function RefreshLogsPage() {
             { label: 'Apps Discovered',   value: allRuns.reduce((s, r) => s + r.apps_added, 0) },
             { label: 'Field Changes',     value: totalChanges },
           ].map(stat => (
-            <div key={stat.label} className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-3">
-              <p className="text-[10px] text-zinc-600 uppercase tracking-wide mb-1">{stat.label}</p>
-              <p className="text-xl font-bold text-white">{stat.value}</p>
+            <div key={stat.label} className="rounded-xl border border-border bg-card/50 p-3">
+              <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wide mb-1">{stat.label}</p>
+              <p className="text-xl font-bold text-foreground">{stat.value}</p>
             </div>
           ))}
         </div>
@@ -151,28 +151,28 @@ export default async function RefreshLogsPage() {
 
       {/* Runs table */}
       {allRuns.length === 0 ? (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 py-16 text-center">
-          <Clock className="w-8 h-8 text-zinc-700 mx-auto mb-3" />
-          <p className="text-sm text-zinc-500">No research runs yet.</p>
-          <p className="text-xs text-zinc-600 mt-1">
+        <div className="rounded-xl border border-border bg-card/50 py-16 text-center">
+          <Clock className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground/80">No research runs yet.</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">
             Runs every Monday 02:00 UTC, or trigger manually via the API.
           </p>
         </div>
       ) : (
-        <div className="rounded-xl border border-zinc-800 overflow-hidden">
+        <div className="rounded-xl border border-border overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-zinc-800 bg-zinc-900/80">
-                <th className="text-left text-[10px] font-semibold text-zinc-500 uppercase tracking-wide px-4 py-3">Started</th>
-                <th className="text-left text-[10px] font-semibold text-zinc-500 uppercase tracking-wide px-4 py-3">Status</th>
-                <th className="text-center text-[10px] font-semibold text-zinc-500 uppercase tracking-wide px-4 py-3">Updated</th>
-                <th className="text-center text-[10px] font-semibold text-zinc-500 uppercase tracking-wide px-4 py-3">Added</th>
-                <th className="text-center text-[10px] font-semibold text-zinc-500 uppercase tracking-wide px-4 py-3">Duration</th>
-                <th className="text-center text-[10px] font-semibold text-zinc-500 uppercase tracking-wide px-4 py-3">Changes</th>
-                <th className="text-center text-[10px] font-semibold text-zinc-500 uppercase tracking-wide px-4 py-3">Errors</th>
+              <tr className="border-b border-border bg-card/80">
+                <th className="text-left text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wide px-4 py-3">Started</th>
+                <th className="text-left text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wide px-4 py-3">Status</th>
+                <th className="text-center text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wide px-4 py-3">Updated</th>
+                <th className="text-center text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wide px-4 py-3">Added</th>
+                <th className="text-center text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wide px-4 py-3">Duration</th>
+                <th className="text-center text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wide px-4 py-3">Changes</th>
+                <th className="text-center text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wide px-4 py-3">Errors</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800/60">
+            <tbody className="divide-y divide-border/60">
               {allRuns.map((run) => {
                 const hasChanges = run.changes?.length > 0
                 const hasErrors  = run.errors?.length > 0
@@ -181,31 +181,31 @@ export default async function RefreshLogsPage() {
                   <>
                     <tr key={run.id} className={cn(
                       'transition-colors',
-                      hasDetail ? 'bg-zinc-900/20' : 'hover:bg-zinc-900/40'
+                      hasDetail ? 'bg-card/20' : 'hover:bg-card/40'
                     )}>
                       <td className="px-4 py-3">
-                        <p className="text-white text-xs font-medium">
+                        <p className="text-foreground text-xs font-medium">
                           {new Date(run.started_at).toLocaleDateString('en-GB', {
                             day: '2-digit', month: 'short', year: 'numeric',
                             hour: '2-digit', minute: '2-digit',
                           })}
                         </p>
-                        <p className="text-[10px] text-zinc-600 mt-0.5">{timeAgo(run.started_at)}</p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-0.5">{timeAgo(run.started_at)}</p>
                       </td>
                       <td className="px-4 py-3"><StatusBadge status={run.status} /></td>
                       <td className="px-4 py-3 text-center">
-                        <span className="text-sm font-semibold text-white">{run.apps_updated}</span>
-                        <span className="text-[10px] text-zinc-600 ml-1">apps</span>
+                        <span className="text-sm font-semibold text-foreground">{run.apps_updated}</span>
+                        <span className="text-[10px] text-muted-foreground/60 ml-1">apps</span>
                       </td>
                       <td className="px-4 py-3 text-center">
                         {run.apps_added > 0 ? (
                           <span className="text-xs font-semibold text-blue-400">+{run.apps_added}</span>
                         ) : (
-                          <span className="text-xs text-zinc-600">—</span>
+                          <span className="text-xs text-muted-foreground/60">—</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className="text-xs text-zinc-400 tabular-nums">
+                        <span className="text-xs text-muted-foreground tabular-nums">
                           {duration(run.started_at, run.completed_at)}
                         </span>
                       </td>
@@ -215,7 +215,7 @@ export default async function RefreshLogsPage() {
                             <GitCompare className="w-3 h-3" />{run.changes.length}
                           </span>
                         ) : (
-                          <span className="text-xs text-zinc-600">—</span>
+                          <span className="text-xs text-muted-foreground/60">—</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-center">
@@ -224,7 +224,7 @@ export default async function RefreshLogsPage() {
                             <AlertTriangle className="w-3 h-3" />{run.errors.length}
                           </span>
                         ) : (
-                          <span className="text-xs text-zinc-600">—</span>
+                          <span className="text-xs text-muted-foreground/60">—</span>
                         )}
                       </td>
                     </tr>
@@ -237,10 +237,10 @@ export default async function RefreshLogsPage() {
                           <div className="space-y-1.5">
                             {run.changes.map((change, i) => (
                               <div key={i} className="flex items-center gap-2 text-[11px]">
-                                <span className="text-zinc-500 w-32 truncate shrink-0">{change.app_name}</span>
+                                <span className="text-muted-foreground/80 w-32 truncate shrink-0">{change.app_name}</span>
                                 <FieldLabel field={change.field} />
                                 <span className="text-red-400/80 line-through">{change.old_value}</span>
-                                <span className="text-zinc-600">→</span>
+                                <span className="text-muted-foreground/60">→</span>
                                 <span className="text-green-400">{change.new_value}</span>
                               </div>
                             ))}
@@ -260,7 +260,7 @@ export default async function RefreshLogsPage() {
                                 <span className="font-mono text-red-500/60 shrink-0 w-32 truncate">
                                   {err.app_id ?? 'system'}
                                 </span>
-                                <span className="text-zinc-500">{err.error}</span>
+                                <span className="text-muted-foreground/80">{err.error}</span>
                               </div>
                             ))}
                           </div>

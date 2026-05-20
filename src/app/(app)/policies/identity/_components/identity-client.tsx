@@ -27,8 +27,8 @@ import {
 const RISK_META: Record<RiskLevel, { label: string; text: string; bg: string; gapBorder: string }> = {
   critical: { label: 'CRITICAL', text: 'text-red-400',    bg: 'bg-red-500/15',    gapBorder: 'border-red-500/40' },
   high:     { label: 'HIGH',     text: 'text-orange-400', bg: 'bg-orange-500/15', gapBorder: 'border-orange-500/40' },
-  medium:   { label: 'MEDIUM',   text: 'text-amber-400',  bg: 'bg-amber-500/15',  gapBorder: 'border-zinc-700' },
-  low:      { label: 'LOW',      text: 'text-green-400',  bg: 'bg-green-500/15',  gapBorder: 'border-zinc-700' },
+  medium:   { label: 'MEDIUM',   text: 'text-amber-400',  bg: 'bg-amber-500/15',  gapBorder: 'border-border-strong' },
+  low:      { label: 'LOW',      text: 'text-green-400',  bg: 'bg-green-500/15',  gapBorder: 'border-border-strong' },
 }
 
 const SOURCE_TYPE_OPTIONS: { value: IdentitySourceType; label: string }[] = [
@@ -113,20 +113,20 @@ function AddMappingForm({
   }
 
   return (
-    <div className="mt-2 p-3 rounded-lg bg-zinc-800/50 border border-zinc-700 space-y-2">
+    <div className="mt-2 p-3 rounded-lg bg-muted/50 border border-border-strong space-y-2">
       <div className="flex gap-2">
         <input
           value={sourceName}
           onChange={e => { setSourceName(e.target.value); setErr('') }}
           placeholder="e.g. Domain Admins, HR Department OU"
-          className="flex-1 px-3 py-1.5 rounded-md bg-zinc-900 border border-zinc-700 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none focus:border-zinc-500"
+          className="flex-1 px-3 py-1.5 rounded-md bg-card border border-border-strong text-sm text-foreground/90 placeholder:text-muted-foreground/50 outline-none focus:border-border-strong"
           onKeyDown={e => e.key === 'Enter' && handleSave()}
           autoFocus
         />
         <select
           value={sourceType}
           onChange={e => setSourceType(e.target.value as IdentitySourceType)}
-          className="px-3 py-1.5 rounded-md bg-zinc-900 border border-zinc-700 text-sm text-zinc-200 outline-none focus:border-zinc-500 cursor-pointer"
+          className="px-3 py-1.5 rounded-md bg-card border border-border-strong text-sm text-foreground/90 outline-none focus:border-border-strong cursor-pointer"
         >
           {SOURCE_TYPE_OPTIONS.map(opt => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -137,21 +137,21 @@ function AddMappingForm({
         value={notes}
         onChange={e => setNotes(e.target.value)}
         placeholder="Notes (optional)"
-        className="w-full px-3 py-1.5 rounded-md bg-zinc-900 border border-zinc-700 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none focus:border-zinc-500"
+        className="w-full px-3 py-1.5 rounded-md bg-card border border-border-strong text-sm text-foreground/90 placeholder:text-muted-foreground/50 outline-none focus:border-border-strong"
       />
       {err && <p className="text-xs text-red-400">{err}</p>}
       <div className="flex items-center gap-2">
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-zinc-700 hover:bg-zinc-600 text-xs text-white transition-colors disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent hover:bg-accent text-xs text-foreground transition-colors disabled:opacity-50"
         >
           <Check className="w-3 h-3" />
           {saving ? 'Saving…' : 'Save'}
         </button>
         <button
           onClick={onCancel}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground/90 transition-colors"
         >
           <X className="w-3 h-3" />
           Cancel
@@ -204,19 +204,19 @@ function MappingItem({
 
   if (editing) {
     return (
-      <div className="p-2.5 rounded-lg bg-zinc-800/50 border border-zinc-700 space-y-2">
+      <div className="p-2.5 rounded-lg bg-muted/50 border border-border-strong space-y-2">
         <div className="flex gap-2">
           <input
             value={sourceName}
             onChange={e => setSourceName(e.target.value)}
-            className="flex-1 px-3 py-1.5 rounded-md bg-zinc-900 border border-zinc-700 text-sm text-zinc-200 outline-none focus:border-zinc-500"
+            className="flex-1 px-3 py-1.5 rounded-md bg-card border border-border-strong text-sm text-foreground/90 outline-none focus:border-border-strong"
             onKeyDown={e => e.key === 'Enter' && handleSave()}
             autoFocus
           />
           <select
             value={sourceType}
             onChange={e => setSourceType(e.target.value as IdentitySourceType)}
-            className="px-3 py-1.5 rounded-md bg-zinc-900 border border-zinc-700 text-sm text-zinc-200 outline-none focus:border-zinc-500 cursor-pointer"
+            className="px-3 py-1.5 rounded-md bg-card border border-border-strong text-sm text-foreground/90 outline-none focus:border-border-strong cursor-pointer"
           >
             {SOURCE_TYPE_OPTIONS.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -227,21 +227,21 @@ function MappingItem({
           value={notes}
           onChange={e => setNotes(e.target.value)}
           placeholder="Notes (optional)"
-          className="w-full px-3 py-1.5 rounded-md bg-zinc-900 border border-zinc-700 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none focus:border-zinc-500"
+          className="w-full px-3 py-1.5 rounded-md bg-card border border-border-strong text-sm text-foreground/90 placeholder:text-muted-foreground/50 outline-none focus:border-border-strong"
         />
         {err && <p className="text-xs text-red-400">{err}</p>}
         <div className="flex gap-2">
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-zinc-700 hover:bg-zinc-600 text-xs text-white transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent hover:bg-accent text-xs text-foreground transition-colors disabled:opacity-50"
           >
             <Check className="w-3 h-3" />
             {saving ? 'Saving…' : 'Save'}
           </button>
           <button
             onClick={() => setEditing(false)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground/90 transition-colors"
           >
             <X className="w-3 h-3" />
             Cancel
@@ -252,27 +252,27 @@ function MappingItem({
   }
 
   return (
-    <div className="flex items-start gap-3 px-2.5 py-2 rounded-lg hover:bg-zinc-800/40 group">
+    <div className="flex items-start gap-3 px-2.5 py-2 rounded-lg hover:bg-muted/40 group">
       <div className="flex-1 min-w-0">
-        <span className="text-sm text-zinc-200 font-medium">{mapping.source_name}</span>
-        <span className="ml-2 text-xs text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded">
+        <span className="text-sm text-foreground/90 font-medium">{mapping.source_name}</span>
+        <span className="ml-2 text-xs text-muted-foreground/80 bg-muted px-1.5 py-0.5 rounded">
           {SOURCE_TYPE_LABELS[mapping.source_type]}
         </span>
         {mapping.notes && (
-          <p className="text-xs text-zinc-500 mt-0.5 truncate">{mapping.notes}</p>
+          <p className="text-xs text-muted-foreground/80 mt-0.5 truncate">{mapping.notes}</p>
         )}
       </div>
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
         <button
           onClick={() => setEditing(true)}
-          className="p-1 rounded hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300 transition-colors"
+          className="p-1 rounded hover:bg-accent text-muted-foreground/80 hover:text-foreground/70 transition-colors"
           title="Edit"
         >
           <Pencil className="w-3.5 h-3.5" />
         </button>
         <button
           onClick={handleDelete}
-          className="p-1 rounded hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition-colors"
+          className="p-1 rounded hover:bg-red-500/20 text-muted-foreground/80 hover:text-red-400 transition-colors"
           title="Delete"
         >
           <Trash2 className="w-3.5 h-3.5" />
@@ -312,8 +312,8 @@ function ValueRow({
   return (
     <div className={cn(
       'rounded-lg border transition-colors',
-      isGap ? risk.gapBorder : 'border-zinc-800',
-      expanded ? 'bg-zinc-900/60' : 'bg-transparent hover:bg-zinc-900/30',
+      isGap ? risk.gapBorder : 'border-border',
+      expanded ? 'bg-card/60' : 'bg-transparent hover:bg-card/30',
     )}>
       {/* Value header row */}
       <button
@@ -321,10 +321,10 @@ function ValueRow({
         className="w-full flex items-center gap-3 px-3 py-2.5 text-left"
       >
         {expanded
-          ? <ChevronDown className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-          : <ChevronRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+          ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground/80 shrink-0" />
+          : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/80 shrink-0" />
         }
-        <span className={cn('flex-1 text-sm font-medium', value.is_in_scope ? 'text-zinc-200' : 'text-zinc-500')}>
+        <span className={cn('flex-1 text-sm font-medium', value.is_in_scope ? 'text-foreground/90' : 'text-muted-foreground/80')}>
           {value.value_name}
         </span>
         <span className={cn('text-xs font-semibold px-1.5 py-0.5 rounded shrink-0', risk.text, risk.bg)}>
@@ -336,13 +336,13 @@ function ValueRow({
             'text-xs px-2.5 py-1 rounded-lg border font-medium transition-all shrink-0',
             value.is_in_scope
               ? 'text-blue-400 bg-blue-500/10 border-blue-500/25 hover:bg-blue-500/20'
-              : 'text-zinc-600 bg-transparent border-zinc-800 hover:border-zinc-600 hover:text-zinc-400',
+              : 'text-muted-foreground/60 bg-transparent border-border hover:border-border-strong hover:text-muted-foreground',
           )}
         >
           {value.is_in_scope ? 'In scope ✓' : '+ Add'}
         </button>
         {count > 0 && (
-          <span className="text-xs text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded-full shrink-0">
+          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full shrink-0">
             {count} {count === 1 ? 'mapping' : 'mappings'}
           </span>
         )}
@@ -352,7 +352,7 @@ function ValueRow({
       {expanded && (
         <div className="px-3 pb-3 pt-0 space-y-1">
           {value.description && (
-            <p className="text-xs text-zinc-500 mb-2 ml-6">{value.description}</p>
+            <p className="text-xs text-muted-foreground/80 mb-2 ml-6">{value.description}</p>
           )}
           {value.mappings.length > 0 && (
             <div className="space-y-0.5">
@@ -375,14 +375,14 @@ function ValueRow({
           ) : (
             <button
               onClick={e => { e.stopPropagation(); setAddOpen(true) }}
-              className="flex items-center gap-1.5 ml-2 mt-1 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+              className="flex items-center gap-1.5 ml-2 mt-1 text-xs text-muted-foreground/80 hover:text-foreground/70 transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               Add mapping
             </button>
           )}
           {value.risk_note && (
-            <p className="text-xs text-zinc-600 italic ml-2 mt-2 border-t border-zinc-800 pt-2">
+            <p className="text-xs text-muted-foreground/60 italic ml-2 mt-2 border-t border-border pt-2">
               {value.risk_note}
             </p>
           )}
@@ -417,19 +417,19 @@ function FieldCard({
   ).length
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
+    <div className="rounded-xl border border-border bg-card/30 overflow-hidden">
       {/* Card header */}
       <button
         onClick={() => setCollapsed(c => !c)}
-        className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-zinc-800/30 transition-colors"
+        className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-muted/30 transition-colors"
       >
         {collapsed
-          ? <ChevronRight className="w-4 h-4 text-zinc-500 shrink-0" />
-          : <ChevronDown className="w-4 h-4 text-zinc-500 shrink-0" />
+          ? <ChevronRight className="w-4 h-4 text-muted-foreground/80 shrink-0" />
+          : <ChevronDown className="w-4 h-4 text-muted-foreground/80 shrink-0" />
         }
         <div className="flex-1 min-w-0">
-          <h2 className="text-base font-semibold text-white">{FIELD_LABELS[fieldName]}</h2>
-          <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1">{FIELD_DESCRIPTIONS[fieldName]}</p>
+          <h2 className="text-base font-semibold text-foreground">{FIELD_LABELS[fieldName]}</h2>
+          <p className="text-xs text-muted-foreground/80 mt-0.5 line-clamp-1">{FIELD_DESCRIPTIONS[fieldName]}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {gapCount > 0 && (
@@ -437,7 +437,7 @@ function FieldCard({
               {gapCount} gap{gapCount > 1 ? 's' : ''}
             </span>
           )}
-          <span className="text-xs text-zinc-400">
+          <span className="text-xs text-muted-foreground">
             {inScopeCount} / {values.length} in scope
           </span>
         </div>
@@ -445,7 +445,7 @@ function FieldCard({
 
       {/* Values list */}
       {!collapsed && (
-        <div className="px-4 pb-4 space-y-1.5 border-t border-zinc-800">
+        <div className="px-4 pb-4 space-y-1.5 border-t border-border">
           <div className="pt-3 space-y-1">
             {values.map(v => (
               <ValueRow
@@ -511,18 +511,18 @@ export function IdentityClient({
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {[
-          { label: 'Total Values',  value: totalValues,  cls: 'text-white' },
+          { label: 'Total Values',  value: totalValues,  cls: 'text-foreground' },
           { label: 'Mapped',        value: totalMapped,  cls: 'text-emerald-400' },
-          { label: 'Critical Gaps', value: criticalGaps, cls: criticalGaps > 0 ? 'text-red-400' : 'text-zinc-500' },
-          { label: 'In Scope',      value: inScopeTotal, cls: inScopeTotal > 0 ? 'text-blue-400' : 'text-zinc-500' },
+          { label: 'Critical Gaps', value: criticalGaps, cls: criticalGaps > 0 ? 'text-red-400' : 'text-muted-foreground/80' },
+          { label: 'In Scope',      value: inScopeTotal, cls: inScopeTotal > 0 ? 'text-blue-400' : 'text-muted-foreground/80' },
         ].map(stat => (
-          <div key={stat.label} className="rounded-xl bg-zinc-900 border border-zinc-800 px-4 py-3">
+          <div key={stat.label} className="rounded-xl bg-card border border-border px-4 py-3">
             <p className={cn('text-2xl font-bold', stat.cls)}>{stat.value}</p>
-            <p className="text-xs text-zinc-500 mt-0.5">{stat.label}</p>
+            <p className="text-xs text-muted-foreground/80 mt-0.5">{stat.label}</p>
           </div>
         ))}
       </div>
-      <p className="text-xs text-zinc-600 mb-5">
+      <p className="text-xs text-muted-foreground/60 mb-5">
         Mappings are added manually — enter your AD groups, OUs, or HR attributes for each category.
         Automatic sync from Active Directory, Okta, and Entra ID is on the roadmap.
       </p>

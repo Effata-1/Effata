@@ -82,12 +82,12 @@ function ConfRow({ label, description, value }: { label: string; description: st
     ['poor', 'high', 'weak'].includes(value)     ? 'text-red-400'   :
     value === 'No'  ? 'text-green-400' :
     value === 'Yes' ? 'text-amber-400' :
-    'text-zinc-300'
+    'text-foreground/70'
   return (
     <>
       <div>
-        <p className="text-[10px] text-zinc-400">{label}</p>
-        <p className="text-[9px] text-zinc-600 leading-snug mt-0.5">{description}</p>
+        <p className="text-[10px] text-muted-foreground">{label}</p>
+        <p className="text-[9px] text-muted-foreground/60 leading-snug mt-0.5">{description}</p>
       </div>
       <span className={cn('text-[10px] font-semibold capitalize self-start pt-0.5', color)}>{value}</span>
     </>
@@ -556,7 +556,7 @@ function buildHighlightedHtml(text: string, matches: Match[], mode: 'match' | 'f
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">
+    <p className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest mb-3">
       {children}
     </p>
   )
@@ -567,7 +567,7 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
     <div className="relative group/tip">
       {children}
       <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover/tip:opacity-100 transition-opacity duration-100 z-50">
-        <span className="block text-[10px] bg-zinc-700 text-zinc-200 px-2 py-1 rounded shadow-lg whitespace-nowrap">
+        <span className="block text-[10px] bg-accent text-foreground/90 px-2 py-1 rounded shadow-lg whitespace-nowrap">
           {label}
         </span>
       </div>
@@ -861,7 +861,7 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
       ? 'bg-red-500/15 text-red-400'
       : regexResult.matches.length > 0
       ? 'bg-green-500/15 text-green-400'
-      : 'bg-zinc-800 text-zinc-500'
+      : 'bg-muted text-muted-foreground/80'
 
   // ══════════════════════════════════════════════════════════════════════════
   // RENDER
@@ -876,7 +876,7 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
       <div className="col-span-2 space-y-5">
 
         {/* Pattern Editor */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+        <div className="rounded-xl border border-border bg-card/50 p-5">
           <div className="flex items-center justify-between mb-3">
             <SectionLabel>Expression</SectionLabel>
             <div className="flex items-center gap-1.5">
@@ -891,8 +891,8 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
                     className={cn(
                       'w-7 h-7 rounded text-xs font-bold font-mono transition-all',
                       flags.includes(f)
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300',
+                        ? 'bg-blue-600 text-foreground'
+                        : 'bg-muted text-muted-foreground/80 hover:bg-accent hover:text-foreground/70',
                       f === 'g' && 'opacity-60 cursor-default'
                     )}
                   >
@@ -903,21 +903,21 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
               {/* Copy */}
               <Tip label="Copy pattern with flags">
                 <button onClick={copyPattern} disabled={!pattern}
-                  className="w-7 h-7 rounded flex items-center justify-center bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300 disabled:opacity-30 transition-all">
+                  className="w-7 h-7 rounded flex items-center justify-center bg-muted text-muted-foreground/80 hover:bg-accent hover:text-foreground/70 disabled:opacity-30 transition-all">
                   {copied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
               </Tip>
               {/* Copy as markdown */}
               <Tip label="Copy as markdown documentation">
                 <button onClick={copyAsMarkdown} disabled={!pattern}
-                  className="w-7 h-7 rounded flex items-center justify-center bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300 disabled:opacity-30 transition-all">
+                  className="w-7 h-7 rounded flex items-center justify-center bg-muted text-muted-foreground/80 hover:bg-accent hover:text-foreground/70 disabled:opacity-30 transition-all">
                   {copiedMd ? <Check className="h-3.5 w-3.5 text-green-400" /> : <FileText className="h-3.5 w-3.5" />}
                 </button>
               </Tip>
               {/* Export JSON */}
               <Tip label="Export as JSON">
                 <button onClick={exportJson} disabled={!pattern}
-                  className="w-7 h-7 rounded flex items-center justify-center bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300 disabled:opacity-30 transition-all">
+                  className="w-7 h-7 rounded flex items-center justify-center bg-muted text-muted-foreground/80 hover:bg-accent hover:text-foreground/70 disabled:opacity-30 transition-all">
                   <FileDown className="h-3.5 w-3.5" />
                 </button>
               </Tip>
@@ -925,7 +925,7 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-zinc-500 font-mono text-xl select-none leading-none">/</span>
+            <span className="text-muted-foreground/80 font-mono text-xl select-none leading-none">/</span>
             <input
               type="text"
               value={pattern}
@@ -934,11 +934,11 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
               spellCheck={false}
               autoComplete="off"
               className={cn(
-                'flex-1 font-mono text-sm px-3 py-2.5 rounded-lg border bg-zinc-800 text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-blue-500',
-                !regexResult.valid ? 'border-red-500/60 text-red-300' : 'border-zinc-700'
+                'flex-1 font-mono text-sm px-3 py-2.5 rounded-lg border bg-muted text-foreground outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-blue-500',
+                !regexResult.valid ? 'border-red-500/60 text-red-300' : 'border-border-strong'
               )}
             />
-            <span className="text-zinc-500 font-mono text-xl select-none leading-none">/{flags}</span>
+            <span className="text-muted-foreground/80 font-mono text-xl select-none leading-none">/{flags}</span>
           </div>
 
           {!regexResult.valid && (
@@ -947,8 +947,8 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
 
           {/* Confidence Report */}
           {confidence && (
-            <div className="mt-4 rounded-lg border border-zinc-700/60 bg-zinc-800/40 p-3">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Confidence Report</p>
+            <div className="mt-4 rounded-lg border border-border-strong/60 bg-muted/40 p-3">
+              <p className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest mb-3">Confidence Report</p>
               <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                 <ConfRow
                   label="Match accuracy"
@@ -976,7 +976,7 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
                   value={confidence.dlpSeverity}
                 />
               </div>
-              <p className="text-[10px] text-zinc-400 mt-3 leading-relaxed border-t border-zinc-700/60 pt-2.5">
+              <p className="text-[10px] text-muted-foreground mt-3 leading-relaxed border-t border-border-strong/60 pt-2.5">
                 {confidence.recommendation}
               </p>
             </div>
@@ -984,7 +984,7 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
         </div>
 
         {/* AI Assistant */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+        <div className="rounded-xl border border-border bg-card/50 p-5">
           <div className="flex items-center gap-2 mb-3">
             <SectionLabel>AI Assistant</SectionLabel>
             <Sparkles className="w-3 h-3 text-purple-400 mb-3" />
@@ -997,12 +997,12 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
               onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleGenerate() }}
               placeholder='Describe what you want to match... e.g. "UK National Insurance numbers" or "Stripe secret API keys starting with sk_live"'
               rows={2}
-              className="flex-1 bg-zinc-800 text-white text-sm px-3 py-2.5 rounded-lg border border-zinc-700 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 resize-none"
+              className="flex-1 bg-muted text-foreground text-sm px-3 py-2.5 rounded-lg border border-border-strong placeholder:text-muted-foreground/50 focus:outline-none focus:border-blue-500 resize-none"
             />
             <button
               onClick={handleGenerate}
               disabled={aiLoading || !aiPrompt.trim()}
-              className="flex items-center gap-1.5 px-4 py-2 self-start rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+              className="flex items-center gap-1.5 px-4 py-2 self-start rounded-lg bg-blue-600 hover:bg-blue-500 text-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
             >
               {aiLoading
                 ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating...</>
@@ -1015,7 +1015,7 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
             <button
               type="button"
               onClick={() => setShowContext(v => !v)}
-              className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+              className="flex items-center gap-1 text-[10px] text-muted-foreground/80 hover:text-foreground/70 transition-colors"
             >
               {showContext ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
               Add context keywords (optional)
@@ -1027,9 +1027,9 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
                   value={contextKeywords}
                   onChange={e => setContextKeywords(e.target.value)}
                   placeholder='e.g. "secret, api_key, password" — match only near these words'
-                  className="w-full bg-zinc-800 text-white text-xs px-3 py-2 rounded-lg border border-zinc-700 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-muted text-foreground text-xs px-3 py-2 rounded-lg border border-border-strong placeholder:text-muted-foreground/50 focus:outline-none focus:border-blue-500"
                 />
-                <p className="text-[10px] text-zinc-600">
+                <p className="text-[10px] text-muted-foreground/60">
                   Generates a proximity pattern: sensitive data matched only when near these keywords.
                 </p>
               </div>
@@ -1039,14 +1039,14 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
           {aiError && <p className="mt-2 text-xs text-red-400">{aiError}</p>}
 
           {aiResult && (
-            <div className="mt-4 rounded-lg border border-zinc-700 bg-zinc-800/60 p-4 space-y-4">
+            <div className="mt-4 rounded-lg border border-border-strong bg-muted/60 p-4 space-y-4">
               <div>
-                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide mb-2">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-2">
                   Pattern Explanation
                 </p>
                 <div className="space-y-1">
                   {aiResult.explanation.split('\\n').map((line, i) => (
-                    <p key={i} className="text-xs text-zinc-300 leading-relaxed">{line}</p>
+                    <p key={i} className="text-xs text-foreground/70 leading-relaxed">{line}</p>
                   ))}
                 </div>
               </div>
@@ -1085,7 +1085,7 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
         </div>
 
         {/* Test String */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+        <div className="rounded-xl border border-border bg-card/50 p-5">
           <div className="flex items-center justify-between mb-3">
             <SectionLabel>Test String</SectionLabel>
             <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded uppercase', matchBadgeClass)}>
@@ -1095,7 +1095,7 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
             </span>
           </div>
 
-          <div className="relative rounded-lg border border-zinc-700 overflow-hidden" style={{ height: '280px' }}>
+          <div className="relative rounded-lg border border-border-strong overflow-hidden" style={{ height: '280px' }}>
             <div
               ref={overlayRef}
               aria-hidden="true"
@@ -1116,7 +1116,7 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
         </div>
 
         {/* Match Results */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+        <div className="rounded-xl border border-border bg-card/50 p-5">
           <div className="flex items-center gap-2 mb-3">
             <SectionLabel>Matches</SectionLabel>
             {regexResult.valid && regexResult.matches.length > 0 && (
@@ -1127,22 +1127,22 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
           </div>
 
           {!pattern ? (
-            <p className="text-xs text-zinc-600 italic">Enter a pattern above to start matching</p>
+            <p className="text-xs text-muted-foreground/60 italic">Enter a pattern above to start matching</p>
           ) : !regexResult.valid ? (
             <p className="text-xs text-red-400 font-mono">{regexResult.error}</p>
           ) : regexResult.matches.length === 0 ? (
-            <p className="text-xs text-zinc-600 italic">No matches found in the test string</p>
+            <p className="text-xs text-muted-foreground/60 italic">No matches found in the test string</p>
           ) : (
             <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
               {regexResult.matches.map(m => (
                 <div
                   key={m.index}
-                  className="flex items-center gap-3 py-1.5 px-3 rounded-lg bg-zinc-800/60 text-xs"
+                  className="flex items-center gap-3 py-1.5 px-3 rounded-lg bg-muted/60 text-xs"
                 >
-                  <span className="text-zinc-600 tabular-nums w-5 shrink-0 text-right">
+                  <span className="text-muted-foreground/60 tabular-nums w-5 shrink-0 text-right">
                     {m.index + 1}
                   </span>
-                  <span className="text-zinc-500 tabular-nums shrink-0 w-16 text-right">
+                  <span className="text-muted-foreground/80 tabular-nums shrink-0 w-16 text-right">
                     {m.start}–{m.end}
                   </span>
                   <span className="font-mono text-yellow-400 bg-yellow-400/10 rounded px-1.5 py-0.5 break-all flex-1">
@@ -1163,7 +1163,7 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
                 </div>
               ))}
               {regexResult.matches.length === 100 && (
-                <p className="text-[10px] text-zinc-600 text-center pt-1">Showing first 100 matches</p>
+                <p className="text-[10px] text-muted-foreground/60 text-center pt-1">Showing first 100 matches</p>
               )}
             </div>
           )}
@@ -1176,21 +1176,21 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
       <div className="col-span-1 space-y-5">
 
         {/* DLP Pattern Library */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+        <div className="rounded-xl border border-border bg-card/50 p-5">
           <div className="flex items-center justify-between mb-3">
             <SectionLabel>DLP Pattern Library</SectionLabel>
-            <span className="text-[10px] text-zinc-600 mb-3">{filteredPatterns.length} patterns</span>
+            <span className="text-[10px] text-muted-foreground/60 mb-3">{filteredPatterns.length} patterns</span>
           </div>
 
           {/* Search */}
           <div className="relative mb-2">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500 pointer-events-none" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/80 pointer-events-none" />
             <input
               type="text"
               placeholder="Search patterns..."
               value={libSearch}
               onChange={e => setLibSearch(e.target.value)}
-              className="w-full pl-7 pr-3 py-1.5 text-xs bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+              className="w-full pl-7 pr-3 py-1.5 text-xs bg-muted border border-border-strong rounded-lg text-foreground/70 placeholder-muted-foreground/50 focus:outline-none focus:border-border-strong"
             />
           </div>
 
@@ -1203,8 +1203,8 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
                 className={cn(
                   'px-2 py-0.5 rounded text-[10px] font-medium transition-colors',
                   libCategory === cat
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300'
+                    ? 'bg-blue-600 text-foreground'
+                    : 'bg-muted text-muted-foreground/80 hover:text-foreground/70'
                 )}
               >
                 {cat === 'All' ? 'All' : cat.split(' ')[0]}
@@ -1215,12 +1215,12 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
           {/* Pattern list grouped by category */}
           <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
             {filteredPatterns.length === 0 ? (
-              <p className="text-xs text-zinc-600 italic">No patterns match your search</p>
+              <p className="text-xs text-muted-foreground/60 italic">No patterns match your search</p>
             ) : (
               Object.entries(groupedPatterns).map(([cat, patterns]) => (
                 <div key={cat}>
                   {libCategory === 'All' && (
-                    <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5 px-0.5">
+                    <p className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-widest mb-1.5 px-0.5">
                       {cat}
                     </p>
                   )}
@@ -1229,12 +1229,12 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
                       <button
                         key={p.name}
                         onClick={() => loadPattern(p)}
-                        className="text-left rounded-lg border border-zinc-700 bg-zinc-800/60 p-2 hover:border-blue-500/50 hover:bg-zinc-700/60 transition-all group"
+                        className="text-left rounded-lg border border-border-strong bg-muted/60 p-2 hover:border-blue-500/50 hover:bg-accent/60 transition-all group"
                       >
-                        <p className="text-[10px] font-semibold text-white group-hover:text-blue-300 transition-colors leading-tight">
+                        <p className="text-[10px] font-semibold text-foreground group-hover:text-blue-300 transition-colors leading-tight">
                           {p.name}
                         </p>
-                        <p className="text-[9px] text-zinc-500 mt-0.5 leading-tight line-clamp-2">
+                        <p className="text-[9px] text-muted-foreground/80 mt-0.5 leading-tight line-clamp-2">
                           {p.description}
                         </p>
                       </button>
@@ -1247,7 +1247,7 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
         </div>
 
         {/* Save Pattern */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+        <div className="rounded-xl border border-border bg-card/50 p-5">
           <SectionLabel>Save Pattern</SectionLabel>
           <div className="space-y-2">
             <input
@@ -1256,7 +1256,7 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
               onChange={e => setSaveName(e.target.value)}
               placeholder="Pattern name *"
               maxLength={80}
-              className="w-full bg-zinc-800 text-white text-sm px-3 py-2 rounded-lg border border-zinc-700 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+              className="w-full bg-muted text-foreground text-sm px-3 py-2 rounded-lg border border-border-strong placeholder:text-muted-foreground/50 focus:outline-none focus:border-blue-500"
             />
             <input
               type="text"
@@ -1264,12 +1264,12 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
               onChange={e => setSaveDescription(e.target.value)}
               placeholder="Description (optional)"
               maxLength={200}
-              className="w-full bg-zinc-800 text-white text-sm px-3 py-2 rounded-lg border border-zinc-700 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+              className="w-full bg-muted text-foreground text-sm px-3 py-2 rounded-lg border border-border-strong placeholder:text-muted-foreground/50 focus:outline-none focus:border-blue-500"
             />
             <button
               onClick={handleSave}
               disabled={!pattern || !saveName.trim() || saveLoading}
-              className="w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               {saveLoading
                 ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...</>
@@ -1285,31 +1285,31 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
         </div>
 
         {/* Saved Patterns */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+        <div className="rounded-xl border border-border bg-card/50 p-5">
           <SectionLabel>Saved Patterns</SectionLabel>
           {savedPatterns.length === 0 ? (
-            <p className="text-xs text-zinc-600 italic">No saved patterns yet</p>
+            <p className="text-xs text-muted-foreground/60 italic">No saved patterns yet</p>
           ) : (
             <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
               {savedPatterns.map(p => (
                 <div
                   key={p.id}
-                  className="rounded-lg border border-zinc-700 bg-zinc-800/60 p-3 hover:border-zinc-600 transition-colors"
+                  className="rounded-lg border border-border-strong bg-muted/60 p-3 hover:border-border-strong transition-colors"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-white truncate">{p.name}</p>
+                      <p className="text-xs font-semibold text-foreground truncate">{p.name}</p>
                       {p.description && (
-                        <p className="text-[10px] text-zinc-500 mt-0.5 truncate">{p.description}</p>
+                        <p className="text-[10px] text-muted-foreground/80 mt-0.5 truncate">{p.description}</p>
                       )}
-                      <p className="text-[10px] font-mono text-zinc-600 mt-1 truncate">
+                      <p className="text-[10px] font-mono text-muted-foreground/60 mt-1 truncate">
                         /{p.pattern.slice(0, 30)}{p.pattern.length > 30 ? '…' : ''}/{p.flags}
                       </p>
                     </div>
                     <button
                       onClick={() => handleDelete(p.id)}
                       title="Delete pattern"
-                      className="p-1 text-zinc-600 hover:text-red-400 transition-colors shrink-0 mt-0.5"
+                      className="p-1 text-muted-foreground/60 hover:text-red-400 transition-colors shrink-0 mt-0.5"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>

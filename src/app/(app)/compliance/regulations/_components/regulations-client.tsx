@@ -20,8 +20,8 @@ const REGION_OPTIONS = [
 ]
 
 const PILL_BASE = 'px-3 py-1.5 rounded-full border text-xs font-medium transition-colors'
-const PILL_DEFAULT = 'border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300'
-const PILL_ACTIVE  = 'border-zinc-400 bg-zinc-800 text-white'
+const PILL_DEFAULT = 'border-border-strong bg-card text-muted-foreground hover:border-border-strong hover:text-foreground/70'
+const PILL_ACTIVE  = 'border-border-strong bg-muted text-foreground'
 
 const INDUSTRY_OPTIONS = [
   { value: 'all',                     label: 'All Industries' },
@@ -83,7 +83,7 @@ function VerifyButton({ reg }: { reg: RegulationRow }) {
     return (
       <button
         onClick={e => { e.stopPropagation(); setOpen(true) }}
-        className="text-[10px] font-medium px-2 py-1 rounded border border-zinc-700 text-zinc-400 hover:border-blue-600 hover:text-blue-400 transition-colors"
+        className="text-[10px] font-medium px-2 py-1 rounded border border-border-strong text-muted-foreground hover:border-blue-600 hover:text-blue-400 transition-colors"
       >
         Mark verified
       </button>
@@ -92,7 +92,7 @@ function VerifyButton({ reg }: { reg: RegulationRow }) {
 
   return (
     <div onClick={e => e.stopPropagation()} className="flex items-center gap-2 flex-wrap">
-      <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer">
+      <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
         <input
           type="checkbox"
           checked={changed}
@@ -106,18 +106,18 @@ function VerifyButton({ reg }: { reg: RegulationRow }) {
         placeholder="Notes (optional)"
         value={notes}
         onChange={e => setNotes(e.target.value)}
-        className="text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-white placeholder:text-zinc-600 w-36"
+        className="text-xs bg-muted border border-border-strong rounded px-2 py-1 text-foreground placeholder:text-muted-foreground/50 w-36"
       />
       <button
         onClick={submit}
         disabled={isPending}
-        className="text-[10px] font-medium px-2 py-1 rounded bg-green-600 text-white hover:bg-green-500 disabled:opacity-50 transition-colors"
+        className="text-[10px] font-medium px-2 py-1 rounded bg-green-600 text-foreground hover:bg-green-500 disabled:opacity-50 transition-colors"
       >
         {isPending ? 'Saving…' : 'Confirm'}
       </button>
       <button
         onClick={() => setOpen(false)}
-        className="text-[10px] text-zinc-500 hover:text-zinc-300"
+        className="text-[10px] text-muted-foreground/80 hover:text-foreground/70"
       >
         Cancel
       </button>
@@ -139,17 +139,17 @@ function RegulationCard({ reg, isRelevant }: { reg: RegulationRow; isRelevant: b
     <div className={cn(
       'rounded-xl border overflow-hidden transition-opacity',
       isRelevant
-        ? 'border-blue-800/50 bg-zinc-900/60'
-        : 'border-zinc-800 bg-zinc-900/40 opacity-60 hover:opacity-100'
+        ? 'border-blue-800/50 bg-card/60'
+        : 'border-border bg-card/40 opacity-60 hover:opacity-100'
     )}>
       <button
         onClick={() => setExpanded(v => !v)}
-        className="w-full text-left px-5 py-4 flex items-start gap-4 hover:bg-zinc-900/60 transition-colors"
+        className="w-full text-left px-5 py-4 flex items-start gap-4 hover:bg-card/60 transition-colors"
       >
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span className="text-base font-semibold text-white">{reg.short_name}</span>
-            <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded uppercase', TYPE_COLORS[reg.type] ?? 'bg-zinc-700 text-zinc-400')}>
+            <span className="text-base font-semibold text-foreground">{reg.short_name}</span>
+            <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded uppercase', TYPE_COLORS[reg.type] ?? 'bg-accent text-muted-foreground')}>
               {reg.type}
             </span>
             {isNew && (
@@ -168,18 +168,18 @@ function RegulationCard({ reg, isRelevant }: { reg: RegulationRow; isRelevant: b
               </span>
             )}
             {reg.industries && (
-              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-zinc-700/50 text-zinc-400">
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-accent/50 text-muted-foreground">
                 {reg.industries.join(' · ')}
               </span>
             )}
           </div>
-          <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2">{reg.summary}</p>
+          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{reg.summary}</p>
           <div className="flex items-center gap-4 mt-2 flex-wrap">
-            <span className="text-xs text-zinc-600">{reg.jurisdiction}</span>
+            <span className="text-xs text-muted-foreground/60">{reg.jurisdiction}</span>
             {reg.max_fine && (
               <span className="text-xs font-medium text-red-400">Max: {reg.max_fine}</span>
             )}
-            <span className="text-xs text-zinc-600">{reg.requirements.length} requirements</span>
+            <span className="text-xs text-muted-foreground/60">{reg.requirements.length} requirements</span>
             {criticalCount > 0 && (
               <span className="text-[10px] text-red-400">{criticalCount} critical</span>
             )}
@@ -195,7 +195,7 @@ function RegulationCard({ reg, isRelevant }: { reg: RegulationRow; isRelevant: b
             <a
               href={`/compliance/gap-report?reg=${reg.code}`}
               onClick={e => e.stopPropagation()}
-              className="flex items-center gap-1 text-[10px] font-medium text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 px-2 py-1 rounded transition-colors"
+              className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-foreground border border-border-strong hover:border-border-strong px-2 py-1 rounded transition-colors"
             >
               <ClipboardCheck className="h-3 w-3" />
               Assess
@@ -206,7 +206,7 @@ function RegulationCard({ reg, isRelevant }: { reg: RegulationRow; isRelevant: b
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={e => e.stopPropagation()}
-                className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-blue-400 transition-colors"
+                className="flex items-center gap-1 text-[10px] text-muted-foreground/80 hover:text-blue-400 transition-colors"
               >
                 <ExternalLink className="h-3 w-3" />
                 Official source
@@ -215,42 +215,42 @@ function RegulationCard({ reg, isRelevant }: { reg: RegulationRow; isRelevant: b
             <VerifyButton reg={reg} />
           </div>
           {expanded
-            ? <ChevronDown className="h-4 w-4 text-zinc-500 mt-1" />
-            : <ChevronRight className="h-4 w-4 text-zinc-500 mt-1" />
+            ? <ChevronDown className="h-4 w-4 text-muted-foreground/80 mt-1" />
+            : <ChevronRight className="h-4 w-4 text-muted-foreground/80 mt-1" />
           }
         </div>
       </button>
 
       {expanded && (
-        <div className="border-t border-zinc-800">
+        <div className="border-t border-border">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-zinc-800">
-                <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-5 py-2.5">Article / Section</th>
-                <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Requirement</th>
-                <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5 hidden lg:table-cell">DLP Relevance</th>
-                <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Severity</th>
-                <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5 hidden xl:table-cell">Max Fine</th>
+              <tr className="border-b border-border">
+                <th className="text-left text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide px-5 py-2.5">Article / Section</th>
+                <th className="text-left text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide px-4 py-2.5">Requirement</th>
+                <th className="text-left text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide px-4 py-2.5 hidden lg:table-cell">DLP Relevance</th>
+                <th className="text-left text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide px-4 py-2.5">Severity</th>
+                <th className="text-left text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide px-4 py-2.5 hidden xl:table-cell">Max Fine</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800/60">
+            <tbody className="divide-y divide-border/60">
               {reg.requirements.map(req => (
-                <tr key={req.id} className="hover:bg-zinc-900/40 transition-colors">
+                <tr key={req.id} className="hover:bg-card/40 transition-colors">
                   <td className="px-5 py-3 whitespace-nowrap">
-                    <span className="text-xs font-mono text-zinc-400">{req.article}</span>
+                    <span className="text-xs font-mono text-muted-foreground">{req.article}</span>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="text-xs font-medium text-white mb-0.5">{req.title}</div>
-                    <div className="text-xs text-zinc-500 leading-relaxed max-w-xs">{req.description}</div>
+                    <div className="text-xs font-medium text-foreground mb-0.5">{req.title}</div>
+                    <div className="text-xs text-muted-foreground/80 leading-relaxed max-w-xs">{req.description}</div>
                   </td>
                   <td className="px-4 py-3 hidden lg:table-cell">
                     <div className="flex items-start gap-1.5">
                       <Shield className="h-3 w-3 text-blue-500 mt-0.5 shrink-0" />
-                      <span className="text-xs text-zinc-400 leading-relaxed max-w-xs">{req.dlp_relevance}</span>
+                      <span className="text-xs text-muted-foreground leading-relaxed max-w-xs">{req.dlp_relevance}</span>
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded uppercase', SEVERITY_COLORS[req.severity] ?? 'bg-zinc-700 text-zinc-400')}>
+                    <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded uppercase', SEVERITY_COLORS[req.severity] ?? 'bg-accent text-muted-foreground')}>
                       {req.severity}
                     </span>
                   </td>
@@ -330,18 +330,18 @@ export function RegulationsClient({
       )}
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-600 pointer-events-none" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60 pointer-events-none" />
         <input
           type="text"
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           placeholder="Search regulations…"
-          className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-8 pr-8 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-600"
+          className="w-full bg-card border border-border rounded-lg pl-8 pr-8 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-blue-600"
         />
         {searchQuery && (
           <button
             onClick={() => setSearchQuery('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -378,11 +378,11 @@ export function RegulationsClient({
           align="right"
         />
 
-        <span className="text-xs text-zinc-600">
+        <span className="text-xs text-muted-foreground/60">
           {visible.length} of {allCount} regulations
         </span>
         {hasOrgProfile && relevantSet.size > 0 && (
-          <span className="text-xs text-zinc-600 flex items-center gap-1.5">
+          <span className="text-xs text-muted-foreground/60 flex items-center gap-1.5">
             <span className="inline-block w-2 h-2 rounded-sm bg-blue-500/40 border border-blue-800/50" />
             Highlighted = applies to your org
           </span>
@@ -390,9 +390,9 @@ export function RegulationsClient({
       </div>
 
       {visible.length === 0 ? (
-        <div className="py-16 text-center rounded-xl border border-zinc-800">
-          <p className="text-sm text-zinc-500">No regulations match your filters.</p>
-          <p className="text-xs text-zinc-600 mt-1">Try selecting a different region, industry, or search term.</p>
+        <div className="py-16 text-center rounded-xl border border-border">
+          <p className="text-sm text-muted-foreground/80">No regulations match your filters.</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">Try selecting a different region, industry, or search term.</p>
         </div>
       ) : (
         <div className="space-y-3">

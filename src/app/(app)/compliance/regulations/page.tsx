@@ -111,8 +111,8 @@ export default async function RegulationsPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white mb-1">Regulations & Frameworks</h1>
-        <p className="text-zinc-500 text-sm">
+        <h1 className="text-2xl font-bold text-foreground mb-1">Regulations & Frameworks</h1>
+        <p className="text-muted-foreground/80 text-sm">
           Browse and filter DLP-relevant regulations across privacy, security, and sector-specific frameworks worldwide.
         </p>
       </div>

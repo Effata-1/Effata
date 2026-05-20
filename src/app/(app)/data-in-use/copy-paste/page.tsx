@@ -1,8 +1,8 @@
 export default function Page() {
   return (
     <div>
-      <h1 className="text-2xl font-bold text-white mb-1">Copy/Paste Controls</h1>
-      <p className="text-zinc-500 text-sm">Clipboard monitoring and restriction policies</p>
+      <h1 className="text-2xl font-bold text-foreground mb-1">Copy/Paste Controls</h1>
+      <p className="text-muted-foreground/80 text-sm">Clipboard monitoring and restriction policies</p>
     </div>
   )
 }

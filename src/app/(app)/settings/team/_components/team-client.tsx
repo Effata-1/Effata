@@ -15,7 +15,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
 const ROLE_BADGE: Record<UserRole, string> = {
   admin:     'bg-blue-500/15 text-blue-400 border border-blue-500/20',
   analyst:   'bg-green-500/15 text-green-400 border border-green-500/20',
-  read_only: 'bg-zinc-700/40 text-zinc-400 border border-zinc-700',
+  read_only: 'bg-accent/40 text-muted-foreground border border-border-strong',
 }
 
 const ROLES_REFERENCE = [
@@ -49,8 +49,8 @@ const ROLES_REFERENCE = [
     scope:       'Dashboard only',
     permissions: ['Dashboard'],
     icon:        Lock,
-    iconColor:   'text-zinc-400',
-    iconBg:      'bg-zinc-700/40',
+    iconColor:   'text-muted-foreground',
+    iconBg:      'bg-accent/40',
   },
 ]
 
@@ -61,10 +61,10 @@ function InviteModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 w-full max-w-md shadow-2xl">
+      <div className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-2xl">
         <div className="flex items-center justify-between mb-5">
-          <h3 className="text-base font-semibold text-white">Invite team member</h3>
-          <button onClick={onClose} className="text-zinc-600 hover:text-zinc-400 transition-colors">
+          <h3 className="text-base font-semibold text-foreground">Invite team member</h3>
+          <button onClick={onClose} className="text-muted-foreground/60 hover:text-muted-foreground transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -74,12 +74,12 @@ function InviteModal({ onClose }: { onClose: () => void }) {
             <div className="w-10 h-10 rounded-full bg-green-500/15 flex items-center justify-center">
               <Check className="w-5 h-5 text-green-400" />
             </div>
-            <p className="text-sm text-zinc-300 text-center">
+            <p className="text-sm text-foreground/70 text-center">
               Invite sent! They&apos;ll receive a magic link to join your organisation as an Analyst.
             </p>
             <button
               onClick={onClose}
-              className="mt-2 px-4 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition-colors"
+              className="mt-2 px-4 py-2 text-sm bg-muted hover:bg-accent text-foreground/70 rounded-lg transition-colors"
             >
               Done
             </button>
@@ -87,16 +87,16 @@ function InviteModal({ onClose }: { onClose: () => void }) {
         ) : (
           <form action={formAction} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Email address</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email address</label>
               <input
                 name="email"
                 type="email"
                 required
                 placeholder="colleague@company.com"
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+                className="w-full bg-muted border border-border-strong rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-blue-500"
               />
             </div>
-            <p className="text-xs text-zinc-600">
+            <p className="text-xs text-muted-foreground/60">
               New members join as Analyst. You can change their role after they accept.
             </p>
             {state?.error && <p className="text-xs text-red-400">{state.error}</p>}
@@ -104,14 +104,14 @@ function InviteModal({ onClose }: { onClose: () => void }) {
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm text-zinc-400 hover:text-zinc-300 transition-colors"
+                className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground/70 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={pending}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium disabled:opacity-50 transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-foreground rounded-lg font-medium disabled:opacity-50 transition-colors"
               >
                 {pending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
                 Send invite
@@ -146,14 +146,14 @@ function RowMenu({
   const [editRole,   setEditRole]   = useState(false)
 
   if (isCurrentUser) {
-    return <span className="text-[10px] text-zinc-600 px-2 py-0.5 rounded bg-zinc-800/60">You</span>
+    return <span className="text-[10px] text-muted-foreground/60 px-2 py-0.5 rounded bg-muted/60">You</span>
   }
 
   return (
     <div className="relative flex justify-end">
       <button
         onClick={() => { setOpen(o => !o); setConfirmDel(false); setEditRole(false) }}
-        className="p-1.5 rounded text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+        className="p-1.5 rounded text-muted-foreground/60 hover:text-foreground/70 hover:bg-muted transition-colors"
       >
         <MoreHorizontal className="w-4 h-4" />
       </button>
@@ -161,10 +161,10 @@ function RowMenu({
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-7 z-20 bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl w-44 py-1 text-sm">
+          <div className="absolute right-0 top-7 z-20 bg-card border border-border-strong rounded-lg shadow-2xl w-44 py-1 text-sm">
             {editRole ? (
               <div className="px-3 py-2 space-y-1">
-                <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wide mb-2">Change role</p>
+                <p className="text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wide mb-2">Change role</p>
                 {(Object.keys(ROLE_LABELS) as UserRole[]).map(r => (
                   <button
                     key={r}
@@ -173,40 +173,40 @@ function RowMenu({
                     className={cn(
                       'w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors',
                       r === roleValue
-                        ? 'bg-zinc-700/60 text-white'
-                        : 'text-zinc-300 hover:bg-zinc-800',
+                        ? 'bg-accent/60 text-foreground'
+                        : 'text-foreground/70 hover:bg-muted',
                     )}
                   >
                     <span className={cn('w-1.5 h-1.5 rounded-full', {
                       'bg-blue-400':  r === 'admin',
                       'bg-green-400': r === 'analyst',
-                      'bg-zinc-500':  r === 'read_only',
+                      'bg-accent':  r === 'read_only',
                     })} />
                     {ROLE_LABELS[r]}
-                    {r === roleValue && <Check className="w-3 h-3 ml-auto text-zinc-400" />}
+                    {r === roleValue && <Check className="w-3 h-3 ml-auto text-muted-foreground" />}
                   </button>
                 ))}
                 <button
                   onClick={() => setEditRole(false)}
-                  className="w-full text-left px-2 py-1 text-[10px] text-zinc-600 hover:text-zinc-400 mt-1"
+                  className="w-full text-left px-2 py-1 text-[10px] text-muted-foreground/60 hover:text-muted-foreground mt-1"
                 >
                   Cancel
                 </button>
               </div>
             ) : confirmDel ? (
               <div className="px-3 py-2">
-                <p className="text-xs text-zinc-400 mb-2">Remove <span className="text-white">{member.email}</span>?</p>
+                <p className="text-xs text-muted-foreground mb-2">Remove <span className="text-foreground">{member.email}</span>?</p>
                 <div className="flex gap-2">
                   <button
                     onClick={() => { onRemove(); setOpen(false) }}
                     disabled={isPending}
-                    className="flex-1 py-1 text-xs bg-red-600 hover:bg-red-500 text-white rounded transition-colors disabled:opacity-50"
+                    className="flex-1 py-1 text-xs bg-red-600 hover:bg-red-500 text-foreground rounded transition-colors disabled:opacity-50"
                   >
                     Remove
                   </button>
                   <button
                     onClick={() => setConfirmDel(false)}
-                    className="flex-1 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded transition-colors"
+                    className="flex-1 py-1 text-xs bg-muted hover:bg-accent text-foreground/70 rounded transition-colors"
                   >
                     Cancel
                   </button>
@@ -216,14 +216,14 @@ function RowMenu({
               <>
                 <button
                   onClick={() => setEditRole(true)}
-                  className="w-full text-left px-3 py-2 text-zinc-300 hover:bg-zinc-800 transition-colors"
+                  className="w-full text-left px-3 py-2 text-foreground/70 hover:bg-muted transition-colors"
                 >
                   Edit role
                 </button>
-                <div className="my-1 border-t border-zinc-800" />
+                <div className="my-1 border-t border-border" />
                 <button
                   onClick={() => setConfirmDel(true)}
-                  className="w-full text-left px-3 py-2 text-red-400 hover:bg-zinc-800 transition-colors"
+                  className="w-full text-left px-3 py-2 text-red-400 hover:bg-muted transition-colors"
                 >
                   Remove
                 </button>
@@ -258,27 +258,27 @@ function MemberRow({ member, isCurrentUser }: { member: TeamMember; isCurrentUse
   }
 
   return (
-    <tr className="hover:bg-zinc-900/40 transition-colors group">
+    <tr className="hover:bg-card/40 transition-colors group">
       {/* Name / email */}
       <td className="px-5 py-3.5">
         <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-semibold text-zinc-400 shrink-0">
+          <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground shrink-0">
             {(member.full_name ?? member.email).charAt(0).toUpperCase()}
           </div>
           <div>
-            <p className="text-sm text-white font-medium leading-tight">{member.email}</p>
-            {member.full_name && <p className="text-xs text-zinc-500 mt-0.5">{member.full_name}</p>}
+            <p className="text-sm text-foreground font-medium leading-tight">{member.email}</p>
+            {member.full_name && <p className="text-xs text-muted-foreground/80 mt-0.5">{member.full_name}</p>}
           </div>
         </div>
       </td>
       {/* Type */}
       <td className="px-4 py-3.5">
-        <span className="text-xs text-zinc-500 bg-zinc-800/60 border border-zinc-700/50 px-2 py-0.5 rounded-full">
+        <span className="text-xs text-muted-foreground/80 bg-muted/60 border border-border-strong/50 px-2 py-0.5 rounded-full">
           User Account
         </span>
       </td>
       {/* Provisioned by */}
-      <td className="px-4 py-3.5 text-xs text-zinc-500">Local</td>
+      <td className="px-4 py-3.5 text-xs text-muted-foreground/80">Local</td>
       {/* Role */}
       <td className="px-4 py-3.5">
         <span className={cn('text-[11px] font-semibold px-2.5 py-1 rounded-full', ROLE_BADGE[roleValue])}>
@@ -287,7 +287,7 @@ function MemberRow({ member, isCurrentUser }: { member: TeamMember; isCurrentUse
         {roleError && <p className="text-[10px] text-red-400 mt-0.5">{roleError}</p>}
       </td>
       {/* Joined */}
-      <td className="px-4 py-3.5 text-xs text-zinc-500 whitespace-nowrap">
+      <td className="px-4 py-3.5 text-xs text-muted-foreground/80 whitespace-nowrap">
         {new Date(member.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
       </td>
       {/* Actions */}
@@ -335,7 +335,7 @@ function AdministratorsTab({
       {showInvite && <InviteModal onClose={() => setShowInvite(false)} />}
 
       {/* Info bar */}
-      <div className="text-xs text-zinc-500 bg-zinc-900/40 border border-zinc-800 rounded-lg px-4 py-2.5">
+      <div className="text-xs text-muted-foreground/80 bg-card/40 border border-border rounded-lg px-4 py-2.5">
         You are logged in as{' '}
         <span className={cn('font-semibold', ROLE_BADGE[currentUserRole].includes('blue') ? 'text-blue-400' : 'text-green-400')}>
           {ROLE_LABELS[currentUserRole]}
@@ -345,15 +345,15 @@ function AdministratorsTab({
       {/* Filters */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/60" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search by name or email…"
-            className="w-full bg-zinc-800/60 border border-zinc-700 rounded-lg pl-8 pr-8 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
+            className="w-full bg-muted/60 border border-border-strong rounded-lg pl-8 pr-8 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-border-strong"
           />
           {search && (
-            <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400">
+            <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground">
               <X className="w-3 h-3" />
             </button>
           )}
@@ -363,30 +363,30 @@ function AdministratorsTab({
           <select
             value={roleFilter}
             onChange={e => setRoleFilter(e.target.value)}
-            className="appearance-none bg-zinc-800/60 border border-zinc-700 rounded-lg pl-3 pr-7 py-2 text-xs text-zinc-300 focus:outline-none focus:border-zinc-500 cursor-pointer"
+            className="appearance-none bg-muted/60 border border-border-strong rounded-lg pl-3 pr-7 py-2 text-xs text-foreground/70 focus:outline-none focus:border-border-strong cursor-pointer"
           >
             <option value="all">Role: All</option>
             {(Object.keys(ROLE_LABELS) as UserRole[]).map(r => (
               <option key={r} value={r}>{ROLE_LABELS[r]}</option>
             ))}
           </select>
-          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500 pointer-events-none" />
+          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/80 pointer-events-none" />
         </div>
 
         {(search || roleFilter !== 'all') && (
           <button
             onClick={() => { setSearch(''); setRoleFilter('all') }}
-            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+            className="text-xs text-muted-foreground/80 hover:text-foreground/70 transition-colors"
           >
             Clear
           </button>
         )}
 
         <div className="ml-auto flex items-center gap-2">
-          <span className="text-xs text-zinc-500">{filtered.length} found</span>
+          <span className="text-xs text-muted-foreground/80">{filtered.length} found</span>
           <button
             onClick={() => setShowInvite(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-foreground text-xs font-medium rounded-lg transition-colors"
           >
             <UserPlus className="w-3.5 h-3.5" />
             Invite
@@ -396,24 +396,24 @@ function AdministratorsTab({
       </div>
 
       {/* Table */}
-      <div className="rounded-xl border border-zinc-800 overflow-hidden">
+      <div className="rounded-xl border border-border overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-zinc-800 bg-zinc-900/60">
+            <tr className="border-b border-border bg-card/60">
               {['Name', 'Type', 'Provisioned by', 'Role', 'Joined', ''].map(h => (
                 <th
                   key={h}
-                  className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-3 first:px-5"
+                  className="text-left text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide px-4 py-3 first:px-5"
                 >
                   {h}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800/60">
+          <tbody className="divide-y divide-border/60">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-5 py-8 text-center text-sm text-zinc-600">
+                <td colSpan={6} className="px-5 py-8 text-center text-sm text-muted-foreground/60">
                   No members match your filters.
                 </td>
               </tr>
@@ -439,39 +439,39 @@ function RolesTab({ members }: { members: TeamMember[] }) {
   }, [members])
 
   return (
-    <div className="rounded-xl border border-zinc-800 overflow-hidden">
+    <div className="rounded-xl border border-border overflow-hidden">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-zinc-800 bg-zinc-900/60">
+          <tr className="border-b border-border bg-card/60">
             {['Name', 'Description', 'Type', 'Assigned to', 'Scope', 'Permissions'].map(h => (
               <th
                 key={h}
-                className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-3 first:px-5"
+                className="text-left text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide px-4 py-3 first:px-5"
               >
                 {h}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-zinc-800/60">
+        <tbody className="divide-y divide-border/60">
           {ROLES_REFERENCE.map(role => {
             const Icon = role.icon
             return (
-              <tr key={role.key} className="hover:bg-zinc-900/40 transition-colors">
+              <tr key={role.key} className="hover:bg-card/40 transition-colors">
                 {/* Name */}
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-2.5">
                     <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center shrink-0', role.iconBg)}>
                       <Icon className={cn('w-3.5 h-3.5', role.iconColor)} />
                     </div>
-                    <span className="font-medium text-white text-sm">{role.label}</span>
+                    <span className="font-medium text-foreground text-sm">{role.label}</span>
                   </div>
                 </td>
                 {/* Description */}
-                <td className="px-4 py-4 text-xs text-zinc-500 max-w-xs">{role.description}</td>
+                <td className="px-4 py-4 text-xs text-muted-foreground/80 max-w-xs">{role.description}</td>
                 {/* Type */}
                 <td className="px-4 py-4">
-                  <span className="text-xs text-zinc-500 bg-zinc-800/60 border border-zinc-700/50 px-2 py-0.5 rounded-full">
+                  <span className="text-xs text-muted-foreground/80 bg-muted/60 border border-border-strong/50 px-2 py-0.5 rounded-full">
                     {role.type}
                   </span>
                 </td>
@@ -482,24 +482,24 @@ function RolesTab({ members }: { members: TeamMember[] }) {
                       'inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold',
                       countByRole[role.key] > 0
                         ? 'bg-blue-500/20 text-blue-400'
-                        : 'bg-zinc-800 text-zinc-600',
+                        : 'bg-muted text-muted-foreground/60',
                     )}>
                       {countByRole[role.key]}
                     </span>
-                    <span className="text-xs text-zinc-600">
+                    <span className="text-xs text-muted-foreground/60">
                       {countByRole[role.key] === 1 ? 'member' : 'members'}
                     </span>
                   </div>
                 </td>
                 {/* Scope */}
-                <td className="px-4 py-4 text-xs text-zinc-500">{role.scope}</td>
+                <td className="px-4 py-4 text-xs text-muted-foreground/80">{role.scope}</td>
                 {/* Permissions */}
                 <td className="px-4 py-4">
                   <div className="flex flex-wrap gap-1">
                     {role.permissions.map(p => (
                       <span
                         key={p}
-                        className="text-[10px] bg-zinc-800/80 border border-zinc-700/50 text-zinc-400 px-2 py-0.5 rounded"
+                        className="text-[10px] bg-muted/80 border border-border-strong/50 text-muted-foreground px-2 py-0.5 rounded"
                       >
                         {p}
                       </span>
@@ -531,7 +531,7 @@ export function TeamClient({
   return (
     <div>
       {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-zinc-800 mb-6">
+      <div className="flex items-center gap-1 border-b border-border mb-6">
         {(['administrators', 'roles'] as const).map(t => (
           <button
             key={t}
@@ -539,8 +539,8 @@ export function TeamClient({
             className={cn(
               'px-4 py-2.5 text-sm font-medium capitalize transition-colors border-b-2 -mb-px',
               tab === t
-                ? 'border-blue-500 text-white'
-                : 'border-transparent text-zinc-500 hover:text-zinc-300',
+                ? 'border-blue-500 text-foreground'
+                : 'border-transparent text-muted-foreground/80 hover:text-foreground/70',
             )}
           >
             {t}

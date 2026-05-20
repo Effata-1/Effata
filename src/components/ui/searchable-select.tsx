@@ -96,47 +96,47 @@ export function SearchableSelect(props: SearchableSelectProps) {
       <button
         type="button"
         onClick={() => { setOpen(v => !v); if (!open) setSearch('') }}
-        className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm hover:border-zinc-700 focus:outline-none focus:border-blue-600 transition-colors min-w-[180px] w-full"
+        className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-2 text-sm hover:border-border-strong focus:outline-none focus:border-blue-600 transition-colors min-w-[180px] w-full"
       >
         <span className={cn(
           'flex-1 text-left truncate text-sm',
-          hasSelection || !props.multiple ? 'text-white' : 'text-zinc-500'
+          hasSelection || !props.multiple ? 'text-foreground' : 'text-muted-foreground/80'
         )}>
           {triggerLabel()}
         </span>
         {hasSelection && (
-          <span className="text-[10px] font-bold bg-blue-600 text-white rounded-full px-1.5 py-0.5 leading-none shrink-0 tabular-nums">
+          <span className="text-[10px] font-bold bg-blue-600 text-foreground rounded-full px-1.5 py-0.5 leading-none shrink-0 tabular-nums">
             {selectedCount}
           </span>
         )}
         <ChevronDown className={cn(
-          'h-3.5 w-3.5 text-zinc-500 shrink-0 transition-transform duration-150',
+          'h-3.5 w-3.5 text-muted-foreground/80 shrink-0 transition-transform duration-150',
           open && 'rotate-180'
         )} />
       </button>
 
       {open && (
         <div className={cn(
-          'absolute top-full mt-1.5 w-72 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl z-50 overflow-hidden',
+          'absolute top-full mt-1.5 w-72 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden',
           align === 'right' ? 'right-0' : 'left-0'
         )}>
           {/* Search */}
-          <div className="p-2 border-b border-zinc-800">
+          <div className="p-2 border-b border-border">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-600 pointer-events-none" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60 pointer-events-none" />
               <input
                 ref={searchRef}
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search…"
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-8 pr-7 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-600"
+                className="w-full bg-muted border border-border-strong rounded-lg pl-8 pr-7 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-blue-600"
               />
               {search && (
                 <button
                   type="button"
                   onClick={() => setSearch('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/80 hover:text-foreground/70 transition-colors"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -147,7 +147,7 @@ export function SearchableSelect(props: SearchableSelectProps) {
           {/* Options */}
           <div className="max-h-72 overflow-y-auto">
             {filtered.length === 0 ? (
-              <p className="text-xs text-zinc-600 px-3 py-3 text-center">No options match.</p>
+              <p className="text-xs text-muted-foreground/60 px-3 py-3 text-center">No options match.</p>
             ) : (
               filtered.map(opt => {
                 const isActive = props.multiple
@@ -162,7 +162,7 @@ export function SearchableSelect(props: SearchableSelectProps) {
                       'w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between gap-2',
                       isActive
                         ? 'bg-blue-600/20 text-blue-300'
-                        : 'text-zinc-300 hover:bg-zinc-800/80'
+                        : 'text-foreground/70 hover:bg-muted/80'
                     )}
                   >
                     <span className="truncate">{opt.label}</span>
@@ -175,12 +175,12 @@ export function SearchableSelect(props: SearchableSelectProps) {
 
           {/* Multi-select footer */}
           {props.multiple && hasSelection && (
-            <div className="border-t border-zinc-800 px-3 py-2 flex items-center justify-between">
-              <span className="text-[10px] text-zinc-500">{selectedCount} selected</span>
+            <div className="border-t border-border px-3 py-2 flex items-center justify-between">
+              <span className="text-[10px] text-muted-foreground/80">{selectedCount} selected</span>
               <button
                 type="button"
                 onClick={() => { props.onChange([]); setSearch('') }}
-                className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+                className="flex items-center gap-1 text-[10px] text-muted-foreground/80 hover:text-foreground/70 transition-colors"
               >
                 <X className="h-3 w-3" />
                 Clear all

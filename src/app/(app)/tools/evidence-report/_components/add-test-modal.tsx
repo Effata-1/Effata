@@ -67,9 +67,9 @@ const VALIDATOR_RESULT_LABELS: Record<string, string> = {
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
-const inputCls    = 'w-full px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-blue-500 transition-colors'
-const selectCls   = 'w-full px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded text-xs text-white focus:outline-none focus:border-blue-500 transition-colors'
-const labelCls    = 'block text-[10px] font-medium text-zinc-500 mb-1'
+const inputCls    = 'w-full px-2.5 py-1.5 bg-card border border-border-strong rounded text-xs text-foreground placeholder-muted-foreground/50 focus:outline-none focus:border-blue-500 transition-colors'
+const selectCls   = 'w-full px-2.5 py-1.5 bg-card border border-border-strong rounded text-xs text-foreground focus:outline-none focus:border-blue-500 transition-colors'
+const labelCls    = 'block text-[10px] font-medium text-muted-foreground/80 mb-1'
 
 // ── Import Tab ────────────────────────────────────────────────────────────────
 
@@ -146,7 +146,7 @@ function ImportTab({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-5 h-5 text-zinc-500 animate-spin" />
+        <Loader2 className="w-5 h-5 text-muted-foreground/80 animate-spin" />
       </div>
     )
   }
@@ -166,8 +166,8 @@ function ImportTab({
 
       {results.length === 0 ? (
         <div className="text-center py-10">
-          <p className="text-zinc-500 text-sm mb-1">No Control Validator results yet</p>
-          <p className="text-zinc-600 text-xs">Run tests in Control Validator first, then import them here.</p>
+          <p className="text-muted-foreground/80 text-sm mb-1">No Control Validator results yet</p>
+          <p className="text-muted-foreground/60 text-xs">Run tests in Control Validator first, then import them here.</p>
         </div>
       ) : (
         <>
@@ -178,7 +178,7 @@ function ImportTab({
               value={filterText}
               onChange={e => setFilterText(e.target.value)}
               placeholder="Search by name, protocol, data type…"
-              className="flex-1 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-blue-500 transition-colors"
+              className="flex-1 px-2.5 py-1.5 bg-card border border-border-strong rounded text-xs text-foreground placeholder-muted-foreground/50 focus:outline-none focus:border-blue-500 transition-colors"
             />
             <div className="flex gap-1">
               {RESULT_FILTERS.map(f => (
@@ -187,8 +187,8 @@ function ImportTab({
                   onClick={() => setFilterResult(f.value)}
                   className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${
                     filterResult === f.value
-                      ? 'bg-zinc-700 text-white'
-                      : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
+                      ? 'bg-accent text-foreground'
+                      : 'text-muted-foreground/80 hover:text-foreground/70 hover:bg-muted'
                   }`}
                 >{f.label}</button>
               ))}
@@ -196,7 +196,7 @@ function ImportTab({
           </div>
 
           <div className="flex items-center justify-between mb-2">
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-muted-foreground/80">
               {filtered.length} result{filtered.length !== 1 ? 's' : ''}
               {filterText || filterResult !== 'all' ? ` (filtered from ${results.length})` : ''}
               {selected.size > 0 ? ` · ${selected.size} selected` : ''}
@@ -209,7 +209,7 @@ function ImportTab({
           </div>
           <div className="space-y-1 max-h-64 overflow-y-auto">
             {filtered.length === 0 ? (
-              <p className="text-center py-6 text-zinc-600 text-xs">No results match the filter</p>
+              <p className="text-center py-6 text-muted-foreground/60 text-xs">No results match the filter</p>
             ) : filtered.map(r => {
               const linked = alreadyLinked.has(r.id)
               const checked = selected.has(r.id)
@@ -219,30 +219,30 @@ function ImportTab({
                   onClick={() => !linked && toggle(r.id)}
                   disabled={linked}
                   className={`w-full text-left flex items-start gap-2.5 px-3 py-2.5 rounded transition-colors ${
-                    linked ? 'opacity-40 cursor-not-allowed bg-zinc-900/30' :
+                    linked ? 'opacity-40 cursor-not-allowed bg-card/30' :
                     checked ? 'bg-blue-500/10 border border-blue-500/30' :
-                    'bg-zinc-900/40 border border-zinc-800 hover:border-zinc-700'
+                    'bg-card/40 border border-border hover:border-border-strong'
                   }`}
                 >
                   <div className="mt-0.5 shrink-0">
                     {checked
                       ? <CheckSquare className="w-4 h-4 text-blue-400" />
-                      : <Square className="w-4 h-4 text-zinc-600" />
+                      : <Square className="w-4 h-4 text-muted-foreground/60" />
                     }
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs text-zinc-300 font-medium">{r.test_name || r.protocol}</span>
+                      <span className="text-xs text-foreground/70 font-medium">{r.test_name || r.protocol}</span>
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
                         r.result === 'blocked'     ? 'bg-emerald-500/15 text-emerald-400' :
                         r.result === 'not_blocked' ? 'bg-red-500/15 text-red-400' :
-                                                     'bg-zinc-700/50 text-zinc-400'
+                                                     'bg-accent/50 text-muted-foreground'
                       }`}>
                         {VALIDATOR_RESULT_LABELS[r.result]}
                       </span>
-                      {linked && <span className="text-[10px] text-zinc-600">Already imported</span>}
+                      {linked && <span className="text-[10px] text-muted-foreground/60">Already imported</span>}
                     </div>
-                    <p className="text-[10px] text-zinc-500 mt-0.5">
+                    <p className="text-[10px] text-muted-foreground/80 mt-0.5">
                       {r.data_type} · {r.protocol} · {r.destination} ·{' '}
                       {new Date(r.created_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}
                     </p>
@@ -254,16 +254,16 @@ function ImportTab({
         </>
       )}
 
-      <div className="flex items-center gap-3 mt-4 pt-4 border-t border-zinc-800">
+      <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border">
         <button
           onClick={handleImport}
           disabled={isPending || !selected.size}
-          className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-medium rounded transition-colors"
+          className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-foreground text-xs font-medium rounded transition-colors"
         >
           {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Import className="w-3.5 h-3.5" />}
           Import {selected.size > 0 ? `${selected.size} Test${selected.size !== 1 ? 's' : ''}` : 'Selected'}
         </button>
-        <button onClick={onClose} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Cancel</button>
+        <button onClick={onClose} className="text-xs text-muted-foreground/80 hover:text-foreground/70 transition-colors">Cancel</button>
       </div>
     </div>
   )
@@ -428,7 +428,7 @@ function ManualForm({
     <div className="max-h-[65vh] overflow-y-auto pr-1">
       {/* ── Test Identification ── */}
       <fieldset className="mb-4">
-        <legend className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">Test Identification</legend>
+        <legend className="text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wider mb-2">Test Identification</legend>
         <div className="grid grid-cols-3 gap-2 mb-2">
           <div>
             <label className={labelCls}>Test ID <span className="text-red-400">*</span></label>
@@ -463,7 +463,7 @@ function ManualForm({
                 className={`px-2 py-0.5 rounded text-[10px] border transition-colors ${
                   form.regulationTags.includes(tag)
                     ? 'bg-blue-500/15 border-blue-500/40 text-blue-400'
-                    : 'bg-zinc-900 border-zinc-700 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'
+                    : 'bg-card border-border-strong text-muted-foreground/80 hover:border-border-strong hover:text-foreground/70'
                 }`}
               >{tag}</button>
             ))}
@@ -473,7 +473,7 @@ function ManualForm({
 
       {/* ── Severity & Control ── */}
       <fieldset className="mb-4">
-        <legend className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">Severity & Control</legend>
+        <legend className="text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wider mb-2">Severity & Control</legend>
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className={labelCls}>Severity</label>
@@ -491,7 +491,7 @@ function ManualForm({
 
       {/* ── Expected Behaviour ── */}
       <fieldset className="mb-4">
-        <legend className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">Expected Behaviour</legend>
+        <legend className="text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wider mb-2">Expected Behaviour</legend>
         <div className="grid grid-cols-2 gap-2 mb-2">
           <div>
             <label className={labelCls}>Expected Action</label>
@@ -523,7 +523,7 @@ function ManualForm({
 
       {/* ── Actual Result ── */}
       <fieldset className="mb-4">
-        <legend className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">Actual Result</legend>
+        <legend className="text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wider mb-2">Actual Result</legend>
         <div className="grid grid-cols-2 gap-2 mb-2">
           <div>
             <label className={labelCls}>Actual Result</label>
@@ -563,7 +563,7 @@ function ManualForm({
       {/* ── Gap Analysis (only shown when failed / inconclusive) ── */}
       {isFailed && (
         <fieldset className="mb-4">
-          <legend className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">Gap Analysis</legend>
+          <legend className="text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wider mb-2">Gap Analysis</legend>
           <div className="mb-2">
             <label className={labelCls}>Gap Reason</label>
             <select value={form.gapReason} onChange={e => set('gapReason', e.target.value as GapReason | '')} className={selectCls}>
@@ -588,7 +588,7 @@ function ManualForm({
 
       {/* ── Evidence ── */}
       <fieldset className="mb-4">
-        <legend className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">Evidence</legend>
+        <legend className="text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wider mb-2">Evidence</legend>
         <div className="mb-2">
           <label className={labelCls}>Payload Summary (masked)</label>
           <input value={form.payloadSummary} onChange={e => set('payloadSummary', e.target.value)}
@@ -612,16 +612,16 @@ function ManualForm({
       {error && (
         <div className="mb-3 px-3 py-2 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-xs">{error}</div>
       )}
-      <div className="flex items-center gap-3 pt-3 border-t border-zinc-800">
+      <div className="flex items-center gap-3 pt-3 border-t border-border">
         <button
           onClick={handleSave}
           disabled={isPending}
-          className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-medium rounded transition-colors"
+          className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-foreground text-xs font-medium rounded transition-colors"
         >
           {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
           {editTest ? 'Save Changes' : 'Add Test'}
         </button>
-        <button onClick={onClose} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Cancel</button>
+        <button onClick={onClose} className="text-xs text-muted-foreground/80 hover:text-foreground/70 transition-colors">Cancel</button>
       </div>
     </div>
   )
@@ -642,7 +642,7 @@ export function AddTestModal({ reportId, editTest, currentTests, onDone, onClose
 
   const tabCls = (active: boolean) =>
     `flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-      active ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'
+      active ? 'bg-accent text-foreground' : 'text-muted-foreground/80 hover:text-foreground/70'
     }`
 
   return (
@@ -651,11 +651,11 @@ export function AddTestModal({ reportId, editTest, currentTests, onDone, onClose
       <div className="absolute inset-0 bg-black/70" onClick={onClose} />
 
       {/* Panel */}
-      <div className="relative z-10 w-full max-w-2xl mx-4 bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl">
+      <div className="relative z-10 w-full max-w-2xl mx-4 bg-background border border-border rounded-xl shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-3">
-            <h2 className="text-sm font-semibold text-white">
+            <h2 className="text-sm font-semibold text-foreground">
               {editTest ? 'Edit Test Record' : 'Add Test Record'}
             </h2>
             {!editTest && (
@@ -671,7 +671,7 @@ export function AddTestModal({ reportId, editTest, currentTests, onDone, onClose
               </div>
             )}
           </div>
-          <button onClick={onClose} className="p-1 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded transition-colors">
+          <button onClick={onClose} className="p-1 text-muted-foreground/80 hover:text-foreground hover:bg-muted rounded transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>

@@ -310,7 +310,7 @@ const RESULT_META: Record<TestResult, {
 }> = {
   blocked:           { label: 'BLOCKED',              color: 'text-green-400',  border: 'border-green-500/40',  bg: 'bg-green-500/8',   Icon: ShieldCheck,   headline: 'DLP intercepted this request',                         sub: 'The request never reached our server — your DLP control is working for this vector.' },
   not_blocked:       { label: 'NOT BLOCKED',           color: 'text-red-400',    border: 'border-red-500/40',    bg: 'bg-red-500/8',     Icon: ShieldAlert,   headline: 'Our server received the payload',                      sub: 'DLP did not intercept this request. This channel / data-type combination is not being caught.' },
-  error:             { label: 'ERROR',                 color: 'text-zinc-400',   border: 'border-zinc-600/40',   bg: 'bg-zinc-800/40',   Icon: AlertTriangle, headline: 'Test failed with an error',                            sub: 'The request failed for a non-DLP reason (check console). Try again or inspect network logs.' },
+  error:             { label: 'ERROR',                 color: 'text-muted-foreground',   border: 'border-border-strong/40',   bg: 'bg-muted/40',   Icon: AlertTriangle, headline: 'Test failed with an error',                            sub: 'The request failed for a non-DLP reason (check console). Try again or inspect network logs.' },
   user_alert_proceed:{ label: 'COACHING — PROCEEDED',  color: 'text-amber-400',  border: 'border-amber-500/40',  bg: 'bg-amber-500/8',   Icon: AlertTriangle, headline: 'DLP showed a coaching popup — analyst clicked Proceed', sub: 'The request was allowed after user justification. This DLP control is in coaching mode — it relies on the user to stop exfiltration, not an automated block.' },
   user_alert_stop:   { label: 'COACHING — STOPPED',    color: 'text-blue-400',   border: 'border-blue-500/40',   bg: 'bg-blue-500/8',    Icon: ShieldCheck,   headline: 'DLP showed a coaching popup — analyst clicked Stop',    sub: 'Data was not exfiltrated, but the control relies on user judgment rather than automatic blocking. Consider whether this gap requires remediation.' },
   blocked_coached:   { label: 'BLOCKED — NOTIFIED',    color: 'text-orange-400', border: 'border-orange-500/40', bg: 'bg-orange-500/8',  Icon: ShieldAlert,   headline: 'DLP blocked the transfer and showed a notification popup', sub: 'The upload was blocked and you were shown a block notification (OK only). Data did not leave. The control is enforcing but includes user notification.' },
@@ -492,8 +492,8 @@ export function DlpTestRunner({ initialHistory }: Props) {
       <div className="col-span-1 space-y-3">
 
         {/* Main tests */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 space-y-1.5">
-          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Quick Tests</p>
+        <div className="rounded-xl border border-border bg-card/50 p-4 space-y-1.5">
+          <p className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest mb-3">Quick Tests</p>
           {MAIN_TESTS.map(s => {
             const selected = activeMode === 'web' && selectedWeb.id === s.id
             return (
@@ -502,14 +502,14 @@ export function DlpTestRunner({ initialHistory }: Props) {
                 onClick={() => { setSelectedWeb(s); setActiveMode('web'); setRunResult(null); setUploadFile(null) }}
                 className={cn(
                   'w-full text-left rounded-lg border p-3 transition-all',
-                  selected ? 'border-blue-500/50 bg-blue-500/8' : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-600 hover:bg-zinc-700/40'
+                  selected ? 'border-blue-500/50 bg-blue-500/8' : 'border-border-strong bg-muted/40 hover:border-border-strong hover:bg-accent/40'
                 )}
               >
                 <div className="flex items-start gap-2">
                   <span className="mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 bg-blue-500/15 text-blue-400">WEB</span>
                   <div className="min-w-0">
-                    <p className={cn('text-[11px] font-semibold leading-tight', selected ? 'text-blue-300' : 'text-white')}>{s.name}</p>
-                    <p className="text-[9px] text-zinc-500 mt-0.5 leading-tight line-clamp-2">{s.protocol}</p>
+                    <p className={cn('text-[11px] font-semibold leading-tight', selected ? 'text-blue-300' : 'text-foreground')}>{s.name}</p>
+                    <p className="text-[9px] text-muted-foreground/80 mt-0.5 leading-tight line-clamp-2">{s.protocol}</p>
                   </div>
                 </div>
               </button>
@@ -518,22 +518,22 @@ export function DlpTestRunner({ initialHistory }: Props) {
         </div>
 
         {/* Advanced — collapsible */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
+        <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
           <button
             onClick={() => setAdvancedOpen(o => !o)}
-            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-zinc-800/40 transition-colors"
+            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors"
           >
             <div className="flex items-center gap-2">
-              <Zap className="h-3.5 w-3.5 text-zinc-500" />
-              <span className="text-[11px] font-semibold text-zinc-400">Advanced Testing</span>
+              <Zap className="h-3.5 w-3.5 text-muted-foreground/80" />
+              <span className="text-[11px] font-semibold text-muted-foreground">Advanced Testing</span>
             </div>
-            <ChevronDown className={cn('h-3.5 w-3.5 text-zinc-600 transition-transform', advancedOpen && 'rotate-180')} />
+            <ChevronDown className={cn('h-3.5 w-3.5 text-muted-foreground/60 transition-transform', advancedOpen && 'rotate-180')} />
           </button>
 
           {advancedOpen && (
-            <div className="px-4 pb-4 space-y-1.5 border-t border-zinc-800/60 pt-3">
+            <div className="px-4 pb-4 space-y-1.5 border-t border-border/60 pt-3">
               {/* Additional web tests */}
-              <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest mb-2">Web Channel</p>
+              <p className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-widest mb-2">Web Channel</p>
               {ADVANCED_WEB.map(s => {
                 const selected = activeMode === 'web' && selectedWeb.id === s.id
                 return (
@@ -542,17 +542,17 @@ export function DlpTestRunner({ initialHistory }: Props) {
                     onClick={() => { setSelectedWeb(s); setActiveMode('web'); setRunResult(null); setUploadFile(null) }}
                     className={cn(
                       'w-full text-left rounded-lg border p-2.5 transition-all',
-                      selected ? 'border-blue-500/50 bg-blue-500/8' : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-600 hover:bg-zinc-700/40'
+                      selected ? 'border-blue-500/50 bg-blue-500/8' : 'border-border-strong bg-muted/40 hover:border-border-strong hover:bg-accent/40'
                     )}
                   >
-                    <p className={cn('text-[10px] font-semibold', selected ? 'text-blue-300' : 'text-white')}>{s.name}</p>
-                    <p className="text-[9px] text-zinc-600 mt-0.5">{s.protocol}</p>
+                    <p className={cn('text-[10px] font-semibold', selected ? 'text-blue-300' : 'text-foreground')}>{s.name}</p>
+                    <p className="text-[9px] text-muted-foreground/60 mt-0.5">{s.protocol}</p>
                   </button>
                 )
               })}
 
               {/* Scripts */}
-              <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest mt-3 mb-2">Protocol Scripts</p>
+              <p className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-widest mt-3 mb-2">Protocol Scripts</p>
               {SCRIPT_DEFS.map(s => {
                 const selected = activeMode === 'script' && selectedScript.id === s.id
                 return (
@@ -561,11 +561,11 @@ export function DlpTestRunner({ initialHistory }: Props) {
                     onClick={() => { setSelectedScript(s); setActiveMode('script') }}
                     className={cn(
                       'w-full text-left rounded-lg border p-2.5 transition-all',
-                      selected ? 'border-purple-500/50 bg-purple-500/8' : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-600 hover:bg-zinc-700/40'
+                      selected ? 'border-purple-500/50 bg-purple-500/8' : 'border-border-strong bg-muted/40 hover:border-border-strong hover:bg-accent/40'
                     )}
                   >
-                    <p className={cn('text-[10px] font-semibold', selected ? 'text-purple-300' : 'text-white')}>{s.name}</p>
-                    <p className="text-[9px] text-zinc-600 mt-0.5">{s.protocol}</p>
+                    <p className={cn('text-[10px] font-semibold', selected ? 'text-purple-300' : 'text-foreground')}>{s.name}</p>
+                    <p className="text-[9px] text-muted-foreground/60 mt-0.5">{s.protocol}</p>
                   </button>
                 )
               })}
@@ -582,15 +582,15 @@ export function DlpTestRunner({ initialHistory }: Props) {
         {/* ─── WEB TEST RUNNER ─── */}
         {activeMode === 'web' && (
           <>
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+            <div className="rounded-xl border border-border bg-card/50 p-5">
               {/* Header */}
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Test Runner</p>
-                  <h3 className="text-sm font-semibold text-white">{selectedWeb.name}</h3>
-                  <p className="text-[11px] text-zinc-500 mt-0.5">{selectedWeb.description}</p>
+                  <p className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest mb-1">Test Runner</p>
+                  <h3 className="text-sm font-semibold text-foreground">{selectedWeb.name}</h3>
+                  <p className="text-[11px] text-muted-foreground/80 mt-0.5">{selectedWeb.description}</p>
                 </div>
-                <span className="text-[10px] font-mono bg-zinc-800 text-zinc-400 px-2 py-1 rounded shrink-0 ml-4">
+                <span className="text-[10px] font-mono bg-muted text-muted-foreground px-2 py-1 rounded shrink-0 ml-4">
                   {selectedWeb.protocol}
                 </span>
               </div>
@@ -598,7 +598,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
               {selectedWeb.id === 'custom_file' ? (
                 /* ── Custom file upload zone ── */
                 <div className="mb-4">
-                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Your File</label>
+                  <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest block mb-1.5">Your File</label>
 
                   {/* Hidden native input */}
                   <input
@@ -613,14 +613,14 @@ export function DlpTestRunner({ initialHistory }: Props) {
                     <div className="flex items-center gap-3 rounded-lg border border-blue-500/40 bg-blue-500/8 p-4">
                       <FileText className="h-8 w-8 text-blue-400 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">{uploadFile.name}</p>
-                        <p className="text-[10px] text-zinc-400 mt-0.5">
+                        <p className="text-sm font-semibold text-foreground truncate">{uploadFile.name}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
                           {uploadFile.type || 'unknown type'} · {(uploadFile.size / 1024).toFixed(1)} KB
                         </p>
                       </div>
                       <button
                         onClick={() => { setUploadFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
-                        className="p-1.5 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        className="p-1.5 rounded-md text-muted-foreground/80 hover:text-red-400 hover:bg-red-500/10 transition-colors"
                         title="Remove file"
                       >
                         <X className="h-4 w-4" />
@@ -642,12 +642,12 @@ export function DlpTestRunner({ initialHistory }: Props) {
                         'w-full rounded-lg border-2 border-dashed p-8 flex flex-col items-center gap-2 transition-colors cursor-pointer',
                         isDragging
                           ? 'border-blue-500 bg-blue-500/10'
-                          : 'border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/40'
+                          : 'border-border-strong hover:border-border-strong hover:bg-muted/40'
                       )}
                     >
-                      <UploadCloud className={cn('h-8 w-8', isDragging ? 'text-blue-400' : 'text-zinc-600')} />
-                      <p className="text-sm font-medium text-zinc-400">Drop a file here or click to browse</p>
-                      <p className="text-[10px] text-zinc-600">Any file type — PDF, DOCX, CSV, TXT, images, etc.</p>
+                      <UploadCloud className={cn('h-8 w-8', isDragging ? 'text-blue-400' : 'text-muted-foreground/60')} />
+                      <p className="text-sm font-medium text-muted-foreground">Drop a file here or click to browse</p>
+                      <p className="text-[10px] text-muted-foreground/60">Any file type — PDF, DOCX, CSV, TXT, images, etc.</p>
                     </button>
                   )}
                 </div>
@@ -655,7 +655,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
                 /* ── Standard data-type + payload editor ── */
                 <>
                   <div className="mb-3">
-                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Data Type</label>
+                    <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest block mb-1.5">Data Type</label>
                     <SearchableSelect
                       options={DATA_TYPES.map(d => ({ value: d.id, label: d.label }))}
                       value={dataType.id}
@@ -665,14 +665,14 @@ export function DlpTestRunner({ initialHistory }: Props) {
 
                   <div className="mb-4">
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Payload</label>
-                      <span className="text-[9px] text-zinc-600">Editable — modify to test specific patterns</span>
+                      <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest">Payload</label>
+                      <span className="text-[9px] text-muted-foreground/60">Editable — modify to test specific patterns</span>
                     </div>
                     <textarea
                       value={payload}
                       onChange={e => setPayload(e.target.value)}
                       rows={5}
-                      className="w-full bg-zinc-800 text-white text-xs font-mono px-3 py-2.5 rounded-lg border border-zinc-700 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 resize-none"
+                      className="w-full bg-muted text-foreground text-xs font-mono px-3 py-2.5 rounded-lg border border-border-strong placeholder:text-muted-foreground/50 focus:outline-none focus:border-border-strong resize-none"
                       placeholder="Enter or paste test data here..."
                     />
                   </div>
@@ -681,14 +681,14 @@ export function DlpTestRunner({ initialHistory }: Props) {
 
               {/* Destination + Run */}
               <div className="flex items-center gap-3">
-                <div className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 flex items-center gap-2">
-                  <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-wide shrink-0">Target</span>
-                  <span className="text-xs text-zinc-400 font-mono truncate">/api/dlp-test</span>
+                <div className="flex-1 bg-muted border border-border-strong rounded-lg px-3 py-2 flex items-center gap-2">
+                  <span className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-wide shrink-0">Target</span>
+                  <span className="text-xs text-muted-foreground font-mono truncate">/api/dlp-test</span>
                 </div>
                 <button
                   onClick={handleRun}
                   disabled={isRunning || (selectedWeb.id === 'custom_file' ? !uploadFile : !payload.trim())}
-                  className="flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+                  className="flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
                 >
                   {isRunning
                     ? <><Loader2 className="h-4 w-4 animate-spin" /> Running…</>
@@ -700,11 +700,11 @@ export function DlpTestRunner({ initialHistory }: Props) {
 
             {/* Result panel */}
             {isRunning && (
-              <div className="rounded-xl border border-zinc-700 bg-zinc-900/50 p-5 flex items-start gap-3">
-                <Loader2 className="h-5 w-5 text-zinc-400 animate-spin shrink-0 mt-0.5" />
+              <div className="rounded-xl border border-border-strong bg-card/50 p-5 flex items-start gap-3">
+                <Loader2 className="h-5 w-5 text-muted-foreground animate-spin shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-semibold text-white">Test in progress…</p>
-                  <p className="text-xs text-zinc-500 mt-0.5">If DLP intercepts this request, it will never arrive at our server and the test will time out or fail.</p>
+                  <p className="text-sm font-semibold text-foreground">Test in progress…</p>
+                  <p className="text-xs text-muted-foreground/80 mt-0.5">If DLP intercepts this request, it will never arrive at our server and the test will time out or fail.</p>
                   {slowTest && (
                     <p className="text-xs text-amber-400 mt-2 font-medium">
                       Taking longer than usual — if a DLP coaching or justify popup appeared, interact with it. The result will be recorded automatically.
@@ -726,30 +726,30 @@ export function DlpTestRunner({ initialHistory }: Props) {
                         <div className="flex items-center gap-2 mb-1">
                           <span className={cn('text-xs font-bold uppercase tracking-widest', m.color)}>{m.label}</span>
                           {runResult.responseMs != null && (
-                            <span className="text-[10px] text-zinc-600 tabular-nums">{runResult.responseMs}ms</span>
+                            <span className="text-[10px] text-muted-foreground/60 tabular-nums">{runResult.responseMs}ms</span>
                           )}
                           {runResult.responseCode != null && (
-                            <span className="text-[10px] font-mono bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded">HTTP {runResult.responseCode}</span>
+                            <span className="text-[10px] font-mono bg-muted text-muted-foreground px-1.5 py-0.5 rounded">HTTP {runResult.responseCode}</span>
                           )}
                           {runResult.proxyDetected && (
                             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400">DLP proxy headers detected</span>
                           )}
                         </div>
-                        <p className="text-sm font-semibold text-white">{m.headline}</p>
-                        <p className="text-xs text-zinc-400 mt-1">{m.sub}</p>
+                        <p className="text-sm font-semibold text-foreground">{m.headline}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{m.sub}</p>
                         {/* Subtle link to show alert prompt if user missed the auto-trigger */}
                         {!showAlertPrompt && (runResult.status === 'not_blocked' || runResult.status === 'blocked') && lastResultId && (
                           <button
                             onClick={() => setShowAlertPrompt(true)}
-                            className="mt-2 text-[10px] text-zinc-600 hover:text-zinc-400 underline transition-colors"
+                            className="mt-2 text-[10px] text-muted-foreground/60 hover:text-muted-foreground underline transition-colors"
                           >
                             Did a DLP coaching or justify popup appear?
                           </button>
                         )}
                         {runResult.serverData && (
-                          <div className="mt-3 bg-zinc-900/60 rounded-lg p-3 border border-zinc-700">
-                            <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">Server confirmation</p>
-                            <pre className="text-[10px] text-zinc-400 font-mono overflow-x-auto">{JSON.stringify(runResult.serverData, null, 2)}</pre>
+                          <div className="mt-3 bg-card/60 rounded-lg p-3 border border-border-strong">
+                            <p className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-widest mb-1.5">Server confirmation</p>
+                            <pre className="text-[10px] text-muted-foreground font-mono overflow-x-auto">{JSON.stringify(runResult.serverData, null, 2)}</pre>
                           </div>
                         )}
                       </div>
@@ -760,7 +760,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
                   {showAlertPrompt && lastResultId && lastInitialResult === 'not_blocked' && (
                     <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
                       <p className="text-xs font-semibold text-amber-300 mb-1">Did a DLP popup appear during this test?</p>
-                      <p className="text-[10px] text-zinc-500 mb-3">The request got through, but the delay suggests a coaching popup may have appeared first:</p>
+                      <p className="text-[10px] text-muted-foreground/80 mb-3">The request got through, but the delay suggests a coaching popup may have appeared first:</p>
                       <div className="flex items-center gap-2 flex-wrap">
                         <button
                           onClick={async () => {
@@ -775,7 +775,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
                         </button>
                         <button
                           onClick={() => setShowAlertPrompt(false)}
-                          className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs font-medium transition-colors"
+                          className="px-3 py-1.5 rounded-lg bg-muted hover:bg-accent text-muted-foreground text-xs font-medium transition-colors"
                         >
                           No popup — allow as-is
                         </button>
@@ -784,9 +784,9 @@ export function DlpTestRunner({ initialHistory }: Props) {
                   )}
 
                   {showAlertPrompt && lastResultId && lastInitialResult === 'blocked' && (
-                    <div className="rounded-xl border border-zinc-600/40 bg-zinc-800/40 p-4">
-                      <p className="text-xs font-semibold text-zinc-300 mb-1">Did a DLP popup appear before the block?</p>
-                      <p className="text-[10px] text-zinc-500 mb-3">The test was slow — if a popup appeared, tell us which type so we can record the correct outcome:</p>
+                    <div className="rounded-xl border border-border-strong/40 bg-muted/40 p-4">
+                      <p className="text-xs font-semibold text-foreground/70 mb-1">Did a DLP popup appear before the block?</p>
+                      <p className="text-[10px] text-muted-foreground/80 mb-3">The test was slow — if a popup appeared, tell us which type so we can record the correct outcome:</p>
                       <div className="flex items-center gap-2 flex-wrap">
                         <button
                           onClick={async () => {
@@ -812,7 +812,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
                         </button>
                         <button
                           onClick={() => setShowAlertPrompt(false)}
-                          className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs font-medium transition-colors"
+                          className="px-3 py-1.5 rounded-lg bg-muted hover:bg-accent text-muted-foreground text-xs font-medium transition-colors"
                         >
                           No popup / silent block
                         </button>
@@ -827,21 +827,21 @@ export function DlpTestRunner({ initialHistory }: Props) {
 
         {/* ─── SCRIPT VIEWER ─── */}
         {activeMode === 'script' && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+          <div className="rounded-xl border border-border bg-card/50 p-5">
             <div className="flex items-start justify-between mb-4">
               <div>
-                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Script Generator</p>
-                <h3 className="text-sm font-semibold text-white">{selectedScript.name}</h3>
-                <p className="text-[11px] text-zinc-500 mt-0.5">{selectedScript.description}</p>
+                <p className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest mb-1">Script Generator</p>
+                <h3 className="text-sm font-semibold text-foreground">{selectedScript.name}</h3>
+                <p className="text-[11px] text-muted-foreground/80 mt-0.5">{selectedScript.description}</p>
               </div>
-              <span className="text-[10px] font-mono bg-zinc-800 text-zinc-400 px-2 py-1 rounded shrink-0 ml-4">
+              <span className="text-[10px] font-mono bg-muted text-muted-foreground px-2 py-1 rounded shrink-0 ml-4">
                 {selectedScript.protocol}
               </span>
             </div>
 
             {/* Data type for script */}
             <div className="mb-3">
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Data Type in Script</label>
+              <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest block mb-1.5">Data Type in Script</label>
               <SearchableSelect
                 options={DATA_TYPES.filter(d => d.id !== 'custom').map(d => ({ value: d.id, label: d.label }))}
                 value={dataType.id}
@@ -853,29 +853,29 @@ export function DlpTestRunner({ initialHistory }: Props) {
             <div className="flex items-center gap-2 mb-3">
               <button
                 onClick={handleDownloadScript}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-foreground text-xs font-semibold transition-colors"
               >
                 <Download className="h-3.5 w-3.5" />
                 Download .{selectedScript.ext}
               </button>
               <button
                 onClick={handleCopyScript}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-xs font-semibold transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent hover:bg-accent text-foreground/90 text-xs font-semibold transition-colors"
               >
                 {copied ? <><Check className="h-3.5 w-3.5 text-green-400" /> Copied!</> : <><Copy className="h-3.5 w-3.5" /> Copy</>}
               </button>
-              <span className="text-[10px] text-zinc-600 ml-1">Run this script from your corporate network to test DLP controls</span>
+              <span className="text-[10px] text-muted-foreground/60 ml-1">Run this script from your corporate network to test DLP controls</span>
             </div>
 
             {/* Script content */}
-            <div className="rounded-lg border border-zinc-700 bg-zinc-950 overflow-hidden">
-              <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-800 bg-zinc-900">
+            <div className="rounded-lg border border-border-strong bg-background overflow-hidden">
+              <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-card">
                 <span className="w-2.5 h-2.5 rounded-full bg-red-500/60" />
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-500/60" />
                 <span className="w-2.5 h-2.5 rounded-full bg-green-500/60" />
-                <span className="text-[10px] text-zinc-600 ml-2 font-mono">dlp_test_{selectedScript.id}.{selectedScript.ext}</span>
+                <span className="text-[10px] text-muted-foreground/60 ml-2 font-mono">dlp_test_{selectedScript.id}.{selectedScript.ext}</span>
               </div>
-              <pre className="text-[10px] text-zinc-300 font-mono p-4 overflow-x-auto overflow-y-auto max-h-80 leading-relaxed whitespace-pre">
+              <pre className="text-[10px] text-foreground/70 font-mono p-4 overflow-x-auto overflow-y-auto max-h-80 leading-relaxed whitespace-pre">
                 {scriptContent}
               </pre>
             </div>
@@ -894,7 +894,7 @@ export function DlpTestRunner({ initialHistory }: Props) {
 const HISTORY_BADGE: Record<string, { cls: string; label: string }> = {
   blocked:            { cls: 'bg-green-500/15 text-green-400',   label: 'Blocked' },
   not_blocked:        { cls: 'bg-red-500/15 text-red-400',       label: 'Not Blocked' },
-  error:              { cls: 'bg-zinc-700/50 text-zinc-400',     label: 'Error' },
+  error:              { cls: 'bg-accent/50 text-muted-foreground',     label: 'Error' },
   user_alert_proceed: { cls: 'bg-amber-500/15 text-amber-400',   label: 'Coaching — Proceeded' },
   user_alert_stop:    { cls: 'bg-blue-500/15 text-blue-400',     label: 'Coaching — Stopped' },
   blocked_coached:    { cls: 'bg-orange-500/15 text-orange-400', label: 'Blocked — Notified' },
@@ -955,31 +955,31 @@ function HistoryTable({ history }: { history: TestHistoryEntry[] }) {
   const hasFilters = search || resultFilter !== 'all' || dateRange !== 'all'
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+    <div className="rounded-xl border border-border bg-card/50 p-5">
       <div className="flex items-center justify-between mb-4">
-        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Test History</p>
+        <p className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest">Test History</p>
         {history.length > 0 && (
-          <span className="text-[10px] text-zinc-600 tabular-nums">{history.length} total</span>
+          <span className="text-[10px] text-muted-foreground/60 tabular-nums">{history.length} total</span>
         )}
       </div>
 
       {history.length === 0 ? (
-        <p className="text-sm text-zinc-600 italic py-4 text-center">No tests run yet — run a web channel test above to see results here</p>
+        <p className="text-sm text-muted-foreground/60 italic py-4 text-center">No tests run yet — run a web channel test above to see results here</p>
       ) : (
         <>
           {/* Filter bar */}
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500 pointer-events-none" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/80 pointer-events-none" />
               <input
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search test or data type…"
-                className="pl-7 pr-7 py-1.5 text-[11px] bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 w-44"
+                className="pl-7 pr-7 py-1.5 text-[11px] bg-muted border border-border-strong rounded-lg text-foreground/70 placeholder-muted-foreground/50 focus:outline-none focus:border-border-strong w-44"
               />
               {search && (
-                <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400">
+                <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground">
                   <X className="w-3 h-3" />
                 </button>
               )}
@@ -987,58 +987,58 @@ function HistoryTable({ history }: { history: TestHistoryEntry[] }) {
             <select
               value={resultFilter}
               onChange={e => setResultFilter(e.target.value)}
-              className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-[11px] rounded-lg px-2 py-1.5 focus:outline-none focus:border-zinc-500"
+              className="bg-muted border border-border-strong text-foreground/70 text-[11px] rounded-lg px-2 py-1.5 focus:outline-none focus:border-border-strong"
             >
               {RESULT_FILTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             <select
               value={dateRange}
               onChange={e => setDateRange(e.target.value)}
-              className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-[11px] rounded-lg px-2 py-1.5 focus:outline-none focus:border-zinc-500"
+              className="bg-muted border border-border-strong text-foreground/70 text-[11px] rounded-lg px-2 py-1.5 focus:outline-none focus:border-border-strong"
             >
               {DATE_RANGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             {hasFilters && (
               <button
                 onClick={() => { setSearch(''); setResultFilter('all'); setDateRange('all') }}
-                className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
+                className="text-[11px] text-muted-foreground/80 hover:text-foreground/70 transition-colors"
               >
                 Clear
               </button>
             )}
-            <span className="ml-auto text-[10px] text-zinc-600 tabular-nums">
+            <span className="ml-auto text-[10px] text-muted-foreground/60 tabular-nums">
               {filtered.length !== history.length ? `${filtered.length} of ${history.length}` : `${history.length}`} entries
             </span>
           </div>
 
           {filtered.length === 0 ? (
-            <div className="py-10 text-center rounded-lg border border-zinc-800">
-              <p className="text-sm text-zinc-500">No entries match your filters.</p>
-              <button onClick={() => { setSearch(''); setResultFilter('all'); setDateRange('all') }} className="text-xs text-zinc-600 hover:text-zinc-400 mt-1 transition-colors">Clear filters</button>
+            <div className="py-10 text-center rounded-lg border border-border">
+              <p className="text-sm text-muted-foreground/80">No entries match your filters.</p>
+              <button onClick={() => { setSearch(''); setResultFilter('all'); setDateRange('all') }} className="text-xs text-muted-foreground/60 hover:text-muted-foreground mt-1 transition-colors">Clear filters</button>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-zinc-800">
+            <div className="overflow-x-auto rounded-lg border border-border">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-zinc-800">
+                  <tr className="border-b border-border">
                     {['Time', 'Test', 'Data Type', 'Result', 'Response'].map(h => (
-                      <th key={h} className="text-left text-[9px] font-bold text-zinc-600 uppercase tracking-wide px-3 py-2">{h}</th>
+                      <th key={h} className="text-left text-[9px] font-bold text-muted-foreground/60 uppercase tracking-wide px-3 py-2">{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-800/60">
+                <tbody className="divide-y divide-border/60">
                   {pg.slice.map(entry => {
                     const b = HISTORY_BADGE[entry.result] ?? HISTORY_BADGE.error
                     return (
-                      <tr key={entry.id} className="hover:bg-zinc-900/40 transition-colors">
+                      <tr key={entry.id} className="hover:bg-card/40 transition-colors">
                         <td className="px-3 py-2.5 whitespace-nowrap">
-                          <span className="text-[10px] tabular-nums text-zinc-500">{formatTime(entry.created_at)}</span>
+                          <span className="text-[10px] tabular-nums text-muted-foreground/80">{formatTime(entry.created_at)}</span>
                         </td>
                         <td className="px-3 py-2.5">
-                          <span className="text-zinc-300 font-medium">{entry.test_name}</span>
+                          <span className="text-foreground/70 font-medium">{entry.test_name}</span>
                         </td>
                         <td className="px-3 py-2.5">
-                          <span className="text-zinc-400">{DATA_TYPE_LABELS[entry.data_type] ?? entry.data_type}</span>
+                          <span className="text-muted-foreground">{DATA_TYPE_LABELS[entry.data_type] ?? entry.data_type}</span>
                         </td>
                         <td className="px-3 py-2.5">
                           <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded uppercase', b.cls)}>
@@ -1046,7 +1046,7 @@ function HistoryTable({ history }: { history: TestHistoryEntry[] }) {
                           </span>
                         </td>
                         <td className="px-3 py-2.5">
-                          <span className="text-zinc-600 tabular-nums text-[10px]">
+                          <span className="text-muted-foreground/60 tabular-nums text-[10px]">
                             {entry.response_code ? `HTTP ${entry.response_code}` : '—'}
                             {entry.response_time_ms ? ` · ${entry.response_time_ms}ms` : ''}
                           </span>
@@ -1061,8 +1061,8 @@ function HistoryTable({ history }: { history: TestHistoryEntry[] }) {
 
           {/* Pagination footer */}
           {pg.total > pg.perPage && (
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800/60">
-              <span className="text-[10px] text-zinc-600 tabular-nums">
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/60">
+              <span className="text-[10px] text-muted-foreground/60 tabular-nums">
                 Showing {pg.from}–{pg.to} of {pg.total}
               </span>
               <div className="flex items-center gap-3">
@@ -1070,21 +1070,21 @@ function HistoryTable({ history }: { history: TestHistoryEntry[] }) {
                   <button
                     onClick={() => pg.setPage(pg.page - 1)}
                     disabled={pg.page === 1}
-                    className="px-2 py-1 text-[10px] rounded bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    className="px-2 py-1 text-[10px] rounded bg-muted text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   >←</button>
-                  <span className="text-[10px] text-zinc-600 tabular-nums">{pg.page} / {pg.pages}</span>
+                  <span className="text-[10px] text-muted-foreground/60 tabular-nums">{pg.page} / {pg.pages}</span>
                   <button
                     onClick={() => pg.setPage(pg.page + 1)}
                     disabled={pg.page === pg.pages}
-                    className="px-2 py-1 text-[10px] rounded bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    className="px-2 py-1 text-[10px] rounded bg-muted text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   >→</button>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-zinc-600">Rows per page:</span>
+                  <span className="text-[10px] text-muted-foreground/60">Rows per page:</span>
                   <select
                     value={pg.perPage}
                     onChange={e => pg.setPerPage(Number(e.target.value))}
-                    className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-[10px] rounded px-1.5 py-0.5 focus:outline-none focus:border-zinc-500"
+                    className="bg-muted border border-border-strong text-foreground/70 text-[10px] rounded px-1.5 py-0.5 focus:outline-none focus:border-border-strong"
                   >
                     {PER_PAGE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
                   </select>

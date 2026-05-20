@@ -29,8 +29,8 @@ function QuestionGroup({
   return (
     <div className="space-y-2.5">
       <div>
-        <p className="text-sm font-medium text-white">{label}</p>
-        {subtitle && <p className="text-xs text-zinc-500 mt-0.5">{subtitle}</p>}
+        <p className="text-sm font-medium text-foreground">{label}</p>
+        {subtitle && <p className="text-xs text-muted-foreground/80 mt-0.5">{subtitle}</p>}
       </div>
       <div className="flex flex-wrap gap-2">
         {options.map(opt => (
@@ -41,7 +41,7 @@ function QuestionGroup({
               'px-4 py-2 rounded-lg border text-sm font-medium transition-all',
               value === opt
                 ? 'border-blue-500 bg-blue-500/15 text-blue-300'
-                : 'border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300'
+                : 'border-border-strong bg-card text-muted-foreground hover:border-border-strong hover:text-foreground/70'
             )}
           >
             {opt}

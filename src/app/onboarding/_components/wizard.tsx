@@ -89,20 +89,20 @@ export function OnboardingWizard({ initialData, initialStep }: Props) {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <div className="border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
+      <div className="border-b border-border px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-md bg-blue-600 flex items-center justify-center">
-            <Shield className="h-4 w-4 text-white" />
+            <Shield className="h-4 w-4 text-foreground" />
           </div>
-          <span className="font-semibold text-white text-sm">Effata</span>
+          <span className="font-semibold text-foreground text-sm">Effata</span>
         </div>
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-muted-foreground/80">
           Step {step} of {STEPS.length}
         </p>
       </div>
 
       {/* Progress bar */}
-      <div className="h-0.5 bg-zinc-800">
+      <div className="h-0.5 bg-muted">
         <div
           className="h-full bg-blue-600 transition-all duration-500"
           style={{ width: `${(step / STEPS.length) * 100}%` }}
@@ -118,7 +118,7 @@ export function OnboardingWizard({ initialData, initialStep }: Props) {
               'h-1.5 rounded-full transition-all duration-300',
               s.number < step ? 'w-6 bg-blue-600' :
               s.number === step ? 'w-8 bg-blue-500' :
-              'w-6 bg-zinc-700'
+              'w-6 bg-accent'
             )}
           />
         ))}
@@ -129,8 +129,8 @@ export function OnboardingWizard({ initialData, initialStep }: Props) {
         <div className="w-full max-w-2xl">
           {/* Step heading */}
           <div className="mb-6 text-center">
-            <h2 className="text-xl font-bold text-white">{STEPS[step - 1].title}</h2>
-            <p className="text-sm text-zinc-400 mt-1">{STEPS[step - 1].subtitle}</p>
+            <h2 className="text-xl font-bold text-foreground">{STEPS[step - 1].title}</h2>
+            <p className="text-sm text-muted-foreground mt-1">{STEPS[step - 1].subtitle}</p>
           </div>
 
           {/* Animated step content */}
@@ -162,7 +162,7 @@ export function OnboardingWizard({ initialData, initialStep }: Props) {
       </div>
 
       {/* Footer nav */}
-      <div className="border-t border-zinc-800 px-6 py-4 flex items-center justify-between">
+      <div className="border-t border-border px-6 py-4 flex items-center justify-between">
         <button
           onClick={goBack}
           disabled={step === 1 || isPending}
@@ -170,7 +170,7 @@ export function OnboardingWizard({ initialData, initialStep }: Props) {
             'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all',
             step === 1
               ? 'invisible'
-              : 'text-zinc-400 hover:text-white hover:bg-white/5 border border-zinc-700 hover:border-zinc-500'
+              : 'text-muted-foreground hover:text-foreground hover:bg-accent/30 border border-border-strong hover:border-border-strong'
           )}
         >
           <ArrowLeft className="h-4 w-4" />
@@ -180,7 +180,7 @@ export function OnboardingWizard({ initialData, initialStep }: Props) {
         <div className="flex items-center gap-3">
           {/* Validation hint */}
           {!canProceed(step, data) && (
-            <p className="text-xs text-zinc-600 hidden sm:block">
+            <p className="text-xs text-muted-foreground/60 hidden sm:block">
               {step === 1 && 'Select an industry and at least one region.'}
               {step === 2 && 'Select at least one DLP tool.'}
               {step === 4 && 'Answer all three questions.'}
@@ -195,8 +195,8 @@ export function OnboardingWizard({ initialData, initialStep }: Props) {
               className={cn(
                 'flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold transition-all',
                 canProceed(step, data) && !isPending
-                  ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                  : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                  ? 'bg-blue-600 hover:bg-blue-500 text-foreground'
+                  : 'bg-muted text-muted-foreground/80 cursor-not-allowed'
               )}
             >
               {isPending ? (
@@ -215,8 +215,8 @@ export function OnboardingWizard({ initialData, initialStep }: Props) {
               className={cn(
                 'flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold transition-all',
                 canProceed(5, data) && !isPending
-                  ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                  : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                  ? 'bg-blue-600 hover:bg-blue-500 text-foreground'
+                  : 'bg-muted text-muted-foreground/80 cursor-not-allowed'
               )}
             >
               {isPending ? (

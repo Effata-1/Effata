@@ -52,7 +52,7 @@ const SEVERITY_STYLES: Record<string, string> = {
   high:   'bg-red-500/15 text-red-400',
   medium: 'bg-amber-500/15 text-amber-400',
   low:    'bg-blue-500/15 text-blue-400',
-  info:   'bg-zinc-700/50 text-zinc-400',
+  info:   'bg-accent/50 text-muted-foreground',
 }
 
 const CATEGORY_PREFIXES: Record<string, string> = {
@@ -96,16 +96,16 @@ function CategoryPill({ action }: { action: string }) {
     Compliance:  'bg-teal-500/10 text-teal-400',
   }
   return (
-    <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded', colors[cat] ?? 'bg-zinc-800 text-zinc-500')}>
+    <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded', colors[cat] ?? 'bg-muted text-muted-foreground/80')}>
       {cat}
     </span>
   )
 }
 
 function ClassBadge({ value }: { value: string | null }) {
-  if (!value) return <span className="text-zinc-600 text-xs">—</span>
+  if (!value) return <span className="text-muted-foreground/60 text-xs">—</span>
   const meta = CLASSIFICATION_LABELS[value]
-  if (!meta) return <span className="text-zinc-400 text-xs">{value}</span>
+  if (!meta) return <span className="text-muted-foreground text-xs">{value}</span>
   return (
     <span className={cn(
       'text-[10px] font-bold px-1.5 py-0.5 rounded',
@@ -114,7 +114,7 @@ function ClassBadge({ value }: { value: string | null }) {
       meta.color === 'amber'  ? 'bg-yellow-500/15 text-yellow-400' :
       meta.color === 'blue'   ? 'bg-blue-500/15 text-blue-400'     :
       meta.color === 'purple' ? 'bg-purple-500/15 text-purple-400' :
-      'bg-zinc-700/50 text-zinc-400'
+      'bg-accent/50 text-muted-foreground'
     )}>{meta.label}</span>
   )
 }
@@ -129,14 +129,14 @@ function renderChange(log: AuditLog) {
       return (
         <div className="flex items-center gap-1.5">
           <ClassBadge value={log.old_value} />
-          <span className="text-zinc-700 text-xs">→</span>
+          <span className="text-muted-foreground/40 text-xs">→</span>
           <ClassBadge value={log.new_value} />
         </div>
       )
     }
-    return <span className="text-xs text-zinc-400">{log.old_value} → {log.new_value}</span>
+    return <span className="text-xs text-muted-foreground">{log.old_value} → {log.new_value}</span>
   }
-  return <span className="text-zinc-600 text-xs">—</span>
+  return <span className="text-muted-foreground/60 text-xs">—</span>
 }
 
 function formatTime(iso: string): string {
@@ -153,41 +153,41 @@ export function AuditLogTable({ logs }: { logs: AuditLog[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-zinc-800 overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 bg-zinc-900/80 border-b border-zinc-800">
+      <div className="rounded-xl border border-border overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 bg-card/80 border-b border-border">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-white tabular-nums">{pg.total}</span>
-            <span className="text-xs text-zinc-500">events found</span>
+            <span className="text-sm font-semibold text-foreground tabular-nums">{pg.total}</span>
+            <span className="text-xs text-muted-foreground/80">events found</span>
           </div>
-          <span className="text-xs text-zinc-600">Sorted by Time ↓</span>
+          <span className="text-xs text-muted-foreground/60">Sorted by Time ↓</span>
         </div>
 
         {logs.length === 0 ? (
           <div className="py-16 text-center">
-            <p className="text-sm text-zinc-500">No events match your filters.</p>
-            <p className="text-xs text-zinc-600 mt-1">Try clearing filters or expanding the time range.</p>
+            <p className="text-sm text-muted-foreground/80">No events match your filters.</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">Try clearing filters or expanding the time range.</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-zinc-800">
-                <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Time</th>
-                <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">User</th>
-                <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Severity</th>
-                <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Category</th>
-                <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Action</th>
-                <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Target</th>
-                <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Change</th>
+              <tr className="border-b border-border">
+                <th className="text-left text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide px-4 py-2.5">Time</th>
+                <th className="text-left text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide px-4 py-2.5">User</th>
+                <th className="text-left text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide px-4 py-2.5">Severity</th>
+                <th className="text-left text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide px-4 py-2.5">Category</th>
+                <th className="text-left text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide px-4 py-2.5">Action</th>
+                <th className="text-left text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide px-4 py-2.5">Target</th>
+                <th className="text-left text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide px-4 py-2.5">Change</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800/60">
+            <tbody className="divide-y divide-border/60">
               {pg.slice.map(log => (
-                <tr key={log.id} className="hover:bg-zinc-900/40 transition-colors">
+                <tr key={log.id} className="hover:bg-card/40 transition-colors">
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="text-xs tabular-nums text-zinc-500">{formatTime(log.created_at)}</span>
+                    <span className="text-xs tabular-nums text-muted-foreground/80">{formatTime(log.created_at)}</span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-xs text-zinc-300">{log.user_email ?? 'System'}</span>
+                    <span className="text-xs text-foreground/70">{log.user_email ?? 'System'}</span>
                   </td>
                   <td className="px-4 py-3">
                     <SeverityBadge action={log.action} />
@@ -196,10 +196,10 @@ export function AuditLogTable({ logs }: { logs: AuditLog[] }) {
                     <CategoryPill action={log.action} />
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-xs text-zinc-400">{ACTION_LABELS[log.action] ?? log.action}</span>
+                    <span className="text-xs text-muted-foreground">{ACTION_LABELS[log.action] ?? log.action}</span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-xs text-white font-medium">{log.entity_name ?? log.entity_type ?? '—'}</span>
+                    <span className="text-xs text-foreground font-medium">{log.entity_name ?? log.entity_type ?? '—'}</span>
                   </td>
                   <td className="px-4 py-3">
                     {renderChange(log)}
@@ -214,7 +214,7 @@ export function AuditLogTable({ logs }: { logs: AuditLog[] }) {
       {/* Pagination footer */}
       {pg.total > pg.perPage && (
         <div className="flex items-center justify-between">
-          <span className="text-xs text-zinc-600 tabular-nums">
+          <span className="text-xs text-muted-foreground/60 tabular-nums">
             Showing {pg.from}–{pg.to} of {pg.total}
           </span>
           <div className="flex items-center gap-3">
@@ -222,21 +222,21 @@ export function AuditLogTable({ logs }: { logs: AuditLog[] }) {
               <button
                 onClick={() => pg.setPage(pg.page - 1)}
                 disabled={pg.page === 1}
-                className="px-2.5 py-1 text-xs rounded bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="px-2.5 py-1 text-xs rounded bg-muted text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >←</button>
-              <span className="text-xs text-zinc-600 px-2 tabular-nums">{pg.page} / {pg.pages}</span>
+              <span className="text-xs text-muted-foreground/60 px-2 tabular-nums">{pg.page} / {pg.pages}</span>
               <button
                 onClick={() => pg.setPage(pg.page + 1)}
                 disabled={pg.page === pg.pages}
-                className="px-2.5 py-1 text-xs rounded bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="px-2.5 py-1 text-xs rounded bg-muted text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >→</button>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-zinc-600">Rows per page:</span>
+              <span className="text-xs text-muted-foreground/60">Rows per page:</span>
               <select
                 value={pg.perPage}
                 onChange={e => pg.setPerPage(Number(e.target.value))}
-                className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs rounded px-2 py-0.5 focus:outline-none focus:border-zinc-500"
+                className="bg-muted border border-border-strong text-foreground/70 text-xs rounded px-2 py-0.5 focus:outline-none focus:border-border-strong"
               >
                 {PER_PAGE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
               </select>

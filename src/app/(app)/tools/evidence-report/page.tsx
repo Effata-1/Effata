@@ -7,7 +7,7 @@ export default async function EvidenceReportPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
-    return <div className="text-zinc-500 text-sm p-8">Not authenticated</div>
+    return <div className="text-muted-foreground/80 text-sm p-8">Not authenticated</div>
   }
 
   const { reports, error } = await getReports()
@@ -15,8 +15,8 @@ export default async function EvidenceReportPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white mb-1">Evidence Reports</h1>
-        <p className="text-zinc-500 text-sm">
+        <h1 className="text-2xl font-bold text-foreground mb-1">Evidence Reports</h1>
+        <p className="text-muted-foreground/80 text-sm">
           Analyst-authored DLP test reports for audit, compliance, and CISO evidence packs
         </p>
       </div>

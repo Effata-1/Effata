@@ -16,9 +16,9 @@ const STATE_COLORS: Record<string, string> = {
   'visibility-only':        'border-blue-500/60 bg-blue-500/10 text-blue-300',
   'licence-not-configured': 'border-red-500/60 bg-red-500/10 text-red-300',
   'partially-covered':      'border-purple-500/60 bg-purple-500/10 text-purple-300',
-  'not-owned':              'border-zinc-700 bg-zinc-800/40 text-zinc-500',
-  'unknown':                'border-zinc-700 bg-zinc-800/40 text-zinc-400',
-  'other-state':            'border-zinc-700 bg-zinc-800/40 text-zinc-400',
+  'not-owned':              'border-border-strong bg-muted/40 text-muted-foreground/80',
+  'unknown':                'border-border-strong bg-muted/40 text-muted-foreground',
+  'other-state':            'border-border-strong bg-muted/40 text-muted-foreground',
 }
 
 export function Step3({ data, onChange }: Props) {
@@ -38,7 +38,7 @@ export function Step3({ data, onChange }: Props) {
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-zinc-500">
+      <p className="text-xs text-muted-foreground/80">
         Based on your tool and licence selections, confirm the real configuration state for each coverage area today.
         Areas highlighted in blue were inferred from your Q2 selections.
       </p>
@@ -53,20 +53,20 @@ export function Step3({ data, onChange }: Props) {
               key={area.id}
               className={cn(
                 'rounded-lg border px-4 py-3 transition-colors',
-                isInferred ? 'border-zinc-700 bg-zinc-900/60' : 'border-zinc-800/50 bg-zinc-900/30'
+                isInferred ? 'border-border-strong bg-card/60' : 'border-border/50 bg-card/30'
               )}
             >
               <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-white">{area.label}</p>
+                    <p className="text-sm font-medium text-foreground">{area.label}</p>
                     {isInferred && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/20 font-medium">
                         inferred
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1">{area.description}</p>
+                  <p className="text-xs text-muted-foreground/80 mt-0.5 line-clamp-1">{area.description}</p>
                 </div>
               </div>
 
@@ -80,7 +80,7 @@ export function Step3({ data, onChange }: Props) {
                       'px-2.5 py-1 rounded-md border text-[11px] font-medium transition-all',
                       currentState === state.id
                         ? STATE_COLORS[state.id]
-                        : 'border-zinc-700/50 bg-transparent text-zinc-600 hover:text-zinc-400 hover:border-zinc-600'
+                        : 'border-border-strong/50 bg-transparent text-muted-foreground/60 hover:text-muted-foreground hover:border-border-strong'
                     )}
                   >
                     {state.label}

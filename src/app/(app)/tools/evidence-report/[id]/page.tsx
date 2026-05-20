@@ -16,7 +16,7 @@ export default async function ReportDetailPage({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
-    return <div className="text-zinc-500 text-sm p-8">Not authenticated</div>
+    return <div className="text-muted-foreground/80 text-sm p-8">Not authenticated</div>
   }
 
   const { report, tests, error } = await getReport(id)

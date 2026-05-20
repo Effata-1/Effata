@@ -11,7 +11,7 @@ const ITEMS = [
 export default async function ToolsLayout({ children }: { children: React.ReactNode }) {
   await requireRole('analyst')
   return (
-    <div className="flex h-screen overflow-hidden bg-zinc-950">
+    <div className="flex h-screen overflow-hidden bg-background">
       <SectionSidebar title="Tools" items={ITEMS} />
       <main className="flex-1 overflow-y-auto">
         <div className="p-8">{children}</div>

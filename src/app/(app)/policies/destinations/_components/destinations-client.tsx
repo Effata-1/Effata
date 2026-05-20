@@ -60,8 +60,8 @@ const TRUST_TAGS: Record<TrustTag, {
   unknown: {
     label:   'Unknown',
     tagline: 'Not yet assessed. Treat as untrusted until a security review is completed.',
-    dot:     'bg-zinc-400', text: 'text-zinc-400',
-    bg:      'bg-zinc-700/30', border: 'border-zinc-700',
+    dot:     'bg-accent', text: 'text-muted-foreground',
+    bg:      'bg-accent/30', border: 'border-border-strong',
   },
   prohibited: {
     label:   'Prohibited',
@@ -138,9 +138,9 @@ function AppSearchInput({
       {selected.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {selected.map(app => (
-            <span key={app} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-800 border border-zinc-700 text-xs text-zinc-300">
+            <span key={app} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted border border-border-strong text-xs text-foreground/70">
               {app}
-              <button type="button" onClick={() => onChange(selected.filter(a => a !== app))} className="text-zinc-500 hover:text-zinc-300 transition-colors ml-0.5">
+              <button type="button" onClick={() => onChange(selected.filter(a => a !== app))} className="text-muted-foreground/80 hover:text-foreground/70 transition-colors ml-0.5">
                 <X className="w-3 h-3" />
               </button>
             </span>
@@ -148,34 +148,34 @@ function AppSearchInput({
         </div>
       )}
       <div ref={containerRef} className="relative">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-800/60 border border-zinc-700 focus-within:border-zinc-500 transition-colors">
-          <Search className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/60 border border-border-strong focus-within:border-border-strong transition-colors">
+          <Search className="w-3.5 h-3.5 text-muted-foreground/80 shrink-0" />
           <input
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustom() } }}
             placeholder="Search apps or type to add custom…"
-            className="flex-1 bg-transparent text-sm text-zinc-300 placeholder:text-zinc-600 outline-none"
+            className="flex-1 bg-transparent text-sm text-foreground/70 placeholder:text-muted-foreground/50 outline-none"
           />
         </div>
         {open && (
-          <div className="absolute z-50 top-full mt-1 w-full rounded-lg bg-zinc-900 border border-zinc-700 shadow-xl overflow-hidden">
+          <div className="absolute z-50 top-full mt-1 w-full rounded-lg bg-card border border-border-strong shadow-xl overflow-hidden">
             <div className="max-h-48 overflow-y-auto">
               {results.map(app => (
                 <button key={app} type="button" onClick={() => add(app)}
                   className={cn('w-full text-left px-3 py-2 text-sm transition-colors',
-                    selected.includes(app) ? 'text-zinc-600 cursor-default' : 'text-zinc-300 hover:bg-zinc-800')}>
+                    selected.includes(app) ? 'text-muted-foreground/60 cursor-default' : 'text-foreground/70 hover:bg-muted')}>
                   <span className="flex items-center justify-between">
                     {app}
-                    {selected.includes(app) && <Check className="w-3.5 h-3.5 text-zinc-600" />}
+                    {selected.includes(app) && <Check className="w-3.5 h-3.5 text-muted-foreground/60" />}
                   </span>
                 </button>
               ))}
             </div>
             {query.trim() && !selected.includes(query.trim()) && (
               <button type="button" onClick={addCustom}
-                className="w-full text-left px-3 py-2 text-sm text-blue-400 hover:bg-zinc-800 border-t border-zinc-800 transition-colors flex items-center gap-2">
+                className="w-full text-left px-3 py-2 text-sm text-blue-400 hover:bg-muted border-t border-border transition-colors flex items-center gap-2">
                 <Plus className="w-3.5 h-3.5" />
                 Add &quot;{query.trim()}&quot; as custom app
               </button>
@@ -240,17 +240,17 @@ function CatalogRow({
   const meta = TRUST_TAGS[item.trust_tag]
 
   return (
-    <div className={cn('border-b border-zinc-800/50 last:border-0', !item.is_in_scope && 'opacity-50')}>
+    <div className={cn('border-b border-border/50 last:border-0', !item.is_in_scope && 'opacity-50')}>
       <div
-        className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/20 transition-colors cursor-pointer"
+        className="flex items-center gap-3 px-4 py-3 hover:bg-muted/20 transition-colors cursor-pointer"
         onClick={() => setExpanded(e => !e)}
       >
-        <div className="shrink-0 text-zinc-600">
+        <div className="shrink-0 text-muted-foreground/60">
           {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={cn('text-sm font-medium', item.is_in_scope ? 'text-white' : 'text-zinc-500')}>{item.name}</span>
+            <span className={cn('text-sm font-medium', item.is_in_scope ? 'text-foreground' : 'text-muted-foreground/80')}>{item.name}</span>
             {(() => {
               const rm = RISK_META[item.risk_level]
               return (
@@ -259,10 +259,10 @@ function CatalogRow({
                 </span>
               )
             })()}
-            {saving && <span className="text-xs text-zinc-600">saving…</span>}
+            {saving && <span className="text-xs text-muted-foreground/60">saving…</span>}
           </div>
           {item.description && (
-            <p className="text-xs text-zinc-600 truncate mt-0.5 pr-4">{item.description}</p>
+            <p className="text-xs text-muted-foreground/60 truncate mt-0.5 pr-4">{item.description}</p>
           )}
         </div>
         <div
@@ -276,9 +276,9 @@ function CatalogRow({
             'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer select-none',
             item.is_in_scope
               ? `${meta.bg} ${meta.text} ${meta.border}`
-              : 'bg-zinc-800/50 text-zinc-600 border-zinc-700 hover:border-zinc-500',
+              : 'bg-muted/50 text-muted-foreground/60 border-border-strong hover:border-border-strong',
           )}>
-            <span className={cn('w-1.5 h-1.5 rounded-full', item.is_in_scope ? meta.dot : 'bg-zinc-600')} />
+            <span className={cn('w-1.5 h-1.5 rounded-full', item.is_in_scope ? meta.dot : 'bg-accent')} />
             {item.is_in_scope ? 'In Scope' : 'Toggle In'}
           </span>
         </div>
@@ -287,21 +287,21 @@ function CatalogRow({
       {expanded && (
         <div className="px-11 pb-4 space-y-4">
           {item.description && (
-            <p className="text-sm text-zinc-400 leading-relaxed">{item.description}</p>
+            <p className="text-sm text-muted-foreground leading-relaxed">{item.description}</p>
           )}
           {item.examples.length > 0 && (
             <div>
-              <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Example URLs</p>
+              <p className="text-xs font-medium text-muted-foreground/80 uppercase tracking-wider mb-1.5">Example URLs</p>
               <div className="flex flex-wrap gap-1.5">
                 {item.examples.map(ex => (
-                  <span key={ex} className="px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-xs text-zinc-400 font-mono">{ex}</span>
+                  <span key={ex} className="px-2 py-0.5 rounded bg-muted border border-border-strong text-xs text-muted-foreground font-mono">{ex}</span>
                 ))}
               </div>
             </div>
           )}
           {item.is_in_scope && (
             <div>
-              <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Display Name</p>
+              <p className="text-xs font-medium text-muted-foreground/80 uppercase tracking-wider mb-1.5">Display Name</p>
               {editingName ? (
                 <input
                   ref={nameRef}
@@ -313,53 +313,53 @@ function CatalogRow({
                     if (e.key === 'Enter') saveName()
                     if (e.key === 'Escape') { setEditName(false); setDraftName(item.name) }
                   }}
-                  className="px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-600 text-sm text-white outline-none focus:border-zinc-400 w-64 transition-colors"
+                  className="px-3 py-1.5 rounded-lg bg-muted border border-border-strong text-sm text-foreground outline-none focus:border-border-strong w-64 transition-colors"
                 />
               ) : (
                 <button type="button" onClick={() => setEditName(true)}
-                  className="flex items-center gap-2 text-sm text-zinc-300 hover:text-white transition-colors group">
+                  className="flex items-center gap-2 text-sm text-foreground/70 hover:text-foreground transition-colors group">
                   {item.name}
-                  <Pencil className="w-3 h-3 text-zinc-600 group-hover:text-zinc-400 transition-colors" />
+                  <Pencil className="w-3 h-3 text-muted-foreground/60 group-hover:text-muted-foreground transition-colors" />
                 </button>
               )}
             </div>
           )}
           {item.is_in_scope && (
             <div>
-              <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">
-                Applications <span className="text-zinc-700 normal-case font-normal">— specify which apps use this destination</span>
+              <p className="text-xs font-medium text-muted-foreground/80 uppercase tracking-wider mb-1.5">
+                Applications <span className="text-muted-foreground/40 normal-case font-normal">— specify which apps use this destination</span>
               </p>
               <AppSearchInput selected={apps} onChange={saveApps} />
             </div>
           )}
           {!item.is_in_scope && apps.length > 0 && (
             <div>
-              <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Applications</p>
+              <p className="text-xs font-medium text-muted-foreground/80 uppercase tracking-wider mb-1.5">Applications</p>
               <div className="flex flex-wrap gap-1.5">
                 {apps.map(a => (
-                  <span key={a} className="px-2 py-0.5 rounded-md bg-zinc-800 border border-zinc-700 text-xs text-zinc-400">{a}</span>
+                  <span key={a} className="px-2 py-0.5 rounded-md bg-muted border border-border-strong text-xs text-muted-foreground">{a}</span>
                 ))}
               </div>
             </div>
           )}
           {item.is_in_scope && (
             <div>
-              <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Notes</p>
+              <p className="text-xs font-medium text-muted-foreground/80 uppercase tracking-wider mb-1.5">Notes</p>
               <textarea
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
                 onBlur={saveNotes}
                 placeholder="Add context, conditions, or restrictions for this destination…"
                 rows={2}
-                className="w-full px-3 py-2 rounded-lg bg-zinc-800/60 border border-zinc-700 text-sm text-zinc-300 placeholder:text-zinc-600 outline-none focus:border-zinc-500 resize-none transition-colors"
+                className="w-full px-3 py-2 rounded-lg bg-muted/60 border border-border-strong text-sm text-foreground/70 placeholder:text-muted-foreground/50 outline-none focus:border-border-strong resize-none transition-colors"
               />
             </div>
           )}
           {item.is_in_scope && (
             <div>
-              <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">
+              <p className="text-xs font-medium text-muted-foreground/80 uppercase tracking-wider mb-1.5">
                 Definition
-                <span className="text-zinc-700 normal-case font-normal ml-1">— URLs, domains, IPs, RANGE: or CIDR: separated by newlines</span>
+                <span className="text-muted-foreground/40 normal-case font-normal ml-1">— URLs, domains, IPs, RANGE: or CIDR: separated by newlines</span>
               </p>
               <textarea
                 value={definition}
@@ -367,7 +367,7 @@ function CatalogRow({
                 onBlur={saveDefinition}
                 placeholder={"www.example.com\n*.example.com\nRANGE:1.1.1.1-1.1.1.10\nCIDR:1.1.1.0/24"}
                 rows={4}
-                className="w-full px-3 py-2 rounded-lg bg-zinc-800/60 border border-zinc-700 text-sm text-zinc-300 placeholder:text-zinc-600 outline-none focus:border-zinc-500 resize-none transition-colors font-mono"
+                className="w-full px-3 py-2 rounded-lg bg-muted/60 border border-border-strong text-sm text-foreground/70 placeholder:text-muted-foreground/50 outline-none focus:border-border-strong resize-none transition-colors font-mono"
               />
             </div>
           )}
@@ -414,21 +414,21 @@ function CustomRow({
   const meta = TRUST_TAGS[item.trust_tag]
 
   return (
-    <div className="border-b border-zinc-800/50 last:border-0">
+    <div className="border-b border-border/50 last:border-0">
       <div
-        className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/20 transition-colors cursor-pointer"
+        className="flex items-center gap-3 px-4 py-3 hover:bg-muted/20 transition-colors cursor-pointer"
         onClick={() => setExpanded(e => !e)}
       >
-        <div className="shrink-0 text-zinc-600">
+        <div className="shrink-0 text-muted-foreground/60">
           {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-white">{item.name}</span>
-            <span className="px-1.5 py-0.5 rounded text-[10px] bg-zinc-700/60 text-zinc-500 border border-zinc-700">custom</span>
+            <span className="text-sm font-medium text-foreground">{item.name}</span>
+            <span className="px-1.5 py-0.5 rounded text-[10px] bg-accent/60 text-muted-foreground/80 border border-border-strong">custom</span>
           </div>
           {item.subcategory && item.subcategory !== 'custom' && (
-            <p className="text-xs text-zinc-600 mt-0.5">{item.subcategory.replace(/_/g, ' ')}</p>
+            <p className="text-xs text-muted-foreground/60 mt-0.5">{item.subcategory.replace(/_/g, ' ')}</p>
           )}
         </div>
         <span className={cn('shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border', meta.bg, meta.text, meta.border)}>
@@ -438,11 +438,11 @@ function CustomRow({
         <div className="shrink-0" onClick={e => e.stopPropagation()}>
           {confirmDelete ? (
             <div className="flex items-center gap-2">
-              <button onClick={() => setConfirm(false)} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Cancel</button>
+              <button onClick={() => setConfirm(false)} className="text-xs text-muted-foreground/80 hover:text-foreground/70 transition-colors">Cancel</button>
               <button onClick={() => onDelete(item.org_profile_id)} className="text-xs text-red-400 hover:text-red-300 transition-colors">Delete</button>
             </div>
           ) : (
-            <button onClick={() => setConfirm(true)} className="p-1 rounded text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+            <button onClick={() => setConfirm(true)} className="p-1 rounded text-muted-foreground/60 hover:text-red-400 hover:bg-red-500/10 transition-colors">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
@@ -452,24 +452,24 @@ function CustomRow({
       {expanded && (
         <div className="px-11 pb-4 space-y-4">
           <div>
-            <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Applications</p>
+            <p className="text-xs font-medium text-muted-foreground/80 uppercase tracking-wider mb-1.5">Applications</p>
             <AppSearchInput selected={apps} onChange={saveApps} />
           </div>
           <div>
-            <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Notes</p>
+            <p className="text-xs font-medium text-muted-foreground/80 uppercase tracking-wider mb-1.5">Notes</p>
             <textarea
               value={notes}
               onChange={e => setNotes(e.target.value)}
               onBlur={saveNotes}
               placeholder="Add context or restrictions for this destination…"
               rows={2}
-              className="w-full px-3 py-2 rounded-lg bg-zinc-800/60 border border-zinc-700 text-sm text-zinc-300 placeholder:text-zinc-600 outline-none focus:border-zinc-500 resize-none transition-colors"
+              className="w-full px-3 py-2 rounded-lg bg-muted/60 border border-border-strong text-sm text-foreground/70 placeholder:text-muted-foreground/50 outline-none focus:border-border-strong resize-none transition-colors"
             />
           </div>
           <div>
-            <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">
+            <p className="text-xs font-medium text-muted-foreground/80 uppercase tracking-wider mb-1.5">
               Definition
-              <span className="text-zinc-700 normal-case font-normal ml-1">— URLs, domains, IPs, RANGE: or CIDR: separated by newlines</span>
+              <span className="text-muted-foreground/40 normal-case font-normal ml-1">— URLs, domains, IPs, RANGE: or CIDR: separated by newlines</span>
             </p>
             <textarea
               value={definition}
@@ -477,7 +477,7 @@ function CustomRow({
               onBlur={saveDefinition}
               placeholder={"www.example.com\n*.example.com\nRANGE:1.1.1.1-1.1.1.10\nCIDR:1.1.1.0/24"}
               rows={4}
-              className="w-full px-3 py-2 rounded-lg bg-zinc-800/60 border border-zinc-700 text-sm text-zinc-300 placeholder:text-zinc-600 outline-none focus:border-zinc-500 resize-none transition-colors font-mono"
+              className="w-full px-3 py-2 rounded-lg bg-muted/60 border border-border-strong text-sm text-foreground/70 placeholder:text-muted-foreground/50 outline-none focus:border-border-strong resize-none transition-colors font-mono"
             />
           </div>
         </div>
@@ -517,16 +517,16 @@ function AddCustomModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
-          <h2 className="text-base font-semibold text-white">Add Custom Destination</h2>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
+      <div className="w-full max-w-lg rounded-2xl bg-card border border-border shadow-2xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="text-base font-semibold text-foreground">Add Custom Destination</h2>
+          <button onClick={onClose} className="text-muted-foreground/80 hover:text-foreground transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
         <form onSubmit={submit} className="p-6 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-2 uppercase tracking-wider">Trust Tag</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Trust Tag</label>
             <div className="flex flex-wrap gap-1.5">
               {TRUST_TAG_ORDER.map(tag => {
                 const m = TRUST_TAGS[tag]
@@ -534,7 +534,7 @@ function AddCustomModal({
                   <button key={tag} type="button" onClick={() => setTrustTag(tag)}
                     className={cn(
                       'px-2.5 py-1 rounded-full text-xs font-medium border transition-all',
-                      trustTag === tag ? `${m.bg} ${m.text} ${m.border}` : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:border-zinc-500',
+                      trustTag === tag ? `${m.bg} ${m.text} ${m.border}` : 'bg-muted text-muted-foreground/80 border-border-strong hover:border-border-strong',
                     )}>
                     {m.label}
                   </button>
@@ -543,45 +543,45 @@ function AddCustomModal({
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5 uppercase tracking-wider">Name *</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">Name *</label>
             <input type="text" value={name} onChange={e => { setName(e.target.value); setError('') }}
               placeholder="e.g. Internal Wiki, Customer Portal"
-              className="w-full px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-zinc-500 transition-colors" />
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border-strong text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-border-strong transition-colors" />
             {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
           </div>
           <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5 uppercase tracking-wider">Category</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">Category</label>
             <input type="text" value={subcategory} onChange={e => setSub(e.target.value)}
               placeholder="e.g. cloud_storage, ai_tools, collaboration"
-              className="w-full px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-zinc-500 transition-colors" />
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border-strong text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-border-strong transition-colors" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5 uppercase tracking-wider">Applications</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">Applications</label>
             <AppSearchInput selected={apps} onChange={setApps} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5 uppercase tracking-wider">Notes</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">Notes</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)}
               placeholder="Context, conditions, or restrictions…" rows={2}
-              className="w-full px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-zinc-500 resize-none transition-colors" />
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border-strong text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-border-strong resize-none transition-colors" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5 uppercase tracking-wider">
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">
               Definition
-              <span className="text-zinc-600 normal-case font-normal ml-1">— URLs, domains, IPs, RANGE: or CIDR: per line</span>
+              <span className="text-muted-foreground/60 normal-case font-normal ml-1">— URLs, domains, IPs, RANGE: or CIDR: per line</span>
             </label>
             <textarea value={definition} onChange={e => setDef(e.target.value)}
               placeholder={"www.example.com\n*.example.com\nRANGE:1.1.1.1-1.1.1.10\nCIDR:1.1.1.0/24"}
               rows={4}
-              className="w-full px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-zinc-500 resize-none transition-colors font-mono" />
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border-strong text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-border-strong resize-none transition-colors font-mono" />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose}
-              className="px-4 py-2 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors">
+              className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
               Cancel
             </button>
             <button type="submit" disabled={saving}
-              className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-zinc-900 hover:bg-zinc-100 transition-colors disabled:opacity-50">
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-foreground transition-colors disabled:opacity-50">
               {saving ? 'Adding…' : 'Add Destination'}
             </button>
           </div>
@@ -625,25 +625,25 @@ function TrustTagSection({
       {/* Layer 1 header */}
       <button
         onClick={() => setCollapsed(c => !c)}
-        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-zinc-800/20 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-muted/20 transition-colors"
       >
         <div className="flex items-center gap-3">
           <span className={cn('w-2 h-2 rounded-full shrink-0', meta.dot)} />
           <span className={cn('text-sm font-semibold', meta.text)}>{meta.label}</span>
-          <span className="text-xs text-zinc-600 hidden sm:block">{meta.tagline}</span>
+          <span className="text-xs text-muted-foreground/60 hidden sm:block">{meta.tagline}</span>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <span className="text-xs text-zinc-500">
+          <span className="text-xs text-muted-foreground/80">
             {inScopeCount} / {items.length + customItems.length} in scope
           </span>
           {collapsed
-            ? <ChevronRight className="w-4 h-4 text-zinc-500" />
-            : <ChevronDown className="w-4 h-4 text-zinc-500" />}
+            ? <ChevronRight className="w-4 h-4 text-muted-foreground/80" />
+            : <ChevronDown className="w-4 h-4 text-muted-foreground/80" />}
         </div>
       </button>
 
       {!collapsed && (
-        <div className="border-t border-zinc-800/60">
+        <div className="border-t border-border/60">
           {/* Layer 2: subcategory groups, each collapsed by default */}
           {[...bySubcategory.entries()].map(([sub, subItems]) => (
             <SubcategoryGroup
@@ -664,7 +664,7 @@ function TrustTagSection({
               onDeleteCustom={onDeleteCustom}
             />
           )}
-          <div className="px-5 py-3 border-t border-zinc-800/40">
+          <div className="px-5 py-3 border-t border-border/40">
             <button
               onClick={() => onAddCustom(tag)}
               className={cn('flex items-center gap-1.5 text-xs transition-colors opacity-70 hover:opacity-100', meta.text)}
@@ -717,25 +717,25 @@ function SubcategoryGroup({
   }
 
   return (
-    <div className="border-b border-zinc-800/40 last:border-0">
+    <div className="border-b border-border/40 last:border-0">
       {/* Layer 2 header — div not button, so we can nest buttons */}
       <div
-        className="flex items-center justify-between px-4 py-2.5 bg-zinc-900/40 hover:bg-zinc-900/60 transition-colors cursor-pointer"
+        className="flex items-center justify-between px-4 py-2.5 bg-card/40 hover:bg-card/60 transition-colors cursor-pointer"
         onClick={() => setCollapsed(c => !c)}
       >
         {/* Left: chevron + name */}
         <div className="flex items-center gap-2 min-w-0">
           {collapsed
-            ? <ChevronRight className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
-            : <ChevronDown className="w-3.5 h-3.5 text-zinc-600 shrink-0" />}
-          <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider truncate">
+            ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
+            : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />}
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider truncate">
             {sub.replace(/_/g, ' ')}
           </span>
         </div>
 
         {/* Right: count + Add all / Remove all */}
         <div className="flex items-center gap-3 shrink-0 ml-4" onClick={e => e.stopPropagation()}>
-          <span className="text-xs text-zinc-600">{inScopeCount}/{totalCount} in scope</span>
+          <span className="text-xs text-muted-foreground/60">{inScopeCount}/{totalCount} in scope</span>
           {outOfScopeItems.length > 0 && (
             <button
               onClick={addAll}
@@ -910,31 +910,31 @@ export function DestinationsClient({
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Total Destinations',              value: totalCount,      cls: 'text-white' },
+          { label: 'Total Destinations',              value: totalCount,      cls: 'text-foreground' },
           { label: 'In Scope',                        value: inScopeCount,    cls: 'text-emerald-400' },
           { label: 'Enterprise Approved (in scope)',  value: enterpriseCount, cls: 'text-emerald-400' },
           { label: 'Prohibited',                      value: prohibitedCount, cls: 'text-red-400' },
         ].map(stat => (
-          <div key={stat.label} className="rounded-xl bg-zinc-900 border border-zinc-800 px-4 py-3">
+          <div key={stat.label} className="rounded-xl bg-card border border-border px-4 py-3">
             <p className={cn('text-2xl font-bold', stat.cls)}>{stat.value}</p>
-            <p className="text-xs text-zinc-500 mt-0.5">{stat.label}</p>
+            <p className="text-xs text-muted-foreground/80 mt-0.5">{stat.label}</p>
           </div>
         ))}
       </div>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 flex-1 min-w-48 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 focus-within:border-zinc-600 transition-colors">
-          <Search className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+        <div className="flex items-center gap-2 flex-1 min-w-48 px-3 py-2 rounded-lg bg-card border border-border focus-within:border-border-strong transition-colors">
+          <Search className="w-3.5 h-3.5 text-muted-foreground/80 shrink-0" />
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search destinations…"
-            className="flex-1 bg-transparent text-sm text-zinc-300 placeholder:text-zinc-600 outline-none"
+            className="flex-1 bg-transparent text-sm text-foreground/70 placeholder:text-muted-foreground/50 outline-none"
           />
           {search && (
-            <button onClick={() => setSearch('')} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+            <button onClick={() => setSearch('')} className="text-muted-foreground/80 hover:text-foreground/70 transition-colors">
               <X className="w-3.5 h-3.5" />
             </button>
           )}
@@ -967,7 +967,7 @@ export function DestinationsClient({
           ]}
         />
         {hasFilters && (
-          <button onClick={clearFilters} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1">
+          <button onClick={clearFilters} className="text-xs text-muted-foreground/80 hover:text-foreground/70 transition-colors flex items-center gap-1">
             <X className="w-3 h-3" /> Clear filters
           </button>
         )}
@@ -990,10 +990,10 @@ export function DestinationsClient({
       </div>
 
       {filteredEnriched.length === 0 && filteredCustom.length === 0 && (
-        <div className="text-center py-16 text-zinc-600">
+        <div className="text-center py-16 text-muted-foreground/60">
           <p className="text-sm">No destinations match your filters.</p>
           {hasFilters && (
-            <button onClick={clearFilters} className="text-xs text-zinc-500 hover:text-zinc-300 mt-2 transition-colors">
+            <button onClick={clearFilters} className="text-xs text-muted-foreground/80 hover:text-foreground/70 mt-2 transition-colors">
               Clear filters
             </button>
           )}

@@ -64,20 +64,20 @@ const SEVERITY_COLOURS: Record<Severity, string> = {
   critical: 'bg-red-500/15 text-red-400 border-red-500/30',
   high:     'bg-orange-500/15 text-orange-400 border-orange-500/30',
   medium:   'bg-amber-500/15 text-amber-400 border-amber-500/30',
-  low:      'bg-zinc-700/50 text-zinc-400 border-zinc-600/30',
+  low:      'bg-accent/50 text-muted-foreground border-border-strong/30',
 }
 
 const STATUS_COLOURS: Record<FinalStatus, string> = {
   passed:      'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
   failed:      'bg-red-500/15 text-red-400 border-red-500/30',
-  inconclusive:'bg-zinc-700/50 text-zinc-400 border-zinc-600/30',
+  inconclusive:'bg-accent/50 text-muted-foreground border-border-strong/30',
 }
 
 const OVERALL_COLOURS: Record<OverallResult, string> = {
   passed:           'text-emerald-400 border-emerald-500/40 bg-emerald-500/10',
   partially_passed: 'text-amber-400 border-amber-500/40 bg-amber-500/10',
   failed:           'text-red-400 border-red-500/40 bg-red-500/10',
-  inconclusive:     'text-zinc-400 border-zinc-600/40 bg-zinc-800/40',
+  inconclusive:     'text-muted-foreground border-border-strong/40 bg-muted/40',
 }
 
 // ── Small reusable badges ─────────────────────────────────────────────────────
@@ -106,9 +106,9 @@ function SeverityBadge({ severity }: { severity: Severity }) {
 function Section({ num, title, children }: { num: string; title: string; children: React.ReactNode }) {
   return (
     <div className="mb-8 print:mb-10 print:break-inside-avoid">
-      <div className="flex items-center gap-3 mb-4 pb-2 border-b border-zinc-800 print:border-zinc-300">
-        <span className="text-xs font-mono text-zinc-600 print:text-zinc-400">{num}</span>
-        <h2 className="text-sm font-semibold text-white print:text-black">{title}</h2>
+      <div className="flex items-center gap-3 mb-4 pb-2 border-b border-border print:border-border">
+        <span className="text-xs font-mono text-muted-foreground/60 print:text-muted-foreground">{num}</span>
+        <h2 className="text-sm font-semibold text-foreground print:text-black">{title}</h2>
       </div>
       {children}
     </div>
@@ -148,9 +148,9 @@ function ViewMode({ report, tests }: { report: EvidenceReport; tests: ReportTest
                 ['Environment',    report.environment],
                 ['Report Type',    REPORT_TYPE_LABELS[report.report_type]],
               ].map(([k, v]) => (
-                <tr key={k} className="border-b border-zinc-800/50 print:border-zinc-200">
-                  <td className="py-2 pr-4 font-medium text-zinc-500 print:text-zinc-600 whitespace-nowrap">{k}</td>
-                  <td className="py-2 text-white print:text-black">{v}</td>
+                <tr key={k} className="border-b border-border/50 print:border-border">
+                  <td className="py-2 pr-4 font-medium text-muted-foreground/80 print:text-muted-foreground/60 whitespace-nowrap">{k}</td>
+                  <td className="py-2 text-foreground print:text-black">{v}</td>
                 </tr>
               ))}
             </tbody>
@@ -158,14 +158,14 @@ function ViewMode({ report, tests }: { report: EvidenceReport; tests: ReportTest
           <div>
             <div className="grid grid-cols-2 gap-3 mb-4">
               {[
-                { label: 'Total Tests',   value: tests.length, colour: 'text-white' },
+                { label: 'Total Tests',   value: tests.length, colour: 'text-foreground' },
                 { label: 'Passed',        value: passed,       colour: 'text-emerald-400' },
                 { label: 'Failed',        value: failed,       colour: 'text-red-400' },
                 { label: 'Inconclusive',  value: inconclusive, colour: 'text-amber-400' },
               ].map(({ label, value, colour }) => (
-                <div key={label} className="bg-zinc-900 print:bg-zinc-100 border border-zinc-800 print:border-zinc-200 rounded p-3 text-center">
+                <div key={label} className="bg-card print:bg-muted border border-border print:border-border rounded p-3 text-center">
                   <div className={`text-2xl font-bold ${colour}`}>{value}</div>
-                  <div className="text-xs text-zinc-500 mt-0.5">{label}</div>
+                  <div className="text-xs text-muted-foreground/80 mt-0.5">{label}</div>
                 </div>
               ))}
             </div>
@@ -173,14 +173,14 @@ function ViewMode({ report, tests }: { report: EvidenceReport; tests: ReportTest
               <div className="bg-red-500/10 border border-red-500/30 rounded p-3">
                 <p className="text-xs font-medium text-red-400 mb-1">Critical Gaps ({criticalGaps.length})</p>
                 {criticalGaps.map(t => (
-                  <p key={t.id} className="text-xs text-zinc-400">{t.test_code} — {t.test_vector}</p>
+                  <p key={t.id} className="text-xs text-muted-foreground">{t.test_code} — {t.test_vector}</p>
                 ))}
               </div>
             )}
           </div>
         </div>
         {report.notes && (
-          <p className="text-xs text-zinc-400 print:text-zinc-600 bg-zinc-900/50 print:bg-zinc-50 rounded p-3 border border-zinc-800 print:border-zinc-200">
+          <p className="text-xs text-muted-foreground print:text-muted-foreground/60 bg-card/50 print:bg-muted rounded p-3 border border-border print:border-border">
             {report.notes}
           </p>
         )}
@@ -191,27 +191,27 @@ function ViewMode({ report, tests }: { report: EvidenceReport; tests: ReportTest
         <div className="overflow-x-auto">
           <table className="w-full text-xs min-w-[900px]">
             <thead>
-              <tr className="border-b border-zinc-800 print:border-zinc-300 bg-zinc-900/60 print:bg-zinc-50">
+              <tr className="border-b border-border print:border-border bg-card/60 print:bg-muted">
                 {['Test ID', 'Channel', 'Vector', 'Data Type', 'Regulation', 'Control', 'Expected', 'Actual', 'Status', 'Severity'].map(h => (
-                  <th key={h} className="text-left px-3 py-2 font-medium text-zinc-500 print:text-zinc-600 whitespace-nowrap">{h}</th>
+                  <th key={h} className="text-left px-3 py-2 font-medium text-muted-foreground/80 print:text-muted-foreground/60 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {tests.map((t, i) => (
-                <tr key={t.id} className={`${i < tests.length - 1 ? 'border-b border-zinc-800/40 print:border-zinc-200' : ''}`}>
-                  <td className="px-3 py-2 font-mono text-zinc-300 print:text-zinc-700 whitespace-nowrap">{t.test_code}</td>
-                  <td className="px-3 py-2 text-zinc-400 print:text-zinc-600">{t.channel}</td>
-                  <td className="px-3 py-2 text-zinc-300 print:text-zinc-700">{t.test_vector}</td>
-                  <td className="px-3 py-2 text-zinc-400 print:text-zinc-600">{t.data_type}</td>
-                  <td className="px-3 py-2 text-zinc-500 print:text-zinc-600">
+                <tr key={t.id} className={`${i < tests.length - 1 ? 'border-b border-border/40 print:border-border' : ''}`}>
+                  <td className="px-3 py-2 font-mono text-foreground/70 print:text-muted-foreground/40 whitespace-nowrap">{t.test_code}</td>
+                  <td className="px-3 py-2 text-muted-foreground print:text-muted-foreground/60">{t.channel}</td>
+                  <td className="px-3 py-2 text-foreground/70 print:text-muted-foreground/40">{t.test_vector}</td>
+                  <td className="px-3 py-2 text-muted-foreground print:text-muted-foreground/60">{t.data_type}</td>
+                  <td className="px-3 py-2 text-muted-foreground/80 print:text-muted-foreground/60">
                     {t.regulation_tags.join(', ') || '—'}
                   </td>
-                  <td className="px-3 py-2 text-zinc-500 print:text-zinc-600">{t.control_mapping || '—'}</td>
-                  <td className="px-3 py-2 text-zinc-400 print:text-zinc-600">
+                  <td className="px-3 py-2 text-muted-foreground/80 print:text-muted-foreground/60">{t.control_mapping || '—'}</td>
+                  <td className="px-3 py-2 text-muted-foreground print:text-muted-foreground/60">
                     {EXPECTED_RESULT_LABELS[t.expected_result]}
                   </td>
-                  <td className="px-3 py-2 text-zinc-300 print:text-zinc-700">
+                  <td className="px-3 py-2 text-foreground/70 print:text-muted-foreground/40">
                     {ACTUAL_RESULT_LABELS[t.actual_result]}
                   </td>
                   <td className="px-3 py-2"><StatusBadge status={t.final_status} /></td>
@@ -221,7 +221,7 @@ function ViewMode({ report, tests }: { report: EvidenceReport; tests: ReportTest
             </tbody>
           </table>
           {tests.length === 0 && (
-            <p className="text-center py-6 text-zinc-600 text-xs">No tests added to this report yet</p>
+            <p className="text-center py-6 text-muted-foreground/60 text-xs">No tests added to this report yet</p>
           )}
         </div>
       </Section>
@@ -229,22 +229,22 @@ function ViewMode({ report, tests }: { report: EvidenceReport; tests: ReportTest
       {/* 03 — Test Payload Evidence */}
       <Section num="03" title="Test Payload Evidence">
         {tests.filter(t => t.payload_summary || t.evidence_notes).length === 0 ? (
-          <p className="text-xs text-zinc-600">No payload evidence recorded for these tests.</p>
+          <p className="text-xs text-muted-foreground/60">No payload evidence recorded for these tests.</p>
         ) : (
           <div className="space-y-3">
             {tests.filter(t => t.payload_summary || t.evidence_notes).map(t => (
-              <div key={t.id} className="bg-zinc-900/50 print:bg-zinc-50 border border-zinc-800 print:border-zinc-200 rounded p-4">
+              <div key={t.id} className="bg-card/50 print:bg-muted border border-border print:border-border rounded p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="font-mono text-xs text-zinc-500">{t.test_code}</span>
-                  <span className="text-zinc-700">·</span>
-                  <span className="text-xs text-zinc-400">{t.test_vector}</span>
+                  <span className="font-mono text-xs text-muted-foreground/80">{t.test_code}</span>
+                  <span className="text-muted-foreground/40">·</span>
+                  <span className="text-xs text-muted-foreground">{t.test_vector}</span>
                 </div>
                 {t.payload_summary && (
-                  <p className="text-xs font-mono bg-zinc-950 print:bg-white print:border print:border-zinc-200 text-zinc-300 print:text-zinc-700 rounded p-3 mb-2">{t.payload_summary}</p>
+                  <p className="text-xs font-mono bg-background print:bg-white print:border print:border-border text-foreground/70 print:text-muted-foreground/40 rounded p-3 mb-2">{t.payload_summary}</p>
                 )}
                 <div className="flex items-center gap-4 text-xs">
-                  <span className="text-zinc-500">Source: <span className="text-zinc-300 print:text-zinc-700">{t.data_source}</span></span>
-                  {t.evidence_notes && <span className="text-zinc-500">Notes: <span className="text-zinc-300 print:text-zinc-700">{t.evidence_notes}</span></span>}
+                  <span className="text-muted-foreground/80">Source: <span className="text-foreground/70 print:text-muted-foreground/40">{t.data_source}</span></span>
+                  {t.evidence_notes && <span className="text-muted-foreground/80">Notes: <span className="text-foreground/70 print:text-muted-foreground/40">{t.evidence_notes}</span></span>}
                 </div>
               </div>
             ))}
@@ -256,37 +256,37 @@ function ViewMode({ report, tests }: { report: EvidenceReport; tests: ReportTest
       <Section num="04" title="Expected Control Behaviour">
         <div className="space-y-3">
           {tests.map(t => (
-            <div key={t.id} className="bg-zinc-900/50 print:bg-zinc-50 border border-zinc-800 print:border-zinc-200 rounded p-4">
+            <div key={t.id} className="bg-card/50 print:bg-muted border border-border print:border-border rounded p-4">
               <div className="flex items-center gap-2 mb-2">
-                <span className="font-mono text-xs text-zinc-500">{t.test_code}</span>
-                <span className="text-zinc-700">·</span>
-                <span className="text-xs text-zinc-300 print:text-zinc-700">{t.test_vector}</span>
+                <span className="font-mono text-xs text-muted-foreground/80">{t.test_code}</span>
+                <span className="text-muted-foreground/40">·</span>
+                <span className="text-xs text-foreground/70 print:text-muted-foreground/40">{t.test_vector}</span>
               </div>
               <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
                 <div className="flex gap-2">
-                  <span className="text-zinc-500 w-28 shrink-0">Expected Action</span>
-                  <span className="text-zinc-300 print:text-zinc-700">{EXPECTED_RESULT_LABELS[t.expected_result]}</span>
+                  <span className="text-muted-foreground/80 w-28 shrink-0">Expected Action</span>
+                  <span className="text-foreground/70 print:text-muted-foreground/40">{EXPECTED_RESULT_LABELS[t.expected_result]}</span>
                 </div>
                 {t.expected_policy && (
                   <div className="flex gap-2">
-                    <span className="text-zinc-500 w-28 shrink-0">Policy</span>
-                    <span className="text-zinc-300 print:text-zinc-700">{t.expected_policy}</span>
+                    <span className="text-muted-foreground/80 w-28 shrink-0">Policy</span>
+                    <span className="text-foreground/70 print:text-muted-foreground/40">{t.expected_policy}</span>
                   </div>
                 )}
                 <div className="flex gap-2">
-                  <span className="text-zinc-500 w-28 shrink-0">Alert Expected</span>
-                  <span className={t.expected_alert ? 'text-emerald-400' : 'text-zinc-400'}>{t.expected_alert ? 'Yes' : 'No'}</span>
+                  <span className="text-muted-foreground/80 w-28 shrink-0">Alert Expected</span>
+                  <span className={t.expected_alert ? 'text-emerald-400' : 'text-muted-foreground'}>{t.expected_alert ? 'Yes' : 'No'}</span>
                 </div>
                 {t.expected_description && (
                   <div className="flex gap-2 col-span-2">
-                    <span className="text-zinc-500 w-28 shrink-0">Description</span>
-                    <span className="text-zinc-300 print:text-zinc-700">{t.expected_description}</span>
+                    <span className="text-muted-foreground/80 w-28 shrink-0">Description</span>
+                    <span className="text-foreground/70 print:text-muted-foreground/40">{t.expected_description}</span>
                   </div>
                 )}
               </div>
             </div>
           ))}
-          {tests.length === 0 && <p className="text-xs text-zinc-600">No tests added.</p>}
+          {tests.length === 0 && <p className="text-xs text-muted-foreground/60">No tests added.</p>}
         </div>
       </Section>
 
@@ -294,27 +294,27 @@ function ViewMode({ report, tests }: { report: EvidenceReport; tests: ReportTest
       <Section num="05" title="Actual Result">
         <div className="space-y-3">
           {tests.map(t => (
-            <div key={t.id} className="bg-zinc-900/50 print:bg-zinc-50 border border-zinc-800 print:border-zinc-200 rounded p-4">
+            <div key={t.id} className="bg-card/50 print:bg-muted border border-border print:border-border rounded p-4">
               <div className="flex items-center gap-3 mb-2">
-                <span className="font-mono text-xs text-zinc-500">{t.test_code}</span>
-                <span className="text-zinc-700">·</span>
-                <span className="text-xs text-zinc-300 print:text-zinc-700">{t.test_vector}</span>
+                <span className="font-mono text-xs text-muted-foreground/80">{t.test_code}</span>
+                <span className="text-muted-foreground/40">·</span>
+                <span className="text-xs text-foreground/70 print:text-muted-foreground/40">{t.test_vector}</span>
                 <StatusBadge status={t.final_status} />
               </div>
               <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
                 <div className="flex gap-2">
-                  <span className="text-zinc-500 w-28 shrink-0">Actual Result</span>
-                  <span className="text-zinc-300 print:text-zinc-700">{ACTUAL_RESULT_LABELS[t.actual_result]}</span>
+                  <span className="text-muted-foreground/80 w-28 shrink-0">Actual Result</span>
+                  <span className="text-foreground/70 print:text-muted-foreground/40">{ACTUAL_RESULT_LABELS[t.actual_result]}</span>
                 </div>
                 {t.http_response_code != null && (
                   <div className="flex gap-2">
-                    <span className="text-zinc-500 w-28 shrink-0">HTTP Status</span>
-                    <span className="font-mono text-zinc-300 print:text-zinc-700">{t.http_response_code}</span>
+                    <span className="text-muted-foreground/80 w-28 shrink-0">HTTP Status</span>
+                    <span className="font-mono text-foreground/70 print:text-muted-foreground/40">{t.http_response_code}</span>
                   </div>
                 )}
                 {t.dlp_alert_generated != null && (
                   <div className="flex gap-2">
-                    <span className="text-zinc-500 w-28 shrink-0">Alert Generated</span>
+                    <span className="text-muted-foreground/80 w-28 shrink-0">Alert Generated</span>
                     <span className={t.dlp_alert_generated ? 'text-emerald-400' : 'text-red-400'}>
                       {t.dlp_alert_generated ? 'Yes' : 'No'}
                     </span>
@@ -322,53 +322,53 @@ function ViewMode({ report, tests }: { report: EvidenceReport; tests: ReportTest
                 )}
                 {t.response_time_ms != null && (
                   <div className="flex gap-2">
-                    <span className="text-zinc-500 w-28 shrink-0">Response Time</span>
-                    <span className="text-zinc-300 print:text-zinc-700">{t.response_time_ms} ms</span>
+                    <span className="text-muted-foreground/80 w-28 shrink-0">Response Time</span>
+                    <span className="text-foreground/70 print:text-muted-foreground/40">{t.response_time_ms} ms</span>
                   </div>
                 )}
                 {t.evidence_notes && (
                   <div className="flex gap-2 col-span-2">
-                    <span className="text-zinc-500 w-28 shrink-0">Notes</span>
-                    <span className="text-zinc-300 print:text-zinc-700">{t.evidence_notes}</span>
+                    <span className="text-muted-foreground/80 w-28 shrink-0">Notes</span>
+                    <span className="text-foreground/70 print:text-muted-foreground/40">{t.evidence_notes}</span>
                   </div>
                 )}
               </div>
             </div>
           ))}
-          {tests.length === 0 && <p className="text-xs text-zinc-600">No tests added.</p>}
+          {tests.length === 0 && <p className="text-xs text-muted-foreground/60">No tests added.</p>}
         </div>
       </Section>
 
       {/* 06 — Gap Analysis */}
       <Section num="06" title="Gap Analysis">
         {gapTests.length === 0 ? (
-          <p className="text-xs text-zinc-500">No gaps identified — all tests passed.</p>
+          <p className="text-xs text-muted-foreground/80">No gaps identified — all tests passed.</p>
         ) : (
           <div className="space-y-3">
             {gapTests.map(t => (
-              <div key={t.id} className="bg-zinc-900/50 print:bg-zinc-50 border border-red-500/20 print:border-zinc-200 rounded p-4">
+              <div key={t.id} className="bg-card/50 print:bg-muted border border-red-500/20 print:border-border rounded p-4">
                 <div className="flex items-center gap-3 mb-2">
-                  <span className="font-mono text-xs text-zinc-500">{t.test_code}</span>
+                  <span className="font-mono text-xs text-muted-foreground/80">{t.test_code}</span>
                   <StatusBadge status={t.final_status} />
                   <SeverityBadge severity={t.severity} />
                 </div>
                 <div className="grid grid-cols-1 gap-y-1.5 text-xs">
                   {t.gap_reason && (
                     <div className="flex gap-2">
-                      <span className="text-zinc-500 w-32 shrink-0">Gap Reason</span>
+                      <span className="text-muted-foreground/80 w-32 shrink-0">Gap Reason</span>
                       <span className="text-red-300 print:text-red-700 font-medium">{GAP_REASON_LABELS[t.gap_reason]}</span>
                     </div>
                   )}
                   {t.gap_notes && (
                     <div className="flex gap-2">
-                      <span className="text-zinc-500 w-32 shrink-0">Gap Notes</span>
-                      <span className="text-zinc-300 print:text-zinc-700">{t.gap_notes}</span>
+                      <span className="text-muted-foreground/80 w-32 shrink-0">Gap Notes</span>
+                      <span className="text-foreground/70 print:text-muted-foreground/40">{t.gap_notes}</span>
                     </div>
                   )}
                   {t.recommendation && (
                     <div className="flex gap-2">
-                      <span className="text-zinc-500 w-32 shrink-0">Recommendation</span>
-                      <span className="text-zinc-300 print:text-zinc-700">{t.recommendation}</span>
+                      <span className="text-muted-foreground/80 w-32 shrink-0">Recommendation</span>
+                      <span className="text-foreground/70 print:text-muted-foreground/40">{t.recommendation}</span>
                     </div>
                   )}
                 </div>
@@ -381,17 +381,17 @@ function ViewMode({ report, tests }: { report: EvidenceReport; tests: ReportTest
       {/* 07 — Recommendations */}
       <Section num="07" title="Recommendations">
         {recGroups.size === 0 ? (
-          <p className="text-xs text-zinc-500">No recommendations recorded.</p>
+          <p className="text-xs text-muted-foreground/80">No recommendations recorded.</p>
         ) : (
           <div className="space-y-4">
             {Array.from(recGroups.entries()).map(([group, groupTests]) => (
               <div key={group}>
-                <p className="text-xs font-medium text-zinc-400 print:text-zinc-600 mb-2">{group}</p>
+                <p className="text-xs font-medium text-muted-foreground print:text-muted-foreground/60 mb-2">{group}</p>
                 <div className="space-y-1">
                   {groupTests.map(t => (
-                    <div key={t.id} className="flex gap-3 text-xs bg-zinc-900/40 print:bg-zinc-50 border border-zinc-800 print:border-zinc-200 rounded px-3 py-2">
-                      <span className="font-mono text-zinc-500 shrink-0">{t.test_code}</span>
-                      <span className="text-zinc-300 print:text-zinc-700">{t.recommendation}</span>
+                    <div key={t.id} className="flex gap-3 text-xs bg-card/40 print:bg-muted border border-border print:border-border rounded px-3 py-2">
+                      <span className="font-mono text-muted-foreground/80 shrink-0">{t.test_code}</span>
+                      <span className="text-foreground/70 print:text-muted-foreground/40">{t.recommendation}</span>
                     </div>
                   ))}
                 </div>
@@ -410,7 +410,7 @@ function ViewMode({ report, tests }: { report: EvidenceReport; tests: ReportTest
           {report.overall_result === 'inconclusive'     && <AlertCircle className="w-6 h-6" />}
           {OVERALL_LABELS[report.overall_result]}
         </div>
-        <p className="text-xs text-zinc-500 mt-3">
+        <p className="text-xs text-muted-foreground/80 mt-3">
           Report generated {new Date(report.created_at).toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' })}
         </p>
       </Section>
@@ -431,17 +431,17 @@ function TestCard({
   const [confirming, setConfirming] = useState(false)
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+    <div className="bg-card border border-border rounded-lg p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-            <span className="font-mono text-xs text-zinc-500">{test.test_code}</span>
-            <span className="px-2 py-0.5 bg-zinc-800 text-zinc-400 text-xs rounded">{test.channel}</span>
-            <span className="text-xs text-zinc-400">{test.data_type}</span>
+            <span className="font-mono text-xs text-muted-foreground/80">{test.test_code}</span>
+            <span className="px-2 py-0.5 bg-muted text-muted-foreground text-xs rounded">{test.channel}</span>
+            <span className="text-xs text-muted-foreground">{test.data_type}</span>
             <SeverityBadge severity={test.severity} />
             <StatusBadge status={test.final_status} />
           </div>
-          <p className="text-xs text-zinc-300 mb-1">{test.test_vector}</p>
+          <p className="text-xs text-foreground/70 mb-1">{test.test_vector}</p>
           {test.regulation_tags.length > 0 && (
             <div className="flex gap-1 flex-wrap">
               {test.regulation_tags.map(tag => (
@@ -454,21 +454,21 @@ function TestCard({
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <button onClick={onEdit} title="Edit" className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded transition-colors">
+          <button onClick={onEdit} title="Edit" className="p-1.5 text-muted-foreground/80 hover:text-foreground hover:bg-muted rounded transition-colors">
             <Pencil className="w-3.5 h-3.5" />
           </button>
-          <button onClick={onDuplicate} title="Duplicate" className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded transition-colors">
+          <button onClick={onDuplicate} title="Duplicate" className="p-1.5 text-muted-foreground/80 hover:text-foreground hover:bg-muted rounded transition-colors">
             <Copy className="w-3.5 h-3.5" />
           </button>
           {confirming ? (
             <div className="flex items-center gap-1">
-              <button onClick={onDelete} className="p-1.5 text-red-400 hover:bg-zinc-800 rounded transition-colors">
+              <button onClick={onDelete} className="p-1.5 text-red-400 hover:bg-muted rounded transition-colors">
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
-              <button onClick={() => setConfirming(false)} className="p-1.5 text-zinc-500 hover:bg-zinc-800 rounded transition-colors text-[10px]">✕</button>
+              <button onClick={() => setConfirming(false)} className="p-1.5 text-muted-foreground/80 hover:bg-muted rounded transition-colors text-[10px]">✕</button>
             </div>
           ) : (
-            <button onClick={() => setConfirming(true)} title="Delete" className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-zinc-800 rounded transition-colors">
+            <button onClick={() => setConfirming(true)} title="Delete" className="p-1.5 text-muted-foreground/60 hover:text-red-400 hover:bg-muted rounded transition-colors">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
@@ -512,45 +512,45 @@ function HeaderEditForm({
     })
   }
 
-  const inputCls = 'w-full px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded text-xs text-white focus:outline-none focus:border-blue-500 transition-colors'
-  const selectCls = 'w-full px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded text-xs text-white focus:outline-none focus:border-blue-500 transition-colors'
+  const inputCls = 'w-full px-2.5 py-1.5 bg-card border border-border-strong rounded text-xs text-foreground focus:outline-none focus:border-blue-500 transition-colors'
+  const selectCls = 'w-full px-2.5 py-1.5 bg-card border border-border-strong rounded text-xs text-foreground focus:outline-none focus:border-blue-500 transition-colors'
 
   return (
-    <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-4 mb-6">
-      <p className="text-xs font-medium text-zinc-400 mb-3">Report Header</p>
+    <div className="bg-card/60 border border-border rounded-lg p-4 mb-6">
+      <p className="text-xs font-medium text-muted-foreground mb-3">Report Header</p>
       <div className="grid grid-cols-2 gap-3 mb-3">
         <div className="col-span-2">
-          <label className="text-[10px] text-zinc-500 mb-1 block">Report Name</label>
+          <label className="text-[10px] text-muted-foreground/80 mb-1 block">Report Name</label>
           <input value={name} onChange={e => setName(e.target.value)} className={inputCls} />
         </div>
         <div>
-          <label className="text-[10px] text-zinc-500 mb-1 block">Assessment Date</label>
+          <label className="text-[10px] text-muted-foreground/80 mb-1 block">Assessment Date</label>
           <input type="date" value={assessedOn} onChange={e => setAssessedOn(e.target.value)} className={inputCls} />
         </div>
         <div>
-          <label className="text-[10px] text-zinc-500 mb-1 block">Tested By</label>
+          <label className="text-[10px] text-muted-foreground/80 mb-1 block">Tested By</label>
           <input value={testedBy} onChange={e => setTestedBy(e.target.value)} className={inputCls} />
         </div>
         <div>
-          <label className="text-[10px] text-zinc-500 mb-1 block">Environment</label>
+          <label className="text-[10px] text-muted-foreground/80 mb-1 block">Environment</label>
           <select value={environment} onChange={e => setEnvironment(e.target.value)} className={selectCls}>
             {ENVIRONMENTS.map(v => <option key={v} value={v}>{v}</option>)}
           </select>
         </div>
         <div>
-          <label className="text-[10px] text-zinc-500 mb-1 block">Report Type</label>
+          <label className="text-[10px] text-muted-foreground/80 mb-1 block">Report Type</label>
           <select value={reportType} onChange={e => setReportType(e.target.value as ReportType)} className={selectCls}>
             {REPORT_TYPES.map(v => <option key={v} value={v}>{REPORT_TYPE_LABELS[v]}</option>)}
           </select>
         </div>
         <div>
-          <label className="text-[10px] text-zinc-500 mb-1 block">Overall Result</label>
+          <label className="text-[10px] text-muted-foreground/80 mb-1 block">Overall Result</label>
           <select value={overallResult} onChange={e => setOverallResult(e.target.value as OverallResult)} className={selectCls}>
             {OVERALL_OPTIONS.map(v => <option key={v} value={v}>{OVERALL_LABELS[v]}</option>)}
           </select>
         </div>
         <div className="col-span-2">
-          <label className="text-[10px] text-zinc-500 mb-1 block">Notes</label>
+          <label className="text-[10px] text-muted-foreground/80 mb-1 block">Notes</label>
           <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
             className={`${inputCls} resize-none`} />
         </div>
@@ -559,7 +559,7 @@ function HeaderEditForm({
       <button
         onClick={save}
         disabled={isPending}
-        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white text-xs font-medium rounded transition-colors"
+        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-foreground text-xs font-medium rounded transition-colors"
       >
         {isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
         Save Changes
@@ -650,7 +650,7 @@ export function ReportDetailClient({ report: initialReport, tests: initialTests,
         {/* Back + breadcrumb */}
         <button
           onClick={() => router.push('/tools/evidence-report')}
-          className="flex items-center gap-1.5 text-zinc-500 hover:text-zinc-300 text-xs mb-4 transition-colors"
+          className="flex items-center gap-1.5 text-muted-foreground/80 hover:text-foreground/70 text-xs mb-4 transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           All Reports
@@ -660,12 +660,12 @@ export function ReportDetailClient({ report: initialReport, tests: initialTests,
         <div className="flex items-start justify-between gap-4 mb-6">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-xl font-bold text-white">{report.name}</h1>
+              <h1 className="text-xl font-bold text-foreground">{report.name}</h1>
               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${overallColour}`}>
                 {OVERALL_LABELS[report.overall_result]}
               </span>
             </div>
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-muted-foreground/80">
               {REPORT_TYPE_LABELS[report.report_type]} · {report.environment} ·{' '}
               Assessed {new Date(report.assessed_on).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })} ·{' '}
               By {report.tested_by}
@@ -674,21 +674,21 @@ export function ReportDetailClient({ report: initialReport, tests: initialTests,
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => { setMode('view'); router.replace(`/tools/evidence-report/${report.id}`) }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-colors ${mode === 'view' ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-colors ${mode === 'view' ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
             >
               <Eye className="w-3.5 h-3.5" />
               View
             </button>
             <button
               onClick={() => { setMode('edit'); router.replace(`/tools/evidence-report/${report.id}?mode=edit`) }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-colors ${mode === 'edit' ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-colors ${mode === 'edit' ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
             >
               <Edit3 className="w-3.5 h-3.5" />
               Edit
             </button>
             <button
               onClick={() => window.print()}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 rounded transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
             >
               <Printer className="w-3.5 h-3.5" />
               Print / PDF
@@ -700,12 +700,12 @@ export function ReportDetailClient({ report: initialReport, tests: initialTests,
       {/* Print header — shown only on print */}
       <div className="hidden print:block mb-8">
         <h1 className="text-2xl font-bold text-black">{report.name}</h1>
-        <p className="text-sm text-zinc-600 mt-1">
+        <p className="text-sm text-muted-foreground/60 mt-1">
           {REPORT_TYPE_LABELS[report.report_type]} · {report.environment} ·
           Assessed {new Date(report.assessed_on).toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' })} ·
           Tested by {report.tested_by}
         </p>
-        <hr className="mt-4 border-zinc-300" />
+        <hr className="mt-4 border-border" />
       </div>
 
       {/* ── EDIT MODE ─────────────────────────────────────────────── */}
@@ -717,10 +717,10 @@ export function ReportDetailClient({ report: initialReport, tests: initialTests,
           />
 
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-medium text-zinc-400">Test Records ({tests.length})</p>
+            <p className="text-xs font-medium text-muted-foreground">Test Records ({tests.length})</p>
             <button
               onClick={() => { setEditingTest(undefined); setModalOpen(true) }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-foreground text-xs font-medium rounded transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               Add Test
@@ -728,12 +728,12 @@ export function ReportDetailClient({ report: initialReport, tests: initialTests,
           </div>
 
           {tests.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 border border-dashed border-zinc-800 rounded-lg text-center">
-              <p className="text-zinc-500 text-sm mb-1">No tests yet</p>
-              <p className="text-zinc-600 text-xs mb-4">Import from Control Validator or add manually</p>
+            <div className="flex flex-col items-center justify-center py-12 border border-dashed border-border rounded-lg text-center">
+              <p className="text-muted-foreground/80 text-sm mb-1">No tests yet</p>
+              <p className="text-muted-foreground/60 text-xs mb-4">Import from Control Validator or add manually</p>
               <button
                 onClick={() => { setEditingTest(undefined); setModalOpen(true) }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-foreground text-xs font-medium rounded transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Add First Test

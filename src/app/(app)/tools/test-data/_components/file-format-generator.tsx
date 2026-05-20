@@ -374,9 +374,9 @@ export function FileFormatGenerator() {
     <div className="space-y-6 max-w-4xl">
 
       {/* ── AI Generator ── */}
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+      <div className="rounded-xl border border-border bg-card/50 p-5">
         <div className="flex items-center gap-2 mb-3">
-          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">AI File Generator</p>
+          <p className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest">AI File Generator</p>
           <Sparkles className="w-3 h-3 text-purple-400 mb-0.5" />
         </div>
 
@@ -387,12 +387,12 @@ export function FileFormatGenerator() {
             onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleGenerate() }}
             placeholder='Describe any file you need… e.g. "Generate a .pem RSA private key" or "Nginx access log with credit card numbers accidentally logged" or "Kubernetes secret YAML with AWS credentials" or "Excel spreadsheet with 20 rows of HIPAA patient data"'
             rows={3}
-            className="flex-1 bg-zinc-800 text-white text-sm px-3 py-2.5 rounded-lg border border-zinc-700 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 resize-none"
+            className="flex-1 bg-muted text-foreground text-sm px-3 py-2.5 rounded-lg border border-border-strong placeholder:text-muted-foreground/50 focus:outline-none focus:border-blue-500 resize-none"
           />
           <button
             onClick={handleGenerate}
             disabled={isPending || !aiPrompt.trim()}
-            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap shrink-0"
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap shrink-0"
           >
             {isPending
               ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
@@ -400,7 +400,7 @@ export function FileFormatGenerator() {
             }
           </button>
         </div>
-        <p className="mt-1.5 text-[10px] text-zinc-600">⌘ + Enter to generate · Any file format supported</p>
+        <p className="mt-1.5 text-[10px] text-muted-foreground/60">⌘ + Enter to generate · Any file format supported</p>
 
         {aiError && (
           <div className="mt-3 flex items-start gap-2 px-3 py-2.5 bg-red-500/10 border border-red-500/30 rounded-lg">
@@ -415,7 +415,7 @@ export function FileFormatGenerator() {
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-emerald-400">{result.filename} — downloaded</p>
               {result.description && (
-                <p className="text-[10px] text-zinc-500 mt-0.5 truncate">{result.description}</p>
+                <p className="text-[10px] text-muted-foreground/80 mt-0.5 truncate">{result.description}</p>
               )}
             </div>
           </div>
@@ -424,33 +424,33 @@ export function FileFormatGenerator() {
 
       {/* ── Recent AI Searches ── */}
       {recentSearches.length > 0 && (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
+        <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
           <button
             onClick={() => setHistoryOpen(o => !o)}
-            className="w-full flex items-center justify-between px-5 py-3 hover:bg-zinc-800/40 transition-colors"
+            className="w-full flex items-center justify-between px-5 py-3 hover:bg-muted/40 transition-colors"
           >
             <div className="flex items-center gap-2">
-              <Clock className="w-3.5 h-3.5 text-zinc-500" />
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Recent AI Searches</span>
-              <span className="text-[10px] text-zinc-600">{recentSearches.length}</span>
+              <Clock className="w-3.5 h-3.5 text-muted-foreground/80" />
+              <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest">Recent AI Searches</span>
+              <span className="text-[10px] text-muted-foreground/60">{recentSearches.length}</span>
             </div>
-            <ChevronDown className={cn('w-3.5 h-3.5 text-zinc-600 transition-transform', historyOpen && 'rotate-180')} />
+            <ChevronDown className={cn('w-3.5 h-3.5 text-muted-foreground/60 transition-transform', historyOpen && 'rotate-180')} />
           </button>
           {historyOpen && (
-            <div className="border-t border-zinc-800/60 divide-y divide-zinc-800/40">
+            <div className="border-t border-border/60 divide-y divide-border/40">
               {recentSearches.map(s => (
-                <div key={s.id} className="flex items-start justify-between gap-3 px-5 py-2.5 hover:bg-zinc-800/20 transition-colors">
+                <div key={s.id} className="flex items-start justify-between gap-3 px-5 py-2.5 hover:bg-muted/20 transition-colors">
                   <div className="flex-1 min-w-0">
-                    <p className="text-[11px] text-zinc-300 truncate">{s.prompt}</p>
+                    <p className="text-[11px] text-foreground/70 truncate">{s.prompt}</p>
                     {s.result && (
-                      <p className="text-[10px] text-zinc-600 mt-0.5 truncate">{s.result}</p>
+                      <p className="text-[10px] text-muted-foreground/60 mt-0.5 truncate">{s.result}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[10px] text-zinc-600 tabular-nums">{timeAgo(s.created_at)}</span>
+                    <span className="text-[10px] text-muted-foreground/60 tabular-nums">{timeAgo(s.created_at)}</span>
                     <button
                       onClick={() => { setAiPrompt(s.prompt); setResult(null); setAiError(null) }}
-                      className="text-[10px] text-zinc-600 hover:text-blue-400 transition-colors"
+                      className="text-[10px] text-muted-foreground/60 hover:text-blue-400 transition-colors"
                       title="Re-run this prompt"
                     >
                       ↺
@@ -464,12 +464,12 @@ export function FileFormatGenerator() {
       )}
 
       {/* ── Quick Templates ── */}
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
-        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Quick Templates</p>
+      <div className="rounded-xl border border-border bg-card/50 p-5">
+        <p className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest mb-4">Quick Templates</p>
         <div className="grid grid-cols-3 gap-5">
           {TEMPLATE_GROUPS.map(group => (
             <div key={group.title}>
-              <p className="text-[10px] font-semibold text-zinc-500 mb-2">{group.title}</p>
+              <p className="text-[10px] font-semibold text-muted-foreground/80 mb-2">{group.title}</p>
               <div className="space-y-1.5">
                 {group.cards.map(card => (
                   <button
@@ -480,8 +480,8 @@ export function FileFormatGenerator() {
                     <span className={`font-mono text-[11px] font-bold ${colorText[group.color]} w-11 shrink-0`}>
                       {card.ext}
                     </span>
-                    <span className="text-xs text-zinc-400">{card.desc}</span>
-                    <Download className="w-3 h-3 text-zinc-600 shrink-0 ml-auto" />
+                    <span className="text-xs text-muted-foreground">{card.desc}</span>
+                    <Download className="w-3 h-3 text-muted-foreground/60 shrink-0 ml-auto" />
                   </button>
                 ))}
               </div>
@@ -492,7 +492,7 @@ export function FileFormatGenerator() {
           {learnedTemplates.length > 0 && (
             <div>
               <div className="flex items-center gap-1.5 mb-2">
-                <p className="text-[10px] font-semibold text-zinc-500">Discovered by AI</p>
+                <p className="text-[10px] font-semibold text-muted-foreground/80">Discovered by AI</p>
                 <Sparkles className="w-2.5 h-2.5 text-violet-400" />
               </div>
               <div className="space-y-1.5">
@@ -505,8 +505,8 @@ export function FileFormatGenerator() {
                     <span className={`font-mono text-[11px] font-bold ${colorText.violet} w-11 shrink-0`}>
                       {t.ext}
                     </span>
-                    <span className="text-xs text-zinc-400">{t.description}</span>
-                    <Download className="w-3 h-3 text-zinc-600 shrink-0 ml-auto" />
+                    <span className="text-xs text-muted-foreground">{t.description}</span>
+                    <Download className="w-3 h-3 text-muted-foreground/60 shrink-0 ml-auto" />
                   </button>
                 ))}
               </div>

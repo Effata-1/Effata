@@ -123,26 +123,26 @@ function ControlRow({
 
   return (
     <>
-      <tr className="hover:bg-zinc-900/40 transition-colors">
+      <tr className="hover:bg-card/40 transition-colors">
         <td className="px-5 py-3.5">
-          <div className="text-xs font-medium text-white">{ctrl.label}</div>
-          <div className="text-xs text-zinc-500 mt-0.5 max-w-xs">{ctrl.description}</div>
+          <div className="text-xs font-medium text-foreground">{ctrl.label}</div>
+          <div className="text-xs text-muted-foreground/80 mt-0.5 max-w-xs">{ctrl.description}</div>
           {note && !panelOpen && (
-            <div className="text-[10px] text-zinc-600 italic mt-1 max-w-xs">{note}</div>
+            <div className="text-[10px] text-muted-foreground/60 italic mt-1 max-w-xs">{note}</div>
           )}
         </td>
         <td className="px-4 py-3.5 hidden md:table-cell">
           <div className="flex flex-wrap gap-1">
             {articles.length > 0
               ? articles.map(a => (
-                  <span key={a} className="text-[10px] font-mono bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded">{a}</span>
+                  <span key={a} className="text-[10px] font-mono bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{a}</span>
                 ))
-              : <span className="text-[10px] text-zinc-600">—</span>
+              : <span className="text-[10px] text-muted-foreground/60">—</span>
             }
           </div>
         </td>
         <td className="px-4 py-3.5 hidden lg:table-cell">
-          <span className="text-xs text-zinc-500">{ctrl.channel}</span>
+          <span className="text-xs text-muted-foreground/80">{ctrl.channel}</span>
         </td>
         <td className="px-4 py-3.5">
           <button
@@ -161,7 +161,7 @@ function ControlRow({
           <button
             onClick={togglePanel}
             title="Notes & history"
-            className={cn('transition-colors', panelOpen ? 'text-blue-400' : 'text-zinc-600 hover:text-zinc-400')}
+            className={cn('transition-colors', panelOpen ? 'text-blue-400' : 'text-muted-foreground/60 hover:text-muted-foreground')}
           >
             <FileText className="h-3.5 w-3.5" />
           </button>
@@ -169,35 +169,35 @@ function ControlRow({
       </tr>
 
       {panelOpen && (
-        <tr className="bg-zinc-900/60">
+        <tr className="bg-card/60">
           <td colSpan={5} className="px-5 py-3">
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               <div>
-                <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">Evidence note</p>
+                <p className="text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wide mb-1.5">Evidence note</p>
                 <textarea
                   value={noteValue}
                   onChange={e => setNoteValue(e.target.value)}
                   onBlur={handleNoteBlur}
                   rows={3}
                   placeholder="Add evidence or implementation notes…"
-                  className="w-full text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-white placeholder:text-zinc-600 resize-none focus:outline-none focus:border-blue-600"
+                  className="w-full text-xs bg-muted border border-border-strong rounded px-2 py-1.5 text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:border-blue-600"
                 />
               </div>
               <div>
-                <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">Change history</p>
+                <p className="text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wide mb-1.5">Change history</p>
                 {loadingHistory ? (
-                  <p className="text-xs text-zinc-600">Loading…</p>
+                  <p className="text-xs text-muted-foreground/60">Loading…</p>
                 ) : !history || history.length === 0 ? (
-                  <p className="text-xs text-zinc-600">No history yet.</p>
+                  <p className="text-xs text-muted-foreground/60">No history yet.</p>
                 ) : (
                   <div className="space-y-1">
                     {history.map((e, i) => (
                       <div key={i} className="flex items-center gap-3 text-[10px]">
-                        <span className="text-zinc-600 shrink-0 tabular-nums">
+                        <span className="text-muted-foreground/60 shrink-0 tabular-nums">
                           {new Date(e.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}
                         </span>
-                        <span className="text-zinc-500 truncate">{e.user_email ?? 'unknown'}</span>
-                        <span className="text-zinc-600 shrink-0">{e.old_value ?? '—'} → {e.new_value ?? '—'}</span>
+                        <span className="text-muted-foreground/80 truncate">{e.user_email ?? 'unknown'}</span>
+                        <span className="text-muted-foreground/60 shrink-0">{e.old_value ?? '—'} → {e.new_value ?? '—'}</span>
                       </div>
                     ))}
                   </div>
@@ -265,7 +265,7 @@ export function GapReportClient({
     <div className="space-y-5">
       {/* Regulation selector */}
       <div className="flex items-center gap-3">
-        <span className="text-xs text-zinc-500 shrink-0">Regulation</span>
+        <span className="text-xs text-muted-foreground/80 shrink-0">Regulation</span>
         <SearchableSelect
           options={regulations.map(r => ({ value: r.code, label: r.short_name }))}
           value={currentRegCode}
@@ -297,10 +297,10 @@ export function GapReportClient({
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-5 py-4">
-          <div className="text-2xl font-bold text-white tabular-nums">{score}%</div>
-          <div className="text-xs text-zinc-500 mt-0.5">Compliance score</div>
-          <div className="mt-2 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+        <div className="rounded-xl border border-border bg-card/40 px-5 py-4">
+          <div className="text-2xl font-bold text-foreground tabular-nums">{score}%</div>
+          <div className="text-xs text-muted-foreground/80 mt-0.5">Compliance score</div>
+          <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
             <div
               className={cn(
                 'h-full rounded-full transition-all',
@@ -311,31 +311,31 @@ export function GapReportClient({
           </div>
         </div>
 
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-5 py-4">
-          <div className="text-2xl font-bold text-white tabular-nums">
-            {implemented}<span className="text-zinc-600 text-base">/{DLP_CONTROLS.length}</span>
+        <div className="rounded-xl border border-border bg-card/40 px-5 py-4">
+          <div className="text-2xl font-bold text-foreground tabular-nums">
+            {implemented}<span className="text-muted-foreground/60 text-base">/{DLP_CONTROLS.length}</span>
           </div>
-          <div className="text-xs text-zinc-500 mt-0.5">Controls implemented</div>
+          <div className="text-xs text-muted-foreground/80 mt-0.5">Controls implemented</div>
           {partial > 0 && <div className="text-xs text-amber-400 mt-1">{partial} partial</div>}
         </div>
 
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-5 py-4">
+        <div className="rounded-xl border border-border bg-card/40 px-5 py-4">
           <div className="text-sm font-semibold text-red-400 leading-tight mt-0.5 break-words">{exposure}</div>
-          <div className="text-xs text-zinc-500 mt-0.5">Penalty / exposure at risk</div>
-          <div className="text-[10px] text-zinc-600 mt-1">Based on unimplemented controls</div>
+          <div className="text-xs text-muted-foreground/80 mt-0.5">Penalty / exposure at risk</div>
+          <div className="text-[10px] text-muted-foreground/60 mt-1">Based on unimplemented controls</div>
         </div>
       </div>
 
       {/* Controls table */}
-      <div className="rounded-xl border border-zinc-800 overflow-hidden">
-        <div className="px-4 py-3 bg-zinc-900/80 border-b border-zinc-800 flex items-center justify-between">
-          <span className="text-xs font-semibold text-white">{currentReg?.short_name} — DLP Control Assessment</span>
+      <div className="rounded-xl border border-border overflow-hidden">
+        <div className="px-4 py-3 bg-card/80 border-b border-border flex items-center justify-between">
+          <span className="text-xs font-semibold text-foreground">{currentReg?.short_name} — DLP Control Assessment</span>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-zinc-600">Click a status badge to cycle through states</span>
+            <span className="text-xs text-muted-foreground/60">Click a status badge to cycle through states</span>
             <a
               href={`/api/gap-report-export?reg_id=${currentReg?.id}&reg_code=${currentRegCode}`}
               download
-              className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+              className="flex items-center gap-1 text-[10px] text-muted-foreground/80 hover:text-foreground/70 transition-colors"
             >
               <Download className="h-3 w-3" />
               Export CSV
@@ -344,15 +344,15 @@ export function GapReportClient({
         </div>
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-zinc-800">
-              <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-5 py-2.5">Control</th>
-              <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5 hidden md:table-cell">Articles / Sections</th>
-              <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5 hidden lg:table-cell">Channel</th>
-              <th className="text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wide px-4 py-2.5">Status</th>
+            <tr className="border-b border-border">
+              <th className="text-left text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide px-5 py-2.5">Control</th>
+              <th className="text-left text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide px-4 py-2.5 hidden md:table-cell">Articles / Sections</th>
+              <th className="text-left text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide px-4 py-2.5 hidden lg:table-cell">Channel</th>
+              <th className="text-left text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide px-4 py-2.5">Status</th>
               <th className="w-10 px-4 py-2.5"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800/60">
+          <tbody className="divide-y divide-border/60">
             {DLP_CONTROLS.map(ctrl => (
               <ControlRow
                 key={ctrl.key}
@@ -367,7 +367,7 @@ export function GapReportClient({
         </table>
       </div>
 
-      <p className="text-xs text-zinc-600">
+      <p className="text-xs text-muted-foreground/60">
         Status is self-assessed. Changes are logged to your audit trail. Refresh to sync changes across sessions.
       </p>
     </div>

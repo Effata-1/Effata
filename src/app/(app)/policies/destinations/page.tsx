@@ -7,8 +7,8 @@ export default async function DestinationsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white mb-1">Destinations</h1>
-        <p className="text-zinc-500 text-sm">
+        <h1 className="text-2xl font-bold text-foreground mb-1">Destinations</h1>
+        <p className="text-muted-foreground/80 text-sm">
           Map where your data goes — toggle destinations in scope and classify every one by trust level so your DLP policies know how much to allow, restrict, or block.
         </p>
       </div>

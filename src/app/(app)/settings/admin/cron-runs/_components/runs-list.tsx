@@ -53,9 +53,9 @@ function fmt(iso: string): string {
 export function RunsList({ runs }: { runs: UnifiedRun[] }) {
   if (runs.length === 0) {
     return (
-      <div className="py-16 text-center rounded-xl border border-zinc-800">
-        <p className="text-sm text-zinc-500">No runs yet.</p>
-        <p className="text-xs text-zinc-600 mt-1">
+      <div className="py-16 text-center rounded-xl border border-border">
+        <p className="text-sm text-muted-foreground/80">No runs yet.</p>
+        <p className="text-xs text-muted-foreground/60 mt-1">
           Cron jobs fire every Monday at 3 AM UTC, or use the button above to trigger a compliance check now.
         </p>
       </div>
@@ -65,18 +65,18 @@ export function RunsList({ runs }: { runs: UnifiedRun[] }) {
   return (
     <div className="space-y-3">
       {runs.map(run => (
-        <div key={run.id} className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
+        <div key={run.id} className="rounded-xl border border-border bg-card/40 overflow-hidden">
           <div className="px-5 py-4 flex items-center gap-3 flex-wrap">
             <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded uppercase', TYPE_STYLES[run.type])}>
               {TYPE_LABELS[run.type]}
             </span>
-            <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded uppercase', STATUS_STYLES[run.status] ?? 'bg-zinc-700 text-zinc-400')}>
+            <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded uppercase', STATUS_STYLES[run.status] ?? 'bg-accent text-muted-foreground')}>
               {run.status}
             </span>
-            <span className="text-sm font-medium text-white">{fmt(run.started_at)}</span>
-            <span className="text-xs text-zinc-500">Duration: {duration(run.started_at, run.completed_at)}</span>
+            <span className="text-sm font-medium text-foreground">{fmt(run.started_at)}</span>
+            <span className="text-xs text-muted-foreground/80">Duration: {duration(run.started_at, run.completed_at)}</span>
             <div className="ml-auto flex items-center gap-4 text-xs">
-              <span className="text-zinc-400">{run.summary}</span>
+              <span className="text-muted-foreground">{run.summary}</span>
               {run.errors?.length > 0 && (
                 <span className="text-red-400">{run.errors.length} error{run.errors.length !== 1 ? 's' : ''}</span>
               )}
@@ -84,20 +84,20 @@ export function RunsList({ runs }: { runs: UnifiedRun[] }) {
           </div>
 
           {run.changes?.length > 0 && (
-            <div className="border-t border-zinc-800 px-5 py-3 space-y-2">
-              <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wide mb-2">Changes made</p>
+            <div className="border-t border-border px-5 py-3 space-y-2">
+              <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide mb-2">Changes made</p>
               {run.changes.map((c, i) => (
                 <div key={i} className="flex items-start gap-3">
                   {c.regulation_code && (
-                    <span className="text-[10px] font-mono bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded uppercase shrink-0">
+                    <span className="text-[10px] font-mono bg-muted text-muted-foreground px-1.5 py-0.5 rounded uppercase shrink-0">
                       {c.regulation_code}
                     </span>
                   )}
                   <div>
-                    {c.regulation_name && <p className="text-xs text-zinc-300">{c.regulation_name}</p>}
-                    {c.reason && <p className="text-xs text-zinc-500">{c.reason}</p>}
+                    {c.regulation_name && <p className="text-xs text-foreground/70">{c.regulation_name}</p>}
+                    {c.reason && <p className="text-xs text-muted-foreground/80">{c.reason}</p>}
                     {c.fields_updated?.length && (
-                      <p className="text-[10px] text-zinc-600 mt-0.5">Fields: {c.fields_updated.join(', ')}</p>
+                      <p className="text-[10px] text-muted-foreground/60 mt-0.5">Fields: {c.fields_updated.join(', ')}</p>
                     )}
                   </div>
                 </div>
@@ -106,12 +106,12 @@ export function RunsList({ runs }: { runs: UnifiedRun[] }) {
           )}
 
           {run.errors?.length > 0 && (
-            <div className="border-t border-zinc-800 px-5 py-3 space-y-1.5">
-              <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wide mb-2">Errors</p>
+            <div className="border-t border-border px-5 py-3 space-y-1.5">
+              <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide mb-2">Errors</p>
               {run.errors.map((e, i) => (
                 <div key={i} className="flex items-start gap-2">
                   {(e.regulation_code || e.app_id) && (
-                    <span className="text-[10px] font-mono bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded shrink-0">
+                    <span className="text-[10px] font-mono bg-muted text-muted-foreground px-1.5 py-0.5 rounded shrink-0">
                       {e.regulation_code ?? e.app_id}
                     </span>
                   )}
@@ -122,8 +122,8 @@ export function RunsList({ runs }: { runs: UnifiedRun[] }) {
           )}
 
           {run.status === 'completed' && run.changes?.length === 0 && run.errors?.length === 0 && (
-            <div className="border-t border-zinc-800 px-5 py-3">
-              <p className="text-xs text-zinc-600">Completed — no changes detected.</p>
+            <div className="border-t border-border px-5 py-3">
+              <p className="text-xs text-muted-foreground/60">Completed — no changes detected.</p>
             </div>
           )}
         </div>

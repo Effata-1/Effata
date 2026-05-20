@@ -91,16 +91,16 @@ export default async function GapReportPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white mb-1">Gap Report</h1>
-        <p className="text-zinc-500 text-sm">
+        <h1 className="text-2xl font-bold text-foreground mb-1">Gap Report</h1>
+        <p className="text-muted-foreground/80 text-sm">
           Self-assess your 10 core DLP controls against any regulation — see your compliance score and fine exposure at risk
         </p>
       </div>
 
       {regulations.length === 0 ? (
-        <div className="py-16 text-center rounded-xl border border-zinc-800">
-          <p className="text-sm text-zinc-500">Regulation data not loaded yet.</p>
-          <p className="text-xs text-zinc-600 mt-1">Run the database migration to seed regulation data.</p>
+        <div className="py-16 text-center rounded-xl border border-border">
+          <p className="text-sm text-muted-foreground/80">Regulation data not loaded yet.</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">Run the database migration to seed regulation data.</p>
         </div>
       ) : (
         <GapReportClient

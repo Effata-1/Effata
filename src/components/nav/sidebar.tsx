@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { logout } from '@/app/auth/actions'
 import { cn } from '@/lib/utils'
+import { ThemeToggle } from '@/components/ui/theme-toggle'
 import {
   LayoutDashboard,
   Building2,
@@ -81,14 +82,14 @@ export function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="w-56 shrink-0 flex flex-col h-screen bg-zinc-900 border-r border-zinc-800">
+    <aside className="w-56 shrink-0 flex flex-col h-screen bg-sidebar border-r border-sidebar-border">
       {/* Logo */}
-      <div className="px-4 py-5 border-b border-zinc-800">
+      <div className="px-4 py-5 border-b border-sidebar-border">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-md bg-blue-600 flex items-center justify-center">
-            <Shield className="h-4 w-4 text-white" />
+            <Shield className="h-4 w-4 text-foreground" />
           </div>
-          <span className="font-semibold text-white text-sm">Effata</span>
+          <span className="font-semibold text-foreground text-sm">Effata</span>
         </div>
       </div>
 
@@ -103,8 +104,8 @@ export function Sidebar() {
               className={cn(
                 'flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors',
                 isActive
-                  ? 'bg-white/10 text-white font-medium'
-                  : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-300'
+                  ? 'bg-sidebar-accent text-foreground font-medium'
+                  : 'text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground'
               )}
             >
               {item.icon}
@@ -112,7 +113,7 @@ export function Sidebar() {
               {item.sub && (
                 <ChevronRight className={cn(
                   'h-3.5 w-3.5 transition-colors',
-                  isActive ? 'text-zinc-400' : 'text-zinc-700'
+                  isActive ? 'text-muted-foreground' : 'text-muted-foreground/40'
                 )} />
               )}
             </Link>
@@ -120,30 +121,35 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Bottom: settings + sign out */}
-      <div className="px-3 py-3 border-t border-zinc-800 space-y-0.5">
-        <p className="text-[10px] text-zinc-700 truncate px-2 mb-1">Organisation workspace</p>
-        <Link
-          href="/settings"
-          className={cn(
-            'flex items-center gap-2 px-3 py-2 rounded-md text-xs transition-colors',
-            pathname.startsWith('/settings')
-              ? 'text-zinc-300'
-              : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
-          )}
-        >
-          <Settings className="h-3.5 w-3.5" />
-          Settings
-        </Link>
-        <form action={logout}>
-          <button
-            type="submit"
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-colors"
+      {/* Bottom: theme toggle + settings + sign out */}
+      <div className="px-3 py-3 border-t border-sidebar-border space-y-2">
+        <div className="px-1">
+          <ThemeToggle />
+        </div>
+        <div className="space-y-0.5">
+          <p className="text-[10px] text-muted-foreground/40 truncate px-2">Organisation workspace</p>
+          <Link
+            href="/settings"
+            className={cn(
+              'flex items-center gap-2 px-3 py-2 rounded-md text-xs transition-colors',
+              pathname.startsWith('/settings')
+                ? 'text-foreground/70'
+                : 'text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50'
+            )}
           >
-            <LogOut className="h-3.5 w-3.5" />
-            Sign out
-          </button>
-        </form>
+            <Settings className="h-3.5 w-3.5" />
+            Settings
+          </Link>
+          <form action={logout}>
+            <button
+              type="submit"
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50 transition-colors"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Sign out
+            </button>
+          </form>
+        </div>
       </div>
     </aside>
   )

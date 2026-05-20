@@ -132,7 +132,7 @@ export const COLOR_OPTIONS = [
   { value: 'sky',     label: 'Sky',     class: 'bg-sky-500' },
   { value: 'blue',    label: 'Blue',    class: 'bg-blue-500' },
   { value: 'purple',  label: 'Purple',  class: 'bg-purple-500' },
-  { value: 'zinc',    label: 'Grey',    class: 'bg-zinc-500' },
+  { value: 'zinc',    label: 'Grey',    class: 'bg-accent' },
 ]
 
 export function colorClasses(color: string) {
@@ -146,7 +146,7 @@ export function colorClasses(color: string) {
     sky:     { text: 'text-sky-400',     bg: 'bg-sky-500/10',     border: 'border-sky-500/25',     dot: 'bg-sky-400' },
     blue:    { text: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/25',    dot: 'bg-blue-400' },
     purple:  { text: 'text-purple-400',  bg: 'bg-purple-500/10',  border: 'border-purple-500/25',  dot: 'bg-purple-400' },
-    zinc:    { text: 'text-zinc-400',    bg: 'bg-zinc-700/40',    border: 'border-zinc-700',       dot: 'bg-zinc-400' },
+    zinc:    { text: 'text-muted-foreground',    bg: 'bg-accent/40',    border: 'border-border-strong',       dot: 'bg-accent' },
   }
   return map[color] ?? map['zinc']
 }

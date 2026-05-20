@@ -36,7 +36,7 @@ function ToolCard({
     <div
       className={cn(
         'rounded-xl border transition-all',
-        selected ? 'border-blue-500/60 bg-blue-500/5' : 'border-zinc-800 bg-zinc-900/40'
+        selected ? 'border-blue-500/60 bg-blue-500/5' : 'border-border bg-card/40'
       )}
     >
       {/* Tool header */}
@@ -46,18 +46,18 @@ function ToolCard({
       >
         <div className={cn(
           'mt-0.5 w-4 h-4 rounded border flex items-center justify-center flex-shrink-0',
-          selected ? 'bg-blue-600 border-blue-600' : 'border-zinc-600'
+          selected ? 'bg-blue-600 border-blue-600' : 'border-border-strong'
         )}>
-          {selected && <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />}
+          {selected && <Check className="h-2.5 w-2.5 text-foreground" strokeWidth={3} />}
         </div>
         <div className="flex-1 min-w-0">
-          <p className={cn('text-sm font-medium', selected ? 'text-white' : 'text-zinc-300')}>{tool.label}</p>
-          <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1">{tool.description}</p>
+          <p className={cn('text-sm font-medium', selected ? 'text-foreground' : 'text-foreground/70')}>{tool.label}</p>
+          <p className="text-xs text-muted-foreground/80 mt-0.5 line-clamp-1">{tool.description}</p>
         </div>
         {selected && tool.modules.length > 0 && (
           <button
             onClick={(e) => { e.stopPropagation(); setExpanded(!expanded) }}
-            className="text-zinc-500 hover:text-zinc-300 flex-shrink-0 mt-0.5"
+            className="text-muted-foreground/80 hover:text-foreground/70 flex-shrink-0 mt-0.5"
           >
             {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           </button>
@@ -66,8 +66,8 @@ function ToolCard({
 
       {/* Modules */}
       {selected && expanded && tool.modules.length > 0 && (
-        <div className="px-4 pb-3 border-t border-zinc-800/60 pt-3">
-          <p className="text-xs text-zinc-500 mb-2">Select the licences / modules you own:</p>
+        <div className="px-4 pb-3 border-t border-border/60 pt-3">
+          <p className="text-xs text-muted-foreground/80 mb-2">Select the licences / modules you own:</p>
           <div className="flex flex-wrap gap-1.5">
             {tool.modules.map(mod => {
               const active = selectedModules.includes(mod.id)
@@ -79,7 +79,7 @@ function ToolCard({
                     'px-2.5 py-1 rounded-md border text-xs font-medium transition-all',
                     active
                       ? 'border-blue-500/60 bg-blue-500/15 text-blue-300'
-                      : 'border-zinc-700 bg-zinc-800/60 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300'
+                      : 'border-border-strong bg-muted/60 text-muted-foreground hover:border-border-strong hover:text-foreground/70'
                   )}
                 >
                   {mod.label}
@@ -116,7 +116,7 @@ export function Step2({ data, onChange }: Props) {
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-zinc-500">
+      <p className="text-xs text-muted-foreground/80">
         Select your DLP tool(s), then choose which licences or modules you own.
       </p>
       <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1">

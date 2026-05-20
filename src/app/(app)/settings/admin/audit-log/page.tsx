@@ -70,13 +70,13 @@ export default async function AuditLogPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-1.5 text-xs text-zinc-600">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
         <span>Admin</span>
         <span>›</span>
-        <span className="text-zinc-400">Audit Log</span>
+        <span className="text-muted-foreground">Audit Log</span>
       </div>
 
-      <h2 className="text-2xl font-bold text-white">Audit Log</h2>
+      <h2 className="text-2xl font-bold text-foreground">Audit Log</h2>
 
       <Suspense>
         <AuditFilters

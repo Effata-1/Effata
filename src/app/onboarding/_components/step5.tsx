@@ -38,8 +38,8 @@ export function Step5({ data, onChange }: Props) {
       {/* Category selection */}
       <div className="space-y-3">
         <div>
-          <h3 className="text-sm font-semibold text-white">Data Types to Protect</h3>
-          <p className="text-xs text-zinc-500 mt-0.5">Select all that apply to your organisation.</p>
+          <h3 className="text-sm font-semibold text-foreground">Data Types to Protect</h3>
+          <p className="text-xs text-muted-foreground/80 mt-0.5">Select all that apply to your organisation.</p>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
           {DATA_CATEGORIES.map(cat => {
@@ -52,13 +52,13 @@ export function Step5({ data, onChange }: Props) {
                 className={cn(
                   'relative text-left px-3 py-2.5 rounded-lg border text-xs transition-all',
                   selected
-                    ? 'border-blue-500 bg-blue-500/10 text-white'
-                    : 'border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-300'
+                    ? 'border-blue-500 bg-blue-500/10 text-foreground'
+                    : 'border-border bg-card/50 text-muted-foreground hover:border-border-strong hover:text-foreground/70'
                 )}
               >
                 <span className="font-medium block pr-5">{cat.label}</span>
                 {rank && (
-                  <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
+                  <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-blue-600 text-foreground text-[10px] font-bold flex items-center justify-center">
                     {rank}
                   </span>
                 )}
@@ -72,8 +72,8 @@ export function Step5({ data, onChange }: Props) {
       {data.dataCategories.length >= 3 && (
         <div className="space-y-3">
           <div>
-            <h3 className="text-sm font-semibold text-white">Top 3 Priorities</h3>
-            <p className="text-xs text-zinc-500 mt-0.5">
+            <h3 className="text-sm font-semibold text-foreground">Top 3 Priorities</h3>
+            <p className="text-xs text-muted-foreground/80 mt-0.5">
               Click up to 3 selected categories to mark them as your top priorities.
               {data.topPriorities.length === 3 && (
                 <span className="text-blue-400"> All 3 set.</span>
@@ -92,11 +92,11 @@ export function Step5({ data, onChange }: Props) {
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all',
                     rank
                       ? 'border-blue-500 bg-blue-500/15 text-blue-300'
-                      : 'border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300 disabled:opacity-40 disabled:cursor-not-allowed'
+                      : 'border-border-strong bg-card text-muted-foreground hover:border-border-strong hover:text-foreground/70 disabled:opacity-40 disabled:cursor-not-allowed'
                   )}
                 >
                   {rank && (
-                    <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
+                    <span className="w-4 h-4 rounded-full bg-blue-600 text-foreground text-[10px] font-bold flex items-center justify-center">
                       {rank}
                     </span>
                   )}

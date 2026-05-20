@@ -113,7 +113,7 @@ export const DLP_CONTROLS: DlpControl[] = [
 ]
 
 export const CONTROL_STATUS_OPTIONS = [
-  { value: 'not_assessed', label: 'Not Assessed',      color: 'text-zinc-400', bg: 'bg-zinc-800/60' },
+  { value: 'not_assessed', label: 'Not Assessed',      color: 'text-muted-foreground', bg: 'bg-muted/60' },
   { value: 'implemented',  label: 'Implemented',       color: 'text-green-400', bg: 'bg-green-500/10' },
   { value: 'partial',      label: 'Partial',            color: 'text-amber-400', bg: 'bg-amber-500/10' },
   { value: 'not_implemented', label: 'Not Implemented', color: 'text-red-400',   bg: 'bg-red-500/10' },
