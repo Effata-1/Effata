@@ -6,6 +6,7 @@ const ITEMS = [
   { label: 'Data Catalog',           href: '/policies/data-catalog' },
   { label: 'Destinations',           href: '/policies/destinations' },
   { label: 'Classification Labels',  href: '/policies/classifications' },
+  { label: 'Identity Context',       href: '/policies/identity' },
 ]
 
 export default async function PoliciesLayout({ children }: { children: React.ReactNode }) {
