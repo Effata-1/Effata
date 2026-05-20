@@ -492,7 +492,7 @@ function SubcategoryGroup({
   const [collapsed, setCollapsed] = useState(true)
 
   useEffect(() => {
-    if (forceExpand) setCollapsed(false)
+    setCollapsed(!forceExpand)
   }, [forceExpand])
 
   const inScopeCount  = items.filter(i => i.is_in_scope).length

@@ -215,7 +215,7 @@ function CatalogRow({
 
   async function saveName() {
     setEditName(false)
-    if (!item.org_profile_id || draftName.trim() === item.name) return
+    if (!item.org_profile_id || (item as OptEnriched)._pending || draftName.trim() === item.name) return
     setSaving(true)
     await onUpdate(item.org_profile_id, { name: draftName.trim() })
     setSaving(false)
@@ -223,17 +223,17 @@ function CatalogRow({
 
   async function saveApps(newApps: string[]) {
     setApps(newApps)
-    if (!item.org_profile_id) return
+    if (!item.org_profile_id || (item as OptEnriched)._pending) return
     await onUpdate(item.org_profile_id, { applications: newApps })
   }
 
   async function saveNotes() {
-    if (!item.org_profile_id) return
+    if (!item.org_profile_id || (item as OptEnriched)._pending) return
     await onUpdate(item.org_profile_id, { notes: notes.trim() || null })
   }
 
   async function saveDefinition() {
-    if (!item.org_profile_id) return
+    if (!item.org_profile_id || (item as OptEnriched)._pending) return
     await onUpdate(item.org_profile_id, { definition: definition.trim() || null })
   }
 
@@ -393,6 +393,10 @@ function CustomRow({
   const [apps, setApps]             = useState<string[]>(item.applications)
   const [notes, setNotes]           = useState(item.notes ?? '')
   const [definition, setDefinition] = useState(item.definition ?? '')
+
+  useEffect(() => { setApps(item.applications) }, [item.applications])
+  useEffect(() => { setNotes(item.notes ?? '') }, [item.notes])
+  useEffect(() => { setDefinition(item.definition ?? '') }, [item.definition])
 
   async function saveApps(newApps: string[]) {
     setApps(newApps)
@@ -800,7 +804,7 @@ export function DestinationsClient({
       if (action.type === 'toggle') {
         return state.map(e =>
           e.catalog_id === action.id
-            ? { ...e, is_in_scope: action.inScope, org_profile_id: action.inScope ? 'pending' : null }
+            ? { ...e, is_in_scope: action.inScope, org_profile_id: null, _pending: action.inScope }
             : e,
         )
       }

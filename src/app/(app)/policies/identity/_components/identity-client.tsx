@@ -173,25 +173,29 @@ function MappingItem({
   const [sourceType, setSourceType] = useState<IdentitySourceType>(mapping.source_type)
   const [notes, setNotes]           = useState(mapping.notes ?? '')
   const [saving, setSaving]         = useState(false)
+  const [err, setErr]               = useState('')
   const [, startTransition]         = useTransition()
 
   async function handleSave() {
     setSaving(true)
-    await updateIdentityMapping(mapping.id, {
+    setErr('')
+    const result = await updateIdentityMapping(mapping.id, {
       source_name: sourceName.trim(),
       source_type: sourceType,
       notes:       notes.trim() || null,
     })
     setSaving(false)
+    if (result.error) { setErr(result.error); return }
     onUpdate({ source_name: sourceName.trim(), source_type: sourceType, notes: notes.trim() || null })
     setEditing(false)
   }
 
   function handleDelete() {
-    startTransition(() => {
-      deleteIdentityMapping(mapping.id)
+    startTransition(async () => {
+      const result = await deleteIdentityMapping(mapping.id)
+      if (!result.error) onDelete()
+      else setErr(result.error)
     })
-    onDelete()
   }
 
   if (editing) {
@@ -220,6 +224,7 @@ function MappingItem({
           placeholder="Notes (optional)"
           className="w-full px-3 py-1.5 rounded-md bg-zinc-900 border border-zinc-700 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none focus:border-zinc-500"
         />
+        {err && <p className="text-xs text-red-400">{err}</p>}
         <div className="flex gap-2">
           <button
             onClick={handleSave}
