@@ -768,19 +768,19 @@ export function DestinationsClient({
           )}
         </div>
         <MultiFilterSelect
-          label="Trust Tag"
+          placeholder="Trust Tag"
           value={filterTags}
           onChange={setFilterTags}
           options={TRUST_TAG_ORDER.map(t => ({ value: t, label: TRUST_TAGS[t].label }))}
         />
         <FilterSelect
-          label="Category"
+          placeholder="Category"
           value={filterSub}
           onChange={setFilterSub}
           options={allSubcategories.map(s => ({ value: s, label: s.replace(/_/g, ' ') }))}
         />
         <FilterSelect
-          label="Scope"
+          placeholder="Scope"
           value={filterScope}
           onChange={setFilterScope}
           options={[
