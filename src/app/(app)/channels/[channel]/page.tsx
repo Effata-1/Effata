@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import { getChannel, CHANNEL_SLUGS, type RiskLevel, type CoverageStatus } from '@/lib/channel-taxonomy'
 import { ChannelAssessment } from './_components/channel-assessment'
+import { SubchannelList } from './_components/subchannel-list'
 
 // ─── Risk level badge ────────────────────────────────────────────────────────
 
@@ -67,17 +68,9 @@ export default async function ChannelPage({ params }: { params: Promise<{ channe
       <section className="space-y-4">
         <div>
           <h2 className="text-sm font-semibold text-foreground">Subchannels</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Specific movement or exposure paths within this channel.</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Specific movement or exposure paths within this channel. Click any row to expand.</p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {ch.subchannels.map(sub => (
-            <div key={sub.name} className="rounded-xl border border-border bg-card/40 p-4 space-y-1.5">
-              <p className="text-sm font-medium text-foreground">{sub.name}</p>
-              <p className="text-xs text-muted-foreground leading-relaxed">{sub.description}</p>
-              <p className="text-[11px] text-muted-foreground/60 leading-relaxed">{sub.examples}</p>
-            </div>
-          ))}
-        </div>
+        <SubchannelList subchannels={ch.subchannels} />
       </section>
 
       {/* ── Risks ──────────────────────────────────────────────────────────── */}
