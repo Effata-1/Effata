@@ -620,12 +620,18 @@ export function DestinationsClient({
 }) {
   const [, startTransition] = useTransition()
 
-  const [enrichedItems, setOptimisticEnriched] = useOptimistic<OptEnriched[]>(
+  type EnrichedAction =
+    | { type: 'toggle'; id: string; inScope: boolean }
+    | { type: 'update'; profileId: string; fields: Partial<{ name: string; applications: string[]; notes: string | null }> }
+
+  type CustomAction =
+    | { type: 'add'; item: CustomDestination }
+    | { type: 'delete'; id: string }
+    | { type: 'update'; profileId: string; fields: Partial<{ name: string; applications: string[]; notes: string | null }> }
+
+  const [enrichedItems, setOptimisticEnriched] = useOptimistic(
     initialEnriched as OptEnriched[],
-    (state, action:
-      | { type: 'toggle'; id: string; inScope: boolean }
-      | { type: 'update'; profileId: string; fields: Partial<{ name: string; applications: string[]; notes: string | null }> }
-    ) => {
+    (state: OptEnriched[], action: EnrichedAction) => {
       if (action.type === 'toggle') {
         return state.map(e =>
           e.catalog_id === action.id
@@ -637,13 +643,9 @@ export function DestinationsClient({
     },
   )
 
-  const [customItems, setOptimisticCustom] = useOptimistic<OptCustom[]>(
+  const [customItems, setOptimisticCustom] = useOptimistic(
     initialCustom as OptCustom[],
-    (state, action:
-      | { type: 'add'; item: CustomDestination }
-      | { type: 'delete'; id: string }
-      | { type: 'update'; profileId: string; fields: Partial<{ name: string; applications: string[]; notes: string | null }> }
-    ) => {
+    (state: OptCustom[], action: CustomAction) => {
       if (action.type === 'add')    return [...state, { ...action.item, _pending: true }]
       if (action.type === 'delete') return state.filter(c => c.org_profile_id !== action.id)
       return state.map(c => c.org_profile_id === action.profileId ? { ...c, ...action.fields } : c)
