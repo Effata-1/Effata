@@ -417,7 +417,7 @@ export async function getClassificationsPageData() {
     supabase.from('org_data_type_classifications').select('*').eq('org_id', user.orgId),
     supabase.from('org_destination_profiles').select('trust_tag, subcategory').eq('org_id', user.orgId).eq('is_in_scope', true),
     supabase.from('catalog_destinations').select('trust_tag, subcategory').eq('active', true),
-    supabase.from('catalog_data_types').select('system_level, subcategory').eq('active', true).not('subcategory', 'is', null),
+    supabase.from('catalog_data_types').select('id, system_level, subcategory').eq('active', true).not('subcategory', 'is', null),
   ])
 
   // destCountByTag — in-scope org_destination_profiles per trust_tag
@@ -426,25 +426,62 @@ export async function getClassificationsPageData() {
     if (p.trust_tag) destCountByTag[p.trust_tag] = (destCountByTag[p.trust_tag] ?? 0) + 1
   }
 
-  // subcategoriesByTag — every trust_tag that has catalog entries for a subcategory.
-  // A subcategory intentionally appears under multiple trust tags when the catalog
-  // distributes its entries across trust levels (e.g. collaboration spans enterprise,
-  // approved_with_conditions, and permitted_with_restriction).
+  // subcategoriesByTag — org profiles are authoritative for subcategories they own;
+  // catalog provides defaults for subcategories the org has no profiles for yet.
+  // This means custom destinations and moveSubcategoryToTrust changes are reflected.
   const subcatByTagSet: Record<string, Set<string>> = {}
+  const subcatsWithOrgProfiles = new Set<string>()
+  for (const p of (destProfiles ?? [])) {
+    if (p.subcategory) subcatsWithOrgProfiles.add(p.subcategory)
+  }
+  // Catalog: only for subcategories the org hasn't touched yet
   for (const c of (catalogSubcats ?? [])) {
-    if (!c.subcategory || !c.trust_tag) continue
+    if (!c.subcategory || !c.trust_tag || subcatsWithOrgProfiles.has(c.subcategory)) continue
     if (!subcatByTagSet[c.trust_tag]) subcatByTagSet[c.trust_tag] = new Set()
     subcatByTagSet[c.trust_tag].add(c.subcategory)
+  }
+  // Org profiles: covers custom + any subcategory the org has moved or classified
+  for (const p of (destProfiles ?? [])) {
+    if (!p.subcategory || !p.trust_tag) continue
+    if (!subcatByTagSet[p.trust_tag]) subcatByTagSet[p.trust_tag] = new Set()
+    subcatByTagSet[p.trust_tag].add(p.subcategory)
   }
   const subcategoriesByTag: Record<string, string[]> = {}
   for (const [tag, subs] of Object.entries(subcatByTagSet)) {
     subcategoriesByTag[tag] = [...subs].sort()
   }
 
-  // dataTypeSubcatsByLevel — distinct subcategories from catalog_data_types grouped by system_level
-  const subcatByLevelSet: Record<string, Set<string>> = {}
+  // dataTypeSubcatsByLevel — built from actual org classification state so that
+  // moveDataTypeSubcategoryToLabel reassignments are immediately reflected.
+  // Falls back to catalog system_level for subcategories the org hasn't classified yet.
+  const catalogIdToSubcat: Record<string, string> = {}
   for (const c of (catalogDataSubcats ?? [])) {
-    if (!c.subcategory || !c.system_level) continue
+    if (c.id && c.subcategory) catalogIdToSubcat[c.id] = c.subcategory
+  }
+  const orgTypeIdToSubcat: Record<string, string> = {}
+  for (const t of (orgTypes ?? [])) {
+    if (t.catalog_data_type_id) {
+      const sub = catalogIdToSubcat[t.catalog_data_type_id]
+      if (sub) orgTypeIdToSubcat[t.id] = sub
+    }
+  }
+  const labelIdToLevel: Record<string, string> = {}
+  for (const l of labels) {
+    if (l.system_level) labelIdToLevel[l.id] = l.system_level
+  }
+  const subcatByLevelSet: Record<string, Set<string>> = {}
+  const orgClassifiedSubcats = new Set<string>()
+  for (const m of (mappings ?? [])) {
+    const subcat = orgTypeIdToSubcat[m.org_data_type_id]
+    const level  = labelIdToLevel[m.org_classification_label_id]
+    if (!subcat || !level) continue
+    orgClassifiedSubcats.add(subcat)
+    if (!subcatByLevelSet[level]) subcatByLevelSet[level] = new Set()
+    subcatByLevelSet[level].add(subcat)
+  }
+  // Catalog fallback for subcategories not yet org-classified
+  for (const c of (catalogDataSubcats ?? [])) {
+    if (!c.subcategory || !c.system_level || orgClassifiedSubcats.has(c.subcategory)) continue
     if (!subcatByLevelSet[c.system_level]) subcatByLevelSet[c.system_level] = new Set()
     subcatByLevelSet[c.system_level].add(c.subcategory)
   }
