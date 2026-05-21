@@ -168,7 +168,25 @@ function Checkpoint({ cx, cy, level, toolName }: { cx: number; cy: number; level
   const c = cfg(level)
   return (
     <g>
-      {/* Outer ring */}
+      {/* Pulse rings (behind diamond) */}
+      {c.filterId && <>
+        <circle cx={cx} cy={cy} r={16} fill="none"
+          stroke={c.glow} strokeWidth="1.2"
+          style={{
+            animation: 'chkpt-pulse 2.2s ease-out infinite',
+            transformOrigin: `${cx}px ${cy}px`,
+          } as React.CSSProperties}
+        />
+        <circle cx={cx} cy={cy} r={16} fill="none"
+          stroke={c.glow} strokeWidth="1.2"
+          style={{
+            animation: 'chkpt-pulse 2.2s ease-out infinite',
+            animationDelay: '-1.1s',
+            transformOrigin: `${cx}px ${cy}px`,
+          } as React.CSSProperties}
+        />
+      </>}
+      {/* Diamond */}
       <rect x={cx-14} y={cy-14} width={28} height={28} rx="2"
         transform={`rotate(45,${cx},${cy})`}
         fill={c.fill} stroke={c.stroke} strokeWidth="1"
@@ -207,10 +225,11 @@ export function CityMap({ districts, simulation }: CityMapProps) {
     <div className="relative flex-1 overflow-hidden bg-[#020914]">
       {/* CSS keyframes */}
       <style>{`
-        @keyframes dlp-flow {
+        @keyframes dlp-londa {
           0%   { offset-distance:2%;  opacity:0; }
-          6%   { opacity:0.75; }
-          90%  { opacity:0.75; }
+          5%   { opacity:1; }
+          88%  { opacity:1; }
+          96%  { opacity:0; }
           100% { offset-distance:96%; opacity:0; }
         }
         @keyframes sim-flow {
@@ -227,8 +246,17 @@ export function CityMap({ districts, simulation }: CityMapProps) {
           0%,100% { opacity:0.2; }
           50%     { opacity:0.55; }
         }
-        .gap-pulse { animation: dlp-pulse-gap 2.4s ease-in-out infinite; }
-        .sim-badge { animation: sim-appear 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+        @keyframes road-breath {
+          0%,100% { opacity:0.06; }
+          50%     { opacity:0.18; }
+        }
+        @keyframes chkpt-pulse {
+          0%   { transform:scale(1);   opacity:0.6; }
+          100% { transform:scale(2.4); opacity:0; }
+        }
+        .gap-pulse  { animation: dlp-pulse-gap 2.4s ease-in-out infinite; }
+        .sim-badge  { animation: sim-appear 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+        .road-breath { animation: road-breath 3.8s ease-in-out infinite; }
       `}</style>
 
       <svg
@@ -313,9 +341,12 @@ export function CityMap({ districts, simulation }: CityMapProps) {
               )}
 
               {/* ── Roads (3 layers) ─── */}
-              {/* 1. Wide halo */}
+              {/* 1. Wide halo — breathes */}
               <path d={roadPath} fill="none"
-                stroke={c.road} strokeWidth="14" opacity="0.08" />
+                stroke={c.road} strokeWidth="14"
+                className="road-breath"
+                style={{ animationDelay: `${-ri * 0.55}s` } as React.CSSProperties}
+              />
               {/* 2. Mid bloom */}
               <path d={roadPath} fill="none"
                 stroke={c.road} strokeWidth="3" opacity="0.3"
@@ -334,26 +365,48 @@ export function CityMap({ districts, simulation }: CityMapProps) {
                   filter={c.filterId ? `url(#${c.filterId})` : undefined} />
               )}
 
-              {/* ── Data packets (normal flow) ─── */}
-              {level !== 'unknown' && level !== 'none' && [0, 1, 2].map(i => (
-                <circle key={i} r="3" fill={c.road} opacity="0.8"
-                  style={{
-                    offsetPath: `path("${roadPath}")`,
-                    animation:  'dlp-flow 3.4s linear infinite',
-                    animationDelay: `${-((ri * 0.5 + i * 1.15) % 3.4)}s`,
-                  } as React.CSSProperties}
-                />
-              ))}
+              {/* ── Londa wave packets (2 clusters × 5 circles) ─── */}
+              {level !== 'unknown' && level !== 'none' && [0, 1].map(clusterIdx => {
+                const clusterBase = -(ri * 0.6 + clusterIdx * 1.7)
+                const ORBS: { r: number; op: number }[] = [
+                  { r: 5.5, op: 1.00 },
+                  { r: 4.5, op: 0.72 },
+                  { r: 3.5, op: 0.45 },
+                  { r: 2.5, op: 0.27 },
+                  { r: 1.5, op: 0.14 },
+                ]
+                return ORBS.map((orb, orbIdx) => (
+                  <circle
+                    key={`${clusterIdx}-${orbIdx}`}
+                    r={orb.r}
+                    fill={c.road}
+                    opacity={orb.op}
+                    filter={orbIdx === 0 && c.filterId ? `url(#${c.filterId})` : undefined}
+                    style={{
+                      offsetPath: `path("${roadPath}")`,
+                      animation:  'dlp-londa 3.4s linear infinite',
+                      animationDelay: `${clusterBase - (0.4 - orbIdx * 0.1)}s`,
+                    } as React.CSSProperties}
+                  />
+                ))
+              })}
 
-              {/* ── Simulation pulse ─── */}
-              {isSimRow && (
-                <circle r="7" fill={c.road} opacity="0.9"
+              {/* ── Simulation comet (halo + core) ─── */}
+              {isSimRow && <>
+                <circle r="13" fill={c.road} opacity="0.22"
                   style={{
                     offsetPath: `path("${roadPath}")`,
                     animation:  'sim-flow 2.2s ease-in-out infinite',
                   } as React.CSSProperties}
                 />
-              )}
+                <circle r="6" fill={c.road} opacity="0.95"
+                  filter={c.filterId ? `url(#${c.filterId})` : undefined}
+                  style={{
+                    offsetPath: `path("${roadPath}")`,
+                    animation:  'sim-flow 2.2s ease-in-out infinite',
+                  } as React.CSSProperties}
+                />
+              </>}
 
               {/* ── Checkpoint ─── */}
               <Checkpoint
