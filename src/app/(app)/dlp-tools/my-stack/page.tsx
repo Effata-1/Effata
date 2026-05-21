@@ -87,43 +87,43 @@ export default async function MyStackPage() {
         <div>
           <h2 className="text-sm font-semibold text-foreground">Derived Coverage</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Auto-calculated from your selected tools. Shows the best coverage level across your entire stack.
+            Best coverage level per channel across your full stack.
           </p>
         </div>
-        <div className="rounded-xl border border-border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground/70 w-44">Channel</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground/70 w-28">Coverage</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground/70">Covered By</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {CHANNEL_KEYS.map(key => {
-                const entry = derivedCoverage[key]
-                const style = LEVEL_STYLES[entry.level]
-                return (
-                  <tr key={key} className="hover:bg-muted/10 transition-colors">
-                    <td className="px-4 py-3 text-sm font-medium text-foreground/80">{CHANNEL_LABELS[key]}</td>
-                    <td className="px-4 py-3">
-                      <span className={cn(
-                        'inline-flex items-center px-2 py-0.5 rounded-md border text-[11px] font-semibold',
-                        style.className,
-                      )}>
-                        {style.label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">
-                      {entry.coveredBy.length > 0 ? entry.coveredBy.join(', ') : (
-                        <span className="text-muted-foreground/40 italic">No coverage</span>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {CHANNEL_KEYS.map(key => {
+            const entry = derivedCoverage[key]
+            const style = LEVEL_STYLES[entry.level]
+            return (
+              <div key={key} className={cn(
+                'rounded-xl border p-4 space-y-3',
+                entry.level === 'none'
+                  ? 'border-red-500/20 bg-red-500/5'
+                  : entry.level === 'full'
+                  ? 'border-emerald-500/20 bg-emerald-500/5'
+                  : 'border-border bg-card/40',
+              )}>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs font-semibold text-foreground/80 leading-snug">{CHANNEL_LABELS[key]}</p>
+                  <span className={cn(
+                    'shrink-0 inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-bold',
+                    style.className,
+                  )}>
+                    {style.label}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  {entry.coveredBy.length > 0 ? (
+                    entry.coveredBy.map(t => (
+                      <p key={t} className="text-[11px] text-muted-foreground/70 truncate">{t}</p>
+                    ))
+                  ) : (
+                    <p className="text-[11px] text-red-400/70 italic">No coverage</p>
+                  )}
+                </div>
+              </div>
+            )
+          })}
         </div>
       </section>
 

@@ -27,7 +27,12 @@ export function deriveCoverage(
       for (const tool of selected) {
         const level = tool.channelCoverage![key]
         if (LEVEL_RANK[level] > LEVEL_RANK[bestLevel]) bestLevel = level
-        if (level !== 'none') coveredBy.push(tool.label)
+      }
+
+      // Only include tools that provide the best level (primary contributors)
+      for (const tool of selected) {
+        const level = tool.channelCoverage![key]
+        if (level === bestLevel && bestLevel !== 'none') coveredBy.push(tool.label)
       }
 
       return [key, { level: bestLevel, coveredBy }]
