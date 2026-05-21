@@ -14,7 +14,7 @@ export type { DistrictData }
 function CameraSetup() {
   const camera = useThree(s => s.camera)
   useLayoutEffect(() => {
-    camera.lookAt(0, 0, 0)
+    camera.lookAt(0, 1, 0)   // scene rows span z=-9..+9, centred at z=0; y=1 lifts gaze slightly
   }, [camera])
   return null
 }
@@ -267,10 +267,10 @@ function CityScene({ districts, simulation, onSelect }: SceneProps) {
 
       {/* Ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.06, 0]}>
-        <planeGeometry args={[60, 45]} />
+        <planeGeometry args={[80, 60]} />
         <meshStandardMaterial color="#020914" roughness={1} />
       </mesh>
-      <gridHelper args={[60, 60, '#111827', '#0d1526']} position={[0, -0.05, 0]} />
+      <gridHelper args={[80, 80, '#111827', '#0d1526']} position={[0, -0.05, 0]} />
 
       {/* Zone tints */}
       <mesh position={[-BLD_X, 0.003, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -350,7 +350,7 @@ export function CityMap({ districts, simulation }: CityMapProps) {
       <Canvas
         flat
         orthographic
-        camera={{ position: [22, 18, 22], zoom: 42, near: 0.1, far: 1000 }}
+        camera={{ position: [28, 22, 28], zoom: 28, near: 0.1, far: 2000 }}
         onPointerMissed={() => setSelected(null)}
       >
         <CameraSetup />
