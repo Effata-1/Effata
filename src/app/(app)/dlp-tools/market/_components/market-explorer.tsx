@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useOptimistic, useTransition } from 'react'
-import { ChevronDown, ChevronRight, ExternalLink, BookOpen, Globe, LifeBuoy, Mail, Plus, Trash2, ShieldCheck, Wrench } from 'lucide-react'
+import { ChevronDown, ChevronRight, ExternalLink, BookOpen, Globe, LifeBuoy, Mail, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MODULE_TO_AREAS } from '@/lib/onboarding/data'
 import type { DLPTool, DlpToolChannelCoverage, ChannelCoverageLevel, ToolDocLink } from '@/lib/onboarding/data'
@@ -396,30 +396,31 @@ export function MarketExplorer({ tools, orgTools, customTools: initialCustomTool
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-foreground">Custom & User-Added Tools</p>
+            <p className="text-sm font-semibold text-foreground">Don&apos;t see your tool?</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Tools you&apos;ve added manually. AI-reviewed tools show a verified badge.
+              Add a DLP tool you use that isn&apos;t listed above. We&apos;ll review it and add it to the platform.
             </p>
           </div>
           <button
             onClick={() => setShowAddTool(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-violet-500/10 border border-violet-500/20 text-xs font-medium text-violet-400 hover:bg-violet-500/15 transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
-            Add a DLP tool
+            Submit a tool
           </button>
         </div>
 
         <div className="rounded-xl border border-border overflow-hidden divide-y divide-border">
           {customTools.length === 0 ? (
             <div className="px-6 py-8 text-center">
-              <Wrench className="w-8 h-8 text-muted-foreground/20 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground/50">No custom tools added yet.</p>
+              <Plus className="w-7 h-7 text-muted-foreground/20 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground/50">Using a tool that&apos;s not listed above?</p>
+              <p className="text-xs text-muted-foreground/35 mt-1 max-w-xs mx-auto">Submit it here — we&apos;ll review and add it to the platform soon.</p>
               <button
                 onClick={() => setShowAddTool(true)}
-                className="mt-2 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                className="mt-3 px-3 py-1.5 rounded-lg bg-violet-500/10 border border-violet-500/20 text-xs font-medium text-violet-400 hover:bg-violet-500/15 transition-colors"
               >
-                Add your first tool →
+                Submit a tool →
               </button>
             </div>
           ) : (
@@ -449,15 +450,9 @@ export function MarketExplorer({ tools, orgTools, customTools: initialCustomTool
                     >
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-semibold text-foreground">{ct.tool_data.label || ct.tool_name}</span>
-                        {ct.is_real_dlp === true ? (
-                          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 leading-tight">
-                            <ShieldCheck className="w-2.5 h-2.5" /> AI VERIFIED
-                          </span>
-                        ) : (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20 leading-tight">
-                            CUSTOM
-                          </span>
-                        )}
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-muted border border-border text-muted-foreground/50 leading-tight">
+                          SUBMITTED
+                        </span>
                         {ct.tool_data.category?.map(c => (
                           <span key={c} className="px-1.5 py-0.5 rounded-sm text-[10px] font-semibold bg-muted border border-border text-muted-foreground/60">{c}</span>
                         ))}

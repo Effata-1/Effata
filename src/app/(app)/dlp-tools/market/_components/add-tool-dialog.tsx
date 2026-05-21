@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Loader2, ShieldCheck, AlertTriangle, Plus, Trash2 } from 'lucide-react'
+import { X, Loader2, ShieldCheck, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createCustomTool } from '../actions'
 import type { CustomToolData } from '../actions'
@@ -146,9 +146,9 @@ export function AddToolDialog({ onAdded, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
           <div>
-            <p className="text-sm font-semibold text-foreground">Add a DLP Tool</p>
+            <p className="text-sm font-semibold text-foreground">Submit a DLP Tool</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {step === 'input' ? 'Enter the tool name — AI will review it' : 'Review and confirm the details'}
+              {step === 'input' ? 'Tell us which tool you use — we\'ll add it to the platform' : 'Confirm or fill in the details below'}
             </p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-md text-muted-foreground hover:bg-muted/40 transition-colors">
@@ -169,7 +169,7 @@ export function AddToolDialog({ onAdded, onClose }: Props) {
                   value={toolName}
                   onChange={e => setToolName(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') handleReview() }}
-                  placeholder="e.g. Nightfall DLP, Securonix, CipherTrust…"
+                  placeholder="e.g. Nightfall DLP, Securonix, CipherTrust, Trellix…"
                   className="w-full px-3 py-2.5 text-sm rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-violet-500/40"
                 />
               </div>
@@ -181,11 +181,11 @@ export function AddToolDialog({ onAdded, onClose }: Props) {
                 disabled={!toolName.trim() || loading}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-violet-500 text-white text-sm font-medium hover:bg-violet-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Reviewing with AI…</> : 'Review with AI'}
+                {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Looking up tool…</> : 'Look up & continue'}
               </button>
 
               <p className="text-[11px] text-muted-foreground/50 text-center">
-                AI checks if this is a known DLP tool and pre-fills the details for you
+                We&apos;ll look it up and pre-fill what we know — you can edit before submitting
               </p>
             </div>
           )}
@@ -195,23 +195,13 @@ export function AddToolDialog({ onAdded, onClose }: Props) {
             <div className="space-y-5">
 
               {/* Verdict badge */}
-              {result.isRealDlp ? (
-                <div className="flex items-start gap-2.5 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-semibold text-emerald-400">AI Verified DLP Tool</p>
-                    <p className="text-[11px] text-muted-foreground/70 mt-0.5">{result.reason}</p>
-                  </div>
+              <div className="flex items-start gap-2.5 p-3 rounded-lg bg-muted/30 border border-border">
+                <ShieldCheck className="w-4 h-4 text-muted-foreground/50 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-medium text-foreground/80">We found some details — please review and fill in anything missing</p>
+                  <p className="text-[11px] text-muted-foreground/60 mt-0.5">Once submitted, we&apos;ll review and add this tool to the platform.</p>
                 </div>
-              ) : (
-                <div className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-semibold text-amber-400">Not a known DLP tool</p>
-                    <p className="text-[11px] text-muted-foreground/70 mt-0.5">{result.reason} You can still add it as a custom entry.</p>
-                  </div>
-                </div>
-              )}
+              </div>
 
               {/* Editable fields */}
               <div className="space-y-3">
@@ -296,16 +286,11 @@ export function AddToolDialog({ onAdded, onClose }: Props) {
               onClick={handleSave}
               disabled={!label.trim() || saving}
               className={cn(
-                'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors',
-                result?.isRealDlp
-                  ? 'bg-emerald-600 text-white hover:bg-emerald-500'
-                  : 'bg-amber-600 text-white hover:bg-amber-500',
+                'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors bg-violet-500 text-white hover:bg-violet-400',
                 (!label.trim() || saving) && 'opacity-40 cursor-not-allowed',
               )}
             >
-              {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</> : (
-                result?.isRealDlp ? 'Add Verified Tool' : 'Add as Custom Tool'
-              )}
+              {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Submitting…</> : 'Submit Tool'}
             </button>
           </div>
         )}
