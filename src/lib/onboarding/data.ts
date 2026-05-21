@@ -1997,6 +1997,7 @@ export const MODULE_TO_AREAS: Record<string, string[]> = {
   'purview-edge-dlp':       ['web-dlp'],
   'purview-ediscovery':     ['data-discovery'],
   'purview-data-lifecycle': ['data-discovery'],
+  'purview-info-protection': ['email-dlp', 'saas-api-rest'],
   'purview-m365-e3':        ['email-dlp', 'saas-api-rest'],
   'purview-m365-e5':        ['email-dlp', 'saas-api-rest', 'saas-casb-inline'],
   'purview-suite':          ['email-dlp', 'saas-api-rest', 'saas-casb-inline', 'endpoint-dlp', 'data-discovery'],

@@ -16,13 +16,14 @@ const LEVEL_RANK: Record<ChannelCoverageLevel, number> = {
 
 // Maps coverage-area IDs from MODULE_TO_AREAS to DLP channel keys
 const AREA_TO_CHANNEL: Record<string, keyof DlpToolChannelCoverage> = {
-  'email-dlp':        'email',
-  'web-dlp':          'web',
-  'saas-casb-inline': 'saas-inline',
-  'saas-api-rest':    'saas-api',
-  'endpoint-dlp':     'endpoint',
-  'genai-ai-dlp':     'genai',
-  'network-dlp':      'network',
+  'email-dlp':         'email',
+  'web-dlp':           'web',
+  'saas-casb-inline':  'saas-inline',
+  'saas-api-rest':     'saas-api',
+  'cloud-storage-dlp': 'saas-api',  // cloud bucket/object storage is at-rest SaaS data
+  'endpoint-dlp':      'endpoint',
+  'genai-ai-dlp':      'genai',
+  'network-dlp':       'network',
 }
 
 // Returns the channels this tool contributes to, based only on its selected modules.
