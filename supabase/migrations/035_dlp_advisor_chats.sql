@@ -20,9 +20,14 @@ CREATE INDEX dlp_advisor_chats_org_user_created
 CREATE INDEX dlp_advisor_chats_expires
   ON dlp_advisor_chats (expires_at);
 
--- Daily cleanup of expired chats
-SELECT cron.schedule(
-  'dlp-advisor-cleanup',
-  '0 3 * * *',
-  $$DELETE FROM dlp_advisor_chats WHERE expires_at < now()$$
-);
+-- Daily cleanup of expired chats (requires pg_cron extension — enable via Supabase Dashboard → Database → Extensions)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+    PERFORM cron.schedule(
+      'dlp-advisor-cleanup',
+      '0 3 * * *',
+      'DELETE FROM dlp_advisor_chats WHERE expires_at < now()'
+    );
+  END IF;
+END $$;
