@@ -340,20 +340,32 @@ export function CityMap({ districts, simulation }: CityMapProps) {
                   fill="rgba(239,68,68,0.04)" className="gap-pulse" />
               )}
 
-              {/* ── Roads (3 layers) ─── */}
-              {/* 1. Wide halo — breathes */}
-              <path d={roadPath} fill="none"
-                stroke={c.road} strokeWidth="14"
-                className="road-breath"
+              {/* ── Roads (4 layers) ─── */}
+              {/* 1. Road surface band — filled rect, breathes */}
+              <rect
+                x={ROAD_X1} y={row.y - 11}
+                width={ROAD_X2 - ROAD_X1} height={22} rx="3"
+                fill={c.road} fillOpacity={level === 'unknown' ? 0 : 0.09}
+                stroke={c.road} strokeOpacity={level === 'unknown' ? 0.12 : 0.28} strokeWidth="0.8"
+                strokeDasharray={level === 'unknown' ? '8 6' : undefined}
+                className={level !== 'unknown' ? 'road-breath' : undefined}
                 style={{ animationDelay: `${-ri * 0.55}s` } as React.CSSProperties}
               />
-              {/* 2. Mid bloom */}
+              {/* 2. Center lane dash (covered channels only) */}
+              {level !== 'unknown' && (
+                <line
+                  x1={ROAD_X1} y1={row.y} x2={ROAD_X2} y2={row.y}
+                  stroke={c.road} strokeWidth="0.9" opacity="0.32"
+                  strokeDasharray="12 8"
+                />
+              )}
+              {/* 3. Mid bloom */}
               <path d={roadPath} fill="none"
-                stroke={c.road} strokeWidth="3" opacity="0.3"
+                stroke={c.road} strokeWidth="2.5" opacity="0.3"
                 filter={hasGlow ? `url(#${c.filterId})` : undefined} />
-              {/* 3. Core bright line */}
+              {/* 4. Core bright centerline */}
               <path d={roadPath} fill="none"
-                stroke={c.road} strokeWidth={isSimRow ? 2.5 : 1.8} opacity={isSimRow ? 1 : 0.8}
+                stroke={c.road} strokeWidth={isSimRow ? 2.5 : 1.8} opacity={isSimRow ? 1 : 0.82}
                 filter={hasGlow ? `url(#${c.filterId})` : undefined}
                 strokeDasharray={level === 'unknown' ? '6 5' : undefined}
               />

@@ -144,7 +144,7 @@ export function ScenarioBuilder({ districts, onSimulate, onClear, lastResult }: 
   const actionStyle = lastResult ? ACTION_STYLES[lastResult.action] : null
 
   return (
-    <div className="w-64 shrink-0 border-r border-white/6 bg-[#030c1a] flex flex-col overflow-hidden">
+    <div className="w-full h-full border-r border-white/6 bg-[#030c1a] flex flex-col overflow-hidden">
       {/* Header */}
       <div className="px-4 pt-4 pb-3 border-b border-white/6">
         <p className="text-[9px] text-slate-600 uppercase tracking-[0.18em] font-medium">Interactive</p>
