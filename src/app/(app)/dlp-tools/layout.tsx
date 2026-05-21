@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/auth'
 const ITEMS = [
   { label: 'Market Overview', href: '/dlp-tools/market' },
   { label: 'My Stack',        href: '/dlp-tools/my-stack' },
+  { label: 'AI Advisor',      href: '/dlp-tools/advisor' },
 ]
 
 export default async function DlpToolsLayout({ children }: { children: React.ReactNode }) {
