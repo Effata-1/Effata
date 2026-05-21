@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MODULE_TO_AREAS } from '@/lib/onboarding/data'
 import type { DLPTool, DlpToolChannelCoverage, ChannelCoverageLevel } from '@/lib/onboarding/data'
@@ -203,6 +203,49 @@ export function MarketExplorer({ tools, orgTools }: Props) {
                               {mod.description}
                             </p>
 
+                            {/* Pricing tier */}
+                            {mod.pricingTier && (
+                              <div>
+                                <p className="text-[10px] font-semibold text-muted-foreground/40 uppercase tracking-widest mb-1.5">
+                                  Pricing Tier
+                                </p>
+                                <span className="px-2 py-0.5 rounded-md bg-muted border border-border text-xs text-muted-foreground">
+                                  {mod.pricingTier}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Key features */}
+                            {mod.keyFeatures && mod.keyFeatures.length > 0 && (
+                              <div>
+                                <p className="text-[10px] font-semibold text-muted-foreground/40 uppercase tracking-widest mb-1.5">
+                                  Key Features
+                                </p>
+                                <ul className="space-y-0.5 list-disc list-inside">
+                                  {mod.keyFeatures.map(f => (
+                                    <li key={f} className="text-xs text-muted-foreground">{f}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
+                            {/* Prerequisites */}
+                            {mod.prerequisites && mod.prerequisites.length > 0 && (
+                              <div>
+                                <p className="text-[10px] font-semibold text-muted-foreground/40 uppercase tracking-widest mb-1.5">
+                                  Prerequisites
+                                </p>
+                                <div className="flex flex-wrap gap-1">
+                                  {mod.prerequisites.map(p => (
+                                    <span key={p} className="px-1.5 py-0.5 rounded bg-muted border border-border text-[10px] text-muted-foreground/70 font-mono">
+                                      {p}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* DLP Channels */}
                             {modChannels.length > 0 && (
                               <div>
                                 <p className="text-[10px] font-semibold text-muted-foreground/40 uppercase tracking-widest mb-1.5">
@@ -224,6 +267,7 @@ export function MarketExplorer({ tools, orgTools }: Props) {
                               </div>
                             )}
 
+                            {/* Coverage Areas */}
                             {(MODULE_TO_AREAS[mod.id] ?? []).length > 0 && (
                               <div>
                                 <p className="text-[10px] font-semibold text-muted-foreground/40 uppercase tracking-widest mb-1.5">
@@ -237,6 +281,19 @@ export function MarketExplorer({ tools, orgTools }: Props) {
                                   ))}
                                 </div>
                               </div>
+                            )}
+
+                            {/* Official docs link */}
+                            {mod.officialUrl && (
+                              <a
+                                href={mod.officialUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                              >
+                                Official documentation
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
                             )}
                           </div>
                         )}
