@@ -346,11 +346,12 @@ export function CityMap({ districts, simulation }: CityMapProps) {
   const [selected, setSelected] = useState<DistrictData | null>(null)
 
   return (
-    <div className="relative flex-1 overflow-hidden bg-[#020914]">
+    <div className="relative flex-1 min-w-0 overflow-hidden bg-[#020914]">
       <Canvas
         flat
         orthographic
         camera={{ position: [28, 22, 28], zoom: 28, near: 0.1, far: 2000 }}
+        style={{ width: '100%', height: '100%' }}
         onPointerMissed={() => setSelected(null)}
       >
         <CameraSetup />

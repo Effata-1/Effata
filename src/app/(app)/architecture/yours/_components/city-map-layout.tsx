@@ -25,7 +25,7 @@ export function CityMapLayout({ districts, orgTools }: CityMapLayoutProps) {
   const [rightOpen,  setRightOpen]  = useState(false)
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex-1 flex h-full min-w-0 overflow-hidden">
 
       {/* ── Left toggle tab ── */}
       <button
