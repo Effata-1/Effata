@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, ExternalLink, BookOpen, Globe, FileText, CreditCard, LifeBuoy, Mail } from 'lucide-react'
+import { ChevronDown, ChevronRight, ExternalLink, BookOpen, Globe, LifeBuoy, Mail } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MODULE_TO_AREAS } from '@/lib/onboarding/data'
 import type { DLPTool, DlpToolChannelCoverage, ChannelCoverageLevel, ToolDocLink } from '@/lib/onboarding/data'
@@ -44,13 +44,11 @@ const LEVEL_LABEL: Record<ChannelCoverageLevel, string> = {
   full: 'Full', partial: 'Partial', addon: 'Add-on', none: '—',
 }
 
-const DOC_LINK_META: Record<ToolDocLink['type'], { label: string; icon: React.ElementType; class: string }> = {
-  'product':       { label: 'Product Page',    icon: Globe,      class: 'bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:bg-violet-500/20' },
-  'docs':          { label: 'Documentation',   icon: BookOpen,   class: 'bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20' },
-  'release-notes': { label: 'Release Notes',   icon: FileText,   class: 'bg-sky-500/10 text-sky-400 border border-sky-500/20 hover:bg-sky-500/20' },
-  'licensing':     { label: 'Licensing',       icon: CreditCard, class: 'bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20' },
-  'support':       { label: 'Support Portal',  icon: LifeBuoy,   class: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20' },
-  'contact':       { label: 'Contact',         icon: Mail,       class: 'bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20' },
+const DOC_LINK_META: Partial<Record<ToolDocLink['type'], { label: string; icon: React.ElementType; class: string }>> = {
+  'product': { label: 'Product Page',   icon: Globe,     class: 'bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:bg-violet-500/20' },
+  'docs':    { label: 'Documentation',  icon: BookOpen,  class: 'bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20' },
+  'support': { label: 'Support Portal', icon: LifeBuoy,  class: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20' },
+  'contact': { label: 'Contact',        icon: Mail,      class: 'bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20' },
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -300,18 +298,6 @@ export function MarketExplorer({ tools, orgTools }: Props) {
                               </div>
                             )}
 
-                            {/* Official docs link */}
-                            {mod.officialUrl && (
-                              <a
-                                href={mod.officialUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
-                              >
-                                Official documentation
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            )}
                           </div>
                         )}
                       </div>
@@ -343,6 +329,7 @@ export function MarketExplorer({ tools, orgTools }: Props) {
                             const hasLink = tool.toolLinks!.some(l => l.type === t)
                             if (!hasLink) return null
                             const meta = DOC_LINK_META[t]
+                            if (!meta) return null
                             return (
                               <span key={t} className={cn('px-1.5 py-0.5 rounded text-[9px] font-semibold', meta.class)}>
                                 {meta.label.split(' ')[0]}
@@ -357,6 +344,7 @@ export function MarketExplorer({ tools, orgTools }: Props) {
                           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                             {tool.toolLinks.map(link => {
                               const meta = DOC_LINK_META[link.type]
+                              if (!meta) return null
                               const Icon = meta.icon
                               return (
                                 <a
