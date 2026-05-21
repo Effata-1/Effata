@@ -30,73 +30,73 @@ const CARDS = [
     id:          'compare',
     Icon:        GitCompare,
     title:       'Compare two tools',
-    description: 'Side-by-side channel, pricing, and feature analysis',
+    description: 'Pick any two platforms for a side-by-side breakdown',
     accent:      'text-violet-400',
     bg:          'bg-violet-500/10 border-violet-500/20 hover:bg-violet-500/15',
-    prompt:      null,
+    prompt:      null, // opens compare selector
   },
   {
     id:          'evaluate',
     Icon:        Search,
-    title:       'Evaluate any tool',
-    description: 'Ask about tools outside the platform database',
+    title:       'Evaluate a tool',
+    description: 'Any DLP platform — inside or outside the database',
     accent:      'text-blue-400',
     bg:          'bg-blue-500/10 border-blue-500/20 hover:bg-blue-500/15',
-    prompt:      'Tell me about Nightfall DLP — what channels it covers, pricing model, key strengths, and when to choose it over alternatives like Netskope or Digital Guardian.',
+    prompt:      'I want to evaluate a DLP tool.',
   },
   {
     id:          'genai',
     Icon:        Zap,
-    title:       'Best GenAI coverage',
+    title:       'GenAI coverage',
     description: 'Which platforms cover AI apps best?',
     accent:      'text-amber-400',
     bg:          'bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/15',
-    prompt:      'Which DLP tool has the best GenAI and AI application coverage? Compare the top options for covering ChatGPT, Microsoft Copilot, Gemini, and custom LLMs. Include what each tool can and cannot do.',
+    prompt:      'Which DLP tools have the best GenAI coverage?',
   },
   {
     id:          'gaps',
     Icon:        AlertTriangle,
-    title:       'Identify my gaps',
+    title:       'Find my gaps',
     description: 'What DLP channels am I missing?',
     accent:      'text-emerald-400',
     bg:          'bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/15',
-    prompt:      null, // built at runtime
+    prompt:      null, // built at runtime from org stack
   },
   {
     id:          'gdpr',
     Icon:        Lock,
-    title:       'GDPR DLP requirements',
-    description: 'What channels and controls does Article 32 require?',
+    title:       'GDPR requirements',
+    description: 'What controls does Article 32 actually need?',
     accent:      'text-rose-400',
     bg:          'bg-rose-500/10 border-rose-500/20 hover:bg-rose-500/15',
-    prompt:      'What DLP channels and technical controls are required to satisfy GDPR Article 32? Cover email, endpoint, cloud storage, and SaaS. What does a compliant DLP programme look like for an EU organisation?',
+    prompt:      'What DLP controls are needed for GDPR Article 32?',
   },
   {
     id:          'detection',
     Icon:        Network,
     title:       'Detection technologies',
-    description: 'EDM, fingerprinting, ML classifiers — when to use each',
+    description: 'EDM, fingerprinting, ML — when to use each',
     accent:      'text-cyan-400',
     bg:          'bg-cyan-500/10 border-cyan-500/20 hover:bg-cyan-500/15',
-    prompt:      'Explain the main DLP detection technologies: exact data match (EDM), document fingerprinting, ML classifiers, regex patterns, and keyword dictionaries. When should I use each? What are their accuracy trade-offs?',
+    prompt:      'Help me understand DLP detection technologies and when to use each.',
   },
   {
     id:          'email',
     Icon:        BookOpen,
-    title:       'Email DLP best practices',
-    description: 'How to build a solid outbound email DLP programme',
+    title:       'Email DLP',
+    description: 'Build a solid outbound email DLP programme',
     accent:      'text-orange-400',
     bg:          'bg-orange-500/10 border-orange-500/20 hover:bg-orange-500/15',
-    prompt:      'What are the best practices for building an outbound email DLP programme? Cover policy design, detection approach, enforcement modes (monitor → coach → block), false positive management, and which tools handle email DLP best.',
+    prompt:      'I want to improve my email DLP.',
   },
   {
     id:          'endpoint-vs-casb',
     Icon:        ShieldCheck,
-    title:       'Endpoint vs CASB DLP',
-    description: 'When to use each architecture for cloud workforces',
+    title:       'Endpoint vs CASB',
+    description: 'Which architecture fits your workforce?',
     accent:      'text-teal-400',
     bg:          'bg-teal-500/10 border-teal-500/20 hover:bg-teal-500/15',
-    prompt:      'When should I use endpoint DLP vs CASB/SSE DLP? Compare coverage, deployment complexity, BYOD suitability, offline enforcement, and cost. What is the right architecture for a cloud-first organisation with remote workers?',
+    prompt:      'Should I use endpoint DLP or CASB DLP?',
   },
 ]
 
@@ -367,70 +367,77 @@ export function DlpAdvisorChat({ orgToolLabels, allTools, initialChats }: Props)
   )
 
   return (
-    <div className="flex h-[calc(100vh-130px)] rounded-xl border border-border bg-card/20 overflow-hidden">
+    <div className="relative flex h-[calc(100vh-130px)] rounded-xl border border-border bg-card/20 overflow-hidden">
 
-      {/* ── History sidebar ────────────────────────────────────────────────── */}
+      {/* ── History slide-over ─────────────────────────────────────────────── */}
       {historyOpen && (
-        <div className="w-56 shrink-0 flex flex-col border-r border-border bg-card/40">
-          <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
-            <p className="text-xs font-semibold text-foreground">Saved Chats</p>
-            <button onClick={() => setHistoryOpen(false)} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors">
-              <X className="w-3.5 h-3.5" />
+        <>
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 z-10 bg-background/40 backdrop-blur-[2px]"
+            onClick={() => setHistoryOpen(false)}
+          />
+          {/* Panel */}
+          <div className="absolute right-0 top-0 bottom-0 z-20 w-72 flex flex-col border-l border-border bg-card shadow-xl">
+            <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
+              <p className="text-xs font-semibold text-foreground">Saved Chats</p>
+              <button onClick={() => setHistoryOpen(false)} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Retention notice */}
+            <div className="mx-3 mt-3 mb-1 flex items-start gap-2 px-2.5 py-2 rounded-lg bg-amber-500/8 border border-amber-500/15">
+              <Clock className="w-3 h-3 text-amber-400 shrink-0 mt-0.5" />
+              <p className="text-[10px] text-amber-400/80 leading-snug">
+                Chats auto-delete after <strong>30 days</strong>. Not stored beyond that.
+              </p>
+            </div>
+
+            {/* Chat list */}
+            <div className="flex-1 overflow-y-auto py-1">
+              {savedChats.length === 0 ? (
+                <p className="px-4 py-8 text-[11px] text-muted-foreground/50 text-center">No saved chats yet</p>
+              ) : (
+                savedChats.map(chat => (
+                  <button
+                    key={chat.id}
+                    onClick={async () => {
+                      const { loadAdvisorChat } = await import('../actions')
+                      const data = await loadAdvisorChat(chat.id)
+                      if (data) loadChat({ ...chat, messages: data.messages as Message[] })
+                    }}
+                    className={cn(
+                      'group w-full text-left px-4 py-3 hover:bg-muted/20 transition-colors flex items-start gap-2 border-b border-border/40 last:border-0',
+                      currentChatId === chat.id && 'bg-muted/30',
+                    )}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] text-foreground/80 leading-snug line-clamp-2">{chat.title}</p>
+                      <p className="text-[10px] text-muted-foreground/50 mt-1">
+                        {chatDateLabel(chat.created_at)} · {daysUntilExpiry(chat.expires_at)}d left
+                      </p>
+                    </div>
+                    <button
+                      onClick={e => handleDeleteChat(chat.id, e)}
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground/50 hover:text-rose-400 transition-all shrink-0 mt-0.5"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </button>
+                ))
+              )}
+            </div>
+
+            <button
+              onClick={() => { reset(); setHistoryOpen(false) }}
+              className="m-3 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border border-border bg-muted/10 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+            >
+              <RotateCcw className="w-3 h-3" />
+              New chat
             </button>
           </div>
-
-          {/* Retention notice */}
-          <div className="mx-3 mt-3 mb-2 flex items-start gap-2 px-2.5 py-2 rounded-lg bg-amber-500/8 border border-amber-500/15">
-            <Clock className="w-3 h-3 text-amber-400 shrink-0 mt-0.5" />
-            <p className="text-[10px] text-amber-400/80 leading-snug">
-              Chats auto-delete after <strong>30 days</strong>. Not stored beyond that.
-            </p>
-          </div>
-
-          {/* Chat list */}
-          <div className="flex-1 overflow-y-auto py-1">
-            {savedChats.length === 0 ? (
-              <p className="px-4 py-6 text-[11px] text-muted-foreground/50 text-center">No saved chats yet</p>
-            ) : (
-              savedChats.map(chat => (
-                <button
-                  key={chat.id}
-                  onClick={async () => {
-                    // Lazy-load messages
-                    const { loadAdvisorChat } = await import('../actions')
-                    const data = await loadAdvisorChat(chat.id)
-                    if (data) loadChat({ ...chat, messages: data.messages as Message[] })
-                  }}
-                  className={cn(
-                    'group w-full text-left px-3 py-2.5 hover:bg-muted/20 transition-colors flex items-start gap-2',
-                    currentChatId === chat.id && 'bg-muted/30',
-                  )}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[11px] text-foreground/80 leading-snug line-clamp-2">{chat.title}</p>
-                    <p className="text-[10px] text-muted-foreground/50 mt-0.5">
-                      {chatDateLabel(chat.created_at)} · {daysUntilExpiry(chat.expires_at)}d left
-                    </p>
-                  </div>
-                  <button
-                    onClick={e => handleDeleteChat(chat.id, e)}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground/50 hover:text-rose-400 transition-all shrink-0 mt-0.5"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </button>
-              ))
-            )}
-          </div>
-
-          <button
-            onClick={reset}
-            className="m-3 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-border bg-muted/10 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
-          >
-            <RotateCcw className="w-3 h-3" />
-            New chat
-          </button>
-        </div>
+        </>
       )}
 
       {/* ── Chat column ────────────────────────────────────────────────────── */}
