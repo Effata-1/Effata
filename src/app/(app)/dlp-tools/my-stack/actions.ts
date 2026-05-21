@@ -5,10 +5,19 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { CoverageStatus } from '@/lib/channel-taxonomy'
 
+export interface LicenceDetail {
+  seats?:     number
+  cycle?:     'monthly' | 'annual' | '2-year' | '3-year'
+  startDate?: string
+  endDate?:   string
+  notes?:     string
+}
+
 export async function updateMyStack(
   tools: string[],
   modules: Record<string, string[]>,
   coverageAreas: Record<string, string>,
+  licenceDetails: Record<string, LicenceDetail>,
 ) {
   const user = await requireRole('analyst')
   const supabase = await createClient()
@@ -18,8 +27,9 @@ export async function updateMyStack(
     .update({
       tools,
       modules,
-      coverage_areas: coverageAreas,
-      updated_at: new Date().toISOString(),
+      coverage_areas:  coverageAreas,
+      licence_details: licenceDetails,
+      updated_at:      new Date().toISOString(),
     })
     .eq('user_id', user.id)
 

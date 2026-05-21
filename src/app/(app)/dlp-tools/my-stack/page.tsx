@@ -6,6 +6,7 @@ import { CHANNELS } from '@/lib/channel-taxonomy'
 import { deriveCoverage } from '@/lib/dlp-tools/derive-coverage'
 import { cn } from '@/lib/utils'
 import { MyStackEditor } from './_components/my-stack-editor'
+import type { LicenceDetail } from './actions'
 import { CoverageAssessment } from './_components/coverage-assessment'
 import { AiReviewSection } from './_components/ai-review-section'
 import type { CoverageStatus } from '@/lib/channel-taxonomy'
@@ -49,9 +50,10 @@ export default async function MyStackPage() {
       .maybeSingle(),
   ])
 
-  const orgTools: string[]                      = (profile?.tools as string[]) ?? []
-  const orgModules: Record<string, string[]>    = (profile?.modules as Record<string, string[]>) ?? {}
-  const orgCoverageAreas: Record<string, string> = (profile?.coverage_areas as Record<string, string>) ?? {}
+  const orgTools: string[]                              = (profile?.tools as string[]) ?? []
+  const orgModules: Record<string, string[]>            = (profile?.modules as Record<string, string[]>) ?? {}
+  const orgCoverageAreas: Record<string, string>        = (profile?.coverage_areas as Record<string, string>) ?? {}
+  const orgLicenceDetails: Record<string, LicenceDetail> = (profile?.licence_details as Record<string, LicenceDetail>) ?? {}
 
   const channelAnswers: Record<string, Record<string, CoverageStatus>> = {}
   for (const row of channelRows ?? []) {
@@ -77,6 +79,7 @@ export default async function MyStackPage() {
         initialTools={orgTools}
         initialModules={orgModules}
         initialCoverageAreas={orgCoverageAreas}
+        initialLicenceDetails={orgLicenceDetails}
       />
 
       {/* Section 2: Derived Coverage */}
