@@ -383,7 +383,7 @@ export function MyStackEditor({
         <button
           type="button"
           onClick={() => setEditing(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border/80 bg-muted/30 text-foreground/80 hover:text-foreground hover:bg-muted/60 transition-colors"
         >
           <Pencil className="w-3 h-3" />
           Edit Stack
@@ -412,7 +412,7 @@ export function MyStackEditor({
             const hasLicence = licence && (licence.seats || licence.cycle || licence.startDate || licence.endDate)
 
             return (
-              <div key={tool.id} className="rounded-xl border border-border bg-card/40 p-4 space-y-3">
+              <div key={tool.id} className="rounded-xl border border-border bg-card/40 p-4 flex flex-col gap-3">
                 {/* Tool header */}
                 <div className="flex items-start justify-between gap-2">
                   <span className="text-sm font-semibold text-foreground">{tool.label}</span>
@@ -436,19 +436,21 @@ export function MyStackEditor({
                   </div>
                 )}
 
-                {/* Licence details */}
-                {hasLicence ? (
-                  <LicenceBadge detail={licence} />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setEditing(true)}
-                    className="mt-1 text-[11px] text-muted-foreground/40 hover:text-muted-foreground transition-colors flex items-center gap-1"
-                  >
-                    <Plus className="w-3 h-3" />
-                    Add licence details
-                  </button>
-                )}
+                {/* Licence details — always pinned to bottom */}
+                <div className="mt-auto">
+                  {hasLicence ? (
+                    <LicenceBadge detail={licence} />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setEditing(true)}
+                      className="text-[11px] text-muted-foreground/40 hover:text-muted-foreground transition-colors flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add licence details
+                    </button>
+                  )}
+                </div>
               </div>
             )
           })}

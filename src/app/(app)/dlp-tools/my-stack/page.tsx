@@ -60,7 +60,7 @@ export default async function MyStackPage() {
     channelAnswers[row.channel_slug] = row.assessment_answers as Record<string, CoverageStatus>
   }
 
-  const derivedCoverage = deriveCoverage(orgTools, DLP_TOOLS)
+  const derivedCoverage = deriveCoverage(orgTools, DLP_TOOLS, orgModules)
 
   return (
     <div className="max-w-5xl space-y-12">
