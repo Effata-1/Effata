@@ -1,12 +1,18 @@
 'use client'
 
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronRight, ChevronLeft } from 'lucide-react'
 import type { DistrictData, SimResult } from './types'
 import { ScenarioBuilder } from './scenario-builder'
-import { CityMap } from './city-map'
 import { EnvironmentConfig } from './environment-config'
+
+// Three.js cannot run on the server — lazy load with no SSR
+const CityMap = dynamic(
+  () => import('./city-map').then(m => ({ default: m.CityMap })),
+  { ssr: false, loading: () => <div className="flex-1 bg-[#020914]" /> }
+)
 
 interface CityMapLayoutProps {
   districts: DistrictData[]
