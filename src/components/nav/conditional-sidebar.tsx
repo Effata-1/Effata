@@ -12,6 +12,7 @@ const SECTION_ROUTES = [
   '/policies',
   '/tools',
   '/compliance',
+  '/dlp-tools',
 ]
 
 export function ConditionalSidebar() {
