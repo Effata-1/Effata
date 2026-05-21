@@ -47,7 +47,7 @@ const LEVEL_LABEL: Record<ChannelCoverageLevel, string> = {
   full: 'Full', partial: 'Partial', addon: 'Add-on', none: '—',
 }
 
-const DOC_LINK_META: Partial<Record<ToolDocLink['type'], { label: string; icon: React.ElementType; class: string }>> = {
+const DOC_LINK_META: Partial<Record<ToolDocLink['type'], { label: string; icon: React.ComponentType<{ className?: string }>; class: string }>> = {
   'product': { label: 'Product Page',   icon: Globe,     class: 'bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:bg-violet-500/20' },
   'docs':    { label: 'Documentation',  icon: BookOpen,  class: 'bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20' },
   'support': { label: 'Support Portal', icon: LifeBuoy,  class: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20' },

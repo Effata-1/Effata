@@ -306,7 +306,7 @@ function formatTime(iso: string) {
 
 const RESULT_META: Record<TestResult, {
   label: string; color: string; border: string; bg: string
-  Icon: React.ElementType; headline: string; sub: string
+  Icon: React.ComponentType<{ className?: string }>; headline: string; sub: string
 }> = {
   blocked:           { label: 'BLOCKED',              color: 'text-green-400',  border: 'border-green-500/40',  bg: 'bg-green-500/8',   Icon: ShieldCheck,   headline: 'DLP intercepted this request',                         sub: 'The request never reached our server — your DLP control is working for this vector.' },
   not_blocked:       { label: 'NOT BLOCKED',           color: 'text-red-400',    border: 'border-red-500/40',    bg: 'bg-red-500/8',     Icon: ShieldAlert,   headline: 'Our server received the payload',                      sub: 'DLP did not intercept this request. This channel / data-type combination is not being caught.' },
