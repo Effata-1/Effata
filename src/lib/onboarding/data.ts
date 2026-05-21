@@ -18,11 +18,25 @@ export interface Module {
   description: string
 }
 
+export type ChannelCoverageLevel = 'full' | 'partial' | 'addon' | 'none'
+
+export interface DlpToolChannelCoverage {
+  email:         ChannelCoverageLevel
+  web:           ChannelCoverageLevel
+  'saas-inline': ChannelCoverageLevel
+  'saas-api':    ChannelCoverageLevel
+  endpoint:      ChannelCoverageLevel
+  genai:         ChannelCoverageLevel
+  network:       ChannelCoverageLevel
+}
+
 export interface DLPTool {
   id: string
   label: string
   description: string
   modules: Module[]
+  category?: string[]
+  channelCoverage?: DlpToolChannelCoverage
 }
 
 export interface CoverageArea {
@@ -124,7 +138,9 @@ export const DLP_TOOLS: DLPTool[] = [
   {
     id: 'netskope',
     label: 'Netskope',
-    description: 'SSE, CASB, inline DLP, API protection, endpoint DLP, private access.',
+    description: 'Cloud-native SSE platform with best-in-class CASB inline and GenAI security controls.',
+    category: ['CASB', 'SWG', 'ZTNA'],
+    channelCoverage: { email: 'partial', web: 'full', 'saas-inline': 'full', 'saas-api': 'full', endpoint: 'partial', genai: 'full', network: 'full' },
     modules: [
       { id: 'sse-web-casb', label: 'SSE / Web & CASB Inline', description: 'Inline web, cloud, and SaaS traffic inspection and policy enforcement.' },
       { id: 'cloud-firewall-network', label: 'Cloud Firewall / Network Security', description: 'Network/security inspection depending on Netskope deployment.' },
@@ -142,7 +158,9 @@ export const DLP_TOOLS: DLPTool[] = [
   {
     id: 'microsoft-purview',
     label: 'Microsoft Purview',
-    description: 'M365 DLP, Endpoint DLP, Information Protection, Insider Risk, Compliance capabilities.',
+    description: 'Microsoft-native DLP with deep M365 integration, endpoint agent, and compliance suite.',
+    category: ['Email', 'Endpoint', 'CASB', 'Compliance'],
+    channelCoverage: { email: 'full', web: 'full', 'saas-inline': 'partial', 'saas-api': 'full', endpoint: 'full', genai: 'partial', network: 'partial' },
     modules: [
       { id: 'purview-m365-e3', label: 'Microsoft 365 E3', description: 'Baseline M365 compliance and information protection capabilities.' },
       { id: 'purview-m365-e5', label: 'Microsoft 365 E5', description: 'Advanced compliance, security, and Purview capabilities.' },
@@ -163,7 +181,9 @@ export const DLP_TOOLS: DLPTool[] = [
   {
     id: 'symantec-dlp',
     label: 'Symantec DLP / Broadcom DLP',
-    description: 'Enterprise DLP across endpoint, network, email/web prevent, discover, and enforce.',
+    description: 'Enterprise DLP with strong endpoint agent and network coverage. Now part of Broadcom.',
+    category: ['Endpoint', 'Network', 'Email'],
+    channelCoverage: { email: 'full', web: 'full', 'saas-inline': 'partial', 'saas-api': 'partial', endpoint: 'full', genai: 'none', network: 'full' },
     modules: [
       { id: 'symantec-enforce', label: 'Enforce Platform / Management Server', description: 'Central DLP management, policy, incident, and administration console.' },
       { id: 'symantec-endpoint-prevent', label: 'Endpoint Prevent', description: 'Endpoint activity monitoring and enforcement.' },
@@ -180,7 +200,9 @@ export const DLP_TOOLS: DLPTool[] = [
   {
     id: 'forcepoint-dlp',
     label: 'Forcepoint DLP / Forcepoint Data Security',
-    description: 'DLP across email, endpoint, web/cloud, data security cloud, adaptive/risk-based protection.',
+    description: 'Behaviour-based DLP with risk-adaptive policies across endpoint, network, and cloud.',
+    category: ['Endpoint', 'Network', 'CASB'],
+    channelCoverage: { email: 'full', web: 'full', 'saas-inline': 'partial', 'saas-api': 'partial', endpoint: 'full', genai: 'partial', network: 'full' },
     modules: [
       { id: 'fp-core', label: 'Forcepoint DLP Core / Management', description: 'Central DLP policy, incident, and management capability.' },
       { id: 'fp-email', label: 'DLP for Email', description: 'Outbound email DLP and email protection workflows.' },
@@ -198,7 +220,9 @@ export const DLP_TOOLS: DLPTool[] = [
   {
     id: 'zscaler-dlp',
     label: 'Zscaler DLP / Zscaler Data Protection',
-    description: 'Cloud DLP, inline inspection, endpoint DLP, browser/cloud/web data protection.',
+    description: 'Cloud-native SWG and CASB with unified DLP policy engine across web and SaaS.',
+    category: ['SWG', 'CASB', 'ZTNA'],
+    channelCoverage: { email: 'none', web: 'full', 'saas-inline': 'full', 'saas-api': 'partial', endpoint: 'partial', genai: 'partial', network: 'full' },
     modules: [
       { id: 'zs-zia-cloud', label: 'Zscaler Internet Access / Cloud DLP', description: 'Inline cloud/web DLP through Zscaler Internet Access.' },
       { id: 'zs-edm', label: 'Exact Data Match / Indexed Data Matching', description: 'Structured data matching capability where licensed/configured.' },
@@ -215,43 +239,57 @@ export const DLP_TOOLS: DLPTool[] = [
   {
     id: 'digital-guardian',
     label: 'Digital Guardian / Fortra',
-    description: 'Endpoint-centric DLP with data classification and protection across endpoint, network, and cloud.',
+    description: 'Purpose-built endpoint DLP with deep content inspection and user activity monitoring.',
+    category: ['Endpoint'],
+    channelCoverage: { email: 'partial', web: 'partial', 'saas-inline': 'none', 'saas-api': 'none', endpoint: 'full', genai: 'none', network: 'partial' },
     modules: GENERIC_MODULES,
   },
   {
     id: 'trellix-dlp',
     label: 'Trellix DLP',
-    description: 'DLP across endpoint, discovery, classification, policy controls, and data protection workflows.',
+    description: 'Unified DLP across email, web, network, and endpoint. Formerly McAfee DLP.',
+    category: ['Email', 'Endpoint', 'Network'],
+    channelCoverage: { email: 'full', web: 'full', 'saas-inline': 'partial', 'saas-api': 'partial', endpoint: 'full', genai: 'none', network: 'full' },
     modules: GENERIC_MODULES,
   },
   {
     id: 'skyhigh-security',
     label: 'Skyhigh Security',
-    description: 'Cloud-native DLP / SSE / CASB coverage across cloud, web, email, private apps, and endpoints.',
+    description: 'CASB and SWG specialist with strong cloud data protection and inline inspection.',
+    category: ['CASB', 'SWG'],
+    channelCoverage: { email: 'none', web: 'full', 'saas-inline': 'full', 'saas-api': 'full', endpoint: 'none', genai: 'partial', network: 'full' },
     modules: GENERIC_MODULES,
   },
   {
     id: 'proofpoint-dlp',
     label: 'Proofpoint Enterprise DLP',
-    description: 'Email-focused DLP with enterprise DLP extension into cloud and endpoint use cases.',
+    description: 'Email-first DLP with insider threat detection and information protection.',
+    category: ['Email', 'Insider Risk'],
+    channelCoverage: { email: 'full', web: 'partial', 'saas-inline': 'partial', 'saas-api': 'partial', endpoint: 'partial', genai: 'none', network: 'none' },
     modules: GENERIC_MODULES,
   },
   {
     id: 'google-workspace-dlp',
     label: 'Google Workspace DLP',
-    description: 'Gmail, Drive, Chat, and Workspace-focused DLP use cases.',
+    description: 'Native DLP for Google Workspace apps, Gmail, and Chrome Enterprise browser.',
+    category: ['Email', 'CASB'],
+    channelCoverage: { email: 'full', web: 'partial', 'saas-inline': 'full', 'saas-api': 'partial', endpoint: 'none', genai: 'partial', network: 'none' },
     modules: GENERIC_MODULES,
   },
   {
     id: 'palo-alto-dlp',
     label: 'Palo Alto Networks / Prisma Access / Enterprise DLP',
-    description: 'Data security inspection for web, cloud, SaaS, and enterprise access use cases.',
+    description: 'Enterprise DLP via Prisma Access SASE with SWG and CASB inline coverage.',
+    category: ['SWG', 'CASB', 'NGFW'],
+    channelCoverage: { email: 'none', web: 'full', 'saas-inline': 'full', 'saas-api': 'partial', endpoint: 'partial', genai: 'partial', network: 'full' },
     modules: GENERIC_MODULES,
   },
   {
     id: 'cisco-dlp',
     label: 'Cisco Secure Access / Cisco DLP',
-    description: 'SSE/SASE-style data protection depending on Cisco security stack and integrations.',
+    description: 'Email and network DLP via Cisco Secure suite and Umbrella.',
+    category: ['Email', 'Network'],
+    channelCoverage: { email: 'full', web: 'partial', 'saas-inline': 'partial', 'saas-api': 'none', endpoint: 'partial', genai: 'none', network: 'partial' },
     modules: GENERIC_MODULES,
   },
   {

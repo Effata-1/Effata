@@ -15,6 +15,7 @@ import {
   Wrench,
   ClipboardList,
   Layers,
+  Package2,
   Settings,
   ChevronRight,
   LogOut,
@@ -75,6 +76,13 @@ const NAV_ITEMS = [
     href:  '/channels/email-dlp',
     base:  '/channels',
     icon:  <Layers className="h-4 w-4" />,
+    sub:   true,
+  },
+  {
+    label: 'DLP Tools',
+    href:  '/dlp-tools/market',
+    base:  '/dlp-tools',
+    icon:  <Package2 className="h-4 w-4" />,
     sub:   true,
   },
   {
