@@ -34,6 +34,12 @@ export interface DlpToolChannelCoverage {
   network:       ChannelCoverageLevel
 }
 
+export interface ToolDocLink {
+  type: 'product' | 'docs' | 'release-notes' | 'licensing' | 'support' | 'contact'
+  label: string
+  url: string
+}
+
 export interface DLPTool {
   id: string
   label: string
@@ -41,6 +47,7 @@ export interface DLPTool {
   modules: Module[]
   category?: string[]
   channelCoverage?: DlpToolChannelCoverage
+  toolLinks?: ToolDocLink[]
 }
 
 export interface CoverageArea {
@@ -330,6 +337,14 @@ export const DLP_TOOLS: DLPTool[] = [
       },
       { id: 'netskope-other', label: 'Other / Custom Netskope Module', description: 'Customer-defined Netskope licence/module.' },
     ],
+    toolLinks: [
+      { type: 'product',       label: 'Netskope One Platform',      url: 'https://www.netskope.com/products/netskope-one' },
+      { type: 'docs',          label: 'Netskope Documentation',      url: 'https://docs.netskope.com' },
+      { type: 'release-notes', label: 'Release Notes',               url: 'https://docs.netskope.com/en/release-notes/' },
+      { type: 'licensing',     label: 'Pricing & Editions',          url: 'https://www.netskope.com/pricing' },
+      { type: 'support',       label: 'Support Portal',              url: 'https://support.netskope.com' },
+      { type: 'contact',       label: 'Contact Sales',               url: 'https://www.netskope.com/contact/' },
+    ],
   },
   {
     id: 'microsoft-purview',
@@ -500,6 +515,14 @@ export const DLP_TOOLS: DLPTool[] = [
       },
       { id: 'purview-other', label: 'Other / Custom Microsoft Module', description: 'Customer-defined Microsoft/Purview licence/module.' },
     ],
+    toolLinks: [
+      { type: 'product',       label: 'Microsoft Purview',           url: 'https://www.microsoft.com/en-us/security/business/microsoft-purview' },
+      { type: 'docs',          label: 'Purview Documentation',       url: 'https://learn.microsoft.com/en-us/purview/' },
+      { type: 'release-notes', label: "What's New in Purview",       url: 'https://learn.microsoft.com/en-us/microsoft-365/compliance/whats-new' },
+      { type: 'licensing',     label: 'M365 Plan Comparison',        url: 'https://www.microsoft.com/en-us/microsoft-365/compare-microsoft-365-enterprise-plans' },
+      { type: 'support',       label: 'Microsoft Support',           url: 'https://support.microsoft.com/en-us/office' },
+      { type: 'contact',       label: 'Contact Microsoft',           url: 'https://www.microsoft.com/en-us/microsoft-365/business/microsoft-365-for-business-support' },
+    ],
   },
   {
     id: 'symantec-dlp',
@@ -616,6 +639,14 @@ export const DLP_TOOLS: DLPTool[] = [
         officialUrl: 'https://techdocs.broadcom.com/us/en/symantec-security-software/information-security/data-loss-prevention/16-0.html',
       },
       { id: 'symantec-other', label: 'Other / Custom Symantec Module', description: 'Customer-defined Symantec/Broadcom DLP module.' },
+    ],
+    toolLinks: [
+      { type: 'product',       label: 'Symantec DLP Product Page',   url: 'https://www.broadcom.com/products/cybersecurity/information-protection/data-loss-prevention' },
+      { type: 'docs',          label: 'Symantec DLP TechDocs',       url: 'https://techdocs.broadcom.com/us/en/symantec-security-software/information-security/data-loss-prevention' },
+      { type: 'release-notes', label: 'Release Notes',               url: 'https://techdocs.broadcom.com/us/en/symantec-security-software/information-security/data-loss-prevention/latest/release-notes.html' },
+      { type: 'licensing',     label: 'Broadcom Licensing',          url: 'https://www.broadcom.com/products/cybersecurity/information-protection/data-loss-prevention' },
+      { type: 'support',       label: 'Broadcom Support Portal',     url: 'https://support.broadcom.com' },
+      { type: 'contact',       label: 'Contact Broadcom',            url: 'https://www.broadcom.com/support/contact-us' },
     ],
   },
   {
@@ -747,6 +778,14 @@ export const DLP_TOOLS: DLPTool[] = [
       },
       { id: 'fp-other', label: 'Other / Custom Forcepoint Module', description: 'Customer-defined Forcepoint module.' },
     ],
+    toolLinks: [
+      { type: 'product',       label: 'Forcepoint DLP',              url: 'https://www.forcepoint.com/product/dlp' },
+      { type: 'docs',          label: 'Forcepoint Docs',             url: 'https://docs.forcepoint.com/bundle/dlp' },
+      { type: 'release-notes', label: 'Release Notes',               url: 'https://docs.forcepoint.com/bundle/release-notes' },
+      { type: 'licensing',     label: 'Forcepoint Pricing',          url: 'https://www.forcepoint.com/pricing' },
+      { type: 'support',       label: 'Support Portal',              url: 'https://support.forcepoint.com' },
+      { type: 'contact',       label: 'Contact Forcepoint',          url: 'https://www.forcepoint.com/company/contact-us' },
+    ],
   },
   {
     id: 'zscaler-dlp',
@@ -867,6 +906,14 @@ export const DLP_TOOLS: DLPTool[] = [
       },
       { id: 'zs-other', label: 'Other / Custom Zscaler Module', description: 'Customer-defined Zscaler module.' },
     ],
+    toolLinks: [
+      { type: 'product',       label: 'Zscaler Internet Access',     url: 'https://www.zscaler.com/products-and-solutions/zscaler-internet-access' },
+      { type: 'docs',          label: 'Zscaler DLP Help',            url: 'https://help.zscaler.com/zia/data-loss-prevention' },
+      { type: 'release-notes', label: 'ZIA Release Notes',           url: 'https://help.zscaler.com/zia/zia-release-upgrade-notes' },
+      { type: 'licensing',     label: 'Zscaler Editions',            url: 'https://www.zscaler.com/products-and-solutions/enterprise-solutions' },
+      { type: 'support',       label: 'Zscaler Help Portal',         url: 'https://help.zscaler.com' },
+      { type: 'contact',       label: 'Contact Zscaler',             url: 'https://www.zscaler.com/contact' },
+    ],
   },
   {
     id: 'digital-guardian',
@@ -874,7 +921,76 @@ export const DLP_TOOLS: DLPTool[] = [
     description: 'Purpose-built endpoint DLP with deep content inspection and user activity monitoring.',
     category: ['Endpoint'],
     channelCoverage: { email: 'partial', web: 'partial', 'saas-inline': 'none', 'saas-api': 'none', endpoint: 'full', genai: 'none', network: 'partial' },
-    modules: GENERIC_MODULES,
+    modules: [
+      {
+        id: 'dg-arc-platform', label: 'ARC Management Console',
+        description: 'Cloud-native ARC management console for centralised DLP policy, incident management, and analytics.',
+        pricingTier: 'Required base platform (SaaS ARC or on-prem Enforce)',
+        keyFeatures: [
+          'Centralised DLP management console for policy authoring and incident remediation',
+          'Cloud-native ARC architecture or on-premises server deployment option',
+          'Cross-channel incident workflow, case management, and SIEM export',
+          'Risk scoring dashboards and custom report builder',
+        ],
+        officialUrl: 'https://help.digitalguardian.com',
+      },
+      {
+        id: 'dg-endpoint-prevent', label: 'Endpoint DLP / Prevent',
+        description: 'Agent-based endpoint DLP with kernel-level monitoring and device controls.',
+        pricingTier: 'Endpoint module add-on',
+        keyFeatures: [
+          'Windows and macOS endpoint agent with kernel-level file activity monitoring',
+          'USB, printer, Bluetooth, and peripheral device allow/block/encrypt rules',
+          'Application-level controls for copy/paste, screenshot, and file save',
+          'Offline enforcement — policies applied without network connectivity',
+        ],
+        prerequisites: ['DG ARC Management Console'],
+        officialUrl: 'https://help.digitalguardian.com',
+      },
+      {
+        id: 'dg-network-dlp', label: 'Network DLP / Prevent',
+        description: 'Email and web egress DLP via SMTP gateway and proxy integration.',
+        pricingTier: 'Network module add-on',
+        keyFeatures: [
+          'Outbound email DLP via SMTP gateway integration',
+          'Web proxy and HTTP/S upload inspection and enforcement',
+          'Block, coach, encrypt, or quarantine on sensitive transmission detection',
+        ],
+        prerequisites: ['DG ARC Management Console'],
+        officialUrl: 'https://help.digitalguardian.com',
+      },
+      {
+        id: 'dg-cloud-dlp', label: 'Cloud / SaaS DLP',
+        description: 'Cloud application upload and share inspection for major SaaS platforms.',
+        pricingTier: 'Cloud module add-on',
+        keyFeatures: [
+          'Cloud application upload and share inspection for M365, Google Workspace, Box, and Salesforce',
+          'SaaS activity controls with block, coach, and notify actions',
+        ],
+        prerequisites: ['DG ARC Management Console'],
+        officialUrl: 'https://help.digitalguardian.com',
+      },
+      {
+        id: 'dg-data-discovery', label: 'Data Discovery / Classification',
+        description: 'Automated sensitive data discovery across endpoints, file shares, and cloud repositories.',
+        pricingTier: 'Discovery add-on',
+        keyFeatures: [
+          'Automated sensitive data discovery across endpoints, file shares, and cloud repositories',
+          'Classification inventory with risk prioritisation and exposure remediation workflows',
+        ],
+        prerequisites: ['DG ARC Management Console'],
+        officialUrl: 'https://help.digitalguardian.com',
+      },
+      { id: 'dg-other', label: 'Other / Custom Digital Guardian Module', description: 'Customer-defined Digital Guardian module.' },
+    ],
+    toolLinks: [
+      { type: 'product',       label: 'Digital Guardian by Fortra',  url: 'https://www.fortra.com/products/digital-guardian' },
+      { type: 'docs',          label: 'DG Help Centre',              url: 'https://help.digitalguardian.com' },
+      { type: 'release-notes', label: 'DG Release Notes',            url: 'https://help.digitalguardian.com/release-notes' },
+      { type: 'licensing',     label: 'Fortra Products & Pricing',   url: 'https://www.fortra.com/products/digital-guardian' },
+      { type: 'support',       label: 'Fortra Support',              url: 'https://support.fortra.com' },
+      { type: 'contact',       label: 'Contact Fortra',              url: 'https://www.fortra.com/contact' },
+    ],
   },
   {
     id: 'trellix-dlp',
@@ -882,7 +998,77 @@ export const DLP_TOOLS: DLPTool[] = [
     description: 'Unified DLP across email, web, network, and endpoint. Formerly McAfee DLP.',
     category: ['Email', 'Endpoint', 'Network'],
     channelCoverage: { email: 'full', web: 'full', 'saas-inline': 'partial', 'saas-api': 'partial', endpoint: 'full', genai: 'none', network: 'full' },
-    modules: GENERIC_MODULES,
+    modules: [
+      {
+        id: 'trellix-manager', label: 'Trellix DLP Manager',
+        description: 'Central management console for all Trellix DLP modules and incident workflow.',
+        pricingTier: 'Required base platform',
+        keyFeatures: [
+          'Centralised DLP policy management across all Trellix DLP modules',
+          'Incident management, workflow, and remediation console with case escalation',
+          'REST API and SIEM/SOAR integration for automated incident export',
+          'Risk dashboards with incident trends, policy hit rates, and user risk scoring',
+        ],
+        officialUrl: 'https://docs.trellix.com/bundle/dlp-manager',
+      },
+      {
+        id: 'trellix-prevent', label: 'Trellix DLP Prevent',
+        description: 'Network egress DLP for outbound email and web proxy channels.',
+        pricingTier: 'DLP Prevent module add-on',
+        keyFeatures: [
+          'Outbound email DLP via SMTP gateway and MTA integration',
+          'Web proxy integration for HTTP/S upload and web posting controls',
+          'Block, redirect, encrypt, quarantine, or notify actions on sensitive transmissions',
+        ],
+        prerequisites: ['Trellix DLP Manager'],
+        officialUrl: 'https://docs.trellix.com/bundle/dlp-prevent',
+      },
+      {
+        id: 'trellix-monitor', label: 'Trellix DLP Monitor',
+        description: 'Passive network traffic capture and inspection for forensic DLP.',
+        pricingTier: 'DLP Monitor module add-on',
+        keyFeatures: [
+          'Passive network traffic monitoring with deep content capture across email, web, and FTP',
+          'Protocol inspection across SMTP, HTTP/S, FTP, and IM channels',
+          'Forensic evidence capture and traffic replay for incident investigation',
+        ],
+        prerequisites: ['Trellix DLP Manager'],
+        officialUrl: 'https://docs.trellix.com/bundle/dlp-monitor',
+      },
+      {
+        id: 'trellix-endpoint', label: 'Trellix DLP Endpoint',
+        description: 'Agent-based endpoint DLP for Windows and macOS with device controls.',
+        pricingTier: 'DLP Endpoint module add-on',
+        keyFeatures: [
+          'Windows and macOS endpoint agent with kernel-level file activity monitoring',
+          'USB, print, clipboard, and application-level copy/upload controls',
+          'Offline policy enforcement without network connectivity',
+        ],
+        prerequisites: ['Trellix DLP Manager'],
+        officialUrl: 'https://docs.trellix.com/bundle/dlp-endpoint',
+      },
+      {
+        id: 'trellix-discover', label: 'Trellix DLP Discover',
+        description: 'Storage scanning and data-at-rest discovery across file shares, NAS, and SharePoint.',
+        pricingTier: 'DLP Discover module add-on',
+        keyFeatures: [
+          'File share, NAS, SharePoint, and endpoint storage discovery scanning',
+          'Sensitive data inventory with classification tagging and risk prioritisation',
+          'Automated remediation: quarantine, delete, encrypt, or notify data owner',
+        ],
+        prerequisites: ['Trellix DLP Manager'],
+        officialUrl: 'https://docs.trellix.com/bundle/dlp-discover',
+      },
+      { id: 'trellix-other', label: 'Other / Custom Trellix Module', description: 'Customer-defined Trellix DLP module.' },
+    ],
+    toolLinks: [
+      { type: 'product',       label: 'Trellix DLP',                 url: 'https://www.trellix.com/products/dlp/' },
+      { type: 'docs',          label: 'Trellix DLP Docs',            url: 'https://docs.trellix.com/bundle/dlp-manager' },
+      { type: 'release-notes', label: 'Trellix Release Notes',       url: 'https://docs.trellix.com/bundle/dlp-manager/page/release-notes.html' },
+      { type: 'licensing',     label: 'Trellix Pricing',             url: 'https://www.trellix.com/pricing/' },
+      { type: 'support',       label: 'Trellix Support',             url: 'https://kcm.trellix.com/consumer' },
+      { type: 'contact',       label: 'Contact Trellix',             url: 'https://www.trellix.com/contact-us/' },
+    ],
   },
   {
     id: 'skyhigh-security',
@@ -890,7 +1076,76 @@ export const DLP_TOOLS: DLPTool[] = [
     description: 'CASB and SWG specialist with strong cloud data protection and inline inspection.',
     category: ['CASB', 'SWG'],
     channelCoverage: { email: 'none', web: 'full', 'saas-inline': 'full', 'saas-api': 'full', endpoint: 'none', genai: 'partial', network: 'full' },
-    modules: GENERIC_MODULES,
+    modules: [
+      {
+        id: 'skyhigh-sse', label: 'Skyhigh Security Service Edge (SSE)',
+        description: 'Cloud-native SSE base platform integrating SWG, CASB, and Private Access with unified DLP.',
+        pricingTier: 'Required SSE base platform',
+        keyFeatures: [
+          'Cloud-native SSE platform with integrated SWG, CASB, and Private Access',
+          'SSL/TLS inspection with advanced threat protection and DLP inline',
+          'Unified policy engine across web, cloud, and private access channels',
+        ],
+        officialUrl: 'https://success.skyhighsecurity.com',
+      },
+      {
+        id: 'skyhigh-swg', label: 'Secure Web Gateway (SWG)',
+        description: 'Full web proxy with inline DLP for HTTP/S traffic, uploads, and web posting.',
+        pricingTier: 'Included in SSE platform',
+        keyFeatures: [
+          'Full web proxy with inline DLP policy enforcement on all HTTP/S traffic',
+          'Upload, download, and web posting controls with coaching prompts',
+          'Remote Browser Isolation (RBI) add-on for sensitive site and risky user controls',
+        ],
+        prerequisites: ['Skyhigh SSE base platform'],
+        officialUrl: 'https://success.skyhighsecurity.com/Skyhigh_Secure_Web_Gateway',
+      },
+      {
+        id: 'skyhigh-casb-inline', label: 'CASB Inline',
+        description: 'Inline forward proxy inspection of SaaS application traffic.',
+        pricingTier: 'Included in SSE platform',
+        keyFeatures: [
+          'Inline forward proxy inspection of SaaS traffic for M365, Salesforce, Box, and more',
+          'Upload, download, and share controls with shadow IT visibility',
+          'Real-time coaching and contextual step-up authentication for risky actions',
+        ],
+        prerequisites: ['Skyhigh SSE base platform'],
+        officialUrl: 'https://success.skyhighsecurity.com/Skyhigh_CASB',
+      },
+      {
+        id: 'skyhigh-casb-api', label: 'CASB API / At-Rest Scanning',
+        description: 'Out-of-band API scanning of stored data across major SaaS platforms.',
+        pricingTier: 'API scanning add-on to CASB licence',
+        keyFeatures: [
+          'Out-of-band API scanning of stored data in M365, Google Workspace, Box, and Salesforce',
+          'Retroactive remediation: quarantine, unshare, delete, or notify data owner',
+          'Data-at-rest discovery and sensitive data inventory across SaaS platforms',
+        ],
+        prerequisites: ['Skyhigh SSE base platform', 'CASB inline licence'],
+        officialUrl: 'https://success.skyhighsecurity.com/Skyhigh_CASB',
+      },
+      {
+        id: 'skyhigh-private-access', label: 'Private Access (ZTNA)',
+        description: 'Zero-trust private application access replacing legacy VPN.',
+        pricingTier: 'ZTNA add-on module',
+        keyFeatures: [
+          'Zero-trust application access replacing legacy VPN for corporate applications',
+          'Continuous trust evaluation and context-aware access decisions',
+          'DLP inspection on private app traffic for sensitive data detection',
+        ],
+        prerequisites: ['Skyhigh SSE base platform'],
+        officialUrl: 'https://success.skyhighsecurity.com/Skyhigh_Private_Access',
+      },
+      { id: 'skyhigh-other', label: 'Other / Custom Skyhigh Module', description: 'Customer-defined Skyhigh Security module.' },
+    ],
+    toolLinks: [
+      { type: 'product',       label: 'Skyhigh Security',            url: 'https://www.skyhighsecurity.com/products/' },
+      { type: 'docs',          label: 'Skyhigh Success Centre',      url: 'https://success.skyhighsecurity.com' },
+      { type: 'release-notes', label: 'CASB Release Notes',          url: 'https://success.skyhighsecurity.com/Skyhigh_CASB/Release_Notes' },
+      { type: 'licensing',     label: 'Skyhigh Pricing',             url: 'https://www.skyhighsecurity.com/pricing/' },
+      { type: 'support',       label: 'Support Centre',              url: 'https://success.skyhighsecurity.com' },
+      { type: 'contact',       label: 'Contact Skyhigh',             url: 'https://www.skyhighsecurity.com/about/contact/' },
+    ],
   },
   {
     id: 'proofpoint-dlp',
@@ -898,7 +1153,66 @@ export const DLP_TOOLS: DLPTool[] = [
     description: 'Email-first DLP with insider threat detection and information protection.',
     category: ['Email', 'Insider Risk'],
     channelCoverage: { email: 'full', web: 'partial', 'saas-inline': 'partial', 'saas-api': 'partial', endpoint: 'partial', genai: 'none', network: 'none' },
-    modules: GENERIC_MODULES,
+    modules: [
+      {
+        id: 'pp-email-dlp', label: 'Proofpoint Email Protection / DLP',
+        description: 'Core email DLP platform with pre-built classifiers for outbound data loss prevention.',
+        pricingTier: 'Required base platform',
+        keyFeatures: [
+          'Inbound and outbound email DLP with content classification and attachment inspection',
+          'Pre-built DLP classifiers for PII, PCI, PHI, financial data, and source code',
+          'Block, encrypt, quarantine, redirect, or notify actions on policy match',
+          'Email gateway integration supporting all major MTA platforms',
+        ],
+        officialUrl: 'https://help.proofpoint.com/Proofpoint_Essentials/Email_Security/Administrator_Topics/Data_Loss_Prevention',
+      },
+      {
+        id: 'pp-itm', label: 'Proofpoint ITM / Insider Threat Management',
+        description: 'User activity risk scoring and departing employee monitoring.',
+        pricingTier: 'ITM add-on module',
+        keyFeatures: [
+          'User risk scoring based on file activity, email, uploads, and endpoint behaviour',
+          'Departing employee monitoring with automatic risk policy tightening',
+          'Timeline view of risky activities across email, web, cloud, and endpoint channels',
+          'Integration with Proofpoint SIEM connectors and SOAR for automated case management',
+        ],
+        prerequisites: ['Proofpoint Email Protection base licence'],
+        officialUrl: 'https://www.proofpoint.com/us/products/information-protection/insider-threat-management',
+      },
+      {
+        id: 'pp-casb', label: 'Proofpoint CASB',
+        description: 'SaaS application visibility and API-based data-at-rest scanning.',
+        pricingTier: 'CASB add-on module',
+        keyFeatures: [
+          'SaaS application visibility and inline inspection for upload and share controls',
+          'API-based scanning of stored data in M365, Google Workspace, Salesforce, and Slack',
+          'Shadow IT discovery and cloud application risk scoring',
+        ],
+        prerequisites: ['Proofpoint Email Protection base licence'],
+        officialUrl: 'https://www.proofpoint.com/us/products/information-protection/cloud-app-security-broker',
+      },
+      {
+        id: 'pp-endpoint', label: 'Proofpoint Endpoint DLP',
+        description: 'Endpoint agent integrating with email and web DLP policies for unified enforcement.',
+        pricingTier: 'Endpoint add-on module',
+        keyFeatures: [
+          'Windows and macOS endpoint agent integrating with email and web DLP policies',
+          'File copy, print, removable media, and application upload controls',
+          'Correlates endpoint file activity with email and web events for insider risk context',
+        ],
+        prerequisites: ['Proofpoint Email Protection base licence'],
+        officialUrl: 'https://www.proofpoint.com/us/products/information-protection/enterprise-dlp',
+      },
+      { id: 'pp-other', label: 'Other / Custom Proofpoint Module', description: 'Customer-defined Proofpoint module.' },
+    ],
+    toolLinks: [
+      { type: 'product',       label: 'Proofpoint Enterprise DLP',   url: 'https://www.proofpoint.com/us/products/information-protection/enterprise-dlp' },
+      { type: 'docs',          label: 'Proofpoint Help',             url: 'https://help.proofpoint.com' },
+      { type: 'release-notes', label: 'Proofpoint Release Notes',    url: 'https://help.proofpoint.com/release-notes' },
+      { type: 'licensing',     label: 'Contact for Licensing',       url: 'https://www.proofpoint.com/us/contact' },
+      { type: 'support',       label: 'Proofpoint Support',          url: 'https://www.proofpoint.com/us/support' },
+      { type: 'contact',       label: 'Contact Proofpoint',          url: 'https://www.proofpoint.com/us/contact' },
+    ],
   },
   {
     id: 'google-workspace-dlp',
@@ -906,7 +1220,78 @@ export const DLP_TOOLS: DLPTool[] = [
     description: 'Native DLP for Google Workspace apps, Gmail, and Chrome Enterprise browser.',
     category: ['Email', 'CASB'],
     channelCoverage: { email: 'full', web: 'partial', 'saas-inline': 'full', 'saas-api': 'partial', endpoint: 'none', genai: 'partial', network: 'none' },
-    modules: GENERIC_MODULES,
+    modules: [
+      {
+        id: 'gw-business-plus', label: 'Google Workspace Business Plus',
+        description: 'Entry-level Gmail and Drive DLP rules included in Business Plus tier.',
+        pricingTier: 'Included in Google Workspace Business Plus (USD 18/user/month)',
+        keyFeatures: [
+          'Basic Gmail DLP rules — block or quarantine outbound email on sensitive content',
+          'Google Drive sharing restriction rules to prevent external data exposure',
+          'Compliance access controls and full audit logging across Workspace apps',
+        ],
+        prerequisites: ['Google Workspace Business Plus licence or higher'],
+        officialUrl: 'https://support.google.com/a/answer/9646351',
+      },
+      {
+        id: 'gw-enterprise-dlp', label: 'Google Workspace Enterprise DLP',
+        description: 'Advanced DLP rules for Gmail, Drive, Chat, and Meet with OCR and context-aware access.',
+        pricingTier: 'Included in Google Workspace Enterprise Standard or Plus',
+        keyFeatures: [
+          'Advanced DLP rules for Gmail, Drive, Chat, and Meet with 100+ built-in data type detectors',
+          'Optical character recognition (OCR) DLP for images and scanned document inspection',
+          'Context-aware access with DLP condition matching for risky destinations',
+          'PII, PCI, PHI, and financial data pre-built detectors with custom rule builder',
+        ],
+        prerequisites: ['Google Workspace Enterprise Standard or Enterprise Plus'],
+        officialUrl: 'https://support.google.com/a/answer/9646351',
+      },
+      {
+        id: 'gw-drive-dlp', label: 'Google Drive DLP / Sharing Controls',
+        description: 'API-based Drive scanning and sharing restriction with label-based enforcement.',
+        pricingTier: 'Included in Enterprise tiers',
+        keyFeatures: [
+          'API-based scanning of existing Drive content for sensitive data exposure',
+          'Sharing restriction rules preventing external or public Drive file sharing',
+          'Drive DLP label integration — apply information protection labels automatically',
+        ],
+        prerequisites: ['Google Workspace Enterprise Standard or Plus'],
+        officialUrl: 'https://support.google.com/a/answer/9646351',
+      },
+      {
+        id: 'gw-chrome-dlp', label: 'Chrome Enterprise DLP',
+        description: 'Browser-level DLP for upload, download, print, and clipboard via Chrome Enterprise.',
+        pricingTier: 'Requires Chrome Enterprise Premium (included in select Enterprise tiers)',
+        keyFeatures: [
+          'Browser-level DLP for upload, download, print, and clipboard actions on managed Chrome',
+          'Screen capture restriction on sensitive web destinations',
+          'Managed Chrome profile enforcement for BYOD and corporate device controls',
+        ],
+        prerequisites: ['Google Workspace Enterprise', 'Chrome Enterprise Premium licence'],
+        officialUrl: 'https://support.google.com/chrome/a/answer/9685363',
+      },
+      {
+        id: 'gw-dlp-api', label: 'Sensitive Data Protection API',
+        description: 'Google Cloud DLP API for programmatic inspection and de-identification of sensitive data.',
+        pricingTier: 'Pay-per-use API (Google Cloud Sensitive Data Protection)',
+        keyFeatures: [
+          'Cloud-native API for inspecting, classifying, and de-identifying sensitive data at scale',
+          'Integrates with BigQuery, Cloud Storage, Datastore, and custom applications',
+          'Data discovery across GCP with risk scoring and public exposure reporting',
+        ],
+        prerequisites: ['Google Cloud Platform account'],
+        officialUrl: 'https://cloud.google.com/sensitive-data-protection/docs',
+      },
+      { id: 'gw-other', label: 'Other / Custom Google Workspace Module', description: 'Customer-defined Google Workspace DLP capability.' },
+    ],
+    toolLinks: [
+      { type: 'product',       label: 'Google Workspace Security',   url: 'https://workspace.google.com/features/security-and-compliance/' },
+      { type: 'docs',          label: 'Workspace DLP Docs',          url: 'https://support.google.com/a/answer/9646351' },
+      { type: 'release-notes', label: "What's New in Workspace",     url: 'https://workspace.google.com/whatsnew/' },
+      { type: 'licensing',     label: 'Workspace Pricing',           url: 'https://workspace.google.com/pricing' },
+      { type: 'support',       label: 'Google Workspace Support',    url: 'https://support.google.com/a/' },
+      { type: 'contact',       label: 'Contact Google Workspace',    url: 'https://workspace.google.com/contact/' },
+    ],
   },
   {
     id: 'palo-alto-dlp',
@@ -914,7 +1299,65 @@ export const DLP_TOOLS: DLPTool[] = [
     description: 'Enterprise DLP via Prisma Access SASE with SWG and CASB inline coverage.',
     category: ['SWG', 'CASB', 'NGFW'],
     channelCoverage: { email: 'none', web: 'full', 'saas-inline': 'full', 'saas-api': 'partial', endpoint: 'partial', genai: 'partial', network: 'full' },
-    modules: GENERIC_MODULES,
+    modules: [
+      {
+        id: 'pa-prisma-access', label: 'Prisma Access (SASE)',
+        description: 'Cloud-native SASE platform with integrated SWG, CASB, and ZTNA.',
+        pricingTier: 'Required Prisma Access base licence',
+        keyFeatures: [
+          'Cloud-native SASE platform with integrated SWG, CASB, ZTNA, and SD-WAN',
+          'App-ID and User-ID for fine-grained per-application and per-user DLP policy',
+          'Global POP network for low-latency inline inspection worldwide',
+        ],
+        officialUrl: 'https://docs.paloaltonetworks.com/enterprise-dlp',
+      },
+      {
+        id: 'pa-enterprise-dlp', label: 'Palo Alto Enterprise DLP',
+        description: 'AI-powered unified DLP add-on shared across Prisma Access, NGFW, and Prisma Cloud.',
+        pricingTier: 'Enterprise DLP add-on licence (cross-platform)',
+        keyFeatures: [
+          'AI-powered DLP engine shared across Prisma Access, NGFW, and Prisma Cloud in one licence',
+          'Unified DLP policies across web, email, SaaS, endpoint, and network channels',
+          '600+ built-in sensitive data patterns with ML-enhanced accuracy and low false-positive rate',
+          'Exact data match (EDM) and document fingerprinting for structured and unstructured data',
+        ],
+        prerequisites: ['Prisma Access or NGFW with active subscriptions'],
+        officialUrl: 'https://docs.paloaltonetworks.com/enterprise-dlp',
+      },
+      {
+        id: 'pa-ngfw-dlp', label: 'NGFW / Panorama DLP',
+        description: 'On-premises NGFW-based DLP for network traffic with Panorama centralised management.',
+        pricingTier: 'Included with Enterprise DLP subscription on NGFW',
+        keyFeatures: [
+          'On-premises NGFW-based DLP covering 3,000+ application protocols via App-ID',
+          'Panorama integration for centralised DLP policy management across all NGFW devices',
+          'Deep packet inspection with SSL decryption for full visibility into encrypted traffic',
+        ],
+        prerequisites: ['Palo Alto NGFW hardware or VM', 'Enterprise DLP add-on subscription'],
+        officialUrl: 'https://docs.paloaltonetworks.com/enterprise-dlp',
+      },
+      {
+        id: 'pa-prisma-cloud', label: 'Prisma Cloud Data Security / DSPM',
+        description: 'Cloud data security posture management and sensitive data discovery across AWS, Azure, GCP.',
+        pricingTier: 'Prisma Cloud Data Security add-on',
+        keyFeatures: [
+          'Cloud data discovery across AWS S3, Azure Blob Storage, and GCP Cloud Storage',
+          'Data Security Posture Management (DSPM) with sensitive data risk scoring',
+          'Automated remediation recommendations for public exposure and misconfiguration findings',
+        ],
+        prerequisites: ['Prisma Cloud subscription (Compute or CSPM tier)'],
+        officialUrl: 'https://docs.paloaltonetworks.com/prisma/prisma-cloud',
+      },
+      { id: 'pa-other', label: 'Other / Custom Palo Alto Module', description: 'Customer-defined Palo Alto Networks DLP module.' },
+    ],
+    toolLinks: [
+      { type: 'product',       label: 'Palo Alto Enterprise DLP',   url: 'https://www.paloaltonetworks.com/products/enterprise-dlp' },
+      { type: 'docs',          label: 'Enterprise DLP Docs',         url: 'https://docs.paloaltonetworks.com/enterprise-dlp' },
+      { type: 'release-notes', label: 'DLP Release Notes',           url: 'https://docs.paloaltonetworks.com/enterprise-dlp/enterprise-dlp-release-notes' },
+      { type: 'licensing',     label: 'Prisma Access Licensing',     url: 'https://www.paloaltonetworks.com/sase/prisma-access' },
+      { type: 'support',       label: 'Palo Alto Support',           url: 'https://support.paloaltonetworks.com' },
+      { type: 'contact',       label: 'Contact Sales',               url: 'https://www.paloaltonetworks.com/company/contact-sales' },
+    ],
   },
   {
     id: 'cisco-dlp',
@@ -922,7 +1365,65 @@ export const DLP_TOOLS: DLPTool[] = [
     description: 'Email and network DLP via Cisco Secure suite and Umbrella.',
     category: ['Email', 'Network'],
     channelCoverage: { email: 'full', web: 'partial', 'saas-inline': 'partial', 'saas-api': 'none', endpoint: 'partial', genai: 'none', network: 'partial' },
-    modules: GENERIC_MODULES,
+    modules: [
+      {
+        id: 'cisco-secure-email', label: 'Cisco Secure Email DLP',
+        description: 'Outbound email DLP via Cisco Secure Email Gateway with compliance-ready actions.',
+        pricingTier: 'Included in Cisco Secure Email Gateway licence',
+        keyFeatures: [
+          'Outbound email content inspection with Cisco and RSA DLP engine integration',
+          'Block, encrypt, quarantine, or redirect actions on sensitive outbound email',
+          'Pre-built DLP policies for HIPAA, PCI, GDPR, and financial data compliance',
+          'Attachment inspection including Office documents, PDFs, and compressed archives',
+        ],
+        officialUrl: 'https://www.cisco.com/c/en/us/support/security/email-security-appliance/series.html',
+      },
+      {
+        id: 'cisco-umbrella', label: 'Cisco Umbrella / Secure Internet Gateway',
+        description: 'DNS-layer and cloud-delivered web proxy with DLP inspection for outbound web traffic.',
+        pricingTier: 'Included in Umbrella Secure Internet Gateway tier',
+        keyFeatures: [
+          'DNS-layer security with cloud-delivered web proxy and DLP policy enforcement',
+          'HTTP/S traffic inspection for upload and data exfiltration via web channels',
+          'Shadow IT discovery and SaaS application visibility with cloud risk scoring',
+        ],
+        prerequisites: ['Cisco Umbrella Secure Internet Gateway subscription'],
+        officialUrl: 'https://docs.umbrella.com/umbrella-user-guide/docs/dlp-overview',
+      },
+      {
+        id: 'cisco-secure-endpoint', label: 'Cisco Secure Endpoint (EDR)',
+        description: 'Endpoint detection and response with file activity monitoring and USB controls.',
+        pricingTier: 'Included in Cisco Secure Endpoint Premier or Advanced',
+        keyFeatures: [
+          'Endpoint detection and response (EDR) with continuous file activity monitoring',
+          'USB and removable storage monitoring with policy-based device controls',
+          'Integration with Cisco XDR for cross-channel incident correlation across email and web',
+        ],
+        prerequisites: ['Cisco Secure Endpoint Premier or Advanced licence'],
+        officialUrl: 'https://www.cisco.com/c/en/us/products/security/amp-for-endpoints/',
+      },
+      {
+        id: 'cisco-ise', label: 'Cisco ISE (Network Access Policy)',
+        description: 'Network access control with device posture enforcement and BYOD quarantine.',
+        pricingTier: 'Cisco ISE Base, Plus, or Apex licence',
+        keyFeatures: [
+          'Network access control integrating with DLP policy for device posture enforcement',
+          'BYOD quarantine and limited access profiles for non-compliant or unmanaged devices',
+          'Micro-segmentation and network segmentation policy support for zero-trust architectures',
+        ],
+        prerequisites: ['Cisco ISE licence'],
+        officialUrl: 'https://www.cisco.com/c/en/us/products/security/identity-services-engine/',
+      },
+      { id: 'cisco-other', label: 'Other / Custom Cisco Module', description: 'Customer-defined Cisco DLP module.' },
+    ],
+    toolLinks: [
+      { type: 'product',       label: 'Cisco Secure Email',          url: 'https://www.cisco.com/c/en/us/products/security/email-security/' },
+      { type: 'docs',          label: 'Cisco Security Docs',         url: 'https://www.cisco.com/c/en/us/support/security/' },
+      { type: 'release-notes', label: 'Cisco Release Notes',         url: 'https://www.cisco.com/c/en/us/td/docs/security/' },
+      { type: 'licensing',     label: 'Cisco Security Products',     url: 'https://www.cisco.com/c/en/us/products/security/' },
+      { type: 'support',       label: 'Cisco Support',               url: 'https://www.cisco.com/c/en/us/support/' },
+      { type: 'contact',       label: 'Contact Cisco',               url: 'https://www.cisco.com/c/en/us/about/contact-cisco.html' },
+    ],
   },
   {
     id: 'no-tool',
@@ -1019,6 +1520,40 @@ export const MODULE_TO_AREAS: Record<string, string[]> = {
   'zs-browser-isolation': ['web-dlp'],
   'zs-genai':         ['genai-ai-dlp'],
   'zs-dspm':          ['data-discovery', 'cloud-storage-dlp'],
+  // Digital Guardian
+  'dg-endpoint-prevent':        ['endpoint-dlp', 'removable-media', 'printing-dlp'],
+  'dg-network-dlp':             ['email-dlp', 'web-dlp', 'network-dlp'],
+  'dg-cloud-dlp':               ['saas-casb-inline'],
+  'dg-data-discovery':          ['data-discovery'],
+  // Trellix
+  'trellix-prevent':            ['email-dlp', 'web-dlp', 'network-dlp'],
+  'trellix-monitor':            ['network-dlp'],
+  'trellix-endpoint':           ['endpoint-dlp', 'removable-media', 'printing-dlp'],
+  'trellix-discover':           ['data-discovery'],
+  // Skyhigh
+  'skyhigh-swg':                ['web-dlp', 'network-dlp'],
+  'skyhigh-casb-inline':        ['saas-casb-inline', 'genai-ai-dlp'],
+  'skyhigh-casb-api':           ['saas-api-rest'],
+  // Proofpoint
+  'pp-email-dlp':               ['email-dlp'],
+  'pp-casb':                    ['saas-casb-inline', 'saas-api-rest'],
+  'pp-endpoint':                ['endpoint-dlp', 'removable-media', 'printing-dlp', 'web-dlp'],
+  // Google Workspace
+  'gw-business-plus':           ['email-dlp'],
+  'gw-enterprise-dlp':          ['email-dlp', 'saas-casb-inline'],
+  'gw-drive-dlp':               ['saas-api-rest'],
+  'gw-chrome-dlp':              ['web-dlp', 'endpoint-dlp'],
+  'gw-dlp-api':                 ['data-discovery', 'cloud-storage-dlp'],
+  // Palo Alto
+  'pa-prisma-access':           ['web-dlp', 'saas-casb-inline', 'network-dlp'],
+  'pa-enterprise-dlp':          ['email-dlp', 'web-dlp', 'saas-casb-inline', 'saas-api-rest', 'genai-ai-dlp', 'network-dlp'],
+  'pa-ngfw-dlp':                ['network-dlp'],
+  'pa-prisma-cloud':            ['data-discovery', 'cloud-storage-dlp'],
+  // Cisco
+  'cisco-secure-email':         ['email-dlp'],
+  'cisco-umbrella':             ['web-dlp', 'saas-casb-inline', 'network-dlp'],
+  'cisco-secure-endpoint':      ['endpoint-dlp', 'removable-media'],
+  'cisco-ise':                  ['network-dlp'],
   // Generic
   'generic-email-dlp':          ['email-dlp'],
   'generic-web-dlp':            ['web-dlp'],

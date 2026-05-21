@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
+import { ChevronDown, ChevronRight, ExternalLink, BookOpen, Globe, FileText, CreditCard, LifeBuoy, Mail } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MODULE_TO_AREAS } from '@/lib/onboarding/data'
-import type { DLPTool, DlpToolChannelCoverage, ChannelCoverageLevel } from '@/lib/onboarding/data'
+import type { DLPTool, DlpToolChannelCoverage, ChannelCoverageLevel, ToolDocLink } from '@/lib/onboarding/data'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -44,6 +44,15 @@ const LEVEL_LABEL: Record<ChannelCoverageLevel, string> = {
   full: 'Full', partial: 'Partial', addon: 'Add-on', none: '—',
 }
 
+const DOC_LINK_META: Record<ToolDocLink['type'], { label: string; icon: React.ElementType; class: string }> = {
+  'product':       { label: 'Product Page',    icon: Globe,      class: 'bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:bg-violet-500/20' },
+  'docs':          { label: 'Documentation',   icon: BookOpen,   class: 'bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20' },
+  'release-notes': { label: 'Release Notes',   icon: FileText,   class: 'bg-sky-500/10 text-sky-400 border border-sky-500/20 hover:bg-sky-500/20' },
+  'licensing':     { label: 'Licensing',       icon: CreditCard, class: 'bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20' },
+  'support':       { label: 'Support Portal',  icon: LifeBuoy,   class: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20' },
+  'contact':       { label: 'Contact',         icon: Mail,       class: 'bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20' },
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getModuleChannels(moduleId: string): ChannelKey[] {
@@ -61,19 +70,26 @@ interface Props {
 export function MarketExplorer({ tools, orgTools }: Props) {
   const [expandedTool, setExpandedTool]     = useState<string | null>(null)
   const [expandedModule, setExpandedModule] = useState<string | null>(null)
+  const [expandedDocs, setExpandedDocs]     = useState<string | null>(null)
 
   function toggleTool(id: string) {
     if (expandedTool === id) {
       setExpandedTool(null)
       setExpandedModule(null)
+      setExpandedDocs(null)
     } else {
       setExpandedTool(id)
       setExpandedModule(null)
+      setExpandedDocs(null)
     }
   }
 
   function toggleModule(key: string) {
     setExpandedModule(prev => prev === key ? null : key)
+  }
+
+  function toggleDocs(toolId: string) {
+    setExpandedDocs(prev => prev === toolId ? null : toolId)
   }
 
   return (
@@ -84,6 +100,7 @@ export function MarketExplorer({ tools, orgTools }: Props) {
         {tools.map(tool => {
           const inStack    = orgTools.includes(tool.id)
           const toolOpen   = expandedTool === tool.id
+          const docsOpen   = expandedDocs === tool.id
           const coverage   = tool.channelCoverage as DlpToolChannelCoverage
 
           return (
@@ -300,6 +317,69 @@ export function MarketExplorer({ tools, orgTools }: Props) {
                       </div>
                     )
                   })}
+
+                  {/* ── Documentation row ───────────────────────────────── */}
+                  {tool.toolLinks && tool.toolLinks.length > 0 && (
+                    <div className={cn(
+                      'rounded-lg border transition-colors',
+                      docsOpen ? 'border-border bg-card/60' : 'border-border/50 bg-muted/10 hover:bg-muted/20',
+                    )}>
+                      <button
+                        type="button"
+                        onClick={() => toggleDocs(tool.id)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left"
+                      >
+                        <span className="shrink-0 text-muted-foreground/40">
+                          {docsOpen
+                            ? <ChevronDown  className="w-3.5 h-3.5" />
+                            : <ChevronRight className="w-3.5 h-3.5" />}
+                        </span>
+                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                          <BookOpen className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+                          <p className="text-xs font-medium text-foreground/90">Documentation & Resources</p>
+                        </div>
+                        <div className="shrink-0 flex gap-1">
+                          {(['product', 'docs', 'support'] as ToolDocLink['type'][]).map(t => {
+                            const hasLink = tool.toolLinks!.some(l => l.type === t)
+                            if (!hasLink) return null
+                            const meta = DOC_LINK_META[t]
+                            return (
+                              <span key={t} className={cn('px-1.5 py-0.5 rounded text-[9px] font-semibold', meta.class)}>
+                                {meta.label.split(' ')[0]}
+                              </span>
+                            )
+                          })}
+                        </div>
+                      </button>
+
+                      {docsOpen && (
+                        <div className="px-9 pb-4 pt-1">
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            {tool.toolLinks.map(link => {
+                              const meta = DOC_LINK_META[link.type]
+                              const Icon = meta.icon
+                              return (
+                                <a
+                                  key={link.type}
+                                  href={link.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={cn(
+                                    'flex items-center gap-2 px-3 py-2.5 rounded-lg border text-xs font-medium transition-colors',
+                                    meta.class,
+                                  )}
+                                >
+                                  <Icon className="w-3.5 h-3.5 shrink-0" />
+                                  <span className="truncate">{link.label}</span>
+                                  <ExternalLink className="w-3 h-3 shrink-0 ml-auto opacity-50" />
+                                </a>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
