@@ -342,7 +342,7 @@ export const COVERAGE_STATES: CoverageState[] = [
 // ============================================================
 // Coverage inference: module ID → coverage area IDs
 // ============================================================
-const MODULE_TO_AREAS: Record<string, string[]> = {
+export const MODULE_TO_AREAS: Record<string, string[]> = {
   // Netskope
   'sse-web-casb':           ['web-dlp', 'saas-casb-inline'],
   'cloud-firewall-network': ['network-dlp'],
