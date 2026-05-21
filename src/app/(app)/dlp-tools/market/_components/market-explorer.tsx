@@ -1,10 +1,13 @@
 'use client'
 
-import { useState } from 'react'
-import { ChevronDown, ChevronRight, ExternalLink, BookOpen, Globe, LifeBuoy, Mail } from 'lucide-react'
+import { useState, useOptimistic, useTransition } from 'react'
+import { ChevronDown, ChevronRight, ExternalLink, BookOpen, Globe, LifeBuoy, Mail, Plus, Trash2, ShieldCheck, Wrench } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MODULE_TO_AREAS } from '@/lib/onboarding/data'
 import type { DLPTool, DlpToolChannelCoverage, ChannelCoverageLevel, ToolDocLink } from '@/lib/onboarding/data'
+import { deleteCustomTool } from '../actions'
+import type { CustomToolRow } from '../actions'
+import { AddToolDialog } from './add-tool-dialog'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -61,37 +64,51 @@ function getModuleChannels(moduleId: string): ChannelKey[] {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 interface Props {
-  tools: DLPTool[]
-  orgTools: string[]
+  tools:        DLPTool[]
+  orgTools:     string[]
+  customTools:  CustomToolRow[]
 }
 
-export function MarketExplorer({ tools, orgTools }: Props) {
-  const [expandedTool, setExpandedTool]     = useState<string | null>(null)
+export function MarketExplorer({ tools, orgTools, customTools: initialCustomTools }: Props) {
+  const [expandedTool,   setExpandedTool]   = useState<string | null>(null)
   const [expandedModule, setExpandedModule] = useState<string | null>(null)
-  const [expandedDocs, setExpandedDocs]     = useState<string | null>(null)
+  const [expandedDocs,   setExpandedDocs]   = useState<string | null>(null)
+  const [showAddTool,    setShowAddTool]    = useState(false)
+  const [isPending,      startTransition]   = useTransition()
+
+  const [customTools, applyOptimistic] = useOptimistic(
+    initialCustomTools,
+    (prev: CustomToolRow[], removedId: string) => prev.filter(t => t.id !== removedId),
+  )
 
   function toggleTool(id: string) {
     if (expandedTool === id) {
-      setExpandedTool(null)
-      setExpandedModule(null)
-      setExpandedDocs(null)
+      setExpandedTool(null); setExpandedModule(null); setExpandedDocs(null)
     } else {
-      setExpandedTool(id)
-      setExpandedModule(null)
-      setExpandedDocs(null)
+      setExpandedTool(id); setExpandedModule(null); setExpandedDocs(null)
     }
   }
 
-  function toggleModule(key: string) {
-    setExpandedModule(prev => prev === key ? null : key)
-  }
+  function toggleModule(key: string) { setExpandedModule(prev => prev === key ? null : key) }
+  function toggleDocs(toolId: string) { setExpandedDocs(prev => prev === toolId ? null : toolId) }
 
-  function toggleDocs(toolId: string) {
-    setExpandedDocs(prev => prev === toolId ? null : toolId)
+  function handleDeleteCustom(id: string) {
+    startTransition(async () => {
+      applyOptimistic(id)
+      await deleteCustomTool(id)
+    })
   }
 
   return (
-    <div className="space-y-6">
+    <div className="relative space-y-6">
+
+      {/* Add Tool slide-over */}
+      {showAddTool && (
+        <AddToolDialog
+          onAdded={() => { setShowAddTool(false); window.location.reload() }}
+          onClose={() => setShowAddTool(false)}
+        />
+      )}
 
       {/* Tool list */}
       <div className="rounded-xl border border-border overflow-hidden divide-y divide-border">
@@ -373,6 +390,123 @@ export function MarketExplorer({ tools, orgTools }: Props) {
             </div>
           )
         })}
+      </div>
+
+      {/* ── Custom & User-Added Tools ───────────────────────────────────────── */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Custom & User-Added Tools</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Tools you&apos;ve added manually. AI-reviewed tools show a verified badge.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowAddTool(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add a DLP tool
+          </button>
+        </div>
+
+        <div className="rounded-xl border border-border overflow-hidden divide-y divide-border">
+          {customTools.length === 0 ? (
+            <div className="px-6 py-8 text-center">
+              <Wrench className="w-8 h-8 text-muted-foreground/20 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground/50">No custom tools added yet.</p>
+              <button
+                onClick={() => setShowAddTool(true)}
+                className="mt-2 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+              >
+                Add your first tool →
+              </button>
+            </div>
+          ) : (
+            customTools.map(ct => {
+              const toolOpen = expandedTool === ct.id
+              const cov = ct.tool_data.channelCoverage
+              return (
+                <div key={ct.id}>
+                  <div
+                    className={cn(
+                      'w-full flex items-start gap-3 px-4 py-4 transition-colors',
+                      toolOpen ? 'bg-muted/20' : 'bg-card/20 hover:bg-muted/10',
+                    )}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleTool(ct.id)}
+                      className="shrink-0 mt-0.5 text-muted-foreground/50"
+                    >
+                      {toolOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => toggleTool(ct.id)}
+                      className="flex-1 min-w-0 text-left space-y-1.5"
+                    >
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold text-foreground">{ct.tool_data.label || ct.tool_name}</span>
+                        {ct.is_real_dlp === true ? (
+                          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 leading-tight">
+                            <ShieldCheck className="w-2.5 h-2.5" /> AI VERIFIED
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20 leading-tight">
+                            CUSTOM
+                          </span>
+                        )}
+                        {ct.tool_data.category?.map(c => (
+                          <span key={c} className="px-1.5 py-0.5 rounded-sm text-[10px] font-semibold bg-muted border border-border text-muted-foreground/60">{c}</span>
+                        ))}
+                      </div>
+                      <p className={cn('text-xs text-muted-foreground leading-relaxed', toolOpen ? '' : 'line-clamp-1')}>
+                        {ct.tool_data.description}
+                      </p>
+                    </button>
+
+                    {/* Channel badges */}
+                    {cov && (
+                      <div className="shrink-0 flex flex-wrap gap-1 justify-end max-w-[300px]">
+                        {CHANNEL_KEYS.map(key => {
+                          const level = (cov[key] ?? 'none') as ChannelCoverageLevel
+                          return (
+                            <span key={key} className={cn('inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold', LEVEL_CLASS[level])}>
+                              {CHANNEL_LABELS[key].split(' ')[0]}:{LEVEL_LABEL[level]}
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {/* Delete */}
+                    <button
+                      onClick={() => handleDeleteCustom(ct.id)}
+                      disabled={isPending}
+                      className="shrink-0 p-1.5 rounded text-muted-foreground/40 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Expanded: modules */}
+                  {toolOpen && ct.tool_data.modules && ct.tool_data.modules.length > 0 && (
+                    <div className="px-10 pb-3 pt-1 space-y-1 bg-muted/5">
+                      {ct.tool_data.modules.map(mod => (
+                        <div key={mod.id} className="rounded-lg border border-border/50 bg-muted/10 px-3 py-2.5">
+                          <p className="text-xs font-medium text-foreground/90">{mod.label}</p>
+                          <p className="text-[11px] text-muted-foreground/60 mt-0.5">{mod.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
       </div>
 
       {/* Legend */}
