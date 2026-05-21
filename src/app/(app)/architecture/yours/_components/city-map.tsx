@@ -1,14 +1,23 @@
 'use client'
 
-import { useRef, useState, useMemo } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
-import { OrthographicCamera, Text, Html } from '@react-three/drei'
+import { useRef, useState, useMemo, useLayoutEffect } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Text, Html } from '@react-three/drei'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import type { DistrictData, SimResult } from './types'
 import { DistrictPanel } from './district-panel'
 
 export type { DistrictData }
+
+// ─── Camera setup — forces lookAt after R3F positions it ─────────────────────
+function CameraSetup() {
+  const camera = useThree(s => s.camera)
+  useLayoutEffect(() => {
+    camera.lookAt(0, 0, 0)
+  }, [camera])
+  return null
+}
 
 // ─── Level palette ────────────────────────────────────────────────────────────
 const L = {
@@ -251,7 +260,7 @@ function CityScene({ districts, simulation, onSelect }: SceneProps) {
   return (
     <>
       {/* Lights */}
-      <ambientLight intensity={0.07} color="#0f1830" />
+      <ambientLight intensity={0.18} color="#1a2a4a" />
       <pointLight position={[0, 28, 0]} intensity={0.55} color="#3b82f6" decay={0} />
       <pointLight position={[-18, 8, 0]} intensity={0.30} color="#10b981" decay={0} />
       <pointLight position={[18, 8, 0]}  intensity={0.30} color="#6366f1" decay={0} />
@@ -338,13 +347,18 @@ export function CityMap({ districts, simulation }: CityMapProps) {
 
   return (
     <div className="relative flex-1 overflow-hidden bg-[#020914]">
-      <Canvas flat onPointerMissed={() => setSelected(null)}>
-        <OrthographicCamera makeDefault position={[22, 18, 22]} zoom={42} />
+      <Canvas
+        flat
+        orthographic
+        camera={{ position: [22, 18, 22], zoom: 42, near: 0.1, far: 1000 }}
+        onPointerMissed={() => setSelected(null)}
+      >
+        <CameraSetup />
+        <CityScene districts={districts} simulation={simulation} onSelect={setSelected} />
         <EffectComposer>
           <Bloom intensity={1.5} luminanceThreshold={0.04}
             luminanceSmoothing={0.85} mipmapBlur />
         </EffectComposer>
-        <CityScene districts={districts} simulation={simulation} onSelect={setSelected} />
       </Canvas>
       <DistrictPanel district={selected} onClose={() => setSelected(null)} />
     </div>
