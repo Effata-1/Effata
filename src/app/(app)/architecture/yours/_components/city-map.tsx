@@ -13,17 +13,17 @@ export type { DistrictData }
 // ─── Camera ───────────────────────────────────────────────────────────────────
 function CameraSetup() {
   const camera = useThree(s => s.camera)
-  useLayoutEffect(() => { camera.lookAt(0, 1, 0) }, [camera])
+  useLayoutEffect(() => { camera.lookAt(-3, 1, 0) }, [camera])
   return null
 }
 
 // ─── Coverage level config ────────────────────────────────────────────────────
 const LEVEL_CFG = {
-  full:    { glow: '#10b981', label: 'Full Inline',   ht: 3.0, ei: 0.45 },
-  partial: { glow: '#f59e0b', label: 'Partial',       ht: 2.2, ei: 0.36 },
-  addon:   { glow: '#3b82f6', label: 'API / At-rest', ht: 1.8, ei: 0.28 },
-  none:    { glow: '#ef4444', label: 'Gap',           ht: 0.6, ei: 0.20 },
-  unknown: { glow: '#475569', label: 'Not Assessed',  ht: 0.9, ei: 0.08 },
+  full:    { glow: '#10b981', label: 'Full Inline',   ht: 3.8, ei: 0.45 },
+  partial: { glow: '#f59e0b', label: 'Partial',       ht: 2.8, ei: 0.36 },
+  addon:   { glow: '#3b82f6', label: 'API / At-rest', ht: 2.3, ei: 0.28 },
+  none:    { glow: '#ef4444', label: 'Gap',           ht: 0.8, ei: 0.20 },
+  unknown: { glow: '#475569', label: 'Not Assessed',  ht: 1.1, ei: 0.08 },
 }
 function lc(level: string) { return LEVEL_CFG[level as keyof typeof LEVEL_CFG] ?? LEVEL_CFG.unknown }
 
@@ -50,8 +50,8 @@ const SRC_X    = -14.0
 const DST_X    =  14.0
 
 // Varied building heights for visual interest
-const SRC_H = [2.2, 3.0, 1.8, 2.6, 3.4, 2.0, 3.8, 1.4]
-const DST_H = [2.8, 2.2, 3.2, 2.0, 3.6, 2.4, 1.8, 3.0]
+const SRC_H = [3.2, 4.4, 2.6, 3.8, 5.0, 2.9, 5.5, 2.0]
+const DST_H = [4.0, 3.2, 4.6, 2.9, 5.2, 3.4, 2.6, 4.4]
 
 // ─── PulseRing ────────────────────────────────────────────────────────────────
 function PulseRing({ color, active }: { color: string; active: boolean }) {
@@ -64,7 +64,7 @@ function PulseRing({ color, active }: { color: string; active: boolean }) {
   })
   return (
     <mesh ref={ref} rotation={[-Math.PI / 2, 0, 0]}>
-      <ringGeometry args={[0.42, 0.52, 32]} />
+      <ringGeometry args={[0.52, 0.65, 32]} />
       <meshBasicMaterial color={color} transparent opacity={0.55} side={THREE.DoubleSide} depthWrite={false} />
     </mesh>
   )
@@ -79,23 +79,23 @@ function Gate({ level, tool }: { level: string; tool: string }) {
   return (
     <group>
       {/* Left pillar */}
-      <mesh position={[-0.65, 0.55, 0]}>
-        <boxGeometry args={[0.18, 1.1, 0.18]} />
+      <mesh position={[-0.65, 0.70, 0]}>
+        <boxGeometry args={[0.22, 1.4, 0.22]} />
         <meshStandardMaterial color={c.glow} emissive={c.glow} emissiveIntensity={0.9} />
       </mesh>
       {/* Right pillar */}
-      <mesh position={[+0.65, 0.55, 0]}>
-        <boxGeometry args={[0.18, 1.1, 0.18]} />
+      <mesh position={[+0.65, 0.70, 0]}>
+        <boxGeometry args={[0.22, 1.4, 0.22]} />
         <meshStandardMaterial color={c.glow} emissive={c.glow} emissiveIntensity={0.9} />
       </mesh>
       {/* Cross bar */}
-      <mesh position={[0, 1.12, 0]}>
-        <boxGeometry args={[1.5, 0.11, 0.13]} />
+      <mesh position={[0, 1.42, 0]}>
+        <boxGeometry args={[1.8, 0.13, 0.15]} />
         <meshStandardMaterial emissive={c.glow} emissiveIntensity={1.8} />
       </mesh>
       {/* Spinning diamond */}
-      <mesh ref={ref} position={[0, 1.70, 0]}>
-        <octahedronGeometry args={[0.30, 0]} />
+      <mesh ref={ref} position={[0, 2.10, 0]}>
+        <octahedronGeometry args={[0.38, 0]} />
         <meshStandardMaterial color={c.glow} emissive={c.glow} emissiveIntensity={active ? 3.2 : 0.5} metalness={0.4} roughness={0.3} />
       </mesh>
       <PulseRing color={c.glow} active={active} />
@@ -121,16 +121,16 @@ function Building({ x, h, label, zoneColor, highlight, onClick }: {
       onPointerOver={e => { e.stopPropagation(); setHov(true) }}
       onPointerOut={() => setHov(false)}>
       <mesh position={[0, h / 2, 0]}>
-        <boxGeometry args={[2.6, h, 1.5]} />
+        <boxGeometry args={[3.2, h, 2.0]} />
         <meshStandardMaterial color={zoneColor} emissive={zoneColor} emissiveIntensity={ei} metalness={0.3} roughness={0.7} />
       </mesh>
       <mesh position={[0, h + 0.06, 0]}>
-        <boxGeometry args={[2.6, 0.12, 1.5]} />
+        <boxGeometry args={[3.2, 0.16, 2.0]} />
         <meshStandardMaterial emissive={zoneColor} emissiveIntensity={highlight ? 4.5 : 2.0} />
       </mesh>
-      {[0.3, 0.7, 1.1, 1.5].filter(wy => wy < h - 0.2).map((wy, i) => (
-        <mesh key={i} position={[0, wy, 0.77]}>
-          <planeGeometry args={[1.9, 0.13]} />
+      {[0.3, 0.7, 1.1, 1.5, 2.0, 2.5].filter(wy => wy < h - 0.2).map((wy, i) => (
+        <mesh key={i} position={[0, wy, 1.01]}>
+          <planeGeometry args={[2.4, 0.14]} />
           <meshStandardMaterial emissive={zoneColor} emissiveIntensity={0.28} transparent opacity={0.7} depthWrite={false} />
         </mesh>
       ))}
@@ -224,10 +224,10 @@ function GapPulse() {
 }
 
 // ─── Cluster of buildings (Zone 1 HQ / Zone 5 Incident) ──────────────────────
-const HQ_BLDGS     = [{ x: 0, z: 0, h: 4.4, w: 3.0 }, { x: 3.6, z: 0.2, h: 2.8, w: 2.2 },
-                      { x: -3.2, z: 0.4, h: 2.0, w: 1.8 }, { x: 1.4, z: 2.6, h: 1.8, w: 1.6 }]
-const INC_BLDGS    = [{ x: 0, z: 0, h: 2.6, w: 2.6 }, { x: 3.2, z: 0.2, h: 1.8, w: 2.0 },
-                      { x: -3.0, z: 0.4, h: 2.0, w: 1.8 }, { x: 1.2, z: 2.4, h: 1.4, w: 1.6 }]
+const HQ_BLDGS     = [{ x: 0,    z: 0,   h: 6.2, w: 3.4 }, { x: 3.8,  z: 0.2, h: 4.0, w: 2.6 },
+                      { x: -3.2, z: 0.4, h: 2.8, w: 2.2 }, { x: 1.5,  z: 2.6, h: 2.4, w: 2.0 }]
+const INC_BLDGS    = [{ x: 0,    z: 0,   h: 3.8, w: 2.8 }, { x: 3.2,  z: 0.2, h: 2.6, w: 2.2 },
+                      { x: -3.0, z: 0.4, h: 2.8, w: 2.0 }, { x: 1.2,  z: 2.4, h: 1.8, w: 1.8 }]
 
 function Cluster({ pos, color, bldgs, label, num }: {
   pos: [number, number, number]; color: string
@@ -308,7 +308,7 @@ function CityScene({ districts, simulation, onSelect }: {
       {/* ── Zone tint floors ── */}
       {/* Zone 2: Data Origins */}
       <mesh position={[-17, 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[10, ZONE_D]} />
+        <planeGeometry args={[14, ZONE_D]} />
         <meshBasicMaterial color="#3b82f6" transparent opacity={0.055} depthWrite={false} />
       </mesh>
       {/* Zone 3: DLP Enforcement */}
@@ -318,7 +318,7 @@ function CityScene({ districts, simulation, onSelect }: {
       </mesh>
       {/* Zone 4: Destinations */}
       <mesh position={[+17, 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[10, ZONE_D]} />
+        <planeGeometry args={[14, ZONE_D]} />
         <meshBasicMaterial color="#f59e0b" transparent opacity={0.055} depthWrite={false} />
       </mesh>
 
@@ -494,7 +494,7 @@ export function CityMap({ districts, simulation }: CityMapProps) {
       <PolicyBar />
       <Canvas
         flat orthographic
-        camera={{ position: [34, 27, 34], zoom: 20, near: 0.1, far: 2000 }}
+        camera={{ position: [34, 30, 34], zoom: 17, near: 0.1, far: 2000 }}
         style={{ width: '100%', height: '100%' }}
         onPointerMissed={() => setSelected(null)}
       >
