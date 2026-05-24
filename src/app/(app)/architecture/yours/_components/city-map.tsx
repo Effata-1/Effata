@@ -1,510 +1,285 @@
 'use client'
 
-import { useRef, useState, useMemo, useLayoutEffect } from 'react'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Html, Text } from '@react-three/drei'
-import { EffectComposer, Bloom } from '@react-three/postprocessing'
-import * as THREE from 'three'
-import type { DistrictData, SimResult } from './types'
+import { useState } from 'react'
+import { motion } from 'framer-motion'
+import type { DistrictData } from './types'
 import { DistrictPanel } from './district-panel'
+import { MapLegend } from './map-legend'
 
 export type { DistrictData }
 
-// ─── Camera ───────────────────────────────────────────────────────────────────
-function CameraSetup() {
-  const camera = useThree(s => s.camera)
-  useLayoutEffect(() => { camera.lookAt(-3, 1, 0) }, [camera])
-  return null
+// ─── Level colour palette (SVG-safe strings, no Tailwind) ───────────────────
+const L: Record<string, {
+  fill:      string; fillHover: string
+  stroke:    string
+  road:      string
+  packet:    string
+  label:     string
+  text:      string
+}> = {
+  full:    { fill: 'rgba(16,185,129,0.13)',  fillHover: 'rgba(16,185,129,0.24)', stroke: 'rgba(16,185,129,0.65)', road: 'rgba(16,185,129,0.45)', packet: '#10b981', label: 'Full Coverage', text: '#6ee7b7' },
+  partial: { fill: 'rgba(245,158,11,0.13)',  fillHover: 'rgba(245,158,11,0.24)', stroke: 'rgba(245,158,11,0.65)', road: 'rgba(245,158,11,0.45)', packet: '#f59e0b', label: 'Partial',       text: '#fcd34d' },
+  addon:   { fill: 'rgba(59,130,246,0.13)',  fillHover: 'rgba(59,130,246,0.24)', stroke: 'rgba(59,130,246,0.65)', road: 'rgba(59,130,246,0.45)', packet: '#3b82f6', label: 'Add-on',        text: '#93c5fd' },
+  none:    { fill: 'rgba(239,68,68,0.13)',   fillHover: 'rgba(239,68,68,0.24)',  stroke: 'rgba(239,68,68,0.65)',  road: 'rgba(239,68,68,0.42)',  packet: '#ef4444', label: 'Gap',           text: '#fca5a5' },
+  unknown: { fill: 'rgba(148,163,184,0.07)', fillHover: 'rgba(148,163,184,0.14)',stroke: 'rgba(148,163,184,0.22)',road: 'rgba(148,163,184,0.12)',packet: '#64748b', label: 'Not Assessed',  text: '#94a3b8' },
 }
 
-// ─── Coverage level config ────────────────────────────────────────────────────
-const LEVEL_CFG = {
-  full:    { glow: '#10b981', label: 'Full Inline',   ht: 3.8, ei: 0.45 },
-  partial: { glow: '#f59e0b', label: 'Partial',       ht: 2.8, ei: 0.36 },
-  addon:   { glow: '#3b82f6', label: 'API / At-rest', ht: 2.3, ei: 0.28 },
-  none:    { glow: '#ef4444', label: 'Gap',           ht: 0.8, ei: 0.20 },
-  unknown: { glow: '#475569', label: 'Not Assessed',  ht: 1.1, ei: 0.08 },
-}
-function lc(level: string) { return LEVEL_CFG[level as keyof typeof LEVEL_CFG] ?? LEVEL_CFG.unknown }
+function levelCfg(level: string) { return L[level] ?? L.unknown }
 
-// ─── 8 DLP inspection rows (matches reference image) ─────────────────────────
-const ROWS = [
-  { key: 'endpoint',    label: 'Endpoint DLP',             srcLabel: 'Managed Endpoints',   dstLabel: 'Local / Physical Exfil'   },
-  { key: 'email',       label: 'Email DLP',                srcLabel: 'Mail Infrastructure',  dstLabel: 'External Mail Destinations' },
-  { key: 'web',         label: 'Web / SSE / CASB Inline',  srcLabel: 'Managed Endpoints',    dstLabel: 'Internet & Web Apps'      },
-  { key: 'saas-inline', label: 'SaaS API DLP',             srcLabel: 'SaaS Users',           dstLabel: 'SaaS & Collaboration'     },
-  { key: 'saas-api',    label: 'Cloud / DSPM',             srcLabel: 'SaaS Data Stores',     dstLabel: 'Cloud Storage & Data Stores' },
-  { key: 'genai',       label: 'GenAI DLP',                srcLabel: 'Managed Endpoints',    dstLabel: 'GenAI Apps'               },
-  { key: 'network',     label: 'Secrets / CI-CD Scanning', srcLabel: 'Developers / CI-CD',   dstLabel: 'Developer & API Ecosystems' },
-  { key: 'm2m',         label: 'Machine-to-Machine',       srcLabel: 'Servers & Services',   dstLabel: 'External Hosts',
-    staticGap: true },
-] as const
+// ─── SVG geometry ─────────────────────────────────────────────────────────────
+// viewBox 1200 × 720  ·  centre node at (600, 360)
+interface Geo { channelKey: string; cx: number; cy: number; pathD: string; ckX: number; ckY: number }
 
-const N = ROWS.length                            // 8
-const rowZ = (ri: number) => (ri - (N - 1) / 2) * 3   // z: -10.5 … +10.5
-
-const ROAD_X1  = -9.0
-const ROAD_X2  =  9.0
-const ROAD_LEN = ROAD_X2 - ROAD_X1
-const SRC_X    = -14.0
-const DST_X    =  14.0
-
-// Varied building heights for visual interest
-const SRC_H = [3.2, 4.4, 2.6, 3.8, 5.0, 2.9, 5.5, 2.0]
-const DST_H = [4.0, 3.2, 4.6, 2.9, 5.2, 3.4, 2.6, 4.4]
-
-// ─── PulseRing ────────────────────────────────────────────────────────────────
-function PulseRing({ color, active }: { color: string; active: boolean }) {
-  const ref = useRef<THREE.Mesh>(null)
-  useFrame(({ clock }) => {
-    if (!ref.current || !active) return
-    const t = (clock.elapsedTime * 0.5) % 1
-    ref.current.scale.setScalar(1 + t * 2.5)
-    ;(ref.current.material as THREE.MeshBasicMaterial).opacity = (1 - t) * 0.55
-  })
-  return (
-    <mesh ref={ref} rotation={[-Math.PI / 2, 0, 0]}>
-      <ringGeometry args={[0.52, 0.65, 32]} />
-      <meshBasicMaterial color={color} transparent opacity={0.55} side={THREE.DoubleSide} depthWrite={false} />
-    </mesh>
-  )
-}
-
-// ─── Inspection gate (Zone 3 checkpoint) ─────────────────────────────────────
-function Gate({ level, tool }: { level: string; tool: string }) {
-  const c   = lc(level)
-  const ref = useRef<THREE.Mesh>(null)
-  useFrame(({ clock }) => { if (ref.current) ref.current.rotation.y = clock.elapsedTime * 0.9 })
-  const active = level !== 'unknown' && level !== 'none'
-  return (
-    <group>
-      {/* Left pillar */}
-      <mesh position={[-0.65, 0.70, 0]}>
-        <boxGeometry args={[0.22, 1.4, 0.22]} />
-        <meshStandardMaterial color={c.glow} emissive={c.glow} emissiveIntensity={0.9} />
-      </mesh>
-      {/* Right pillar */}
-      <mesh position={[+0.65, 0.70, 0]}>
-        <boxGeometry args={[0.22, 1.4, 0.22]} />
-        <meshStandardMaterial color={c.glow} emissive={c.glow} emissiveIntensity={0.9} />
-      </mesh>
-      {/* Cross bar */}
-      <mesh position={[0, 1.42, 0]}>
-        <boxGeometry args={[1.8, 0.13, 0.15]} />
-        <meshStandardMaterial emissive={c.glow} emissiveIntensity={1.8} />
-      </mesh>
-      {/* Spinning diamond */}
-      <mesh ref={ref} position={[0, 2.10, 0]}>
-        <octahedronGeometry args={[0.38, 0]} />
-        <meshStandardMaterial color={c.glow} emissive={c.glow} emissiveIntensity={active ? 3.2 : 0.5} metalness={0.4} roughness={0.3} />
-      </mesh>
-      <PulseRing color={c.glow} active={active} />
-      {tool && (
-        <Text position={[0, -0.32, 0]} fontSize={0.14} color={c.glow} anchorX="center" anchorY="middle">
-          {tool}
-        </Text>
-      )}
-    </group>
-  )
-}
-
-// ─── Building ─────────────────────────────────────────────────────────────────
-function Building({ x, h, label, zoneColor, highlight, onClick }: {
-  x: number; h: number; label: string; zoneColor: string
-  highlight: boolean; onClick: () => void
-}) {
-  const [hov, setHov] = useState(false)
-  const ei = highlight ? 0.9 : hov ? 0.6 : 0.32
-  return (
-    <group position={[x, 0, 0]}
-      onClick={e => { e.stopPropagation(); onClick() }}
-      onPointerOver={e => { e.stopPropagation(); setHov(true) }}
-      onPointerOut={() => setHov(false)}>
-      <mesh position={[0, h / 2, 0]}>
-        <boxGeometry args={[3.2, h, 2.0]} />
-        <meshStandardMaterial color={zoneColor} emissive={zoneColor} emissiveIntensity={ei} metalness={0.3} roughness={0.7} />
-      </mesh>
-      <mesh position={[0, h + 0.06, 0]}>
-        <boxGeometry args={[3.2, 0.16, 2.0]} />
-        <meshStandardMaterial emissive={zoneColor} emissiveIntensity={highlight ? 4.5 : 2.0} />
-      </mesh>
-      {[0.3, 0.7, 1.1, 1.5, 2.0, 2.5].filter(wy => wy < h - 0.2).map((wy, i) => (
-        <mesh key={i} position={[0, wy, 1.01]}>
-          <planeGeometry args={[2.4, 0.14]} />
-          <meshStandardMaterial emissive={zoneColor} emissiveIntensity={0.28} transparent opacity={0.7} depthWrite={false} />
-        </mesh>
-      ))}
-      <Text position={[0, h + 0.52, 0]} fontSize={0.18} color={highlight ? '#ffffff' : '#cbd5e1'}
-        anchorX="center" anchorY="middle" maxWidth={3} textAlign="center">
-        {label}
-      </Text>
-    </group>
-  )
-}
-
-// ─── Road + Londa wave ────────────────────────────────────────────────────────
-const ORB_R = [0.12, 0.09, 0.07, 0.05, 0.03]
-
-function Road({ level, isSimRow, simColor }: { level: string; isSimRow: boolean; simColor: string }) {
-  const c       = lc(level)
-  const color   = isSimRow ? simColor : c.glow
-  const waveRef = useRef<THREE.InstancedMesh>(null)
-  const simRef  = useRef<THREE.InstancedMesh>(null)
-  const dummy   = useMemo(() => new THREE.Object3D(), [])
-
-  useFrame(({ clock }) => {
-    const t = clock.elapsedTime
-    if (waveRef.current) {
-      for (let cl = 0; cl < 2; cl++) {
-        const base = ((t * 0.36 + cl * 0.5) % 1)
-        for (let orb = 0; orb < 5; orb++) {
-          const p   = ((base - orb * 0.055) + 1) % 1
-          const vis = p > 0.03 && p < 0.97
-          dummy.position.set(ROAD_X1 + p * ROAD_LEN, 0.09, 0)
-          dummy.scale.setScalar(vis ? ORB_R[orb] : 0)
-          dummy.updateMatrix()
-          waveRef.current.setMatrixAt(cl * 5 + orb, dummy.matrix)
-        }
-      }
-      waveRef.current.instanceMatrix.needsUpdate = true
-    }
-    if (simRef.current && isSimRow) {
-      const p   = ((t * 0.52) % 1)
-      dummy.position.set(ROAD_X1 + p * ROAD_LEN, 0.14, 0)
-      dummy.scale.setScalar(p > 0.02 && p < 0.98 ? 0.24 : 0)
-      dummy.updateMatrix()
-      simRef.current.setMatrixAt(0, dummy.matrix)
-      simRef.current.instanceMatrix.needsUpdate = true
-    }
-  })
-
-  return (
-    <group>
-      <mesh position={[0, 0.006, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[ROAD_LEN, 0.62]} />
-        <meshStandardMaterial color={color} emissive={color}
-          emissiveIntensity={isSimRow ? 0.30 : 0.12}
-          transparent opacity={level === 'unknown' ? 0.20 : 0.65} depthWrite={false} />
-      </mesh>
-      {level !== 'unknown' && (
-        <mesh position={[0, 0.013, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[ROAD_LEN, 0.022]} />
-          <meshBasicMaterial color={color} transparent opacity={0.40} depthWrite={false} />
-        </mesh>
-      )}
-      {level !== 'unknown' && level !== 'none' && (
-        <instancedMesh ref={waveRef} args={[undefined, undefined, 10]}>
-          <sphereGeometry args={[1, 12, 12]} />
-          <meshStandardMaterial color={c.glow} emissive={c.glow} emissiveIntensity={5.5} />
-        </instancedMesh>
-      )}
-      {isSimRow && (
-        <instancedMesh ref={simRef} args={[undefined, undefined, 1]}>
-          <sphereGeometry args={[1, 16, 16]} />
-          <meshStandardMaterial color={simColor} emissive={simColor} emissiveIntensity={7.5} />
-        </instancedMesh>
-      )}
-    </group>
-  )
-}
-
-// ─── Gap pulse ────────────────────────────────────────────────────────────────
-function GapPulse() {
-  const ref = useRef<THREE.Mesh>(null)
-  useFrame(({ clock }) => {
-    if (!ref.current) return
-    ;(ref.current.material as THREE.MeshBasicMaterial).opacity = 0.025 + Math.sin(clock.elapsedTime * 2.5) * 0.020
-  })
-  return (
-    <mesh ref={ref} position={[0, 0.003, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[ROAD_LEN + 14, 2.8]} />
-      <meshBasicMaterial color="#ef4444" transparent opacity={0.025} depthWrite={false} />
-    </mesh>
-  )
-}
-
-// ─── Cluster of buildings (Zone 1 HQ / Zone 5 Incident) ──────────────────────
-const HQ_BLDGS     = [{ x: 0,    z: 0,   h: 6.2, w: 3.4 }, { x: 3.8,  z: 0.2, h: 4.0, w: 2.6 },
-                      { x: -3.2, z: 0.4, h: 2.8, w: 2.2 }, { x: 1.5,  z: 2.6, h: 2.4, w: 2.0 }]
-const INC_BLDGS    = [{ x: 0,    z: 0,   h: 3.8, w: 2.8 }, { x: 3.2,  z: 0.2, h: 2.6, w: 2.2 },
-                      { x: -3.0, z: 0.4, h: 2.8, w: 2.0 }, { x: 1.2,  z: 2.4, h: 1.8, w: 1.8 }]
-
-function Cluster({ pos, color, bldgs, label, num }: {
-  pos: [number, number, number]; color: string
-  bldgs: { x: number; z: number; h: number; w: number }[]
-  label: string; num: string
-}) {
-  return (
-    <group position={pos}>
-      {bldgs.map((b, i) => (
-        <group key={i} position={[b.x, 0, b.z]}>
-          <mesh position={[0, b.h / 2, 0]}>
-            <boxGeometry args={[b.w, b.h, 1.6]} />
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.38} metalness={0.3} roughness={0.7} />
-          </mesh>
-          <mesh position={[0, b.h + 0.07, 0]}>
-            <boxGeometry args={[b.w, 0.13, 1.6]} />
-            <meshStandardMaterial emissive={color} emissiveIntensity={2.0} />
-          </mesh>
-        </group>
-      ))}
-      <Html position={[0, 0.1, -4]} center transform={false} style={{ pointerEvents: 'none', whiteSpace: 'nowrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <div style={{ width: 17, height: 17, borderRadius: '50%', background: color, color: '#fff',
-            fontSize: 10, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            {num}
-          </div>
-          <span style={{ color, fontSize: 9, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase' }}>{label}</span>
-        </div>
-      </Html>
-    </group>
-  )
-}
-
-// ─── Sim result badge ─────────────────────────────────────────────────────────
-const SIM_COLORS: Record<string, { bg: string; border: string; color: string; label: string }> = {
-  block: { bg: 'rgba(239,68,68,.25)',  border: 'rgba(239,68,68,.7)',  color: '#fca5a5', label: 'BLOCK'  },
-  coach: { bg: 'rgba(245,158,11,.25)', border: 'rgba(245,158,11,.7)', color: '#fcd34d', label: 'COACH'  },
-  allow: { bg: 'rgba(16,185,129,.25)', border: 'rgba(16,185,129,.7)', color: '#6ee7b7', label: 'ALLOW'  },
-  gap:   { bg: 'rgba(71,85,105,.25)',  border: 'rgba(71,85,105,.6)',  color: '#94a3b8', label: 'GAP'    },
-}
-function SimBadge({ action, h }: { action: string; h: number }) {
-  const s = SIM_COLORS[action] ?? SIM_COLORS.gap
-  return (
-    <Html position={[DST_X, h + 1.4, 0]} center transform={false}>
-      <div style={{ padding: '4px 10px', borderRadius: 6, background: s.bg,
-        border: `1.5px solid ${s.border}`, color: s.color, fontSize: 11,
-        fontWeight: 800, letterSpacing: '0.08em', pointerEvents: 'none', whiteSpace: 'nowrap' }}>
-        {s.label}
-      </div>
-    </Html>
-  )
-}
-
-// ─── Scene ────────────────────────────────────────────────────────────────────
-function CityScene({ districts, simulation, onSelect }: {
-  districts: DistrictData[]
-  simulation: SimResult | null
-  onSelect: (d: DistrictData | null) => void
-}) {
-  const byKey = Object.fromEntries(districts.map(d => [d.channelKey, d]))
-  const ZONE_D = (N - 1) * 3 + 5   // ~26 units
-
-  return (
-    <>
-      {/* Lights */}
-      <ambientLight intensity={0.18} color="#1a2a4a" />
-      <pointLight position={[0, 32, 0]} intensity={0.6} color="#3b82f6" decay={0} />
-      <pointLight position={[-22, 10, 0]} intensity={0.35} color="#6366f1" decay={0} />
-      <pointLight position={[22, 10, 0]} intensity={0.35} color="#f59e0b" decay={0} />
-
-      {/* Ground */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.06, 0]}>
-        <planeGeometry args={[110, 80]} />
-        <meshStandardMaterial color="#020914" roughness={1} />
-      </mesh>
-      <gridHelper args={[110, 110, '#111827', '#0d1526']} position={[0, -0.05, 0]} />
-
-      {/* ── Zone tint floors ── */}
-      {/* Zone 2: Data Origins */}
-      <mesh position={[-17, 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[14, ZONE_D]} />
-        <meshBasicMaterial color="#3b82f6" transparent opacity={0.055} depthWrite={false} />
-      </mesh>
-      {/* Zone 3: DLP Enforcement */}
-      <mesh position={[0, 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[22, ZONE_D]} />
-        <meshBasicMaterial color="#10b981" transparent opacity={0.030} depthWrite={false} />
-      </mesh>
-      {/* Zone 4: Destinations */}
-      <mesh position={[+17, 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[14, ZONE_D]} />
-        <meshBasicMaterial color="#f59e0b" transparent opacity={0.055} depthWrite={false} />
-      </mesh>
-
-      {/* ── Zone header labels ── */}
-      <Html position={[-17, 0.1, -(ZONE_D / 2) - 1.2]} center transform={false} style={{ pointerEvents: 'none', whiteSpace: 'nowrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <div style={{ width: 17, height: 17, borderRadius: '50%', background: '#3b82f6', color: '#fff',
-            fontSize: 10, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>2</div>
-          <span style={{ color: '#60a5fa', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Data Origins</span>
-        </div>
-      </Html>
-      <Html position={[0, 0.1, -(ZONE_D / 2) - 1.2]} center transform={false} style={{ pointerEvents: 'none', whiteSpace: 'nowrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <div style={{ width: 17, height: 17, borderRadius: '50%', background: '#10b981', color: '#fff',
-            fontSize: 10, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>3</div>
-          <span style={{ color: '#34d399', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>DLP Enforcement &amp; Inspection Zone</span>
-        </div>
-      </Html>
-      <Html position={[+17, 0.1, -(ZONE_D / 2) - 1.2]} center transform={false} style={{ pointerEvents: 'none', whiteSpace: 'nowrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <div style={{ width: 17, height: 17, borderRadius: '50%', background: '#f59e0b', color: '#fff',
-            fontSize: 10, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>4</div>
-          <span style={{ color: '#fbbf24', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Destinations / Exposure Points</span>
-        </div>
-      </Html>
-
-      {/* ── Zone 1: Classification & Policy HQ ── */}
-      <Cluster pos={[-22, 0, -(ZONE_D / 2) - 1]} color="#6366f1"
-        bldgs={HQ_BLDGS} label="Classification & Policy HQ" num="1" />
-
-      {/* ── Zone 5: Incident, Evidence & Response ── */}
-      <Cluster pos={[-22, 0, (ZONE_D / 2) - 1]} color="#ef4444"
-        bldgs={INC_BLDGS} label="Incident, Evidence & Response Center" num="5" />
-
-      {/* ── Per-channel inspection rows ── */}
-      {ROWS.map((row, ri) => {
-        const d        = byKey[row.key]
-        const level    = ('staticGap' in row && row.staticGap) ? 'none' : (d?.level ?? 'unknown')
-        const c        = lc(level)
-        const z        = rowZ(ri)
-        const isSimRow = simulation?.channelKey === row.key
-        const srcH     = SRC_H[ri] ?? 2.0
-        const dstH     = DST_H[ri] ?? 2.0
-
-        return (
-          <group key={row.key} position={[0, 0, z]}>
-            {level === 'none' && <GapPulse />}
-            <Road level={level} isSimRow={isSimRow} simColor={c.glow} />
-            <Gate level={level} tool={(d?.coveredBy ?? [])[0] ?? ''} />
-
-            <Building x={SRC_X} h={srcH} label={row.srcLabel}
-              zoneColor="#3b82f6" highlight={isSimRow}
-              onClick={() => onSelect(d ?? null)} />
-
-            <Building x={DST_X} h={dstH} label={row.dstLabel}
-              zoneColor="#f59e0b" highlight={isSimRow}
-              onClick={() => {}} />
-
-            {/* Row channel label (centre of road, above gate) */}
-            <Html position={[0, 2.5, 0]} center transform={false} style={{ pointerEvents: 'none', whiteSpace: 'nowrap' }}>
-              <div style={{
-                background: isSimRow ? c.glow + '30' : 'rgba(2,9,20,0.78)',
-                border: `1px solid ${c.glow}45`, color: c.glow,
-                fontSize: 8.5, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
-                letterSpacing: '0.04em',
-              }}>{row.label}</div>
-            </Html>
-
-            {/* Status badge (right of destination buildings) */}
-            <Html position={[DST_X + 3.8, 1.4, 0]} center transform={false} style={{ pointerEvents: 'none', whiteSpace: 'nowrap' }}>
-              <div style={{
-                background: c.glow + '1c', border: `1px solid ${c.glow}55`,
-                color: c.glow, fontSize: 8, fontWeight: 800, padding: '2px 9px',
-                borderRadius: 4, letterSpacing: '0.06em', textTransform: 'uppercase',
-                display: 'flex', alignItems: 'center', gap: 4,
-              }}>
-                {'staticGap' in row && row.staticGap && (
-                  <span style={{ color: '#f59e0b' }}>⚠</span>
-                )}
-                {c.label}
-              </div>
-            </Html>
-
-            {isSimRow && simulation && <SimBadge action={simulation.action} h={dstH} />}
-          </group>
-        )
-      })}
-    </>
-  )
-}
-
-// ─── Policy Actions Command Center (absolute HTML overlay) ───────────────────
-const POLICY_ACTIONS = [
-  { label: 'Monitor',    color: '#3b82f6' },
-  { label: 'Coach',      color: '#f59e0b' },
-  { label: 'Justify',    color: '#8b5cf6' },
-  { label: 'Block',      color: '#ef4444' },
-  { label: 'Quarantine', color: '#f97316' },
-  { label: 'Encrypt',    color: '#10b981' },
-  { label: 'Notify',     color: '#64748b' },
+const GEO: Geo[] = [
+  { channelKey: 'email',       cx: 600,  cy:  72, pathD: 'M 600 360 Q 600 216 600 72',     ckX: 600, ckY: 202 },
+  { channelKey: 'genai',       cx: 278,  cy: 158, pathD: 'M 600 360 Q 439 259 278 158',    ckX: 423, ckY: 249 },
+  { channelKey: 'saas-inline', cx: 922,  cy: 158, pathD: 'M 600 360 Q 761 259 922 158',    ckX: 777, ckY: 249 },
+  { channelKey: 'web',         cx: 172,  cy: 360, pathD: 'M 600 360 Q 386 320 172 360',    ckX: 365, ckY: 340 },
+  { channelKey: 'saas-api',    cx: 1028, cy: 360, pathD: 'M 600 360 Q 814 320 1028 360',   ckX: 836, ckY: 340 },
+  { channelKey: 'endpoint',    cx: 278,  cy: 562, pathD: 'M 600 360 Q 439 461 278 562',    ckX: 423, ckY: 471 },
+  { channelKey: 'network',     cx: 922,  cy: 562, pathD: 'M 600 360 Q 761 461 922 562',    ckX: 777, ckY: 471 },
 ]
 
-function PolicyBar() {
-  return (
-    <div style={{ position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)',
-      zIndex: 10, pointerEvents: 'none' }}>
-      <div style={{ background: 'rgba(2,9,20,0.88)', border: '1px solid rgba(255,255,255,0.08)',
-        borderRadius: 10, padding: '7px 14px', backdropFilter: 'blur(4px)' }}>
-        <div style={{ textAlign: 'center', color: '#475569', fontSize: 8, letterSpacing: '0.18em',
-          marginBottom: 6, textTransform: 'uppercase', fontWeight: 700 }}>
-          Policy Actions Command Center
-        </div>
-        <div style={{ display: 'flex', gap: 5 }}>
-          {POLICY_ACTIONS.map(a => (
-            <div key={a.label} style={{ background: a.color + '1a', border: `1px solid ${a.color}44`,
-              color: a.color, fontSize: 8.5, fontWeight: 700, padding: '3px 8px',
-              borderRadius: 5, letterSpacing: '0.05em' }}>{a.label}</div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
+// ─── Animation variants ───────────────────────────────────────────────────────
+const containerV = {
+  hidden: {},
+  show:   { transition: { staggerChildren: 0.07, delayChildren: 0.3 } },
+}
+const nodeV = {
+  hidden: { opacity: 0 },
+  show:   { opacity: 1, transition: { duration: 0.5 } },
 }
 
-// ─── Legend ───────────────────────────────────────────────────────────────────
-const LEGEND_ITEMS = [
-  { color: '#10b981', label: 'Full Inline'  },
-  { color: '#f59e0b', label: 'Partial'      },
-  { color: '#3b82f6', label: 'API / At-rest' },
-  { color: '#8b5cf6', label: 'Metadata-only' },
-  { color: '#ef4444', label: 'Gap'           },
-  { color: '#475569', label: 'Not Assessed'  },
-]
-
-function MapLegend() {
-  return (
-    <div style={{ position: 'absolute', bottom: 14, right: 14, zIndex: 10, pointerEvents: 'none' }}>
-      <div style={{ background: 'rgba(2,9,20,0.85)', border: '1px solid rgba(255,255,255,0.06)',
-        borderRadius: 8, padding: '8px 12px' }}>
-        <div style={{ color: '#475569', fontSize: 7.5, letterSpacing: '0.15em', marginBottom: 6,
-          textTransform: 'uppercase', fontWeight: 700 }}>Legend</div>
-        {LEGEND_ITEMS.map(it => (
-          <div key={it.label} style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
-            <div style={{ width: 22, height: 2, background: it.color, borderRadius: 1, flexShrink: 0 }} />
-            <span style={{ color: '#94a3b8', fontSize: 8.5, fontWeight: 600 }}>{it.label}</span>
-          </div>
-        ))}
-        <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.06)',
-          display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <div style={{ width: 8, height: 1.5, background: '#60a5fa', borderRadius: 1 }} />
-            <div style={{ width: 0, height: 0, borderTop: '3px solid transparent',
-              borderBottom: '3px solid transparent', borderLeft: '5px solid #60a5fa' }} />
-          </div>
-          <span style={{ color: '#60a5fa', fontSize: 8, fontWeight: 600 }}>Data Flow</span>
-        </div>
-      </div>
-    </div>
-  )
+// ─── District node (SVG sub-tree) ─────────────────────────────────────────────
+interface NodeProps {
+  geo:          Geo
+  data:         DistrictData
+  isSelected:   boolean
+  isHovered:    boolean
+  onMouseEnter: () => void
+  onMouseLeave: () => void
+  onClick:      () => void
 }
 
-// ─── CityMap (export) ─────────────────────────────────────────────────────────
-interface CityMapProps {
-  districts:  DistrictData[]
-  simulation: SimResult | null
-}
-
-export function CityMap({ districts, simulation }: CityMapProps) {
-  const [selected, setSelected] = useState<DistrictData | null>(null)
+function DistrictNode({ geo, data, isSelected, isHovered, onMouseEnter, onMouseLeave, onClick }: NodeProps) {
+  const cfg    = levelCfg(data.level)
+  const active = isSelected || isHovered
 
   return (
-    <div className="relative flex-1 min-w-0 overflow-hidden bg-[#020914]">
-      <PolicyBar />
-      <Canvas
-        flat orthographic
-        camera={{ position: [34, 30, 34], zoom: 17, near: 0.1, far: 2000 }}
-        style={{ width: '100%', height: '100%' }}
-        onPointerMissed={() => setSelected(null)}
+    <motion.g
+      variants={nodeV}
+      style={{ cursor: 'pointer' }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onClick={(e) => { e.stopPropagation(); onClick() }}
+    >
+      {/* Soft outer glow when active */}
+      {active && (
+        <rect
+          x={geo.cx - 86} y={geo.cy - 42} width={172} height={84}
+          rx="13" fill="none"
+          stroke={cfg.stroke} strokeWidth="1"
+          opacity="0.3"
+        />
+      )}
+
+      {/* Node background */}
+      <rect
+        x={geo.cx - 80} y={geo.cy - 36} width={160} height={72}
+        rx="10"
+        fill={active ? cfg.fillHover : cfg.fill}
+        stroke={isSelected ? cfg.stroke : active ? cfg.stroke.replace(/[\d.]+\)$/, '0.4)') : 'rgba(255,255,255,0.05)'}
+        strokeWidth={isSelected ? 1.5 : 1}
+      />
+
+      {/* Coloured top accent strip */}
+      <rect
+        x={geo.cx - 72} y={geo.cy - 34} width={144} height={2.5}
+        rx="1" fill={cfg.stroke}
+        opacity={active ? 0.9 : 0.5}
+      />
+
+      {/* District name */}
+      <text x={geo.cx} y={geo.cy - 7}
+        textAnchor="middle" fontSize="11.5" fontWeight="600"
+        fill="rgba(255,255,255,0.88)"
       >
-        <CameraSetup />
-        <CityScene districts={districts} simulation={simulation} onSelect={setSelected} />
-        <EffectComposer>
-          <Bloom intensity={1.4} luminanceThreshold={0.05} luminanceSmoothing={0.85} mipmapBlur />
-        </EffectComposer>
-      </Canvas>
-      <MapLegend />
+        {data.shortName}
+      </text>
+
+      {/* Coverage level label */}
+      <text x={geo.cx} y={geo.cy + 11}
+        textAnchor="middle" fontSize="9.5"
+        fill={cfg.text} letterSpacing="0.3"
+      >
+        {cfg.label}
+      </text>
+
+      {/* Pulse ring on gap districts */}
+      {data.level === 'none' && (
+        <rect
+          x={geo.cx - 82} y={geo.cy - 38} width={164} height={76}
+          rx="12" fill="none"
+          stroke="rgba(239,68,68,0.35)" strokeWidth="1.5"
+          className="dlp-pulse"
+        />
+      )}
+
+      {/* Selected dot indicator */}
+      {isSelected && (
+        <circle cx={geo.cx} cy={geo.cy + 26} r="2.5" fill={cfg.stroke} opacity="0.9" />
+      )}
+    </motion.g>
+  )
+}
+
+// ─── Main export ──────────────────────────────────────────────────────────────
+interface CityMapProps { districts: DistrictData[] }
+
+export function CityMap({ districts }: CityMapProps) {
+  const [selected, setSelected] = useState<DistrictData | null>(null)
+  const [hovered,  setHovered]  = useState<string | null>(null)
+
+  const byKey = Object.fromEntries(districts.map(d => [d.channelKey, d]))
+
+  function handleDistrictClick(d: DistrictData) {
+    setSelected(prev => prev?.channelKey === d.channelKey ? null : d)
+  }
+
+  return (
+    <div className="relative w-full rounded-2xl border border-white/5" style={{ aspectRatio: '5 / 3' }}>
+
+      {/* CSS keyframes — scoped animation names avoid collisions */}
+      <style>{`
+        @keyframes dlp-pkt {
+          0%   { offset-distance: 5%;  opacity: 0;    }
+          8%   { opacity: 0.65; }
+          88%  { opacity: 0.65; }
+          100% { offset-distance: 93%; opacity: 0; }
+        }
+        @keyframes dlp-pulse {
+          0%, 100% { opacity: 0.25; }
+          50%      { opacity: 0.7;  }
+        }
+        .dlp-pulse { animation: dlp-pulse 2.6s ease-in-out infinite; }
+      `}</style>
+
+      {/* Map (overflow clipped for rounded corners) */}
+      <div className="absolute inset-0 rounded-2xl overflow-hidden">
+        <svg
+          viewBox="0 0 1200 720" width="100%" height="100%"
+          onClick={() => setSelected(null)}
+          style={{ display: 'block', fontFamily: "system-ui,-apple-system,'Segoe UI',sans-serif" }}
+        >
+          <defs>
+            <pattern id="dlp-dots" width="40" height="40" patternUnits="userSpaceOnUse">
+              <circle cx="20" cy="20" r="0.7" fill="rgba(255,255,255,0.022)" />
+            </pattern>
+            <radialGradient id="dlp-rglow" cx="50%" cy="50%" r="45%">
+              <stop offset="0%"   stopColor="rgba(59,130,246,0.07)" />
+              <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+            </radialGradient>
+          </defs>
+
+          {/* Backgrounds */}
+          <rect width="1200" height="720" fill="#020914" />
+          <rect width="1200" height="720" fill="url(#dlp-dots)" />
+          <rect width="1200" height="720" fill="url(#dlp-rglow)" />
+
+          {/* Roads */}
+          {GEO.map(geo => {
+            const d = byKey[geo.channelKey]
+            const cfg = levelCfg(d?.level ?? 'unknown')
+            return (
+              <path key={`road-${geo.channelKey}`} d={geo.pathD}
+                fill="none" stroke={cfg.road} strokeWidth="1.5"
+                strokeDasharray={!d || d.level === 'unknown' ? '5 5' : undefined}
+              />
+            )
+          })}
+
+          {/* Checkpoint diamonds */}
+          {GEO.map(geo => {
+            const d = byKey[geo.channelKey]
+            const cfg = levelCfg(d?.level ?? 'unknown')
+            return (
+              <g key={`cp-${geo.channelKey}`} transform={`translate(${geo.ckX},${geo.ckY})`}>
+                <rect x="-5" y="-5" width="10" height="10" rx="1"
+                  transform="rotate(45)"
+                  fill={cfg.fill} stroke={cfg.stroke} strokeWidth="1"
+                />
+              </g>
+            )
+          })}
+
+          {/* Data packets — CSS motion-path */}
+          {GEO.flatMap((geo, gi) => {
+            const d = byKey[geo.channelKey]
+            if (!d || d.level === 'unknown' || d.level === 'none') return []
+            const cfg = levelCfg(d.level)
+            return [0, 1, 2].map(i => (
+              <circle key={`pkt-${geo.channelKey}-${i}`} r="2.8" fill={cfg.packet}
+                style={{
+                  offsetPath:      `path("${geo.pathD}")`,
+                  animation:       'dlp-pkt 3.2s linear infinite',
+                  animationDelay:  `${-((gi * 0.45 + i * 1.08) % 3.2)}s`,
+                } as React.CSSProperties}
+              />
+            ))
+          })}
+
+          {/* Centre node — Policy Control Center */}
+          <g>
+            <rect x="496" y="314" width="208" height="92" rx="14"
+              fill="rgba(15,23,42,0.9)" stroke="rgba(59,130,246,0.22)" strokeWidth="1.5" />
+            <rect x="496" y="314" width="208" height="3" rx="1" fill="rgba(59,130,246,0.45)" />
+            <text x="600" y="348" textAnchor="middle" fontSize="9" fontWeight="700"
+              fill="rgba(148,163,184,0.5)" letterSpacing="2">POLICY CONTROL</text>
+            <text x="600" y="367" textAnchor="middle" fontSize="11.5" fontWeight="600"
+              fill="rgba(255,255,255,0.85)">Risk Assessment Engine</text>
+            <text x="600" y="385" textAnchor="middle" fontSize="9" fill="rgba(99,102,241,0.55)">
+              DLP Coverage Analysis
+            </text>
+            {[0, 1, 2].map(i => (
+              <circle key={i} cx={582 + i * 18} cy={399} r="2.2"
+                fill={i === 0 ? 'rgba(16,185,129,0.5)' : i === 1 ? 'rgba(245,158,11,0.5)' : 'rgba(239,68,68,0.5)'} />
+            ))}
+          </g>
+
+          {/* District nodes (staggered fade-in) */}
+          <motion.g variants={containerV} initial="hidden" animate="show">
+            {GEO.map(geo => {
+              const d = byKey[geo.channelKey]
+              if (!d) return null
+              return (
+                <DistrictNode
+                  key={geo.channelKey}
+                  geo={geo}
+                  data={d}
+                  isSelected={selected?.channelKey === geo.channelKey}
+                  isHovered={hovered === geo.channelKey}
+                  onMouseEnter={() => setHovered(geo.channelKey)}
+                  onMouseLeave={() => setHovered(null)}
+                  onClick={() => handleDistrictClick(d)}
+                />
+              )
+            })}
+          </motion.g>
+        </svg>
+      </div>
+
+      {/* Top-left title overlay */}
+      <div className="absolute top-4 left-5 z-10 pointer-events-none">
+        <p className="text-[9.5px] text-slate-500 uppercase tracking-[0.2em] font-medium">Architecture Layer</p>
+        <p className="text-[13px] font-semibold text-slate-200 mt-0.5">DLP City Map</p>
+      </div>
+
+      {/* Bottom-left legend */}
+      <div className="absolute bottom-4 left-4 z-10 pointer-events-none">
+        <MapLegend />
+      </div>
+
+      {/* District detail panel */}
       <DistrictPanel district={selected} onClose={() => setSelected(null)} />
     </div>
   )

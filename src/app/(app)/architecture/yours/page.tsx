@@ -4,7 +4,7 @@ import { DLP_TOOLS } from '@/lib/onboarding/data'
 import { CHANNELS } from '@/lib/channel-taxonomy'
 import { deriveCoverage } from '@/lib/dlp-tools/derive-coverage'
 import type { DistrictData } from './_components/types'
-import { CityMapLayout } from './_components/city-map-layout'
+import { CityMap } from './_components/city-map'
 
 // Maps derive-coverage channel keys → channel-taxonomy slugs
 const KEY_TO_SLUG: Record<string, string> = {
@@ -17,7 +17,7 @@ const KEY_TO_SLUG: Record<string, string> = {
   'network':     'network-protocol-egress',
 }
 
-const CHANNEL_KEYS = ['email', 'web', 'saas-inline', 'saas-api', 'endpoint', 'genai', 'network'] as const
+const CHANNEL_KEYS = ['email', 'genai', 'saas-inline', 'web', 'saas-api', 'endpoint', 'network'] as const
 
 export default async function YourArchitecturePage() {
   await requireRole('analyst')
@@ -49,8 +49,14 @@ export default async function YourArchitecturePage() {
   })
 
   return (
-    <div className="-m-8 flex h-[calc(100vh-0px)] overflow-hidden bg-[#020914]">
-      <CityMapLayout districts={districts} orgTools={orgTools} />
+    <div className="-m-8 p-6 min-h-screen bg-background">
+      <div className="mb-5">
+        <h1 className="text-xl font-bold text-foreground">Your Architecture</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Visual map of your DLP coverage across all channels, derived from your tool stack.
+        </p>
+      </div>
+      <CityMap districts={districts} />
     </div>
   )
 }
