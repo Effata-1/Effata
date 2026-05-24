@@ -138,3 +138,24 @@ export async function deleteGenAICategory(categoryId: string): Promise<{ error?:
   revalidateGenAI()
   return {}
 }
+
+export async function setAppGovernanceClassification(
+  appId: string,
+  classification: string,
+): Promise<{ error?: string }> {
+  const user = await requireRole('analyst')
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('genai_customer_classifications')
+    .upsert({
+      org_id: user.orgId,
+      app_id: appId,
+      customer_classification: classification,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'org_id,app_id' })
+
+  if (error) return { error: error.message }
+  revalidatePath('/genai-controls/app-governance')
+  return {}
+}

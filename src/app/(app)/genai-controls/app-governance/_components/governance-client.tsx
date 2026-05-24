@@ -2,19 +2,37 @@
 
 import { useState, useTransition, useOptimistic } from 'react'
 import Link from 'next/link'
-import { Plus, Pencil, X, Settings2 } from 'lucide-react'
+import { Plus, Pencil, X, Settings2, ChevronDown, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { colorClasses } from '@/lib/data-catalog/types'
 import { CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
 import { computeTrustScore } from '@/lib/genai/scoring'
-import { deleteGenAICategory } from '../actions'
+import { deleteGenAICategory, setAppGovernanceClassification } from '../actions'
 import { EditCategoryModal } from './edit-category-modal'
 import type { GenAIGovernanceCategory } from '../actions'
-import type { GenAIApp, GenAIAppProfile, CustomerClassification } from '@/lib/genai/types'
+import type { GenAIApp, GenAIAppProfile, CustomerClassification, CustomerClass, DLPActivities } from '@/lib/genai/types'
+
+// ── Static treatment & compliance per category ────────────────────────────────
+
+const CATEGORY_DLP_TREATMENT: Record<string, string> = {
+  'enterprise-approved':        'Allow by default. Full DLP inspection of prompts and file uploads. Alert on highly confidential and secret data submissions.',
+  'approved-with-conditions':   'Allow for authorised AD groups only. Block highly confidential and secret labelled documents. Display coaching on policy violations.',
+  'permitted-with-restriction': 'Allow public and internal data only. Block confidential, highly confidential, and secret content. Coach users before every upload.',
+  'prohibited':                 'Block all access. Display acceptable-use coaching message (Level 2) on every access attempt. No exceptions without escalation.',
+  'personal':                   'Allow with active monitoring. Coach users on acceptable-use policy. Block highly confidential and secret data submissions.',
+}
+
+const CATEGORY_COMPLIANCE: Record<string, string[]> = {
+  'enterprise-approved':        ['GDPR Art. 25', 'GDPR Art. 32', 'HIPAA §164.312'],
+  'approved-with-conditions':   ['GDPR Art. 25', 'GDPR Art. 32', 'HIPAA §164.308', 'HIPAA §164.312'],
+  'permitted-with-restriction': ['GDPR Art. 5(1)(f)', 'GDPR Art. 32', 'HIPAA §164.308'],
+  'prohibited':                 ['GDPR Art. 5(1)(f)', 'GDPR Art. 32', 'HIPAA §164.312'],
+  'personal':                   ['GDPR Art. 32', 'HIPAA §164.312'],
+}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-interface AppEntry {
+export interface AppEntry {
   app: GenAIApp
   profile: GenAIAppProfile | null
   classification: CustomerClassification | null
@@ -35,60 +53,219 @@ function RiskBadge({ score }: { score: number }) {
   return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/20">High Risk</span>
 }
 
-// ── App mini-card ─────────────────────────────────────────────────────────────
+function getDLPCapabilities(dlp: DLPActivities | null): string[] {
+  if (!dlp) return []
+  const ok = ['enforcement', 'monitoring', 'partial']
+  const caps: string[] = []
+  if (ok.includes(dlp.post_prompt))   caps.push('Prompt inspection')
+  if (ok.includes(dlp.upload))         caps.push('File upload control')
+  if (ok.includes(dlp.login_instance)) caps.push('Login & instance detection')
+  if (ok.includes(dlp.edit))           caps.push('Edit inspection')
+  if (ok.includes(dlp.response))       caps.push('Response monitoring')
+  if (ok.includes(dlp.download))       caps.push('Download control')
+  if (ok.includes(dlp.attach))         caps.push('Attachment inspection')
+  return caps
+}
 
-function AppCard({ entry }: { entry: AppEntry }) {
-  const { app, profile, classification } = entry
-  const score = profile ? computeTrustScore(profile.fields, profile.dlp, profile.breach_info) : null
-  const cls = classification?.customer_classification ?? 'unknown'
-  const clsMeta = CLASSIFICATION_LABELS[cls]
+// ── Classification select ─────────────────────────────────────────────────────
+
+const CLS_OPTIONS: { value: CustomerClass; label: string }[] = [
+  { value: 'enterprise-approved',        label: 'Approved & Supported' },
+  { value: 'approved-with-conditions',   label: 'Approved with Conditions' },
+  { value: 'permitted-with-restriction', label: 'Restricted / Unassessed' },
+  { value: 'prohibited',                 label: 'Prohibited' },
+  { value: 'personal',                   label: 'Personal Instance' },
+  { value: 'unknown',                    label: 'Not Set' },
+]
+
+const CLS_SELECT_STYLE: Record<string, string> = {
+  green:  'border-emerald-500/40 text-emerald-400 bg-emerald-500/5',
+  emerald:'border-emerald-500/40 text-emerald-400 bg-emerald-500/5',
+  blue:   'border-blue-500/40 text-blue-400 bg-blue-500/5',
+  amber:  'border-amber-500/40 text-amber-400 bg-amber-500/5',
+  red:    'border-red-500/40 text-red-400 bg-red-500/5',
+  purple: 'border-purple-500/40 text-purple-400 bg-purple-500/5',
+  zinc:   'border-border-strong text-muted-foreground/70 bg-transparent',
+}
+
+function ClassificationSelect({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: CustomerClass
+  onChange: (v: string) => void
+  disabled?: boolean
+}) {
+  const meta = CLASSIFICATION_LABELS[value] ?? CLASSIFICATION_LABELS.unknown
+  const style = CLS_SELECT_STYLE[meta.color] ?? CLS_SELECT_STYLE.zinc
 
   return (
-    <Link
-      href={`/genai-controls/apps/${app.app_id}`}
-      className="group flex items-start gap-3 p-3 rounded-lg border border-border bg-card/40 hover:border-border-strong hover:bg-card/70 transition-all"
-    >
-      <div
-        className="w-9 h-9 rounded-lg flex items-center justify-center text-foreground font-bold text-sm flex-shrink-0"
-        style={{ backgroundColor: app.logo_bg }}
+    <div className={cn('relative rounded-lg border px-2.5 py-1.5 w-[180px]', style)}>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        disabled={disabled}
+        className="w-full appearance-none bg-transparent text-xs font-semibold focus:outline-none cursor-pointer pr-5 disabled:cursor-not-allowed disabled:opacity-60"
+        style={{ color: 'inherit' }}
       >
-        {app.logo_letter}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-foreground group-hover:text-blue-300 transition-colors truncate">{app.app_name}</p>
-        <p className="text-xs text-muted-foreground/70 truncate">{app.vendor}</p>
-        <div className="flex items-center gap-2 mt-1.5">
-          {score ? (
-            <>
-              <span className={cn(
-                'text-xs font-bold tabular-nums',
-                score.final_score >= 85 ? 'text-green-400' :
-                score.final_score >= 70 ? 'text-blue-400' :
-                score.final_score >= 50 ? 'text-yellow-400' : 'text-red-400'
-              )}>
-                {score.final_score}
-              </span>
-              <RiskBadge score={score.final_score} />
-            </>
-          ) : (
-            <span className="text-xs text-muted-foreground/50">Not scored</span>
-          )}
-          {cls !== 'unknown' && (
-            <span className={cn(
-              'text-[10px] font-semibold px-1.5 py-0.5 rounded',
-              clsMeta.color === 'green'  ? 'bg-green-500/15 text-green-400' :
-              clsMeta.color === 'red'    ? 'bg-red-500/15 text-red-400' :
-              clsMeta.color === 'amber'  ? 'bg-yellow-500/15 text-yellow-400' :
-              clsMeta.color === 'blue'   ? 'bg-blue-500/15 text-blue-400' :
-              clsMeta.color === 'purple' ? 'bg-purple-500/15 text-purple-400' :
-              'bg-accent/50 text-muted-foreground'
-            )}>
-              {clsMeta.label}
+        {CLS_OPTIONS.map(opt => (
+          <option key={opt.value} value={opt.value} className="bg-card text-foreground">
+            {opt.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none opacity-60" />
+    </div>
+  )
+}
+
+// ── App row ───────────────────────────────────────────────────────────────────
+
+function AppRow({
+  entry,
+  categorySystemTag,
+}: {
+  entry: AppEntry
+  categorySystemTag: string | null
+}) {
+  const { app, profile, classification } = entry
+  const initialCls = (classification?.customer_classification ?? 'unknown') as CustomerClass
+  const [localCls, setLocalCls] = useState(initialCls)
+  const [expanded, setExpanded] = useState(false)
+  const [isPending, startTransition] = useTransition()
+
+  const inScope = localCls !== 'unknown'
+  const score = profile ? computeTrustScore(profile.fields, profile.dlp, profile.breach_info) : null
+  const dlpCaps = getDLPCapabilities(profile?.dlp ?? null)
+  const dlpTreatment = CATEGORY_DLP_TREATMENT[categorySystemTag ?? ''] ?? 'Manage DLP treatment in your Netskope policy configuration.'
+  const complianceTags = CATEGORY_COMPLIANCE[categorySystemTag ?? ''] ?? []
+
+  function handleClassificationChange(newCls: string) {
+    const prev = localCls
+    setLocalCls(newCls as CustomerClass)
+    startTransition(async () => {
+      const result = await setAppGovernanceClassification(app.app_id, newCls)
+      if (result.error) setLocalCls(prev)
+    })
+  }
+
+  function handleInScopeToggle() {
+    handleClassificationChange(inScope ? 'unknown' : (categorySystemTag ?? 'permitted-with-restriction'))
+  }
+
+  return (
+    <div className="border-b border-border/50 last:border-0">
+      {/* Main row */}
+      <div className="flex items-center gap-4 px-5 py-3.5 hover:bg-card/20 transition-colors">
+        {/* App identity — click expands detail */}
+        <button
+          onClick={() => setExpanded(v => !v)}
+          className="flex items-center gap-3 flex-1 min-w-0 text-left group"
+        >
+          <div
+            className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center text-foreground font-bold text-sm"
+            style={{ backgroundColor: app.logo_bg }}
+          >
+            {app.logo_letter}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-semibold text-foreground group-hover:text-blue-300 transition-colors">{app.app_name}</span>
+              {score && <RiskBadge score={score.final_score} />}
+            </div>
+            <p className="text-xs text-muted-foreground/60 truncate">{app.vendor} · {app.domain}</p>
+            <span className="inline-block mt-1 text-[10px] font-medium bg-muted/80 text-muted-foreground/70 px-1.5 py-0.5 rounded border border-border-strong">
+              {app.app_type}
             </span>
+          </div>
+          <ChevronDown className={cn('w-4 h-4 text-muted-foreground/40 shrink-0 transition-transform mr-1', expanded && 'rotate-180')} />
+        </button>
+
+        {/* Classification + in-scope controls */}
+        <div className="flex items-center gap-2 shrink-0">
+          {isPending ? (
+            <div className="flex items-center gap-2 w-[248px] justify-end">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground/60" />
+              <span className="text-xs text-muted-foreground/60">Saving…</span>
+            </div>
+          ) : (
+            <>
+              <ClassificationSelect
+                value={localCls}
+                onChange={handleClassificationChange}
+                disabled={isPending}
+              />
+              <button
+                onClick={handleInScopeToggle}
+                disabled={isPending}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all whitespace-nowrap disabled:opacity-50',
+                  inScope
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+                    : 'bg-transparent border-border-strong text-muted-foreground/60 hover:text-foreground/70',
+                )}
+              >
+                {inScope ? 'In scope ✓' : 'Set in scope'}
+              </button>
+            </>
           )}
         </div>
       </div>
-    </Link>
+
+      {/* Expanded detail panel */}
+      {expanded && (
+        <div className="px-16 pb-5 pt-3 bg-card/10 border-t border-border/40">
+          {/* DLP Capabilities */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">
+                DLP Capabilities
+              </p>
+              <Link
+                href={`/genai-controls/apps/${app.app_id}`}
+                className="text-[10px] text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors"
+              >
+                View full profile →
+              </Link>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {dlpCaps.length > 0 ? (
+                dlpCaps.map(cap => (
+                  <span key={cap} className="text-xs px-2.5 py-1 rounded-lg border border-border-strong bg-muted/60 text-muted-foreground">
+                    {cap}
+                  </span>
+                ))
+              ) : (
+                <span className="text-xs text-muted-foreground/40 italic">No DLP profile available</span>
+              )}
+            </div>
+          </div>
+
+          {/* DLP Treatment + Compliance Relevance */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-border bg-card/40 px-4 py-3">
+              <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest mb-1.5">
+                DLP Treatment
+              </p>
+              <p className="text-xs text-muted-foreground/80 leading-relaxed">{dlpTreatment}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-card/40 px-4 py-3">
+              <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest mb-1.5">
+                Compliance Relevance
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {complianceTags.map(tag => (
+                  <span key={tag} className="text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -101,43 +278,67 @@ function CategorySection({
   category: GenAIGovernanceCategory
   apps: AppEntry[]
 }) {
+  const [open, setOpen] = useState(true)
   const cc = colorClasses(category.color)
 
+  const inScopeCount = apps.filter(e =>
+    e.classification?.customer_classification &&
+    e.classification.customer_classification !== 'unknown'
+  ).length
+
   return (
-    <div className="rounded-xl border border-border bg-card/30 overflow-hidden">
-      <div className={cn('px-5 py-4 border-b border-border flex items-start gap-3', cc.bg)}>
-        <div className={cn('w-3 h-3 rounded-full shrink-0 mt-0.5', cc.dot)} />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h2 className={cn('text-sm font-semibold', cc.text)}>{category.name}</h2>
-            <span className="text-[10px] bg-background/40 text-muted-foreground/70 px-2 py-0.5 rounded-full border border-border/50">
-              {apps.length} {apps.length === 1 ? 'app' : 'apps'}
-            </span>
-          </div>
-          {category.description && (
-            <p className="text-xs text-muted-foreground/70 mt-0.5">{category.description}</p>
-          )}
-        </div>
-      </div>
-      <div className="p-4">
-        {apps.length === 0 ? (
-          <p className="text-xs text-muted-foreground/50 text-center py-3">No apps assigned to this category</p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {apps.map(entry => (
-              <AppCard key={entry.app.app_id} entry={entry} />
-            ))}
-          </div>
+    <div className="rounded-xl border border-border overflow-hidden">
+      {/* Header */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={cn('w-full flex items-center gap-2.5 px-5 py-3.5 text-left transition-opacity select-none hover:opacity-90', cc.bg)}
+      >
+        <div className={cn('w-2.5 h-2.5 rounded-full shrink-0', cc.dot)} />
+        <span className={cn('text-sm font-bold uppercase tracking-wide', cc.text)}>{category.name}</span>
+        <span className="text-xs text-muted-foreground/50 ml-0.5">Priority {category.priority}</span>
+        <span className="mx-1 text-muted-foreground/30">·</span>
+        <span className="text-xs text-muted-foreground/60">{apps.length} {apps.length === 1 ? 'app' : 'apps'}</span>
+        {inScopeCount > 0 && (
+          <>
+            <span className="mx-1 text-muted-foreground/30">·</span>
+            <span className={cn('text-xs font-semibold', cc.text)}>{inScopeCount} in scope</span>
+          </>
         )}
-      </div>
+        <ChevronDown className={cn('ml-auto w-4 h-4 text-muted-foreground/40 transition-transform', !open && '-rotate-90')} />
+      </button>
+
+      {open && (
+        <>
+          {/* Column headers */}
+          <div className="flex items-center px-5 py-2 border-b border-border/60 bg-card/20">
+            <span className="flex-1 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">App</span>
+            <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">Your Classification</span>
+          </div>
+
+          {apps.length === 0 ? (
+            <div className="px-5 py-8 text-center bg-card/5">
+              <p className="text-sm text-muted-foreground/40">No apps assigned to this category</p>
+            </div>
+          ) : (
+            <div className="bg-card/5">
+              {apps.map(entry => (
+                <AppRow
+                  key={entry.app.app_id}
+                  entry={entry}
+                  categorySystemTag={category.system_tag}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
 
 // ── Manage panel ──────────────────────────────────────────────────────────────
 
-type CatOptAction =
-  | { type: 'delete'; id: string }
+type CatOptAction = { type: 'delete'; id: string }
 
 function ManagePanel({
   categories,
@@ -249,18 +450,17 @@ function ManagePanel({
 export function GovernanceClient({ categories, appsByCategoryTag, userRole }: Props) {
   const [manageOpen, setManageOpen] = useState(false)
   const isAdmin = userRole === 'admin'
-
   const sorted = [...categories].sort((a, b) => a.priority - b.priority)
 
   return (
-    <div className="flex gap-0 h-full">
-      <div className="flex-1 min-w-0 space-y-6 overflow-y-auto">
+    <div className="flex gap-0">
+      <div className="flex-1 min-w-0 space-y-4">
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-xl font-bold text-foreground">App Governance</h1>
             <p className="text-sm text-muted-foreground/80 mt-1">
-              GenAI apps grouped by governance category. Assign and classify apps from the App Catalog.
+              GenAI apps grouped by governance category. Set classification and scope per app inline.
             </p>
           </div>
           {isAdmin && (
@@ -280,7 +480,7 @@ export function GovernanceClient({ categories, appsByCategoryTag, userRole }: Pr
         </div>
 
         {/* Category sections */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           {sorted.map(cat => (
             <CategorySection
               key={cat.id}
