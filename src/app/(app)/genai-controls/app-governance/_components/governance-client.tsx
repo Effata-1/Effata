@@ -30,6 +30,93 @@ const CATEGORY_COMPLIANCE: Record<string, string[]> = {
   'personal':                   ['GDPR Art. 32', 'HIPAA §164.312'],
 }
 
+// ── Reference app catalog (static) ───────────────────────────────────────────
+
+interface AppGroup {
+  group: string
+  apps: string[]
+  control?: string
+}
+
+const REFERENCE_APPS: Record<string, AppGroup[]> = {
+  personal: [
+    { group: 'Consumer AI chatbots',        apps: ['ChatGPT', 'Claude', 'Gemini', 'Microsoft Copilot', 'DeepSeek', 'Grok', 'Meta AI', 'Poe', 'Perplexity', 'You.com AI', 'HuggingChat'] },
+    { group: 'Personal AI coding tools',    apps: ['Cursor', 'Windsurf', 'Replit AI', 'GitHub Copilot personal', 'Tabnine personal', 'Blackbox AI', 'Codeium', 'Sourcegraph Cody'] },
+    { group: 'Personal AI writing tools',   apps: ['Grammarly AI', 'QuillBot', 'Wordtune', 'Jasper', 'Copy.ai', 'Writesonic', 'Rytr', 'HyperWrite'] },
+    { group: 'Personal AI design / media',  apps: ['Midjourney', 'Leonardo AI', 'Ideogram', 'Runway', 'Pika', 'Canva Magic Studio', 'Gamma', 'Tome', 'Beautiful.ai'] },
+    { group: 'Personal AI document tools',  apps: ['ChatPDF', 'AskYourPDF', 'Humata', 'PDF.ai', 'Sharly AI', 'ChatDOC', 'Unriddle'] },
+    { group: 'Personal AI data tools',      apps: ['Julius AI', 'ChatCSV', 'Rows AI', 'Polymer AI', 'Akkio'] },
+  ],
+  prohibited: [
+    { group: 'AI companion / roleplay bots',        apps: ['Character.AI', 'Replika', 'Chai', 'Talkie', 'JanitorAI', 'Botify AI', 'SpicyChat AI'],                                                        control: 'Block' },
+    { group: 'NSFW / adult AI chatbots',            apps: ['CrushOn AI', 'Candy AI', 'DreamGF', 'Anima AI', 'Kupid AI', 'Muah AI', 'Nastia AI'],                                                          control: 'Block' },
+    { group: 'AI girlfriend / boyfriend apps',      apps: ['Replika', 'Romantic AI', 'EVA AI', 'iGirl', 'iBoy', 'Anima'],                                                                                  control: 'Block' },
+    { group: 'Deepfake / face-swap tools',          apps: ['DeepSwap', 'FaceMagic', 'Reface', 'Swapface', 'FaceApp AI', 'Vidnoz Face Swap', 'Pixble Face Swap'],                                          control: 'Block' },
+    { group: 'Voice cloning / impersonation',       apps: ['Voice.ai', 'ElevenLabs personal', 'Resemble AI personal', 'PlayHT voice clone', 'Kits AI voice clone'],                                       control: 'Block' },
+    { group: 'AI avatar / synthetic identity',      apps: ['HeyGen personal', 'Synthesia personal', 'D-ID personal', 'Vidnoz AI Avatar'],                                                                  control: 'Block' },
+    { group: 'Unapproved autonomous AI agents',     apps: ['AgentGPT', 'AutoGPT hosted', 'BabyAGI hosted', 'MultiOn', 'OpenInterpreter cloud', 'Manus-style public agents'],                              control: 'Block' },
+    { group: 'AI browser agents',                   apps: ['Adept-style browser agents', 'MultiOn', 'HyperWrite Agent', 'Bardeen AI personal', 'Harpa AI'],                                               control: 'Block' },
+    { group: 'AI meeting bots / call recorders',    apps: ['Otter.ai', 'Fireflies.ai', 'Fathom', 'Read.ai', 'tl;dv', 'Avoma', 'Sembly', 'MeetGeek', 'Granola'],                                          control: 'Block unless enterprise-approved' },
+    { group: 'AI scraping / automation tools',      apps: ['PhantomBuster AI', 'TexAu AI', 'Browse AI', 'Bardeen AI personal', 'Clay personal'],                                                          control: 'Block unless approved' },
+    { group: 'AI tools with broad SaaS connectors', apps: ['Unapproved AI requesting Google Drive', 'OneDrive', 'SharePoint', 'Slack', 'Gmail', 'Outlook', 'GitHub', 'Jira', 'Confluence', 'Salesforce'], control: 'Block OAuth / connector access' },
+    { group: 'AI malware / hacking tools',          apps: ['WormGPT-style tools', 'FraudGPT-style tools', 'DarkBERT-style tools', 'Phishing AI generators', 'Malware prompt marketplaces'],               control: 'Block' },
+    { group: 'Bypass / jailbreaking AI tools',      apps: ['Prompt injection marketplaces', 'Jailbreak prompt tools', 'Uncensored LLM frontends', 'Unrestricted AI mirrors'],                             control: 'Block' },
+    { group: 'Unsafe synthetic media tools',        apps: ['Undress AI apps', 'Non-consensual image generators', 'NSFW face-swap tools', 'Explicit image generators'],                                    control: 'Block' },
+  ],
+}
+
+const CONTROL_STYLE: Record<string, string> = {
+  'Block':                       'bg-red-500/10 text-red-400 border-red-500/20',
+  'Block unless enterprise-approved': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  'Block unless approved':       'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  'Block OAuth / connector access': 'bg-red-500/10 text-red-400 border-red-500/20',
+}
+
+function ReferenceAppsPanel({ groups, categoryColor }: { groups: AppGroup[]; categoryColor: string }) {
+  const [open, setOpen] = useState(false)
+  const cc = colorClasses(categoryColor)
+  const totalApps = groups.reduce((s, g) => s + g.apps.length, 0)
+
+  return (
+    <div className="border-t border-border/40">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center gap-2 px-5 py-2.5 text-left hover:bg-muted/30 transition-colors"
+      >
+        <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">
+          Reference Application Catalog
+        </span>
+        <span className="text-[10px] text-muted-foreground/40">— {groups.length} groups, {totalApps}+ apps</span>
+        <ChevronDown className={cn('ml-auto w-3.5 h-3.5 text-muted-foreground/40 transition-transform', !open && '-rotate-90')} />
+      </button>
+
+      {open && (
+        <div className="px-5 pb-5 pt-1 space-y-4 bg-card/5">
+          {groups.map(g => (
+            <div key={g.group}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-xs font-semibold text-muted-foreground/70">{g.group}</span>
+                {g.control && (
+                  <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded border', CONTROL_STYLE[g.control] ?? 'bg-muted/60 text-muted-foreground border-border-strong')}>
+                    {g.control}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {g.apps.map(app => (
+                  <span key={app} className={cn('text-[11px] px-2 py-0.5 rounded border font-medium', cc.bg, cc.text, 'border-transparent opacity-75')}>
+                    {app}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface AppEntry {
@@ -329,6 +416,14 @@ function CategorySection({
                 />
               ))}
             </div>
+          )}
+
+          {/* Reference catalog for personal + prohibited categories */}
+          {category.system_tag && REFERENCE_APPS[category.system_tag] && (
+            <ReferenceAppsPanel
+              groups={REFERENCE_APPS[category.system_tag]!}
+              categoryColor={category.color}
+            />
           )}
         </>
       )}
