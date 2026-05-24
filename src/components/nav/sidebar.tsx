@@ -8,6 +8,7 @@ import { ThemeToggle } from '@/components/ui/theme-toggle'
 import {
   LayoutDashboard,
   Building2,
+  Bot,
   ArrowRightLeft,
   HardDrive,
   Monitor,
@@ -37,8 +38,15 @@ const NAV_ITEMS = [
     sub:   true,
   },
   {
+    label: 'GenAI Controls',
+    href:  '/genai-controls/app-governance',
+    base:  '/genai-controls',
+    icon:  <Bot className="h-4 w-4" />,
+    sub:   true,
+  },
+  {
     label: 'Data in Motion',
-    href:  '/data-in-motion/genai',
+    href:  '/data-in-motion/web',
     base:  '/data-in-motion',
     icon:  <ArrowRightLeft className="h-4 w-4" />,
     sub:   true,

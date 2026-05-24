@@ -2,10 +2,9 @@ import { SectionSidebar } from '@/components/nav/section-sidebar'
 import { requireRole } from '@/lib/auth'
 
 const ITEMS = [
-  { label: 'Web & Cloud Traffic',  href: '/data-in-motion/web' },
-  { label: 'Email',                href: '/data-in-motion/email' },
-  { label: 'GenAI Apps',           href: '/data-in-motion/genai' },
-  { label: 'SaaS Applications',    href: '/data-in-motion/saas' },
+  { label: 'Web & Cloud Traffic', href: '/data-in-motion/web' },
+  { label: 'Email',               href: '/data-in-motion/email' },
+  { label: 'SaaS Applications',   href: '/data-in-motion/saas' },
 ]
 
 export default async function DataInMotionLayout({ children }: { children: React.ReactNode }) {
