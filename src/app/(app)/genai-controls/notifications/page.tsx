@@ -31,14 +31,18 @@ const SEED_DEFAULTS = [
 ]
 
 async function ensureDefaultTemplates(orgId: string) {
-  const supabase = await createClient()
-  const { count } = await supabase
-    .from('org_coaching_notifications')
-    .select('*', { count: 'exact', head: true })
-    .eq('org_id', orgId)
+  try {
+    const supabase = await createClient()
+    const { count } = await supabase
+      .from('org_coaching_notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('org_id', orgId)
 
-  if ((count ?? 0) === 0) {
-    await Promise.all(SEED_DEFAULTS.map(t => upsertNotification(null, t)))
+    if ((count ?? 0) === 0) {
+      await Promise.all(SEED_DEFAULTS.map(t => upsertNotification(null, t)))
+    }
+  } catch {
+    // Table may not exist yet — migration pending
   }
 }
 
@@ -54,26 +58,32 @@ export default async function CoachingNotificationsPage() {
     await ensureDefaultTemplates(orgId)
   }
 
-  const [notificationsResult, policiesResult] = await Promise.all([
-    orgId
-      ? supabase
-          .from('org_coaching_notifications')
-          .select('*')
-          .eq('org_id', orgId)
-          .order('created_at')
-      : Promise.resolve({ data: [] as CoachingNotification[] }),
-    orgId
-      ? supabase
-          .from('org_genai_policies')
-          .select('id, name')
-          .eq('org_id', orgId)
-          .eq('is_active', true)
-          .order('name')
-      : Promise.resolve({ data: [] as Array<{ id: string; name: string }> }),
-  ])
+  let notifications: CoachingNotification[] = []
+  let policies: Array<{ id: string; name: string }> = []
 
-  const notifications = (notificationsResult.data ?? []) as CoachingNotification[]
-  const policies      = policiesResult.data ?? []
+  try {
+    const [notificationsResult, policiesResult] = await Promise.all([
+      orgId
+        ? supabase
+            .from('org_coaching_notifications')
+            .select('*')
+            .eq('org_id', orgId)
+            .order('created_at')
+        : Promise.resolve({ data: [] as CoachingNotification[] }),
+      orgId
+        ? supabase
+            .from('org_genai_policies')
+            .select('id, name')
+            .eq('org_id', orgId)
+            .eq('is_active', true)
+            .order('name')
+        : Promise.resolve({ data: [] as Array<{ id: string; name: string }> }),
+    ])
+    notifications = (notificationsResult.data ?? []) as CoachingNotification[]
+    policies      = policiesResult.data ?? []
+  } catch {
+    // Table may not exist yet — migration pending
+  }
 
   return (
     <div className="space-y-6 max-w-6xl">
