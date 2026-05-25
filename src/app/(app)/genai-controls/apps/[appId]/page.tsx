@@ -6,6 +6,7 @@ import { computeTrustScore, FIELD_LABELS, VALUE_DISPLAY, CLASSIFICATION_LABELS }
 import { cn } from '@/lib/utils'
 import type { GenAIApp, GenAIAppProfile, AppFields, DLPActivities, BreachInfo, CustomerClass, CustomerClassification } from '@/lib/genai/types'
 import { ClassificationSelector } from './_components/classification-selector'
+import type { GovernanceCategory } from './_components/classification-selector'
 import { GovernanceRecord } from './_components/governance-record'
 
 // ── Value display helpers ──────────────────────────────────────
@@ -98,12 +99,16 @@ export default async function GenAIAppProfilePage({
     ? JSON.parse(atob(sessionResult.data.session.access_token.split('.')[1]))?.org_id
     : null
 
-  const { data: classification } = orgId ? await supabase
-    .from('genai_customer_classifications')
-    .select('*')
-    .eq('org_id', orgId)
-    .eq('app_id', appId)
-    .maybeSingle() : { data: null }
+  const [{ data: classification }, { data: categoryRows }] = await Promise.all([
+    orgId
+      ? supabase.from('genai_customer_classifications').select('*').eq('org_id', orgId).eq('app_id', appId).maybeSingle()
+      : Promise.resolve({ data: null }),
+    orgId
+      ? supabase.from('org_genai_governance_categories').select('id, system_tag, name, color').eq('org_id', orgId).eq('active', true).order('priority')
+      : Promise.resolve({ data: [] }),
+  ])
+
+  const categories = (categoryRows ?? []) as GovernanceCategory[]
 
   const typedApp = app as GenAIApp
   const typedClassification = classification as CustomerClassification | null
@@ -213,6 +218,7 @@ export default async function GenAIAppProfilePage({
           appId={appId}
           orgId={orgId}
           currentClassification={currentClassification}
+          categories={categories}
         />
       </div>
 
