@@ -2,6 +2,7 @@ import { SectionSidebar } from '@/components/nav/section-sidebar'
 import { requireRole } from '@/lib/auth'
 
 const ITEMS = [
+  { label: 'Dashboard',       href: '/genai-controls/dashboard' },
   { label: 'App Governance',  href: '/genai-controls/app-governance' },
   { label: 'App Catalog',     href: '/genai-controls/apps' },
   { label: 'Control Matrix',  href: '/genai-controls/control-matrix' },
