@@ -220,17 +220,12 @@ export default async function GenAIAppProfilePage({
       <GovernanceRecord
         appId={appId}
         initial={{
-          business_owner:          typedClassification?.business_owner          ?? null,
-          technical_owner:         typedClassification?.technical_owner         ?? null,
-          approval_status:         typedClassification?.approval_status         ?? null,
-          review_date:             typedClassification?.review_date             ?? null,
-          next_review_date:        typedClassification?.next_review_date        ?? null,
-          contract_status:         typedClassification?.contract_status         ?? null,
-          dpa_status:              typedClassification?.dpa_status              ?? null,
-          security_review_status:  typedClassification?.security_review_status  ?? null,
-          tenant_instance_id:      typedClassification?.tenant_instance_id      ?? null,
-          dlp_coverage:            typedClassification?.dlp_coverage            ?? null,
-          notes:                   typedClassification?.notes                   ?? null,
+          business_owner:   typedClassification?.business_owner  ?? null,
+          technical_owner:  typedClassification?.technical_owner ?? null,
+          approval_status:  typedClassification?.approval_status ?? null,
+          review_date:      typedClassification?.review_date     ?? null,
+          next_review_date: typedClassification?.next_review_date ?? null,
+          notes:            typedClassification?.notes            ?? null,
         }}
       />
 

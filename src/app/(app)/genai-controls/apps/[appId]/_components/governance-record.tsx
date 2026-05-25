@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { upsertGovernanceRecord } from '../actions'
 import type { GovernanceFields } from '../actions'
-import type { ApprovalStatus, ContractStatus, DpaStatus, SecurityReviewStatus, DlpCoverage } from '@/lib/genai/types'
+import type { ApprovalStatus } from '@/lib/genai/types'
 
 // ── Approval status colours ───────────────────────────────────────────────────
 
@@ -86,17 +86,12 @@ function SelectField<T extends string>({ label, value, options, onChange }: {
 // ── Main component ────────────────────────────────────────────────────────────
 
 interface GovernanceInitial {
-  business_owner:          string | null
-  technical_owner:         string | null
-  approval_status:         ApprovalStatus | null
-  review_date:             string | null
-  next_review_date:        string | null
-  contract_status:         ContractStatus | null
-  dpa_status:              DpaStatus | null
-  security_review_status:  SecurityReviewStatus | null
-  tenant_instance_id:      string | null
-  dlp_coverage:            DlpCoverage | null
-  notes:                   string | null
+  business_owner:    string | null
+  technical_owner:   string | null
+  approval_status:   ApprovalStatus | null
+  review_date:       string | null
+  next_review_date:  string | null
+  notes:             string | null
 }
 
 interface Props {
@@ -180,70 +175,6 @@ export function GovernanceRecord({ appId, initial }: Props) {
                 label="Next Review Date"
                 value={data.next_review_date ?? ''}
                 onChange={v => save({ next_review_date: v })}
-              />
-            </div>
-          </div>
-
-          {/* Contract & Compliance */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground/70 mb-3">Contract & Compliance</p>
-            <div className="grid grid-cols-3 gap-4">
-              <SelectField<ContractStatus>
-                label="Contract Status"
-                value={data.contract_status ?? 'unknown'}
-                options={[
-                  { value: 'enterprise',    label: 'Enterprise' },
-                  { value: 'free-tier',     label: 'Free Tier' },
-                  { value: 'user-managed',  label: 'User Managed' },
-                  { value: 'unknown',       label: 'Unknown' },
-                ]}
-                onChange={v => save({ contract_status: v })}
-              />
-              <SelectField<DpaStatus>
-                label="DPA / Privacy Review"
-                value={data.dpa_status ?? 'unknown'}
-                options={[
-                  { value: 'approved',     label: 'Approved' },
-                  { value: 'pending',      label: 'Pending' },
-                  { value: 'not-required', label: 'Not Required' },
-                  { value: 'failed',       label: 'Failed' },
-                  { value: 'unknown',      label: 'Unknown' },
-                ]}
-                onChange={v => save({ dpa_status: v })}
-              />
-              <SelectField<SecurityReviewStatus>
-                label="Security Review"
-                value={data.security_review_status ?? 'unknown'}
-                options={[
-                  { value: 'approved', label: 'Approved' },
-                  { value: 'pending',  label: 'Pending' },
-                  { value: 'failed',   label: 'Failed' },
-                  { value: 'unknown',  label: 'Unknown' },
-                ]}
-                onChange={v => save({ security_review_status: v })}
-              />
-            </div>
-          </div>
-
-          {/* DLP & Access */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground/70 mb-3">DLP & Access</p>
-            <div className="grid grid-cols-2 gap-4">
-              <TextField
-                label="Tenant / Instance ID"
-                value={data.tenant_instance_id ?? ''}
-                onChange={v => save({ tenant_instance_id: v })}
-              />
-              <SelectField<DlpCoverage>
-                label="DLP Coverage"
-                value={data.dlp_coverage ?? 'requires-validation'}
-                options={[
-                  { value: 'supported',             label: 'Supported' },
-                  { value: 'partial',               label: 'Partial' },
-                  { value: 'not-supported',         label: 'Not Supported' },
-                  { value: 'requires-validation',   label: 'Requires Validation' },
-                ]}
-                onChange={v => save({ dlp_coverage: v })}
               />
             </div>
           </div>
