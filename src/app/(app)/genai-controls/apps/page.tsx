@@ -1,3 +1,6 @@
+// Allow up to 5 minutes so on-demand Claude evaluations don't time out
+export const maxDuration = 300
+
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { requireRole } from '@/lib/auth'
