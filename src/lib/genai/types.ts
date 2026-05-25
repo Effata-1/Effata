@@ -176,6 +176,23 @@ export type CustomerClass =
   | 'unknown'
   | 'prohibited'
 
+export type CoachingTone = 'informational' | 'warning' | 'urgent'
+
+export interface CoachingNotification {
+  id:               string
+  org_id:           string
+  name:             string
+  action_code:      'coach' | 'coach-ack' | 'coach-just'
+  title:            string
+  message:          string
+  tone:             CoachingTone
+  linked_policy_id: string | null
+  is_default:       boolean
+  is_active:        boolean
+  created_at:       string
+  updated_at:       string
+}
+
 export interface TrustScores {
   data_governance: number
   dlp_activity: number
