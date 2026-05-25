@@ -30,6 +30,18 @@ function diffProfiles(
   return changes
 }
 
+// Budget: stop processing apps when this many seconds remain before Vercel kills us
+const BUDGET_RESERVE_SECONDS = 45
+const STARTED_AT = Date.now()
+
+function secondsElapsed() {
+  return (Date.now() - STARTED_AT) / 1000
+}
+
+function budgetExceeded() {
+  return secondsElapsed() > maxDuration - BUDGET_RESERVE_SECONDS
+}
+
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
@@ -40,6 +52,13 @@ export async function GET(request: Request) {
   const supabase = createServiceClient()
   const errors: Array<{ app_id: string; error: string }> = []
   const allChanges: FieldChange[] = []
+
+  // Mark any run stuck at 'running' for > 10 minutes as timed_out
+  await supabase
+    .from('genai_research_runs')
+    .update({ status: 'timed_out', completed_at: new Date().toISOString() })
+    .eq('status', 'running')
+    .lt('started_at', new Date(Date.now() - 10 * 60 * 1000).toISOString())
 
   // Log run start
   const { data: run, error: runError } = await supabase
@@ -55,6 +74,7 @@ export async function GET(request: Request) {
 
   let appsUpdated = 0
   let appsAdded = 0
+  let appsSkipped = 0
 
   try {
     // Fetch all active apps
@@ -93,8 +113,13 @@ export async function GET(request: Request) {
       }
     }
 
-    // Research all apps sequentially
+    // Research all apps sequentially — stop if time budget is exhausted
     for (const app of existingApps) {
+      if (budgetExceeded()) {
+        appsSkipped = existingApps.length - appsUpdated - errors.length
+        errors.push({ app_id: 'system', error: `Time budget reached after ${Math.round(secondsElapsed())}s — ${appsSkipped} apps deferred to next run` })
+        break
+      }
       try {
         // Fetch existing enterprise profile for diffing
         const { data: existingEnterprise } = await supabase
@@ -172,6 +197,12 @@ export async function GET(request: Request) {
     }
 
     // Finalise run log
+    const finalStatus = appsSkipped > 0
+      ? 'partial'
+      : errors.length > 0 && appsUpdated === 0
+        ? 'failed'
+        : 'completed'
+
     await supabase
       .from('genai_research_runs')
       .update({
@@ -180,14 +211,15 @@ export async function GET(request: Request) {
         apps_added:   appsAdded,
         errors:       errors,
         changes:      allChanges,
-        status:       errors.length > 0 && appsUpdated === 0 ? 'failed' : 'completed',
+        status:       finalStatus,
       })
       .eq('id', runId)
 
     return Response.json({
-      status:       'completed',
+      status:       finalStatus,
       apps_updated: appsUpdated,
       apps_added:   appsAdded,
+      apps_skipped: appsSkipped,
       changes:      allChanges.length,
       errors:       errors,
     })

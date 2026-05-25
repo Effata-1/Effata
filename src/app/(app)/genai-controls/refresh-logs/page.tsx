@@ -20,7 +20,7 @@ interface ResearchRun {
   apps_added: number
   errors: Array<{ app_id?: string; error: string }>
   changes: FieldChange[]
-  status: 'running' | 'completed' | 'failed'
+  status: 'running' | 'completed' | 'failed' | 'partial' | 'timed_out'
 }
 
 function duration(started: string, completed: string | null): string {
@@ -50,6 +50,16 @@ function StatusBadge({ status }: { status: ResearchRun['status'] }) {
   if (status === 'failed') return (
     <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/20">
       <XCircle className="w-3 h-3" />Failed
+    </span>
+  )
+  if (status === 'partial') return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400 border border-orange-500/20">
+      <AlertTriangle className="w-3 h-3" />Partial
+    </span>
+  )
+  if (status === 'timed_out') return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted/60 text-muted-foreground border border-border">
+      <Clock className="w-3 h-3" />Timed Out
     </span>
   )
   return (
