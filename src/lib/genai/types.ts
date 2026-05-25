@@ -132,6 +132,28 @@ export interface CustomerClassification {
   dlp_coverage:            DlpCoverage | null
 }
 
+export type PolicyType = 'usage' | 'data-handling' | 'approved-use' | 'prohibited'
+
+export interface GenAIPolicy {
+  id:               string
+  org_id:           string
+  name:             string
+  description:      string | null
+  policy_type:      PolicyType
+  category_id:      string | null
+  approval_status:  ApprovalStatus
+  policy_owner:     string | null
+  technical_owner:  string | null
+  effective_date:   string | null
+  review_date:      string | null
+  next_review_date: string | null
+  notes:            string | null
+  is_active:        boolean
+  priority:         number
+  created_at:       string
+  updated_at:       string
+}
+
 export type CustomerClass =
   | 'enterprise-approved'
   | 'approved-with-conditions'

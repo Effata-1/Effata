@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/auth'
 const ITEMS = [
   { label: 'Dashboard',       href: '/genai-controls/dashboard' },
   { label: 'App Governance',  href: '/genai-controls/app-governance' },
+  { label: 'Policy Library',  href: '/genai-controls/policies' },
   { label: 'App Catalog',     href: '/genai-controls/apps' },
   { label: 'Control Matrix',  href: '/genai-controls/control-matrix' },
   { label: 'Refresh Logs',    href: '/genai-controls/refresh-logs' },
