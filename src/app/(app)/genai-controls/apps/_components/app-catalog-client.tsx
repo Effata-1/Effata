@@ -28,17 +28,26 @@ function RiskBadge({ score }: { score: number }) {
   return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/20">High Risk</span>
 }
 
+const APPROVAL_CHIP: Record<string, string> = {
+  approved:       'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  'under-review': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  draft:          'bg-muted/60 text-muted-foreground border-border',
+  rejected:       'bg-red-500/10 text-red-400 border-red-500/20',
+  expired:        'bg-amber-500/10 text-amber-400 border-amber-500/20',
+}
+
 function AppCard({ app, score, classification, href }: { app: GenAIApp; score: TrustScores | null; classification: CustomerClassification | null; href: string }) {
   const cls = classification?.customer_classification ?? 'unknown'
   const clsMeta = CLASSIFICATION_LABELS[cls]
   const suggested = score?.suggested_classification ?? null
+  const approvalStatus = classification?.approval_status ?? null
 
   return (
     <Link
       href={href}
       className="group block rounded-xl border border-border bg-card/50 p-4 hover:border-border-strong hover:bg-card transition-all shadow-sm"
     >
-      <div className="flex items-start gap-3 mb-4">
+      <div className="flex items-start gap-3 mb-3">
         <div
           className="w-10 h-10 rounded-xl flex items-center justify-center text-foreground font-bold text-sm flex-shrink-0"
           style={{ backgroundColor: app.logo_bg }}
@@ -50,6 +59,18 @@ function AppCard({ app, score, classification, href }: { app: GenAIApp; score: T
           <p className="text-xs text-muted-foreground/80 truncate">{app.vendor} · {app.app_type}</p>
         </div>
         {score && <RiskBadge score={score.final_score} />}
+      </div>
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {app.app_group && (
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground/70 border border-border">
+            {app.app_group}
+          </span>
+        )}
+        {approvalStatus && (
+          <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded border', APPROVAL_CHIP[approvalStatus] ?? APPROVAL_CHIP.draft)}>
+            {approvalStatus.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+          </span>
+        )}
       </div>
 
       <div className="flex items-center justify-between mb-3">

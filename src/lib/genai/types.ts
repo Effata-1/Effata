@@ -66,6 +66,32 @@ export interface BreachInfo {
   breach_description?: string
 }
 
+export const APP_GROUPS = [
+  'AI Chatbots',
+  'Productivity Copilots',
+  'Coding Assistants',
+  'Document AI',
+  'Data Analysis AI',
+  'Search & Knowledge AI',
+  'Customer Support AI',
+  'Sales & CRM AI',
+  'Workflow & Automation AI',
+  'Creative & Design AI',
+  'Meeting & Transcription AI',
+  'Browser AI Extensions',
+  'AI Agents',
+  'Model Platforms & AI APIs',
+  'AI Code Execution & Notebook Tools',
+] as const
+
+export type AppGroup = typeof APP_GROUPS[number]
+
+export type ApprovalStatus = 'draft' | 'under-review' | 'approved' | 'rejected' | 'expired'
+export type ContractStatus = 'enterprise' | 'free-tier' | 'user-managed' | 'unknown'
+export type DpaStatus      = 'approved' | 'pending' | 'not-required' | 'failed' | 'unknown'
+export type SecurityReviewStatus = 'approved' | 'pending' | 'failed' | 'unknown'
+export type DlpCoverage    = 'supported' | 'partial' | 'not-supported' | 'requires-validation'
+
 export interface GenAIApp {
   app_id: string
   app_name: string
@@ -76,6 +102,7 @@ export interface GenAIApp {
   logo_bg: string
   status: string
   last_updated: string | null
+  app_group: AppGroup | null
 }
 
 export interface GenAIAppProfile {
@@ -87,11 +114,22 @@ export interface GenAIAppProfile {
 }
 
 export interface CustomerClassification {
-  org_id: string
-  app_id: string
+  org_id:                  string
+  app_id:                  string
   customer_classification: CustomerClass
-  classification_scope: string | null
-  notes: string | null
+  classification_scope:    string | null
+  notes:                   string | null
+  // governance metadata (migration 041)
+  business_owner:          string | null
+  technical_owner:         string | null
+  approval_status:         ApprovalStatus | null
+  review_date:             string | null
+  next_review_date:        string | null
+  contract_status:         ContractStatus | null
+  dpa_status:              DpaStatus | null
+  security_review_status:  SecurityReviewStatus | null
+  tenant_instance_id:      string | null
+  dlp_coverage:            DlpCoverage | null
 }
 
 export type CustomerClass =

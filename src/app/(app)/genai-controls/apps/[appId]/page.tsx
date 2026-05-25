@@ -4,8 +4,9 @@ import { ChevronLeft, AlertTriangle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { computeTrustScore, FIELD_LABELS, VALUE_DISPLAY, CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
 import { cn } from '@/lib/utils'
-import type { GenAIApp, GenAIAppProfile, AppFields, DLPActivities, BreachInfo, CustomerClass } from '@/lib/genai/types'
+import type { GenAIApp, GenAIAppProfile, AppFields, DLPActivities, BreachInfo, CustomerClass, CustomerClassification } from '@/lib/genai/types'
 import { ClassificationSelector } from './_components/classification-selector'
+import { GovernanceRecord } from './_components/governance-record'
 
 // ── Value display helpers ──────────────────────────────────────
 function FieldBadge({ value }: { value: string }) {
@@ -105,6 +106,7 @@ export default async function GenAIAppProfilePage({
     .maybeSingle() : { data: null }
 
   const typedApp = app as GenAIApp
+  const typedClassification = classification as CustomerClassification | null
   const typedProfiles = (profiles ?? []) as GenAIAppProfile[]
   const enterpriseProfile = typedProfiles.find(p => p.mode === 'enterprise')
   const personalProfile = typedProfiles.find(p => p.mode === 'personal')
@@ -120,7 +122,7 @@ export default async function GenAIAppProfilePage({
   const fields = primaryProfile?.fields as AppFields | undefined
   const dlp = primaryProfile?.dlp as DLPActivities | undefined
   const breach = primaryProfile?.breach_info as BreachInfo | undefined
-  const currentClassification = (classification?.customer_classification ?? 'unknown') as CustomerClass
+  const currentClassification = (typedClassification?.customer_classification ?? 'unknown') as CustomerClass
 
   const scoreColor = (s: number) =>
     s >= 85 ? 'text-green-400' : s >= 70 ? 'text-blue-400' : s >= 50 ? 'text-yellow-400' : 'text-red-400'
@@ -213,6 +215,24 @@ export default async function GenAIAppProfilePage({
           currentClassification={currentClassification}
         />
       </div>
+
+      {/* Governance Record */}
+      <GovernanceRecord
+        appId={appId}
+        initial={{
+          business_owner:          typedClassification?.business_owner          ?? null,
+          technical_owner:         typedClassification?.technical_owner         ?? null,
+          approval_status:         typedClassification?.approval_status         ?? null,
+          review_date:             typedClassification?.review_date             ?? null,
+          next_review_date:        typedClassification?.next_review_date        ?? null,
+          contract_status:         typedClassification?.contract_status         ?? null,
+          dpa_status:              typedClassification?.dpa_status              ?? null,
+          security_review_status:  typedClassification?.security_review_status  ?? null,
+          tenant_instance_id:      typedClassification?.tenant_instance_id      ?? null,
+          dlp_coverage:            typedClassification?.dlp_coverage            ?? null,
+          notes:                   typedClassification?.notes                   ?? null,
+        }}
+      />
 
       {/* Enterprise vs Personal comparison */}
       {enterpriseProfile && personalProfile && (
