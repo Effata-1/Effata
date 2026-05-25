@@ -19,7 +19,6 @@ const CATEGORY_DLP_TREATMENT: Record<string, string> = {
   'approved-with-conditions':   'Allow for authorised AD groups only. Block highly confidential and secret labelled documents. Display coaching on policy violations.',
   'permitted-with-restriction': 'Allow public and internal data only. Block confidential, highly confidential, and secret content. Coach users before every upload.',
   'prohibited':                 'Block all access. Display acceptable-use coaching message (Level 2) on every access attempt. No exceptions without escalation.',
-  'personal':                   'Allow with active monitoring. Coach users on acceptable-use policy. Block highly confidential and secret data submissions.',
 }
 
 const CATEGORY_COMPLIANCE: Record<string, string[]> = {
@@ -27,7 +26,6 @@ const CATEGORY_COMPLIANCE: Record<string, string[]> = {
   'approved-with-conditions':   ['GDPR Art. 25', 'GDPR Art. 32', 'HIPAA §164.308', 'HIPAA §164.312'],
   'permitted-with-restriction': ['GDPR Art. 5(1)(f)', 'GDPR Art. 32', 'HIPAA §164.308'],
   'prohibited':                 ['GDPR Art. 5(1)(f)', 'GDPR Art. 32', 'HIPAA §164.312'],
-  'personal':                   ['GDPR Art. 32', 'HIPAA §164.312'],
 }
 
 // ── Reference app catalog (static) ───────────────────────────────────────────
@@ -39,7 +37,7 @@ interface AppGroup {
 }
 
 const REFERENCE_APPS: Record<string, AppGroup[]> = {
-  personal: [
+  'permitted-with-restriction': [
     { group: 'Consumer AI chatbots',        apps: ['ChatGPT', 'Claude', 'Gemini', 'Microsoft Copilot', 'DeepSeek', 'Grok', 'Meta AI', 'Poe', 'Perplexity', 'You.com AI', 'HuggingChat'] },
     { group: 'Personal AI coding tools',    apps: ['Cursor', 'Windsurf', 'Replit AI', 'GitHub Copilot personal', 'Tabnine personal', 'Blackbox AI', 'Codeium', 'Sourcegraph Cody'] },
     { group: 'Personal AI writing tools',   apps: ['Grammarly AI', 'QuillBot', 'Wordtune', 'Jasper', 'Copy.ai', 'Writesonic', 'Rytr', 'HyperWrite'] },
@@ -161,7 +159,6 @@ const CLS_OPTIONS: { value: CustomerClass; label: string }[] = [
   { value: 'approved-with-conditions',   label: 'Approved with Conditions' },
   { value: 'permitted-with-restriction', label: 'Restricted / Unassessed' },
   { value: 'prohibited',                 label: 'Prohibited' },
-  { value: 'personal',                   label: 'Personal Instance' },
   { value: 'unknown',                    label: 'Not Set' },
 ]
 

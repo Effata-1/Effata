@@ -54,15 +54,6 @@ const SYSTEM_DEFAULTS: Omit<GenAIGovernanceCategory, 'id' | 'org_id' | 'created_
     is_system: true,
     active: true,
   },
-  {
-    system_tag: 'personal',
-    name: 'Personal GenAI Instance',
-    description: 'Personal or unmanaged AI accounts — treated as untrusted destinations.',
-    color: 'purple',
-    priority: 5,
-    is_system: true,
-    active: true,
-  },
 ]
 
 function revalidateGenAI() {

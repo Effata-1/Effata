@@ -66,7 +66,6 @@ export const SYSTEM_TAG_ORDER = [
   'approved-with-conditions',
   'permitted-with-restriction',
   'prohibited',
-  'personal',
 ] as const
 
 const DEFAULTS: Record<string, Record<string, ActionCode>> = {
@@ -93,12 +92,6 @@ const DEFAULTS: Record<string, Record<string, ActionCode>> = {
     'ul|dc|public': 'block', 'ul|dc|int':    'block', 'ul|dc|conf':   'block',
     'ul|dc|hc':     'block', 'ul|dc|secret': 'block',
     'ul|fn|hc':     'block', 'ul|fn|secret': 'block',
-  },
-  'personal': {
-    'pp|public':    'monitor',   'pp|conf':      'coach-ack', 'pp|hc_secret': 'block',
-    'ul|dc|public': 'monitor',   'ul|dc|int':    'coach-ack', 'ul|dc|conf':   'block',
-    'ul|dc|hc':     'block',     'ul|dc|secret': 'block',
-    'ul|fn|hc':     'block',     'ul|fn|secret': 'block',
   },
 }
 
