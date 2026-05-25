@@ -9,6 +9,7 @@ export async function upsertControlMatrixCell(
   dataType: string,
   categoryId: string,
   actionCode: string,
+  coachingNotificationId: string | null = null,
 ): Promise<{ error?: string }> {
   const user = await requireRole('analyst')
   const supabase = await createClient()
@@ -17,11 +18,12 @@ export async function upsertControlMatrixCell(
     .from('org_control_matrix_overrides')
     .upsert(
       {
-        org_id: user.orgId,
-        data_type: dataType,
-        category_id: categoryId,
-        action_code: actionCode,
-        updated_at: new Date().toISOString(),
+        org_id:                    user.orgId,
+        data_type:                 dataType,
+        category_id:               categoryId,
+        action_code:               actionCode,
+        coaching_notification_id:  coachingNotificationId,
+        updated_at:                new Date().toISOString(),
       },
       { onConflict: 'org_id,data_type,category_id' },
     )

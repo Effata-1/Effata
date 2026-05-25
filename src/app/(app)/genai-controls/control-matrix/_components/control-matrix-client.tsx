@@ -79,16 +79,26 @@ export interface MatrixCategory {
 }
 
 export interface MatrixOverride {
-  data_type:   string
-  category_id: string
-  action_code: string
+  data_type:                string
+  category_id:              string
+  action_code:              string
+  coaching_notification_id: string | null
+}
+
+interface CoachingOption {
+  id:          string
+  name:        string
+  coach_label: string | null
 }
 
 interface Props {
-  categories: MatrixCategory[]
-  overrides:  MatrixOverride[]
-  labels:     OrgClassificationLabel[]
+  categories:    MatrixCategory[]
+  overrides:     MatrixOverride[]
+  labels:        OrgClassificationLabel[]
+  notifications: CoachingOption[]
 }
+
+type CellOverride = { action: ActionCode; coachingId: string | null }
 
 // ── Inline label editor row ───────────────────────────────────────────────────
 
@@ -163,14 +173,18 @@ function LabelRow({ label, onSave, onDelete }: {
 
 // ── Main client component ─────────────────────────────────────────────────────
 
-export function ControlMatrixClient({ categories, overrides, labels }: Props) {
-  // Sort labels by priority (lowest number = highest sensitivity = shown first in table)
+export function ControlMatrixClient({ categories, overrides, labels, notifications }: Props) {
   const [localLabels, setLocalLabels] = useState<OrgClassificationLabel[]>(
     [...labels].sort((a, b) => a.priority - b.priority),
   )
-  const [localOverrides, setLocalOverrides] = useState<Record<string, ActionCode>>(() => {
-    const map: Record<string, ActionCode> = {}
-    for (const o of overrides) map[`${o.data_type}::${o.category_id}`] = o.action_code as ActionCode
+  const [localOverrides, setLocalOverrides] = useState<Record<string, CellOverride>>(() => {
+    const map: Record<string, CellOverride> = {}
+    for (const o of overrides) {
+      map[`${o.data_type}::${o.category_id}`] = {
+        action:     o.action_code as ActionCode,
+        coachingId: o.coaching_notification_id ?? null,
+      }
+    }
     return map
   })
   const [showLabelEditor, setShowLabelEditor] = useState(false)
@@ -223,18 +237,25 @@ export function ControlMatrixClient({ categories, overrides, labels }: Props) {
   }
 
   function getCell(rowKey: string, sectionId: string, lbl: OrgClassificationLabel, cat: MatrixCategory) {
-    const override     = localOverrides[`${rowKey}::${cat.id}`] ?? null
+    const override      = localOverrides[`${rowKey}::${cat.id}`] ?? null
     const defaultAction = getDefault(sectionId, lbl, cat.system_tag)
     return {
-      effectiveAction: (override ?? defaultAction ?? 'not-set') as ActionCode,
+      effectiveAction:    (override?.action ?? defaultAction ?? 'not-set') as ActionCode,
+      effectiveCoaching:  override?.coachingId ?? null,
       defaultAction,
-      isOverride: !!override,
+      isOverride:         !!override,
     }
   }
 
   function handleChange(rowKey: string, cat: MatrixCategory, action: ActionCode) {
-    setLocalOverrides(prev => ({ ...prev, [`${rowKey}::${cat.id}`]: action }))
-    startTransition(async () => { await upsertControlMatrixCell(rowKey, cat.id, action) })
+    const coachingId = localOverrides[`${rowKey}::${cat.id}`]?.coachingId ?? null
+    setLocalOverrides(prev => ({ ...prev, [`${rowKey}::${cat.id}`]: { action, coachingId } }))
+    startTransition(async () => { await upsertControlMatrixCell(rowKey, cat.id, action, coachingId) })
+  }
+
+  function handleCoachingChange(rowKey: string, cat: MatrixCategory, coachingId: string | null, effectiveAction: ActionCode) {
+    setLocalOverrides(prev => ({ ...prev, [`${rowKey}::${cat.id}`]: { action: effectiveAction, coachingId } }))
+    startTransition(async () => { await upsertControlMatrixCell(rowKey, cat.id, effectiveAction, coachingId) })
   }
 
   function handleReset(rowKey: string, cat: MatrixCategory) {
@@ -341,6 +362,28 @@ export function ControlMatrixClient({ categories, overrides, labels }: Props) {
         )}
       </div>
 
+      {/* ── Coaching templates strip ──────────────────────────────────────── */}
+      <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-border/40 bg-card/30 text-xs text-muted-foreground/60">
+        <span className="font-medium text-muted-foreground/80">Coaching messages:</span>
+        {notifications.length === 0 ? (
+          <span className="text-muted-foreground/40 italic">None defined yet</span>
+        ) : (
+          <div className="flex gap-1.5 flex-wrap">
+            {notifications.map(n => (
+              <span key={n.id} className="px-2 py-0.5 rounded border border-border/50 bg-muted/20 text-[10px] font-medium text-muted-foreground/70">
+                {n.coach_label ? `${n.coach_label} — ${n.name}` : n.name}
+              </span>
+            ))}
+          </div>
+        )}
+        <a
+          href="/genai-controls/notifications"
+          className="ml-auto shrink-0 text-[11px] text-primary hover:underline"
+        >
+          Manage →
+        </a>
+      </div>
+
       {/* ── Matrix table ────────────────────────────────────────────────────── */}
       <div className="rounded-xl border border-border overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
@@ -395,11 +438,13 @@ export function ControlMatrixClient({ categories, overrides, labels }: Props) {
                     </td>
 
                     {orderedCats.map(cat => {
-                      const { effectiveAction, defaultAction, isOverride } = getCell(rowKey, sectionId, lbl, cat)
-                      const meta = ACTIONS[effectiveAction]
+                      const { effectiveAction, effectiveCoaching, defaultAction, isOverride } = getCell(rowKey, sectionId, lbl, cat)
+                      const meta          = ACTIONS[effectiveAction]
+                      const selectedNotif = notifications.find(n => n.id === effectiveCoaching)
                       return (
-                        <td key={cat.id} className="px-3 py-2.5 align-middle">
-                          <div className="space-y-0.5">
+                        <td key={cat.id} className="px-3 py-2.5 align-top">
+                          <div className="space-y-1">
+                            {/* Action dropdown */}
                             <div className={cn('relative rounded-md border px-2 py-1', meta.cell)}>
                               <select
                                 value={effectiveAction}
@@ -413,6 +458,31 @@ export function ControlMatrixClient({ categories, overrides, labels }: Props) {
                                   ))}
                               </select>
                             </div>
+
+                            {/* Coaching dropdown */}
+                            <div className="relative rounded border border-border/40 bg-muted/10 px-1.5 py-0.5">
+                              <select
+                                value={effectiveCoaching ?? ''}
+                                onChange={e => handleCoachingChange(rowKey, cat, e.target.value || null, effectiveAction)}
+                                className="w-full appearance-none bg-transparent text-[10px] text-muted-foreground/60 focus:outline-none cursor-pointer"
+                              >
+                                <option value="" className="bg-card text-foreground">— No coaching —</option>
+                                {notifications.map(n => (
+                                  <option key={n.id} value={n.id} className="bg-card text-foreground">
+                                    {n.coach_label ? `${n.coach_label} — ${n.name}` : n.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* Selected coaching badge */}
+                            {selectedNotif?.coach_label && (
+                              <span className="inline-flex text-[9px] font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                                {selectedNotif.coach_label}
+                              </span>
+                            )}
+
+                            {/* Default / reset row */}
                             {isOverride && defaultAction && (
                               <div className="flex items-center gap-1">
                                 <span className="text-[9px] text-muted-foreground/40">Default: {ACTIONS[defaultAction].label}</span>

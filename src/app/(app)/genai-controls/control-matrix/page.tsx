@@ -39,19 +39,28 @@ export default async function ControlMatrixPage() {
 
   const { data: overrideRows } = await supabase
     .from('org_control_matrix_overrides')
-    .select('data_type, category_id, action_code')
+    .select('data_type, category_id, action_code, coaching_notification_id')
     .eq('org_id', user.orgId)
 
   const overrides: MatrixOverride[] = (overrideRows ?? []) as MatrixOverride[]
 
   const labels: OrgClassificationLabel[] = await ensureClassificationLabels()
 
+  const { data: notifRows } = await supabase
+    .from('org_coaching_notifications')
+    .select('id, name, coach_label')
+    .eq('org_id', user.orgId)
+    .eq('is_active', true)
+    .order('created_at')
+
+  const notifications = (notifRows ?? []) as { id: string; name: string; coach_label: string | null }[]
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-foreground">Control Matrix</h1>
         <p className="text-sm text-muted-foreground/80 mt-1">
-          DLP enforcement actions by activity and data sensitivity, mapped across your GenAI governance categories. Rows are grouped by Post/Prompt, Upload (by data classification label), and Upload (by filename detection). Click any cell to override the recommended default.
+          DLP enforcement actions by activity and data sensitivity, mapped across your GenAI governance categories. Each cell can also assign a coaching message shown to users when the action fires.
         </p>
       </div>
 
@@ -62,12 +71,19 @@ export default async function ControlMatrixPage() {
       </div>
 
       {/* Editable matrix */}
-      <ControlMatrixClient categories={categories} overrides={overrides} labels={labels} />
+      <ControlMatrixClient
+        categories={categories}
+        overrides={overrides}
+        labels={labels}
+        notifications={notifications}
+      />
 
       {/* Footnote */}
       <p className="text-xs text-muted-foreground/50">
         Changes save instantly. Use the reset icon (↺) on any cell to restore the recommended default. Columns auto-update when you add or rename categories in{' '}
         <a href="/genai-controls/app-governance" className="underline hover:text-muted-foreground/80 transition-colors">App Governance → Manage Categories</a>.
+        {' '}Coaching messages are managed in{' '}
+        <a href="/genai-controls/notifications" className="underline hover:text-muted-foreground/80 transition-colors">Coaching Templates</a>.
       </p>
     </div>
   )
