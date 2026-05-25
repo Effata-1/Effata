@@ -2,12 +2,13 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { Pencil, Trash2, Plus, Loader2, X } from 'lucide-react'
+import { Pencil, Trash2, Plus, Loader2, X, ShieldAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { colorClasses } from '@/lib/data-catalog/types'
 import { upsertPolicy, deletePolicy, togglePolicyActive } from '../actions'
 import type { PolicyFields } from '../actions'
 import type { GenAIPolicy, ApprovalStatus, PolicyType } from '@/lib/genai/types'
+import { lintAllPolicies, SEVERITY_STYLES, type LintIssue } from '@/lib/genai/lint'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -268,6 +269,7 @@ export function PolicyList({ policies: initialPolicies, categories }: Props) {
   const [filterType, setFilterType]      = useState<PolicyType | 'all'>('all')
   const [activeOnly, setActiveOnly]      = useState(false)
   const [editing, setEditing]            = useState<GenAIPolicy | null | 'new'>()
+  const [lintResults, setLintResults]    = useState<LintIssue[] | null>(null)
   const [, startTransition]              = useTransition()
 
   const categoryMap = new Map(categories.map(c => [c.id, c]))
@@ -333,6 +335,18 @@ export function PolicyList({ policies: initialPolicies, categories }: Props) {
           Active only
         </label>
         <div className="flex-1" />
+        <button
+          onClick={() => setLintResults(lintAllPolicies(policies))}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-border bg-muted/30 hover:bg-muted/60 text-muted-foreground transition-colors"
+        >
+          <ShieldAlert className="w-3.5 h-3.5" />
+          Lint Policies
+          {lintResults !== null && lintResults.length > 0 && (
+            <span className="ml-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/20">
+              {lintResults.length}
+            </span>
+          )}
+        </button>
         <Link
           href="/genai-controls/policies/new"
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 transition-colors"
@@ -341,6 +355,75 @@ export function PolicyList({ policies: initialPolicies, categories }: Props) {
           New Policy
         </Link>
       </div>
+
+      {/* Lint results panel */}
+      {lintResults !== null && (
+        <div className="rounded-xl border border-border bg-card/50 shadow-sm overflow-hidden mb-5">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-semibold text-foreground/80">Lint Results</span>
+              {(() => {
+                const errors   = lintResults.filter(i => i.severity === 'error').length
+                const warnings = lintResults.filter(i => i.severity === 'warning').length
+                const infos    = lintResults.filter(i => i.severity === 'info').length
+                return (
+                  <>
+                    {errors   > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">{errors} error{errors !== 1 ? 's' : ''}</span>}
+                    {warnings > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">{warnings} warning{warnings !== 1 ? 's' : ''}</span>}
+                    {infos    > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">{infos} suggestion{infos !== 1 ? 's' : ''}</span>}
+                  </>
+                )
+              })()}
+            </div>
+            <button
+              onClick={() => setLintResults(null)}
+              className="text-muted-foreground/50 hover:text-foreground transition-colors"
+              aria-label="Dismiss"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {lintResults.length === 0 ? (
+            <div className="px-4 py-3 flex items-center gap-2 text-xs text-emerald-400">
+              <span>✅</span>
+              <span>No issues found — your policies look good.</span>
+            </div>
+          ) : (
+            <ul className="divide-y divide-border/40">
+              {lintResults.map(issue => {
+                const s = SEVERITY_STYLES[issue.severity]
+                const names = issue.policyIds
+                  .map(id => policies.find(p => p.id === id)?.name)
+                  .filter((n): n is string => Boolean(n))
+                return (
+                  <li key={issue.id} className="px-4 py-3 flex items-start gap-3">
+                    <span className="text-xs shrink-0 mt-0.5">{s.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded border', s.bg, s.text, s.border)}>
+                          {s.label}
+                        </span>
+                        <span className="text-xs font-semibold text-foreground/90">{issue.title}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground/70 mt-0.5 leading-relaxed">{issue.detail}</p>
+                      {names.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {names.map(n => (
+                            <span key={n} className="text-[10px] px-1.5 py-0.5 rounded bg-muted/40 text-muted-foreground/60 border border-border">
+                              {n}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Empty state */}
       {visible.length === 0 && (

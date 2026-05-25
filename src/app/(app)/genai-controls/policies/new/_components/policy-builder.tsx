@@ -6,7 +6,8 @@ import { Check, Loader2, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { colorClasses } from '@/lib/data-catalog/types'
 import { upsertPolicy } from '../../actions'
-import type { ApprovalStatus, PolicyType, PolicyRule, ActionCode } from '@/lib/genai/types'
+import type { ApprovalStatus, PolicyType, PolicyRule, ActionCode, GenAIPolicy } from '@/lib/genai/types'
+import { lintPolicy, SEVERITY_STYLES } from '@/lib/genai/lint'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -368,11 +369,12 @@ function StepRules({ rules, setRules }: { rules: PolicyRule[]; setRules: (r: Pol
 
 function StepReview({
   name, description, policyType, categoryId, approvalStatus,
-  policyOwner, scopeAllApps, selectedAppIds, rules, categories, apps,
+  policyOwner, scopeAllApps, selectedAppIds, rules, categories, apps, nextReviewDate,
 }: {
   name: string; description: string; policyType: PolicyType; categoryId: string | null
   approvalStatus: ApprovalStatus; policyOwner: string; scopeAllApps: boolean
   selectedAppIds: Set<string>; rules: PolicyRule[]; categories: Category[]; apps: App[]
+  nextReviewDate: string
 }) {
   const category = categories.find(c => c.id === categoryId)
   const catCc = category ? colorClasses(category.color) : null
@@ -387,6 +389,19 @@ function StepReview({
     rejected:       'bg-red-500/10 text-red-400 border-red-500/20',
     expired:        'bg-amber-500/10 text-amber-400 border-amber-500/20',
   }
+
+  // Run linter on the draft
+  const draft: GenAIPolicy = {
+    id: 'draft', org_id: '', name, description, policy_type: policyType,
+    category_id: categoryId, approval_status: approvalStatus,
+    policy_owner: policyOwner, technical_owner: null,
+    effective_date: null, review_date: null,
+    next_review_date: nextReviewDate || null,
+    notes: null, is_active: true, priority: 99,
+    scope_all_apps: scopeAllApps, scope_app_ids: [...selectedAppIds],
+    rules, created_at: '', updated_at: '',
+  }
+  const lintIssues = lintPolicy(draft)
 
   return (
     <div className="space-y-4">
@@ -416,6 +431,42 @@ function StepReview({
             : 'No rules configured (inherits from Control Matrix)'
         } />
       </div>
+
+      {/* Linter results */}
+      {lintIssues.length === 0 ? (
+        <div className="flex items-center gap-2 px-4 py-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-xs text-emerald-400">
+          <span>✅</span>
+          <span>No issues detected with this policy.</span>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-border flex items-center gap-2">
+            <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest">Policy Check</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              {lintIssues.length} issue{lintIssues.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <ul className="divide-y divide-border/40">
+            {lintIssues.map(issue => {
+              const s = SEVERITY_STYLES[issue.severity]
+              return (
+                <li key={issue.id} className="px-4 py-3 flex items-start gap-3">
+                  <span className="text-xs shrink-0 mt-0.5">{s.icon}</span>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded border', s.bg, s.text, s.border)}>
+                        {s.label}
+                      </span>
+                      <span className="text-xs font-semibold text-foreground/90">{issue.title}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground/70 mt-0.5 leading-relaxed">{issue.detail}</p>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }
@@ -579,6 +630,7 @@ export function PolicyBuilder({ apps, categories }: Props) {
             policyOwner={policyOwner} scopeAllApps={scopeAllApps}
             selectedAppIds={selectedAppIds} rules={rules}
             categories={categories} apps={apps}
+            nextReviewDate={nextReviewDate}
           />
         )}
       </div>
