@@ -91,7 +91,7 @@ export default async function ControlMatrixPage() {
       <div>
         <h1 className="text-xl font-bold text-foreground">Control Matrix</h1>
         <p className="text-sm text-muted-foreground/80 mt-1">
-          DLP actions by data classification × GenAI governance category. Click any cell to override the recommended default. Custom categories appear as additional columns.
+          DLP enforcement actions by GenAI governance category × activity (Post/Prompt and Upload). Upload is split by data classification label and filename detection. Click any cell to override the recommended default.
         </p>
       </div>
 
