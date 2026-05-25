@@ -5,6 +5,7 @@ const ITEMS = [
   { label: 'App Governance',  href: '/genai-controls/app-governance' },
   { label: 'App Catalog',     href: '/genai-controls/apps' },
   { label: 'Control Matrix',  href: '/genai-controls/control-matrix' },
+  { label: 'Refresh Logs',    href: '/genai-controls/refresh-logs' },
 ]
 
 export default async function GenAIControlsLayout({ children }: { children: React.ReactNode }) {

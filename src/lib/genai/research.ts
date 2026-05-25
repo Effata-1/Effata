@@ -213,6 +213,65 @@ Return a JSON object with exactly this structure:
   }
 }
 
+export interface IdentifiedApp {
+  app_id:      string
+  app_name:    string
+  vendor:      string
+  domain:      string
+  app_type:    string
+  logo_letter: string
+  logo_bg:     string
+}
+
+export async function identifyApp(searchTerm: string): Promise<IdentifiedApp | null> {
+  const prompt = `A user searched for a GenAI application: "${searchTerm}"
+
+Identify this specific application. Return a JSON object:
+{
+  "app_id": "lowercase-hyphenated-id e.g. chatgpt or github-copilot",
+  "app_name": "Official display name",
+  "vendor": "Company/vendor name",
+  "domain": "Primary domain e.g. chat.openai.com",
+  "app_type": "One of: AI Assistant | Code Assistant | Image Generator | AI Writing | AI Search | AI Analytics | AI Communication | AI Productivity",
+  "logo_letter": "Single uppercase letter for the logo",
+  "logo_bg": "Hex color matching the brand e.g. #10a37f"
+}
+
+If this is not a real, identifiable GenAI application, return the JSON value null.`
+
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 512,
+    system: SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: prompt }],
+  })
+
+  const text = response.content[0].type === 'text' ? response.content[0].text.trim() : 'null'
+  try {
+    const parsed: unknown = JSON.parse(text)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+    const obj = parsed as Record<string, unknown>
+    if (
+      typeof obj.app_id !== 'string' ||
+      typeof obj.app_name !== 'string' ||
+      typeof obj.vendor !== 'string' ||
+      typeof obj.domain !== 'string' ||
+      typeof obj.app_type !== 'string'
+    ) return null
+    return {
+      app_id:      (obj.app_id as string).toLowerCase().replace(/\s+/g, '-'),
+      app_name:    obj.app_name as string,
+      vendor:      obj.vendor as string,
+      domain:      obj.domain as string,
+      app_type:    obj.app_type as string,
+      logo_letter: typeof obj.logo_letter === 'string' ? obj.logo_letter.charAt(0).toUpperCase() : (obj.app_name as string).charAt(0).toUpperCase(),
+      logo_bg:     typeof obj.logo_bg === 'string' ? obj.logo_bg : '#1a1a2e',
+    }
+  } catch {
+    return null
+  }
+}
+
 export interface DiscoveredApp {
   app_id:     string
   app_name:   string
