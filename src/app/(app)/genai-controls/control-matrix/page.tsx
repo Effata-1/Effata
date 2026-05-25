@@ -3,6 +3,8 @@ import { requireRole } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 import { ControlMatrixClient, ACTIONS } from './_components/control-matrix-client'
 import type { MatrixCategory, MatrixOverride } from './_components/control-matrix-client'
+import { ensureClassificationLabels } from '@/lib/data-catalog/actions'
+import type { OrgClassificationLabel } from '@/lib/data-catalog/types'
 
 // ── Legend ────────────────────────────────────────────────────────────────────
 
@@ -42,6 +44,8 @@ export default async function ControlMatrixPage() {
 
   const overrides: MatrixOverride[] = (overrideRows ?? []) as MatrixOverride[]
 
+  const labels: OrgClassificationLabel[] = await ensureClassificationLabels()
+
   return (
     <div className="space-y-6">
       <div>
@@ -58,7 +62,7 @@ export default async function ControlMatrixPage() {
       </div>
 
       {/* Editable matrix */}
-      <ControlMatrixClient categories={categories} overrides={overrides} />
+      <ControlMatrixClient categories={categories} overrides={overrides} labels={labels} />
 
       {/* Footnote */}
       <p className="text-xs text-muted-foreground/50">

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
 
 export default function ChannelsPage() {
-  redirect('/channels/email-dlp')
+  redirect('/policies/channels/email-dlp')
 }

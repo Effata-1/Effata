@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
+import { upsertLabel, deleteLabel } from '@/lib/data-catalog/actions'
 
 export async function upsertControlMatrixCell(
   dataType: string,
@@ -47,4 +48,21 @@ export async function deleteControlMatrixCell(
   if (error) return { error: error.message }
   revalidatePath('/genai-controls/control-matrix')
   return {}
+}
+
+// ── Classification label management (also revalidates control matrix) ─────────
+
+export async function upsertMatrixLabel(
+  labelId: string | null,
+  fields: { name: string; color: string; description: string; priority: number },
+): Promise<{ error?: string }> {
+  const result = await upsertLabel(labelId, fields)
+  revalidatePath('/genai-controls/control-matrix')
+  return result
+}
+
+export async function deleteMatrixLabel(labelId: string): Promise<{ error?: string }> {
+  const result = await deleteLabel(labelId)
+  revalidatePath('/genai-controls/control-matrix')
+  return result
 }

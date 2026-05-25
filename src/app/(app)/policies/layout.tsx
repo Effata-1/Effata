@@ -1,5 +1,6 @@
 import { SectionSidebar } from '@/components/nav/section-sidebar'
 import { requireRole } from '@/lib/auth'
+import { CHANNELS } from '@/lib/channel-taxonomy'
 
 const ITEMS = [
   { label: 'Policy Library',         href: '/policies/library' },
@@ -7,6 +8,8 @@ const ITEMS = [
   { label: 'Destinations',           href: '/policies/destinations' },
   { label: 'Classification Labels',  href: '/policies/classifications' },
   { label: 'Identity Context',       href: '/policies/identity' },
+  { label: 'Channels',               isGroup: true as const },
+  ...CHANNELS.map(c => ({ label: c.shortName, href: `/policies/channels/${c.slug}` })),
 ]
 
 export default async function PoliciesLayout({ children }: { children: React.ReactNode }) {

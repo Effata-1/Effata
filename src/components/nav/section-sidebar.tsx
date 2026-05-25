@@ -6,7 +6,11 @@ import { logout } from '@/app/auth/actions'
 import { cn } from '@/lib/utils'
 import { Shield, ArrowLeft, LogOut } from 'lucide-react'
 
-interface NavItem { label: string; href: string }
+interface NavItem {
+  label:   string
+  href?:   string   // omit for group headers
+  isGroup?: boolean // renders as a non-link section label
+}
 
 interface Props {
   title: string
@@ -40,12 +44,19 @@ export function SectionSidebar({ title, items, backHref = '/dashboard' }: Props)
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-        {items.map(item => {
-          const isActive = pathname === item.href
+        {items.map((item, i) => {
+          if (item.isGroup) {
+            return (
+              <p key={`group-${i}`} className="px-3 pt-4 pb-1 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">
+                {item.label}
+              </p>
+            )
+          }
+          const isActive = pathname === item.href || (!!item.href && pathname.startsWith(item.href + '/'))
           return (
             <Link
               key={item.href}
-              href={item.href}
+              href={item.href!}
               className={cn(
                 'block px-3 py-2 rounded-md text-sm transition-colors',
                 isActive
