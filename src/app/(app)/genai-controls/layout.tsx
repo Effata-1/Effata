@@ -6,6 +6,7 @@ const ITEMS = [
   { label: 'App Governance',  href: '/genai-controls/app-governance' },
   { label: 'Policy Library',      href: '/genai-controls/policies' },
   { label: 'Coaching Templates',  href: '/genai-controls/notifications' },
+  { label: 'Testing Lab',         href: '/genai-controls/testing' },
   { label: 'App Catalog',         href: '/genai-controls/apps' },
   { label: 'Control Matrix',  href: '/genai-controls/control-matrix' },
   { label: 'Refresh Logs',    href: '/genai-controls/refresh-logs' },
