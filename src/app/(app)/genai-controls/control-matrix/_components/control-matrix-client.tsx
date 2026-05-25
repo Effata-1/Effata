@@ -8,43 +8,58 @@ import { upsertControlMatrixCell, deleteControlMatrixCell } from '../actions'
 
 // ── Action registry ───────────────────────────────────────────────────────────
 
-export type ActionCode = 'allow' | 'block-coach-2' | 'block-coach-3' | 'block-coach-4' | 'not-set'
+export type ActionCode =
+  | 'allow' | 'monitor' | 'alert' | 'coach'
+  | 'coach-ack' | 'coach-just' | 'block' | 'not-set'
 
 export const ACTIONS: Record<ActionCode, { label: string; cell: string; text: string }> = {
-  'allow':         { label: 'Allow',           cell: 'bg-emerald-500/10 border-emerald-500/20', text: 'text-emerald-400' },
-  'block-coach-2': { label: 'Block + Coach 2', cell: 'bg-red-500/10 border-red-500/20',         text: 'text-red-400' },
-  'block-coach-3': { label: 'Block + Coach 3', cell: 'bg-orange-500/10 border-orange-500/20',   text: 'text-orange-400' },
-  'block-coach-4': { label: 'Block + Coach 4', cell: 'bg-red-500/15 border-red-500/25',         text: 'text-red-300' },
-  'not-set':       { label: '—',               cell: 'bg-transparent border-border',            text: 'text-muted-foreground/30' },
+  'allow':      { label: 'Allow',                 cell: 'bg-emerald-500/10 border-emerald-500/20', text: 'text-emerald-400' },
+  'monitor':    { label: 'Monitor',               cell: 'bg-blue-500/10 border-blue-500/20',       text: 'text-blue-400' },
+  'alert':      { label: 'Alert',                 cell: 'bg-amber-500/10 border-amber-500/20',     text: 'text-amber-400' },
+  'coach':      { label: 'Coach',                 cell: 'bg-orange-500/10 border-orange-500/20',   text: 'text-orange-400' },
+  'coach-ack':  { label: 'Coach + Acknowledge',   cell: 'bg-orange-500/15 border-orange-500/30',   text: 'text-orange-300' },
+  'coach-just': { label: 'Coach + Justification', cell: 'bg-amber-600/15 border-amber-600/25',     text: 'text-amber-300' },
+  'block':      { label: 'Block',                 cell: 'bg-red-500/10 border-red-500/20',         text: 'text-red-400' },
+  'not-set':    { label: '—',                     cell: 'bg-transparent border-border',            text: 'text-muted-foreground/30' },
 }
 
-// ── Column definitions ────────────────────────────────────────────────────────
+// ── Row definitions ───────────────────────────────────────────────────────────
 
-export interface MatrixColumn {
-  key:      string
-  label:    string
-  activity: 'post_prompt' | 'upload'
-  subGroup: null | 'dc' | 'filename'
+interface MatrixRow {
+  key:            string
+  label:          string
+  classification: string
+  section:        number
 }
 
-export const COLUMNS: MatrixColumn[] = [
-  { key: 'pp|public',    label: 'Public',              activity: 'post_prompt', subGroup: null },
-  { key: 'pp|conf',      label: 'Confidential',         activity: 'post_prompt', subGroup: null },
-  { key: 'pp|hc_secret', label: 'Keywords HC + Secret', activity: 'post_prompt', subGroup: null },
-  { key: 'ul|dc|public', label: 'Public',               activity: 'upload',      subGroup: 'dc' },
-  { key: 'ul|dc|int',    label: 'Internal',             activity: 'upload',      subGroup: 'dc' },
-  { key: 'ul|dc|conf',   label: 'Confidential',         activity: 'upload',      subGroup: 'dc' },
-  { key: 'ul|dc|hc',     label: 'Highly Conf.',         activity: 'upload',      subGroup: 'dc' },
-  { key: 'ul|dc|secret', label: 'Secret',               activity: 'upload',      subGroup: 'dc' },
-  { key: 'ul|fn|hc',     label: 'Highly Conf.',         activity: 'upload',      subGroup: 'filename' },
-  { key: 'ul|fn|secret', label: 'Secret',               activity: 'upload',      subGroup: 'filename' },
+const SECTIONS = [
+  { id: 0, label: 'Post / Prompt',                       color: 'text-orange-400' },
+  { id: 1, label: 'Upload — Data Classification Labels', color: 'text-orange-400' },
+  { id: 2, label: 'Upload — Filename Detection',         color: 'text-muted-foreground/60' },
 ]
 
-const PP_COLS      = COLUMNS.filter(c => c.activity === 'post_prompt')    // 3
-const UL_DC_COLS   = COLUMNS.filter(c => c.subGroup === 'dc')              // 5
-const UL_FN_COLS   = COLUMNS.filter(c => c.subGroup === 'filename')        // 2
+const MATRIX_ROWS: MatrixRow[] = [
+  { key: 'pp|public',    label: 'Public',              classification: 'public',   section: 0 },
+  { key: 'pp|conf',      label: 'Confidential',         classification: 'conf',     section: 0 },
+  { key: 'pp|hc_secret', label: 'Keywords HC + Secret', classification: 'secret',   section: 0 },
+  { key: 'ul|dc|public', label: 'Public',               classification: 'public',   section: 1 },
+  { key: 'ul|dc|int',    label: 'Internal',             classification: 'internal', section: 1 },
+  { key: 'ul|dc|conf',   label: 'Confidential',         classification: 'conf',     section: 1 },
+  { key: 'ul|dc|hc',     label: 'Highly Confidential',  classification: 'hc',       section: 1 },
+  { key: 'ul|dc|secret', label: 'Secret',               classification: 'secret',   section: 1 },
+  { key: 'ul|fn|hc',     label: 'Highly Confidential',  classification: 'hc',       section: 2 },
+  { key: 'ul|fn|secret', label: 'Secret',               classification: 'secret',   section: 2 },
+]
 
-// ── Default actions per system tag ────────────────────────────────────────────
+const CLASS_COLORS: Record<string, string> = {
+  public:   'text-green-400',
+  internal: 'text-sky-400',
+  conf:     'text-amber-400',
+  hc:       'text-orange-400',
+  secret:   'text-red-400',
+}
+
+// ── Default actions by system tag ─────────────────────────────────────────────
 
 export const SYSTEM_TAG_ORDER = [
   'enterprise-approved',
@@ -56,34 +71,34 @@ export const SYSTEM_TAG_ORDER = [
 
 const DEFAULTS: Record<string, Record<string, ActionCode>> = {
   'enterprise-approved': {
-    'pp|public': 'allow',  'pp|conf': 'allow',         'pp|hc_secret': 'allow',
-    'ul|dc|public': 'allow', 'ul|dc|int': 'allow',     'ul|dc|conf': 'allow',
-    'ul|dc|hc': 'allow',     'ul|dc|secret': 'allow',
-    'ul|fn|hc': 'allow',     'ul|fn|secret': 'allow',
+    'pp|public':    'allow',     'pp|conf':     'monitor',    'pp|hc_secret': 'alert',
+    'ul|dc|public': 'allow',     'ul|dc|int':   'monitor',    'ul|dc|conf':   'alert',
+    'ul|dc|hc':     'coach-ack', 'ul|dc|secret':'block',
+    'ul|fn|hc':     'alert',     'ul|fn|secret':'block',
   },
   'approved-with-conditions': {
-    'pp|public': 'allow',  'pp|conf': 'allow',          'pp|hc_secret': 'block-coach-4',
-    'ul|dc|public': 'allow', 'ul|dc|int': 'allow',      'ul|dc|conf': 'allow',
-    'ul|dc|hc': 'block-coach-4', 'ul|dc|secret': 'block-coach-4',
-    'ul|fn|hc': 'block-coach-4', 'ul|fn|secret': 'block-coach-4',
+    'pp|public':    'allow',  'pp|conf':      'coach',    'pp|hc_secret': 'block',
+    'ul|dc|public': 'allow',  'ul|dc|int':    'monitor',  'ul|dc|conf':   'coach',
+    'ul|dc|hc':     'block',  'ul|dc|secret': 'block',
+    'ul|fn|hc':     'coach-ack', 'ul|fn|secret': 'block',
   },
   'permitted-with-restriction': {
-    'pp|public': 'allow',  'pp|conf': 'block-coach-4',  'pp|hc_secret': 'block-coach-4',
-    'ul|dc|public': 'allow', 'ul|dc|int': 'block-coach-3', 'ul|dc|conf': 'block-coach-3',
-    'ul|dc|hc': 'block-coach-4', 'ul|dc|secret': 'block-coach-4',
-    'ul|fn|hc': 'block-coach-4', 'ul|fn|secret': 'block-coach-4',
+    'pp|public':    'monitor',   'pp|conf':      'coach-ack', 'pp|hc_secret': 'block',
+    'ul|dc|public': 'monitor',   'ul|dc|int':    'coach',     'ul|dc|conf':   'block',
+    'ul|dc|hc':     'block',     'ul|dc|secret': 'block',
+    'ul|fn|hc':     'block',     'ul|fn|secret': 'block',
   },
   'prohibited': {
-    'pp|public': 'block-coach-2', 'pp|conf': 'block-coach-2', 'pp|hc_secret': 'block-coach-2',
-    'ul|dc|public': 'block-coach-2', 'ul|dc|int': 'block-coach-2', 'ul|dc|conf': 'block-coach-2',
-    'ul|dc|hc': 'block-coach-2',     'ul|dc|secret': 'block-coach-2',
-    'ul|fn|hc': 'block-coach-2',     'ul|fn|secret': 'block-coach-2',
+    'pp|public':    'block', 'pp|conf':      'block', 'pp|hc_secret': 'block',
+    'ul|dc|public': 'block', 'ul|dc|int':    'block', 'ul|dc|conf':   'block',
+    'ul|dc|hc':     'block', 'ul|dc|secret': 'block',
+    'ul|fn|hc':     'block', 'ul|fn|secret': 'block',
   },
   'personal': {
-    'pp|public': 'allow',  'pp|conf': 'block-coach-4',  'pp|hc_secret': 'block-coach-4',
-    'ul|dc|public': 'allow', 'ul|dc|int': 'block-coach-3', 'ul|dc|conf': 'block-coach-4',
-    'ul|dc|hc': 'block-coach-4', 'ul|dc|secret': 'block-coach-4',
-    'ul|fn|hc': 'block-coach-4', 'ul|fn|secret': 'block-coach-4',
+    'pp|public':    'monitor',   'pp|conf':      'coach-ack', 'pp|hc_secret': 'block',
+    'ul|dc|public': 'monitor',   'ul|dc|int':    'coach-ack', 'ul|dc|conf':   'block',
+    'ul|dc|hc':     'block',     'ul|dc|secret': 'block',
+    'ul|fn|hc':     'block',     'ul|fn|secret': 'block',
   },
 }
 
@@ -107,52 +122,6 @@ interface Props {
   overrides:  MatrixOverride[]
 }
 
-// ── Cell ──────────────────────────────────────────────────────────────────────
-
-function MatrixCell({
-  colKey, catId, effectiveAction, defaultAction, isOverride, onChange, onReset,
-}: {
-  colKey:          string
-  catId:           string
-  effectiveAction: ActionCode
-  defaultAction:   ActionCode | null
-  isOverride:      boolean
-  onChange:        (a: ActionCode) => void
-  onReset:         () => void
-}) {
-  const meta = ACTIONS[effectiveAction]
-  return (
-    <td className="px-2 py-2 align-middle">
-      <div className="space-y-0.5 min-w-[110px]">
-        <div className={cn('relative rounded-md border px-2 py-1', meta.cell)}>
-          <select
-            value={effectiveAction}
-            onChange={e => onChange(e.target.value as ActionCode)}
-            className={cn('w-full appearance-none bg-transparent text-[11px] font-semibold focus:outline-none cursor-pointer', meta.text)}
-          >
-            {(Object.entries(ACTIONS) as [ActionCode, (typeof ACTIONS)[ActionCode]][])
-              .filter(([code]) => code !== 'not-set' || effectiveAction === 'not-set')
-              .map(([code, m]) => (
-                <option key={code} value={code} className="bg-card text-foreground">{m.label}</option>
-              ))}
-          </select>
-        </div>
-        {isOverride && defaultAction && (
-          <div className="flex items-center gap-1">
-            <span className="text-[9px] text-muted-foreground/40">Default: {ACTIONS[defaultAction].label}</span>
-            <button onClick={onReset} title="Reset to default" className="text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors">
-              <RotateCcw className="w-2.5 h-2.5" />
-            </button>
-          </div>
-        )}
-        {!isOverride && effectiveAction !== 'not-set' && (
-          <span className="text-[9px] text-muted-foreground/30 italic">recommended</span>
-        )}
-      </div>
-    </td>
-  )
-}
-
 // ── Main client component ─────────────────────────────────────────────────────
 
 export function ControlMatrixClient({ categories, overrides }: Props) {
@@ -170,9 +139,9 @@ export function ControlMatrixClient({ categories, overrides }: Props) {
     ...categories.filter(c => !c.system_tag),
   ]
 
-  function getCell(colKey: string, cat: MatrixCategory) {
-    const override = localOverrides[`${colKey}::${cat.id}`] ?? null
-    const defaultAction: ActionCode | null = cat.system_tag ? (DEFAULTS[cat.system_tag]?.[colKey] ?? null) : null
+  function getCell(rowKey: string, cat: MatrixCategory) {
+    const override     = localOverrides[`${rowKey}::${cat.id}`] ?? null
+    const defaultAction: ActionCode | null = cat.system_tag ? (DEFAULTS[cat.system_tag]?.[rowKey] ?? null) : null
     return {
       effectiveAction: (override ?? defaultAction ?? 'not-set') as ActionCode,
       defaultAction,
@@ -180,110 +149,118 @@ export function ControlMatrixClient({ categories, overrides }: Props) {
     }
   }
 
-  function handleChange(colKey: string, cat: MatrixCategory, action: ActionCode) {
-    setLocalOverrides(prev => ({ ...prev, [`${colKey}::${cat.id}`]: action }))
-    startTransition(async () => { await upsertControlMatrixCell(colKey, cat.id, action) })
+  function handleChange(rowKey: string, cat: MatrixCategory, action: ActionCode) {
+    setLocalOverrides(prev => ({ ...prev, [`${rowKey}::${cat.id}`]: action }))
+    startTransition(async () => { await upsertControlMatrixCell(rowKey, cat.id, action) })
   }
 
-  function handleReset(colKey: string, cat: MatrixCategory) {
-    setLocalOverrides(prev => { const next = { ...prev }; delete next[`${colKey}::${cat.id}`]; return next })
-    startTransition(async () => { await deleteControlMatrixCell(colKey, cat.id) })
+  function handleReset(rowKey: string, cat: MatrixCategory) {
+    setLocalOverrides(prev => { const next = { ...prev }; delete next[`${rowKey}::${cat.id}`]; return next })
+    startTransition(async () => { await deleteControlMatrixCell(rowKey, cat.id) })
   }
 
-  const thBase = 'text-[10px] font-semibold uppercase tracking-wide px-2 py-2 text-center border-b border-border'
+  // Build a flat list: section-header items + row items (avoids Fragment key issues)
+  type FlatItem =
+    | { type: 'section'; section: typeof SECTIONS[0] }
+    | { type: 'row'; row: MatrixRow; ri: number }
+
+  const flatItems: FlatItem[] = []
+  let lastSection = -1
+  MATRIX_ROWS.forEach((row, ri) => {
+    if (row.section !== lastSection) {
+      lastSection = row.section
+      flatItems.push({ type: 'section', section: SECTIONS[row.section] })
+    }
+    flatItems.push({ type: 'row', row, ri })
+  })
 
   return (
     <div className="rounded-xl border border-border overflow-hidden shadow-sm">
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-card">
-
-            {/* Row 1: activity groups */}
-            <tr>
-              <th rowSpan={3} className="text-left text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wide px-4 py-3 border-b border-r border-border align-bottom w-48">
-                GenAI Category
+          <thead>
+            <tr className="border-b border-border bg-card/80">
+              <th className="text-left text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide px-5 py-3 w-52">
+                Activity / Data Type
               </th>
-              <th colSpan={PP_COLS.length} className={cn(thBase, 'border-r border-border text-orange-400')}>
-                Post / Prompt
-              </th>
-              <th colSpan={UL_DC_COLS.length + UL_FN_COLS.length} className={cn(thBase, 'text-muted-foreground/80')}>
-                Upload
-              </th>
-            </tr>
-
-            {/* Row 2: sub-groups (blank for post/prompt, DC Labels + Filename for upload) */}
-            <tr>
-              {PP_COLS.map((_, i) => (
-                <th key={i} className={cn('border-b border-border', i === PP_COLS.length - 1 ? 'border-r' : '')} />
-              ))}
-              <th colSpan={UL_DC_COLS.length} className={cn(thBase, 'text-orange-400 border-r border-border')}>
-                Data Classification Labels
-              </th>
-              <th colSpan={UL_FN_COLS.length} className={cn(thBase, 'text-muted-foreground/60')}>
-                Filename Detection
-              </th>
-            </tr>
-
-            {/* Row 3: individual column labels */}
-            <tr>
-              {COLUMNS.map((col, i) => {
-                const isLastPP   = col.activity === 'post_prompt' && i === PP_COLS.length - 1
-                const isLastDC   = col.subGroup === 'dc' && i === PP_COLS.length + UL_DC_COLS.length - 1
+              {orderedCats.map(cat => {
+                const cc = colorClasses(cat.color)
                 return (
-                  <th key={col.key} className={cn(
-                    thBase,
-                    (isLastPP || isLastDC) ? 'border-r border-border' : '',
-                  )}>
-                    {col.label}
+                  <th key={cat.id} className="px-3 py-3 text-left min-w-[148px]">
+                    <p className={cn('text-xs font-bold', cc.text)}>{cat.name}</p>
+                    {!cat.system_tag && (
+                      <p className="text-[9px] text-muted-foreground/40 font-normal mt-0.5">custom</p>
+                    )}
                   </th>
                 )
               })}
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-border/60">
-            {orderedCats.map((cat, ri) => {
-              const cc = colorClasses(cat.color)
+          <tbody>
+            {flatItems.map(item => {
+              if (item.type === 'section') {
+                return (
+                  <tr key={`sec-${item.section.id}`} className="bg-muted/25 border-y border-border/50">
+                    <td colSpan={orderedCats.length + 1} className="px-5 py-1.5">
+                      <span className={cn('text-[10px] font-bold uppercase tracking-widest', item.section.color)}>
+                        {item.section.label}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              }
+
+              const { row, ri } = item
+              const classColor = CLASS_COLORS[row.classification] ?? 'text-muted-foreground/60'
+
               return (
-                <tr key={cat.id} className={cn('hover:bg-card/30 transition-colors', ri % 2 === 0 ? '' : 'bg-card/10')}>
-                  {/* Row label */}
-                  <td className="px-4 py-3 border-r border-border/60 align-middle">
-                    <div className="flex items-center gap-2">
-                      <span className={cn('w-2 h-2 rounded-full shrink-0', cc.bg)} />
-                      <div>
-                        <p className={cn('text-xs font-semibold', cc.text)}>{cat.name}</p>
-                        {!cat.system_tag && (
-                          <span className="text-[9px] text-muted-foreground/40">custom</span>
-                        )}
-                      </div>
-                    </div>
+                <tr
+                  key={row.key}
+                  className={cn(
+                    'border-b border-border/40 hover:bg-card/30 transition-colors',
+                    ri % 2 === 0 ? '' : 'bg-card/10',
+                  )}
+                >
+                  <td className="px-5 py-3">
+                    <span className={cn('text-xs font-semibold', classColor)}>{row.label}</span>
                   </td>
 
-                  {/* Data cells */}
-                  {COLUMNS.map((col, ci) => {
-                    const isLastPP = col.activity === 'post_prompt' && ci === PP_COLS.length - 1
-                    const isLastDC = col.subGroup === 'dc' && ci === PP_COLS.length + UL_DC_COLS.length - 1
-                    const { effectiveAction, defaultAction, isOverride } = getCell(col.key, cat)
+                  {orderedCats.map(cat => {
+                    const { effectiveAction, defaultAction, isOverride } = getCell(row.key, cat)
+                    const meta = ACTIONS[effectiveAction]
                     return (
-                      <td key={col.key} className={cn('px-2 py-2 align-middle', (isLastPP || isLastDC) ? 'border-r border-border/60' : '')}>
-                        <div className="space-y-0.5 min-w-[110px]">
-                          <div className={cn('relative rounded-md border px-2 py-1', ACTIONS[effectiveAction].cell)}>
+                      <td key={cat.id} className="px-3 py-2.5 align-middle">
+                        <div className="space-y-0.5">
+                          <div className={cn('relative rounded-md border px-2 py-1', meta.cell)}>
                             <select
                               value={effectiveAction}
-                              onChange={e => handleChange(col.key, cat, e.target.value as ActionCode)}
-                              className={cn('w-full appearance-none bg-transparent text-[11px] font-semibold focus:outline-none cursor-pointer', ACTIONS[effectiveAction].text)}
+                              onChange={e => handleChange(row.key, cat, e.target.value as ActionCode)}
+                              className={cn(
+                                'w-full appearance-none bg-transparent text-[11px] font-semibold focus:outline-none cursor-pointer',
+                                meta.text,
+                              )}
                             >
                               {(Object.entries(ACTIONS) as [ActionCode, (typeof ACTIONS)[ActionCode]][])
                                 .filter(([code]) => code !== 'not-set' || effectiveAction === 'not-set')
                                 .map(([code, m]) => (
-                                  <option key={code} value={code} className="bg-card text-foreground">{m.label}</option>
+                                  <option key={code} value={code} className="bg-card text-foreground">
+                                    {m.label}
+                                  </option>
                                 ))}
                             </select>
                           </div>
+
                           {isOverride && defaultAction && (
                             <div className="flex items-center gap-1">
-                              <span className="text-[9px] text-muted-foreground/40">Default: {ACTIONS[defaultAction].label}</span>
-                              <button onClick={() => handleReset(col.key, cat)} title="Reset to default" className="text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors">
+                              <span className="text-[9px] text-muted-foreground/40">
+                                Default: {ACTIONS[defaultAction].label}
+                              </span>
+                              <button
+                                onClick={() => handleReset(row.key, cat)}
+                                title="Reset to default"
+                                className="text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
+                              >
                                 <RotateCcw className="w-2.5 h-2.5" />
                               </button>
                             </div>
