@@ -9,39 +9,39 @@ const SEED_DEFAULTS = [
     action_code: 'coach' as const,
     tone:        'informational' as const,
     title:       'AI Acceptable Use Policy — please review before proceeding',
-    message:     "You're about to send data to {{app_name}}. Before proceeding, please review your organisation's AI Acceptable Use Policy to ensure this application is approved for your use case. If you have a legitimate business need, you can request an exception via the IT portal.",
+    message:     "You're about to send data to {{NS_APP}}. Before proceeding, please review your organisation's AI Acceptable Use Policy to ensure this application is approved for your use case. If you have a legitimate business need, you can request an exception via the IT portal.",
     is_default:  true,
   },
   {
     name:        'GenAI Confidential Data Upload',
     action_code: 'coach-ack' as const,
     tone:        'warning' as const,
-    title:       'Confidential data detected — {{app_name}}',
-    message:     "We detected an attempt to share Confidential information with {{app_name}}. Confidential data must not be shared with external AI tools without explicit approval. Please review the AI Acceptable Use Policy. If you need to work with this data using AI, please use an approved and supported solution.",
+    title:       'Confidential data detected — {{NS_APP}}',
+    message:     "We detected an attempt to share Confidential information with {{NS_APP}} (Policy: {{NS_POLICY_NAME}}). Confidential data must not be shared with external AI tools without explicit approval. Please review the AI Acceptable Use Policy before proceeding.",
     is_default:  true,
   },
   {
     name:        'GenAI Highly Confidential Data Upload',
     action_code: 'coach-just' as const,
     tone:        'warning' as const,
-    title:       'Sensitive information sharing — {{data_type}} detected',
-    message:     "We detected an attempt to share sensitive information (classified as Highly Confidential) with {{app_name}}. This is not permitted under the Company AI Policy. If you really need to use this type of information with an AI application, please use a solution that is Permitted & Supported under the AI Acceptable Use Framework. If you believe this detection is incorrect, you can raise an exception request via the IT portal.",
+    title:       'Sensitive information detected — {{NS_CATEGORY}}',
+    message:     "We detected an attempt to share Highly Confidential information with {{NS_APP}} via {{NS_ACTIVITY}}. This is not permitted under the Company AI Policy. If you need to work with this data using AI, please use a Permitted & Supported solution. To request an exception, contact your IT team.",
     is_default:  true,
   },
   {
     name:        'GenAI Secret Data Upload',
     action_code: 'coach-just' as const,
     tone:        'urgent' as const,
-    title:       'Sensitive information sharing — secrets or credentials detected',
-    message:     "We detected an attempt to share sensitive information (secrets, keys, tokens, certificates, etc.) with {{app_name}}. This is not permitted under the Company AI Policy and Security Policies & Standards Framework. If you believe this detection is incorrect and would like to request an exception, you can raise a Network & Security Request via the IT portal. For additional information, please contact your compliance team.",
+    title:       'Secrets or credentials detected — {{NS_APP}}',
+    message:     "We detected an attempt to share sensitive information ({{NS_FILENAME}}) with {{NS_APP}} ({{NS_URL}}). Secrets, keys, tokens, and certificates must never be sent to external AI applications. This is not permitted under the Company AI Policy. Please contact your security team if this was not intentional.",
     is_default:  true,
   },
   {
     name:        'Prohibited GenAI App',
     action_code: 'coach' as const,
     tone:        'urgent' as const,
-    title:       'Prohibited AI application — {{app_name}} is not approved',
-    message:     "{{app_name}} is not approved for use in your organisation. Access to this application is restricted under the Company AI Policy. If you have a business need for this tool, please raise an exception request via the IT portal. For a list of approved AI applications, refer to the AI Acceptable Use Framework.",
+    title:       'Prohibited AI application — {{NS_APP}} is not approved',
+    message:     "{{NS_APP}} ({{NS_HOST}}) is not approved for use in your organisation. Access to this application is restricted under the Company AI Policy. If you have a business need for this tool, please raise an exception request via the IT portal.",
     is_default:  true,
   },
 ]
@@ -75,42 +75,30 @@ export default async function CoachingNotificationsPage() {
   }
 
   let notifications: CoachingNotification[] = []
-  let policies: Array<{ id: string; name: string }> = []
 
   try {
-    const [notificationsResult, policiesResult] = await Promise.all([
-      orgId
-        ? supabase
-            .from('org_coaching_notifications')
-            .select('*')
-            .eq('org_id', orgId)
-            .order('created_at')
-        : Promise.resolve({ data: [] as CoachingNotification[] }),
-      orgId
-        ? supabase
-            .from('org_genai_policies')
-            .select('id, name')
-            .eq('org_id', orgId)
-            .eq('is_active', true)
-            .order('name')
-        : Promise.resolve({ data: [] as Array<{ id: string; name: string }> }),
-    ])
-    notifications = (notificationsResult.data ?? []) as CoachingNotification[]
-    policies      = policiesResult.data ?? []
+    const result = orgId
+      ? await supabase
+          .from('org_coaching_notifications')
+          .select('*')
+          .eq('org_id', orgId)
+          .order('created_at')
+      : { data: [] as CoachingNotification[] }
+    notifications = (result.data ?? []) as CoachingNotification[]
   } catch {
     // Table may not exist yet — migration pending
   }
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 max-w-4xl">
       <div>
         <h1 className="text-xl font-bold text-foreground">Coaching Templates</h1>
         <p className="text-sm text-muted-foreground/70 mt-0.5">
-          Reusable notification messages shown to users when a DLP policy fires a coaching action.
+          Messages shown to users when a DLP policy fires a coaching action. Edit each template to match your organisation&apos;s tone and policy links.
         </p>
       </div>
 
-      <NotificationList notifications={notifications} policies={policies} />
+      <NotificationList notifications={notifications} />
     </div>
   )
 }
