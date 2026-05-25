@@ -156,28 +156,39 @@ function EditPanel({
   onSaved:  (updated: CoachingNotification) => void
   onCancel: () => void
 }) {
-  const [title,   setTitle]   = useState(n.title)
-  const [message, setMessage] = useState(n.message)
-  const [saving,  setSaving]  = useState(false)
-  const [error,   setError]   = useState<string | null>(null)
+  const [coachLabel, setCoachLabel] = useState(n.coach_label ?? '')
+  const [title,      setTitle]      = useState(n.title)
+  const [message,    setMessage]    = useState(n.message)
+  const [saving,     setSaving]     = useState(false)
+  const [error,      setError]      = useState<string | null>(null)
   const msgRef = useRef<HTMLTextAreaElement>(null)
 
   async function save() {
     if (!title.trim() || !message.trim()) { setError('Title and message are required.'); return }
     setError(null); setSaving(true)
     const { error: err } = await upsertNotification(n.id, {
-      name: n.name, action_code: n.action_code, tone: n.tone,
+      name: n.name, coach_label: coachLabel.trim() || null,
+      action_code: n.action_code, tone: n.tone,
       title, message, linked_policy_id: n.linked_policy_id,
       is_default: n.is_default, is_active: n.is_active,
     })
     setSaving(false)
     if (err) { setError(err); return }
-    onSaved({ ...n, title, message, updated_at: new Date().toISOString() })
+    onSaved({ ...n, coach_label: coachLabel.trim() || null, title, message, updated_at: new Date().toISOString() })
   }
 
   return (
     <div className="px-5 py-4 bg-muted/10 border-t border-border/40 space-y-4">
       {error && <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>}
+      <div className="space-y-1">
+        <label className="text-[11px] font-medium text-muted-foreground/60 uppercase tracking-wider">Label <span className="normal-case text-muted-foreground/40">(e.g. Coach 1 — used in Control Matrix)</span></label>
+        <input
+          value={coachLabel}
+          onChange={e => setCoachLabel(e.target.value)}
+          placeholder="Coach 1"
+          className="w-48 text-sm border border-border rounded-lg bg-background/60 px-3 py-2 text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+      </div>
       <EditFields title={title} setTitle={setTitle} message={message} setMessage={setMessage} msgRef={msgRef} />
       <div className="flex justify-end gap-2">
         <button onClick={onCancel} className="px-4 py-1.5 text-xs rounded-lg border border-border bg-muted/30 text-muted-foreground hover:bg-muted/60 transition-colors">Cancel</button>
@@ -198,24 +209,28 @@ function NewTemplatePanel({
   onSaved:  (n: CoachingNotification) => void
   onCancel: () => void
 }) {
-  const [name,    setName]    = useState('')
-  const [title,   setTitle]   = useState('')
-  const [message, setMessage] = useState('')
-  const [saving,  setSaving]  = useState(false)
-  const [error,   setError]   = useState<string | null>(null)
+  const [coachLabel, setCoachLabel] = useState('')
+  const [name,       setName]       = useState('')
+  const [title,      setTitle]      = useState('')
+  const [message,    setMessage]    = useState('')
+  const [saving,     setSaving]     = useState(false)
+  const [error,      setError]      = useState<string | null>(null)
   const msgRef = useRef<HTMLTextAreaElement>(null)
 
   async function save() {
     if (!name.trim() || !title.trim() || !message.trim()) { setError('Name, title and message are required.'); return }
     setError(null); setSaving(true)
     const { error: err } = await upsertNotification(null, {
-      name, action_code: 'coach', tone: 'informational',
+      name, coach_label: coachLabel.trim() || null,
+      action_code: 'coach', tone: 'informational',
       title, message, linked_policy_id: null, is_default: false, is_active: true,
     })
     setSaving(false)
     if (err) { setError(err); return }
     onSaved({
-      id: crypto.randomUUID(), org_id: '', name, action_code: 'coach', tone: 'informational',
+      id: crypto.randomUUID(), org_id: '', name,
+      coach_label: coachLabel.trim() || null,
+      action_code: 'coach', tone: 'informational',
       title, message, linked_policy_id: null, is_default: false, is_active: true,
       created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     })
@@ -224,14 +239,25 @@ function NewTemplatePanel({
   return (
     <div className="px-5 py-4 bg-muted/10 border-t border-border/40 space-y-4">
       {error && <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>}
-      <div className="space-y-1">
-        <label className="text-[11px] font-medium text-muted-foreground/60 uppercase tracking-wider">Template Name</label>
-        <input
-          value={name}
-          onChange={e => setName(e.target.value)}
-          placeholder="e.g. GenAI PCI Data Upload"
-          className="w-full text-sm border border-border rounded-lg bg-background/60 px-3 py-2 text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-1 focus:ring-ring"
-        />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1">
+          <label className="text-[11px] font-medium text-muted-foreground/60 uppercase tracking-wider">Label <span className="normal-case text-muted-foreground/40">(e.g. Coach 6)</span></label>
+          <input
+            value={coachLabel}
+            onChange={e => setCoachLabel(e.target.value)}
+            placeholder="Coach 6"
+            className="w-full text-sm border border-border rounded-lg bg-background/60 px-3 py-2 text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[11px] font-medium text-muted-foreground/60 uppercase tracking-wider">Template Name</label>
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="e.g. GenAI PCI Data Upload"
+            className="w-full text-sm border border-border rounded-lg bg-background/60 px-3 py-2 text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+        </div>
       </div>
       <EditFields title={title} setTitle={setTitle} message={message} setMessage={setMessage} msgRef={msgRef} />
       <div className="flex justify-end gap-2">
@@ -265,6 +291,15 @@ function TemplateRow({
             <Search className="h-3.5 w-3.5" />
           </button>
         </td>
+        <td className="w-24 px-4 py-3.5">
+          {n.coach_label ? (
+            <span className="text-[11px] font-semibold px-2 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 whitespace-nowrap">
+              {n.coach_label}
+            </span>
+          ) : (
+            <span className="text-[11px] text-muted-foreground/30">—</span>
+          )}
+        </td>
         <td className="px-4 py-3.5">
           <p className="text-sm font-semibold text-foreground">{n.name}</p>
         </td>
@@ -285,7 +320,7 @@ function TemplateRow({
       </tr>
       {expanded && (
         <tr className="border-b border-border/30">
-          <td colSpan={5} className="p-0">
+          <td colSpan={6} className="p-0">
             <EditPanel
               n={n}
               onSaved={updated => { setN(updated); setExpanded(false) }}
@@ -339,6 +374,7 @@ export function NotificationList({ notifications: initial }: { notifications: Co
             <thead>
               <tr className="border-b border-border/30 bg-card/60">
                 <th className="w-12 px-4 py-2.5 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider text-center">Preview</th>
+                <th className="w-24 px-4 py-2.5 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider text-left">Label</th>
                 <th className="px-4 py-2.5 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider text-left">Name</th>
                 <th className="px-4 py-2.5 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider text-left">Type</th>
                 <th className="px-4 py-2.5 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider text-left">Last Edit</th>
@@ -351,7 +387,7 @@ export function NotificationList({ notifications: initial }: { notifications: Co
               ))}
               {adding && (
                 <tr>
-                  <td colSpan={5} className="p-0">
+                  <td colSpan={6} className="p-0">
                     <NewTemplatePanel
                       onSaved={saved => { setItems(prev => [...prev, saved]); setAdding(false) }}
                       onCancel={() => setAdding(false)}

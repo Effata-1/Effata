@@ -7,6 +7,7 @@ import type { CoachingTone } from '@/lib/genai/types'
 
 export interface NotificationFields {
   name?:             string
+  coach_label?:      string | null
   action_code?:      'coach' | 'coach-ack' | 'coach-just'
   title?:            string
   message?:          string

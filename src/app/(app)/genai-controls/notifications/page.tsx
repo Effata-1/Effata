@@ -6,6 +6,7 @@ import type { CoachingNotification } from '@/lib/genai/types'
 const SEED_DEFAULTS = [
   {
     name:        'AI Acceptable Use Policy',
+    coach_label: 'Coach 1',
     action_code: 'coach' as const,
     tone:        'informational' as const,
     title:       'AI Acceptable Use Policy — please review before proceeding',
@@ -14,6 +15,7 @@ const SEED_DEFAULTS = [
   },
   {
     name:        'GenAI Confidential Data Upload',
+    coach_label: 'Coach 2',
     action_code: 'coach-ack' as const,
     tone:        'warning' as const,
     title:       'Confidential data detected — {{NS_APP}}',
@@ -22,6 +24,7 @@ const SEED_DEFAULTS = [
   },
   {
     name:        'GenAI Highly Confidential Data Upload',
+    coach_label: 'Coach 3',
     action_code: 'coach-just' as const,
     tone:        'warning' as const,
     title:       'Sensitive information detected — {{NS_CATEGORY}}',
@@ -30,6 +33,7 @@ const SEED_DEFAULTS = [
   },
   {
     name:        'GenAI Secret Data Upload',
+    coach_label: 'Coach 4',
     action_code: 'coach-just' as const,
     tone:        'urgent' as const,
     title:       'Secrets or credentials detected — {{NS_APP}}',
@@ -38,6 +42,7 @@ const SEED_DEFAULTS = [
   },
   {
     name:        'Prohibited GenAI App',
+    coach_label: 'Coach 5',
     action_code: 'coach' as const,
     tone:        'urgent' as const,
     title:       'Prohibited AI application — {{NS_APP}} is not approved',

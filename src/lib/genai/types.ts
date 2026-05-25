@@ -182,6 +182,7 @@ export interface CoachingNotification {
   id:               string
   org_id:           string
   name:             string
+  coach_label:      string | null
   action_code:      'coach' | 'coach-ack' | 'coach-just'
   title:            string
   message:          string
