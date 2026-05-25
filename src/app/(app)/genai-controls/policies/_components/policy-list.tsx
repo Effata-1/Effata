@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import Link from 'next/link'
 import { Pencil, Trash2, Plus, Loader2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { colorClasses } from '@/lib/data-catalog/types'
@@ -332,13 +333,13 @@ export function PolicyList({ policies: initialPolicies, categories }: Props) {
           Active only
         </label>
         <div className="flex-1" />
-        <button
-          onClick={() => setEditing('new')}
+        <Link
+          href="/genai-controls/policies/new"
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
           New Policy
-        </button>
+        </Link>
       </div>
 
       {/* Empty state */}
@@ -350,13 +351,13 @@ export function PolicyList({ policies: initialPolicies, categories }: Props) {
               : 'No policies match the current filters.'}
           </p>
           {policies.length === 0 && (
-            <button
-              onClick={() => setEditing('new')}
+            <Link
+              href="/genai-controls/policies/new"
               className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               Create Policy
-            </button>
+            </Link>
           )}
         </div>
       )}

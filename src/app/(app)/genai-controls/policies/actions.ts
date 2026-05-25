@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
-import type { ApprovalStatus, PolicyType } from '@/lib/genai/types'
+import type { ApprovalStatus, PolicyType, PolicyRule } from '@/lib/genai/types'
 
 export interface PolicyFields {
   name?:             string
@@ -19,6 +19,9 @@ export interface PolicyFields {
   notes?:            string
   is_active?:        boolean
   priority?:         number
+  scope_all_apps?:   boolean
+  scope_app_ids?:    string[]
+  rules?:            PolicyRule[]
 }
 
 export async function upsertPolicy(

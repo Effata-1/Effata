@@ -134,6 +134,16 @@ export interface CustomerClassification {
 
 export type PolicyType = 'usage' | 'data-handling' | 'approved-use' | 'prohibited'
 
+export type ActionCode = 'allow' | 'monitor' | 'alert' | 'coach' | 'coach-ack' | 'coach-just' | 'block' | 'not-set'
+
+export interface PolicyRule {
+  data_type:   string
+  post_prompt: ActionCode
+  upload:      ActionCode
+  download:    ActionCode
+  response:    ActionCode
+}
+
 export interface GenAIPolicy {
   id:               string
   org_id:           string
@@ -150,6 +160,10 @@ export interface GenAIPolicy {
   notes:            string | null
   is_active:        boolean
   priority:         number
+  // P1-4 scope + rules (migration 043)
+  scope_all_apps:   boolean
+  scope_app_ids:    string[]
+  rules:            PolicyRule[]
   created_at:       string
   updated_at:       string
 }
