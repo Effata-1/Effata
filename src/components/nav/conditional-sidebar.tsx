@@ -6,6 +6,7 @@ import { Sidebar } from './sidebar'
 const SECTION_ROUTES = [
   '/settings',
   '/architecture',
+  '/genai-controls',
   '/data-in-motion',
   '/data-at-rest',
   '/data-in-use',

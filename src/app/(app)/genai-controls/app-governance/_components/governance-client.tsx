@@ -365,7 +365,7 @@ function CategorySection({
   category: GenAIGovernanceCategory
   apps: AppEntry[]
 }) {
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
   const cc = colorClasses(category.color)
 
   const inScopeCount = apps.filter(e =>
