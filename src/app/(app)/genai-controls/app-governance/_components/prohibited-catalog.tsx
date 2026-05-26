@@ -133,13 +133,13 @@ function AppRow({
           </div>
         </button>
 
-        {/* Classification + In-scope (always visible) */}
+        {/* Controls */}
         <div className="flex items-center gap-2 shrink-0">
           {isPending ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground/40" />
-          ) : (
+          ) : localData.in_scope ? (
             <>
-              {/* Classification select */}
+              {/* Classification select — only visible once in scope */}
               <div className={cn(
                 'relative rounded-lg border px-2.5 py-1.5 w-[178px]',
                 CLS_STYLE[effectiveCls],
@@ -152,27 +152,29 @@ function AppRow({
                 >
                   {CLS_OPTIONS.map(o => (
                     <option key={o.value} value={o.value} className="bg-card text-foreground font-normal">
-                      {o.label}{o.value === 'prohibited' && isSystemDefault ? ' (suggested)' : ''}
+                      {o.label}
                     </option>
                   ))}
                 </select>
                 <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none opacity-60" />
               </div>
 
-              {/* In scope toggle */}
               <button
                 type="button"
                 onClick={handleInScope}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all whitespace-nowrap',
-                  localData.in_scope
-                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
-                    : 'bg-transparent border-border text-muted-foreground/50 hover:border-border-strong hover:text-foreground/70',
-                )}
+                className="px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all whitespace-nowrap bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
               >
-                {localData.in_scope ? 'In scope ✓' : 'Add to scope'}
+                In scope ✓
               </button>
             </>
+          ) : (
+            <button
+              type="button"
+              onClick={handleInScope}
+              className="px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all whitespace-nowrap border-border text-muted-foreground/50 hover:border-border-strong hover:text-foreground/70"
+            >
+              Add to scope
+            </button>
           )}
         </div>
       </div>
