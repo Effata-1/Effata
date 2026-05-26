@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, Loader2, Search } from 'lucide-react'
+import { Check, ChevronDown, Loader2, Search, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { colorClasses } from '@/lib/data-catalog/types'
 import { upsertPolicy } from '../../actions'
@@ -143,6 +143,159 @@ const defaultRulesFromItems = (items: RuleItem[]): PolicyRule[] =>
 
 // ── Step 1: Details ───────────────────────────────────────────────────────────
 
+function IdentityAccordion({
+  identityContext, setIdentityContext, identityFields,
+}: {
+  identityContext: Set<string>
+  setIdentityContext: (v: Set<string>) => void
+  identityFields: Record<string, IdentityOption[]>
+}) {
+  const [expandedField, setExpandedField] = useState<IdentityFieldName | null>(null)
+  const [search, setSearch] = useState<Record<string, string>>({})
+
+  function toggle(id: string) {
+    const next = new Set(identityContext)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setIdentityContext(next)
+  }
+
+  function clearField(field: IdentityFieldName) {
+    const ids = new Set((identityFields[field] ?? []).map(v => v.id))
+    const next = new Set([...identityContext].filter(id => !ids.has(id)))
+    setIdentityContext(next)
+  }
+
+  const hasAnyIdentity = IDENTITY_FIELD_ORDER.some(f => (identityFields[f]?.length ?? 0) > 0)
+
+  if (!hasAnyIdentity) {
+    return (
+      <p className="text-xs text-muted-foreground/40 italic">
+        No identity values configured yet. Set them up in{' '}
+        <a href="/policies/identity" className="underline hover:text-muted-foreground/60 transition-colors">
+          Policies → Identity
+        </a>.
+      </p>
+    )
+  }
+
+  const allValues = IDENTITY_FIELD_ORDER.flatMap(f => identityFields[f] ?? [])
+  const selectedValues = allValues.filter(v => identityContext.has(v.id))
+
+  return (
+    <div className="space-y-2">
+      {/* Summary chips when collapsed */}
+      {selectedValues.length > 0 && !expandedField && (
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {selectedValues.map(v => (
+            <span
+              key={v.id}
+              className="flex items-center gap-1 px-2 py-1 rounded-md bg-foreground/10 border border-foreground/20 text-xs text-foreground/80"
+            >
+              <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', RISK_DOT[v.risk_level] ?? 'bg-muted')} />
+              {v.value_name}
+              <button onClick={() => toggle(v.id)} className="ml-0.5 text-muted-foreground/50 hover:text-foreground/70 transition-colors">
+                <X className="w-2.5 h-2.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Accordion rows */}
+      {IDENTITY_FIELD_ORDER.map(field => {
+        const values = identityFields[field] ?? []
+        if (!values.length) return null
+
+        const isOpen = expandedField === field
+        const selectedInField = values.filter(v => identityContext.has(v.id)).length
+        const q = (search[field] ?? '').toLowerCase()
+        const filtered = q ? values.filter(v => v.value_name.toLowerCase().includes(q)) : values
+
+        return (
+          <div key={field} className="rounded-lg border border-border/60 overflow-hidden">
+            {/* Header */}
+            <button
+              type="button"
+              onClick={() => setExpandedField(isOpen ? null : field)}
+              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/20 transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="text-xs font-semibold text-foreground/80">{IDENTITY_FIELD_LABELS[field]}</span>
+                {selectedInField > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-foreground/10 border border-foreground/20 text-foreground/70 font-semibold">
+                    {selectedInField} selected
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {selectedInField > 0 && (
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); clearField(field) }}
+                    className="text-[10px] text-muted-foreground/50 hover:text-foreground/70 transition-colors px-1.5 py-0.5 rounded hover:bg-muted/40"
+                  >
+                    Clear
+                  </button>
+                )}
+                <ChevronDown className={cn('w-3.5 h-3.5 text-muted-foreground/40 transition-transform duration-150', isOpen && 'rotate-180')} />
+              </div>
+            </button>
+
+            {/* Expanded panel */}
+            {isOpen && (
+              <div className="border-t border-border/40 bg-card/30 px-4 py-3 space-y-3">
+                {values.length > 6 && (
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/40" />
+                    <input
+                      value={search[field] ?? ''}
+                      onChange={e => setSearch(s => ({ ...s, [field]: e.target.value }))}
+                      placeholder={`Search ${IDENTITY_FIELD_LABELS[field].toLowerCase()}…`}
+                      className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/30 border border-border/60 rounded-md pl-7 pr-3 py-1.5 focus:border-border focus:outline-none transition-colors"
+                    />
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  {filtered.map(v => {
+                    const selected = identityContext.has(v.id)
+                    return (
+                      <button
+                        key={v.id}
+                        type="button"
+                        onClick={() => toggle(v.id)}
+                        className={cn(
+                          'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all',
+                          selected
+                            ? 'bg-foreground/10 border-foreground/30 text-foreground'
+                            : 'border-border text-muted-foreground/70 hover:border-border-strong',
+                        )}
+                      >
+                        <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', RISK_DOT[v.risk_level] ?? 'bg-muted')} />
+                        {v.value_name}
+                        {selected && <Check className="w-3 h-3 ml-0.5 shrink-0" />}
+                      </button>
+                    )
+                  })}
+                  {filtered.length === 0 && (
+                    <p className="text-xs text-muted-foreground/40 py-1">No matches.</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {identityContext.size === 0 && (
+        <p className="text-[10px] text-muted-foreground/40 pt-1">
+          No filter applied — policy applies to all users.
+        </p>
+      )}
+    </div>
+  )
+}
+
 function StepDetails({
   name, setName, description, setDescription,
   identityContext, setIdentityContext, identityFields,
@@ -154,15 +307,6 @@ function StepDetails({
 }) {
   const inputCls = 'w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/30 border border-border/60 rounded-md px-3 py-2 focus:border-border focus:outline-none transition-colors'
   const labelCls = 'text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1'
-
-  function toggle(id: string) {
-    const next = new Set(identityContext)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    setIdentityContext(next)
-  }
-
-  const hasAnyIdentity = IDENTITY_FIELD_ORDER.some(f => (identityFields[f]?.length ?? 0) > 0)
 
   return (
     <div className="space-y-5">
@@ -192,56 +336,11 @@ function StepDetails({
         <p className="text-xs text-muted-foreground/60 mb-3">
           Optionally restrict this policy to specific user groups. Leave empty to apply to all users.
         </p>
-
-        {!hasAnyIdentity ? (
-          <p className="text-xs text-muted-foreground/40 italic">
-            No identity values configured yet. Set them up in{' '}
-            <a href="/policies/identity" className="underline hover:text-muted-foreground/60 transition-colors">
-              Policies → Identity
-            </a>.
-          </p>
-        ) : (
-          <div className="space-y-4">
-            {IDENTITY_FIELD_ORDER.map(field => {
-              const values = identityFields[field] ?? []
-              if (!values.length) return null
-              return (
-                <div key={field}>
-                  <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide mb-2">
-                    {IDENTITY_FIELD_LABELS[field]}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {values.map(v => {
-                      const selected = identityContext.has(v.id)
-                      return (
-                        <button
-                          key={v.id}
-                          onClick={() => toggle(v.id)}
-                          className={cn(
-                            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all',
-                            selected
-                              ? 'bg-foreground/10 border-foreground/30 text-foreground'
-                              : 'border-border text-muted-foreground/70 hover:border-border-strong',
-                          )}
-                        >
-                          <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', RISK_DOT[v.risk_level] ?? 'bg-muted')} />
-                          {v.value_name}
-                          {selected && <Check className="w-3 h-3 ml-0.5 shrink-0" />}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        {identityContext.size > 0 && (
-          <p className="text-[10px] text-muted-foreground/50 mt-3">
-            {identityContext.size} group{identityContext.size !== 1 ? 's' : ''} selected — policy applies only to matching users.
-          </p>
-        )}
+        <IdentityAccordion
+          identityContext={identityContext}
+          setIdentityContext={setIdentityContext}
+          identityFields={identityFields}
+        />
       </div>
     </div>
   )
