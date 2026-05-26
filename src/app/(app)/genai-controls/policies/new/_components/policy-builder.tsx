@@ -64,15 +64,9 @@ interface Category {
   color:      string
 }
 
-interface Classification {
-  app_id:                  string
-  customer_classification: string
-}
-
 interface Props {
   apps:            App[]
   categories:      Category[]
-  classifications: Classification[]
   identityFields:  Record<string, IdentityOption[]>
   ruleItems:       RuleItem[]
   initialPolicy?:  InitialPolicyData | null
@@ -140,8 +134,6 @@ const LAYER_LABELS: Record<1 | 2 | 3, string> = {
   2: 'Org Data Types',
   3: 'Catalog Reference Types',
 }
-
-type ScopeMode = 'category' | 'specific'
 
 // ── Derive initial form state from saved policy rules ─────────────────────────
 
@@ -353,26 +345,14 @@ function SourceSection({
 // ── Destination section — app scope ───────────────────────────────────────────
 
 function DestinationSection({
-  scopeMode, setScopeMode, scopeCategoryId, setScopeCategoryId,
-  selectedAppIds, setSelectedAppIds, categories, apps, classifications,
+  selectedAppIds, setSelectedAppIds, apps,
 }: {
-  scopeMode: ScopeMode | null
-  setScopeMode: (v: ScopeMode) => void
-  scopeCategoryId: string | null
-  setScopeCategoryId: (v: string | null) => void
   selectedAppIds: Set<string>
   setSelectedAppIds: (v: Set<string>) => void
-  categories: Category[]
   apps: App[]
-  classifications: Classification[]
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
-
-  function appCountForCategory(cat: Category): number {
-    if (!cat.system_tag) return 0
-    return classifications.filter(c => c.customer_classification === cat.system_tag).length
-  }
 
   function toggleApp(appId: string) {
     const next = new Set(selectedAppIds)
@@ -381,17 +361,11 @@ function DestinationSection({
     setSelectedAppIds(next)
   }
 
-  const selectedCategory = categories.find(c => c.id === scopeCategoryId)
-  const filteredApps = apps.filter(a =>
+  const selectedApps  = apps.filter(a => selectedAppIds.has(a.app_id))
+  const filteredApps  = apps.filter(a =>
     a.app_name.toLowerCase().includes(search.toLowerCase()) ||
-    a.vendor?.toLowerCase().includes(search.toLowerCase())
+    (a.vendor ?? '').toLowerCase().includes(search.toLowerCase())
   )
-
-  function scopeLabel(): string {
-    if (scopeMode === 'category' && selectedCategory) return selectedCategory.name
-    if (scopeMode === 'specific' && selectedAppIds.size > 0) return `${selectedAppIds.size} app${selectedAppIds.size !== 1 ? 's' : ''} selected`
-    return 'All apps — click to scope to specific apps'
-  }
 
   return (
     <div className="space-y-2">
@@ -402,104 +376,62 @@ function DestinationSection({
       >
         <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide shrink-0 w-10">Apps</span>
         <span className="text-xs text-muted-foreground/40 mr-1">=</span>
-        {scopeMode ? (
-          <span className={cn('flex items-center gap-1.5 px-2.5 py-0.5 rounded border text-xs font-medium',
-            selectedCategory ? colorClasses(selectedCategory.color).bg + ' ' + colorClasses(selectedCategory.color).text + ' ' + colorClasses(selectedCategory.color).border
-                             : 'bg-foreground/10 border-foreground/20 text-foreground/80'
-          )}>
-            {scopeMode === 'category' && selectedCategory && (
-              <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', colorClasses(selectedCategory.color).dot)} />
-            )}
-            {scopeLabel()}
-          </span>
+        {selectedApps.length === 0 ? (
+          <span className="flex-1 text-xs text-muted-foreground/40 italic">All apps — click to scope to specific apps</span>
         ) : (
-          <span className="flex-1 text-xs text-muted-foreground/40 italic">{scopeLabel()}</span>
+          <div className="flex-1 flex flex-wrap gap-1">
+            {selectedApps.slice(0, 4).map(a => (
+              <span key={a.app_id} className="flex items-center gap-1 px-2 py-0.5 rounded bg-foreground/10 border border-foreground/20 text-xs text-foreground/80">
+                <span className="w-3 h-3 rounded flex items-center justify-center text-[8px] font-bold shrink-0" style={{ backgroundColor: a.logo_bg }}>{a.logo_letter}</span>
+                {a.app_name}
+              </span>
+            ))}
+            {selectedApps.length > 4 && <span className="px-2 py-0.5 rounded bg-muted/60 border border-border text-xs text-muted-foreground/60">+{selectedApps.length - 4} more</span>}
+          </div>
         )}
         <ChevronDown className={cn('w-3.5 h-3.5 text-muted-foreground/30 shrink-0 ml-auto transition-transform', open && 'rotate-180')} />
       </button>
 
       {open && (
         <div className="rounded-lg border border-border/50 bg-card/30 p-4 space-y-3">
-          <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wide font-semibold">Select by governance category or specific apps</p>
-          <div className="grid grid-cols-2 gap-2">
-            {categories.map(cat => {
-              const cc = colorClasses(cat.color)
-              const isSelected = scopeMode === 'category' && scopeCategoryId === cat.id
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/30" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search apps…"
+              className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/30 border border-border/50 rounded-md pl-7 pr-3 py-1.5 focus:outline-none focus:border-border transition-colors"
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-1.5 max-h-56 overflow-y-auto pr-0.5">
+            {filteredApps.map(app => {
+              const checked = selectedAppIds.has(app.app_id)
               return (
                 <button
-                  key={cat.id}
+                  key={app.app_id}
                   type="button"
-                  onClick={() => { setScopeMode('category'); setScopeCategoryId(cat.id) }}
+                  onClick={() => toggleApp(app.app_id)}
                   className={cn(
-                    'flex items-center gap-2.5 px-3.5 py-3 rounded-lg border text-left transition-all',
-                    isSelected ? 'bg-foreground/10 border-foreground/30' : 'border-border hover:border-border-strong',
+                    'flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left transition-all',
+                    checked ? 'border-foreground/30 bg-foreground/10' : 'border-border hover:border-border-strong',
                   )}
                 >
-                  <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', cc.dot)} />
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-foreground/85 truncate">{cat.name}</p>
-                    <p className="text-[10px] text-muted-foreground/50">{appCountForCategory(cat)} apps</p>
+                  <div
+                    className="w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold text-foreground shrink-0"
+                    style={{ backgroundColor: app.logo_bg }}
+                  >
+                    {app.logo_letter}
                   </div>
-                  {isSelected && <Check className="w-3 h-3 text-foreground/60 ml-auto shrink-0" />}
+                  <span className="text-xs font-medium text-foreground/80 truncate">{app.app_name}</span>
+                  {checked && <Check className="w-3 h-3 text-foreground/60 ml-auto shrink-0" />}
                 </button>
               )
             })}
-
-            <button
-              type="button"
-              onClick={() => { setScopeMode('specific'); setScopeCategoryId(null) }}
-              className={cn(
-                'flex items-center gap-2.5 px-3.5 py-3 rounded-lg border text-left transition-all',
-                scopeMode === 'specific' ? 'bg-foreground/10 border-foreground/30' : 'border-border hover:border-border-strong',
-              )}
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground/40 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-foreground/85">Specific Apps</p>
-                <p className="text-[10px] text-muted-foreground/50">
-                  {selectedAppIds.size > 0 ? `${selectedAppIds.size} selected` : 'Pick from catalog'}
-                </p>
-              </div>
-              {scopeMode === 'specific' && <Check className="w-3 h-3 text-foreground/60 ml-auto shrink-0" />}
-            </button>
           </div>
-
-          {scopeMode === 'specific' && (
-            <div className="space-y-2 pt-1">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/30" />
-                <input
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Search apps…"
-                  className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/30 border border-border/50 rounded-md pl-7 pr-3 py-1.5 focus:outline-none focus:border-border transition-colors"
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-y-auto pr-0.5">
-                {filteredApps.map(app => {
-                  const checked = selectedAppIds.has(app.app_id)
-                  return (
-                    <button
-                      key={app.app_id}
-                      type="button"
-                      onClick={() => toggleApp(app.app_id)}
-                      className={cn(
-                        'flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left transition-all',
-                        checked ? 'border-foreground/30 bg-foreground/10' : 'border-border hover:border-border-strong',
-                      )}
-                    >
-                      <div
-                        className="w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold text-foreground shrink-0"
-                        style={{ backgroundColor: app.logo_bg }}
-                      >
-                        {app.logo_letter}
-                      </div>
-                      <span className="text-xs font-medium text-foreground/80 truncate">{app.app_name}</span>
-                      {checked && <Check className="w-3 h-3 text-foreground/60 ml-auto shrink-0" />}
-                    </button>
-                  )
-                })}
-              </div>
+          {selectedAppIds.size > 0 && (
+            <div className="flex items-center gap-2 pt-1 border-t border-border/40">
+              <span className="text-[10px] text-muted-foreground/50">{selectedAppIds.size} app{selectedAppIds.size !== 1 ? 's' : ''} selected</span>
+              <button type="button" onClick={() => setSelectedAppIds(new Set())} className="text-[10px] text-muted-foreground/40 hover:text-foreground/60 underline">Clear</button>
             </div>
           )}
         </div>
@@ -708,13 +640,10 @@ function ActionSection({
 function PolicyDetailsSection({
   name, setName, description, setDescription,
   approvalStatus, setApprovalStatus,
-  categoryId, setCategoryId, categories,
 }: {
   name: string; setName: (v: string) => void
   description: string; setDescription: (v: string) => void
   approvalStatus: ApprovalStatus; setApprovalStatus: (v: ApprovalStatus) => void
-  categoryId: string | null; setCategoryId: (v: string | null) => void
-  categories: Category[]
 }) {
   const inputCls = 'w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/30 border border-border/60 rounded-lg px-3.5 py-2.5 focus:border-border focus:outline-none transition-colors'
   const selectCls = 'bg-card text-xs text-foreground border border-border/60 rounded-lg px-3 py-2.5 focus:outline-none appearance-none cursor-pointer'
@@ -742,15 +671,6 @@ function PolicyDetailsSection({
           className={`${inputCls} resize-none`}
         />
       </div>
-      {categories.length > 0 && (
-        <div>
-          <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Policy Group</label>
-          <select value={categoryId ?? ''} onChange={e => setCategoryId(e.target.value || null)} className={selectCls}>
-            <option value="">— No group —</option>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-      )}
       <div>
         <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Approval Status</label>
         <select value={approvalStatus} onChange={e => setApprovalStatus(e.target.value as ApprovalStatus)} className={selectCls}>
@@ -796,14 +716,13 @@ function StatusSection({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function PolicyBuilder({ apps, categories, classifications, identityFields, ruleItems, initialPolicy }: Props) {
+export function PolicyBuilder({ apps, categories, identityFields, ruleItems, initialPolicy }: Props) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   const isEdit = Boolean(initialPolicy?.id)
 
-  // Derive initial state from saved policy (if editing)
   const derived = initialPolicy?.rules?.length
     ? deriveFromRules(initialPolicy.rules, ruleItems)
     : {
@@ -815,10 +734,8 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
   // Source
   const [identityContext, setIdentityContext] = useState<Set<string>>(new Set(initialPolicy?.identity_context ?? []))
 
-  // Destination
-  const [scopeMode, setScopeMode]             = useState<ScopeMode | null>(initialPolicy?.scope_app_ids?.length ? 'specific' : null)
-  const [scopeCategoryId, setScopeCategoryId] = useState<string | null>(null)
-  const [selectedAppIds, setSelectedAppIds]   = useState<Set<string>>(new Set(initialPolicy?.scope_app_ids ?? []))
+  // Destination — specific apps only
+  const [selectedAppIds, setSelectedAppIds] = useState<Set<string>>(new Set(initialPolicy?.scope_app_ids ?? []))
 
   // Data Profile
   const [selectedDataKeys, setSelectedDataKeys]     = useState<Set<string>>(derived.selectedDataKeys)
@@ -828,10 +745,9 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
   const [primaryAction, setPrimaryAction] = useState<ActionCode>(derived.primaryAction)
 
   // Details
-  const [name, setName]                         = useState(initialPolicy?.name ?? '')
-  const [description, setDescription]           = useState(initialPolicy?.description ?? '')
-  const [approvalStatus, setApprovalStatus]     = useState<ApprovalStatus>(initialPolicy?.approval_status ?? 'draft')
-  const [categoryId, setCategoryId]             = useState<string | null>(initialPolicy?.category_id ?? null)
+  const [name, setName]                     = useState(initialPolicy?.name ?? '')
+  const [description, setDescription]       = useState(initialPolicy?.description ?? '')
+  const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>(initialPolicy?.approval_status ?? 'draft')
 
   // Status
   const [isActive, setIsActive] = useState(initialPolicy?.is_active ?? true)
@@ -839,18 +755,6 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
   function handleSave() {
     if (!name.trim()) { setError('Policy name is required.'); return }
     setError(null)
-
-    let saveAppIds: string[] = []
-    if (scopeMode === 'category' && scopeCategoryId) {
-      const cat = categories.find(c => c.id === scopeCategoryId)
-      if (cat?.system_tag) {
-        saveAppIds = classifications
-          .filter(c => c.customer_classification === cat.system_tag)
-          .map(c => c.app_id)
-      }
-    } else if (scopeMode === 'specific') {
-      saveAppIds = Array.from(selectedAppIds)
-    }
 
     const saveRules: PolicyRule[] = primaryAction === 'not-set'
       ? []
@@ -869,11 +773,10 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
         name:             name.trim(),
         description:      description || undefined,
         policy_type:      'usage',
-        category_id:      categoryId,
         approval_status:  approvalStatus,
         is_active:        isActive,
-        scope_all_apps:   false,
-        scope_app_ids:    saveAppIds,
+        scope_all_apps:   selectedAppIds.size === 0,
+        scope_app_ids:    Array.from(selectedAppIds),
         rules:            saveRules,
         identity_context: identityContext.size > 0 ? [...identityContext] : null,
       })
@@ -895,10 +798,8 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
 
         <PolicySection icon={<Target />} label="Destination">
           <DestinationSection
-            scopeMode={scopeMode} setScopeMode={setScopeMode}
-            scopeCategoryId={scopeCategoryId} setScopeCategoryId={setScopeCategoryId}
             selectedAppIds={selectedAppIds} setSelectedAppIds={setSelectedAppIds}
-            categories={categories} apps={apps} classifications={classifications}
+            apps={apps}
           />
         </PolicySection>
 
@@ -919,8 +820,6 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
             name={name} setName={setName}
             description={description} setDescription={setDescription}
             approvalStatus={approvalStatus} setApprovalStatus={setApprovalStatus}
-            categoryId={categoryId} setCategoryId={setCategoryId}
-            categories={categories}
           />
         </PolicySection>
 
