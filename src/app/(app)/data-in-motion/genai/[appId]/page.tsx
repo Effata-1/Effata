@@ -106,37 +106,19 @@ export default async function GenAIAppProfilePage({
 
   const typedApp = app as GenAIApp
   const typedProfiles = (profiles ?? []) as GenAIAppProfile[]
-  const enterpriseProfile = typedProfiles.find(p => p.mode === 'enterprise')
-  const personalProfile = typedProfiles.find(p => p.mode === 'personal')
-  const primaryProfile = enterpriseProfile ?? personalProfile
+  const profile = typedProfiles[0] ?? null
 
-  const score = primaryProfile
-    ? computeTrustScore(primaryProfile.fields, primaryProfile.dlp, primaryProfile.breach_info)
-    : null
-  const personalScore = personalProfile && enterpriseProfile
-    ? computeTrustScore(personalProfile.fields, personalProfile.dlp, personalProfile.breach_info)
+  const score = profile
+    ? computeTrustScore(profile.fields, profile.dlp, profile.breach_info)
     : null
 
-  const fields = primaryProfile?.fields as AppFields | undefined
-  const dlp = primaryProfile?.dlp as DLPActivities | undefined
-  const breach = primaryProfile?.breach_info as BreachInfo | undefined
+  const fields = profile?.fields as AppFields | undefined
+  const dlp = profile?.dlp as DLPActivities | undefined
+  const breach = profile?.breach_info as BreachInfo | undefined
   const currentClassification = (classification?.customer_classification ?? 'unknown') as CustomerClass
 
   const scoreColor = (s: number) =>
     s >= 85 ? 'text-green-400' : s >= 70 ? 'text-blue-400' : s >= 50 ? 'text-yellow-400' : 'text-red-400'
-
-  // Fields for enterprise vs personal comparison
-  const COMPARE_FIELDS: { key: keyof AppFields; label: string }[] = [
-    { key: 'trains_on_customer_data', label: 'Customer data used for training' },
-    { key: 'opt_out_of_training', label: 'Opt out of training' },
-    { key: 'dpa_available', label: 'DPA available' },
-    { key: 'data_retention', label: 'Data retention controls' },
-    { key: 'data_residency', label: 'Data residency' },
-    { key: 'soc2', label: 'SOC 2' },
-    { key: 'hipaa_baa', label: 'HIPAA / BAA' },
-    { key: 'encryption_at_rest', label: 'Encryption at rest' },
-    { key: 'model_provider_clear', label: 'Model provider clarity' },
-  ]
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -209,41 +191,6 @@ export default async function GenAIAppProfilePage({
         />
       </div>
 
-      {/* Enterprise vs Personal comparison */}
-      {enterpriseProfile && personalProfile && (
-        <div className="rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm">
-          <div className="px-5 py-3 border-b border-border bg-card">
-            <h2 className="text-sm font-semibold text-foreground">Enterprise vs Personal Mode</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left text-[11px] text-muted-foreground/80 uppercase tracking-wide px-5 py-3 w-48">Capability</th>
-                  <th className="text-left text-[11px] text-muted-foreground/80 uppercase tracking-wide px-4 py-3">
-                    Enterprise / Team
-                    {score && <span className={cn('ml-2 font-bold', scoreColor(score.final_score))}>{score.final_score}</span>}
-                  </th>
-                  <th className="text-left text-[11px] text-muted-foreground/80 uppercase tracking-wide px-4 py-3">
-                    Personal / Free
-                    {personalScore && <span className={cn('ml-2 font-bold', scoreColor(personalScore.final_score))}>{personalScore.final_score}</span>}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {COMPARE_FIELDS.map(({ key, label }) => (
-                  <tr key={key} className="border-b border-border/60">
-                    <td className="px-5 py-2.5 text-xs text-muted-foreground">{label}</td>
-                    <td className="px-4 py-2.5"><FieldBadge value={enterpriseProfile.fields[key] as string} /></td>
-                    <td className="px-4 py-2.5"><FieldBadge value={personalProfile.fields[key] as string} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
       {/* Data Governance & Privacy */}
       {fields && (
         <div className="rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm">
@@ -313,7 +260,7 @@ export default async function GenAIAppProfilePage({
             {score && <span className={cn('text-sm font-bold', scoreColor(score.genai_risk))}>{score.genai_risk}/100</span>}
           </div>
           <div className="px-5">
-            {(['model_provider_clear','trains_on_customer_data','opt_out_of_training','prompt_retention_controls','private_instance','connectors_agents_risk'] as const).map(key => (
+            {(['model_provider_clear','trains_on_customer_data','opt_out_of_training','prompt_retention_controls','connectors_agents_risk'] as const).map(key => (
               <FieldRow key={key} label={FIELD_LABELS[key]} value={fields[key] as string}
                 isNegative={['trains_on_customer_data','connectors_agents_risk'].includes(key)} />
             ))}

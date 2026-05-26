@@ -70,12 +70,11 @@ export async function evaluateApp(
       isNewToDb = true
     }
 
-    // 4. Check for existing enterprise profile
+    // 4. Check for existing profile
     const { data: existingProfile } = await service
       .from('genai_app_profiles')
       .select('*')
       .eq('app_id', app.app_id)
-      .eq('mode', 'enterprise')
       .maybeSingle()
 
     let profile: GenAIAppProfile
@@ -92,12 +91,9 @@ export async function evaluateApp(
         app_type: app.app_type,
       })
 
-      // 6. Upsert both enterprise + personal profiles
+      // 6. Upsert single personal profile
       const { error: upsertErr } = await service.from('genai_app_profiles').upsert(
-        [
-          { app_id: app.app_id, mode: 'enterprise', fields: researched.enterprise.fields, dlp: researched.enterprise.dlp, breach_info: researched.enterprise.breach_info },
-          { app_id: app.app_id, mode: 'personal',   fields: researched.personal.fields,   dlp: researched.personal.dlp,   breach_info: researched.personal.breach_info },
-        ],
+        { app_id: app.app_id, mode: 'personal', fields: researched.fields, dlp: researched.dlp, breach_info: researched.breach_info },
         { onConflict: 'app_id,mode' },
       )
 
@@ -107,10 +103,9 @@ export async function evaluateApp(
 
       profile = {
         app_id:      app.app_id,
-        mode:        'enterprise',
-        fields:      researched.enterprise.fields,
-        dlp:         researched.enterprise.dlp,
-        breach_info: researched.enterprise.breach_info,
+        fields:      researched.fields,
+        dlp:         researched.dlp,
+        breach_info: researched.breach_info,
       } as GenAIAppProfile
     }
 

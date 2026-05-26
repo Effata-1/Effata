@@ -69,7 +69,6 @@ const COLUMN_GROUPS: Record<GroupId, { label: string; type: 'dlp' | 'field'; col
       { key: 'tenant_segregation',        label: 'Tenant Seg.'     },
       { key: 'model_provider_clear',      label: 'Model Provider'  },
       { key: 'prompt_retention_controls', label: 'Prompt Controls' },
-      { key: 'private_instance',          label: 'Private Inst.'   },
       { key: 'connectors_agents_risk',    label: 'Connectors Risk', negative: true },
     ],
   },

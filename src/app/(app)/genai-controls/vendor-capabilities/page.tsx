@@ -23,8 +23,7 @@ export default async function VendorCapabilitiesPage() {
       .order('app_name'),
     supabase
       .from('genai_app_profiles')
-      .select('app_id, fields, dlp')
-      .eq('mode', 'enterprise'),
+      .select('app_id, fields, dlp'),
   ])
 
   const apps     = appsResult.data     ?? []

@@ -31,7 +31,6 @@ export interface AppFields {
   // GenAI-Specific
   model_provider_clear: FieldValue
   prompt_retention_controls: FieldValue
-  private_instance: FieldValue
   connectors_agents_risk: FieldValue   // negative field
 }
 
@@ -97,7 +96,6 @@ export interface GenAIApp {
 
 export interface GenAIAppProfile {
   app_id: string
-  mode: 'enterprise' | 'personal'
   fields: AppFields
   dlp: DLPActivities
   breach_info: BreachInfo

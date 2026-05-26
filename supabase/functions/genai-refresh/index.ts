@@ -19,13 +19,10 @@ interface AppFields {
   dpa_available: ValidField; customer_owns_data: ValidField; trains_on_customer_data: ValidField
   opt_out_of_training: ValidField; data_retention: ValidField; data_deletion: ValidField
   data_residency: ValidField; subprocessor_list: ValidField; pii_sharing_third_parties: ValidField
-  data_sharing_genai_vendor: ValidField; enterprise_tier: ValidField; sso_saml: ValidField
-  mfa_support: ValidField; role_based_auth: ValidField; authorization_policies: ValidField
-  admin_console: ValidField; user_audit_logs: ValidField; data_access_audit_logs: ValidField
-  tenant_isolation: ValidField; soc2: ValidField; iso27001: ValidField; iso27018: ValidField
+  data_sharing_genai_vendor: ValidField; soc2: ValidField; iso27001: ValidField; iso27018: ValidField
   fedramp: ValidField; pci_dss: ValidField; hipaa_baa: ValidField; encryption_at_rest: ValidField
   encryption_in_transit: ValidField; tenant_segregation: ValidField; model_provider_clear: ValidField
-  prompt_retention_controls: ValidField; private_instance: ValidField; connectors_agents_risk: ValidField
+  prompt_retention_controls: ValidField; connectors_agents_risk: ValidField
 }
 interface DLPActivities {
   post_prompt: ValidDLP; upload: ValidDLP; login_instance: ValidDLP; edit: ValidDLP
@@ -53,16 +50,11 @@ function parseFields(raw: Record<string, unknown>): AppFields {
     data_retention: clampField(raw.data_retention), data_deletion: clampField(raw.data_deletion),
     data_residency: clampField(raw.data_residency), subprocessor_list: clampField(raw.subprocessor_list),
     pii_sharing_third_parties: clampField(raw.pii_sharing_third_parties), data_sharing_genai_vendor: clampField(raw.data_sharing_genai_vendor),
-    enterprise_tier: clampField(raw.enterprise_tier), sso_saml: clampField(raw.sso_saml),
-    mfa_support: clampField(raw.mfa_support), role_based_auth: clampField(raw.role_based_auth),
-    authorization_policies: clampField(raw.authorization_policies), admin_console: clampField(raw.admin_console),
-    user_audit_logs: clampField(raw.user_audit_logs), data_access_audit_logs: clampField(raw.data_access_audit_logs),
-    tenant_isolation: clampField(raw.tenant_isolation), soc2: clampField(raw.soc2),
-    iso27001: clampField(raw.iso27001), iso27018: clampField(raw.iso27018),
+    soc2: clampField(raw.soc2), iso27001: clampField(raw.iso27001), iso27018: clampField(raw.iso27018),
     fedramp: clampField(raw.fedramp), pci_dss: clampField(raw.pci_dss), hipaa_baa: clampField(raw.hipaa_baa),
     encryption_at_rest: clampField(raw.encryption_at_rest), encryption_in_transit: clampField(raw.encryption_in_transit),
     tenant_segregation: clampField(raw.tenant_segregation), model_provider_clear: clampField(raw.model_provider_clear),
-    prompt_retention_controls: clampField(raw.prompt_retention_controls), private_instance: clampField(raw.private_instance),
+    prompt_retention_controls: clampField(raw.prompt_retention_controls),
     connectors_agents_risk: clampField(raw.connectors_agents_risk),
   }
 }
@@ -86,7 +78,7 @@ function parseBreach(raw: Record<string, unknown>): BreachInfo {
 // ── Anthropic client + prompts ────────────────────────────────────────────────
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
 
-const SYSTEM_PROMPT = `You are a DLP security researcher. You evaluate GenAI applications for enterprise security posture.
+const SYSTEM_PROMPT = `You are a DLP security researcher. You evaluate GenAI applications from the personal/consumer tier perspective — the free or standard plan that employees actually use without IT provisioning.
 Respond ONLY with valid JSON. No markdown, no prose, no code blocks.
 
 Field values MUST be one of exactly:
@@ -94,6 +86,19 @@ Field values MUST be one of exactly:
 - DLPActivities: "enforcement" | "monitoring" | "partial" | "no-published" | "not-supported"
 - BreachInfo positive fields: same as AppFields
 - BreachInfo negative fields (recent_breach, older_breach): "yes" = bad, "no" = good
+
+Definitions:
+- yes: fully available/implemented on personal/free tier
+- no: not available/implemented
+- partial: partly available but incomplete
+- enterprise-only: feature exists but requires enterprise tier (NOT available to personal users)
+- tier-dependent: depends on which personal subscription tier (free vs pro)
+- configurable: user can configure it on personal tier
+- no-published: information not publicly available
+- na: not applicable for this app type
+- enforcement: DLP can block/enforce on this activity
+- monitoring: DLP can observe but not enforce
+- not-supported: DLP cannot intercept this activity at all
 
 Use "no-published" when you cannot verify a claim. Do not guess.`
 
@@ -104,7 +109,7 @@ async function researchApp(app: { app_id: string; app_name: string; vendor: stri
     system: SYSTEM_PROMPT,
     messages: [{
       role: 'user',
-      content: `Research this GenAI application for enterprise DLP security posture.
+      content: `Research this GenAI application from the personal/consumer tier perspective (free or standard plan — what employees actually use).
 
 App: ${app.app_name}
 Vendor: ${app.vendor}
@@ -113,26 +118,20 @@ Type: ${app.app_type}
 
 Return a JSON object with exactly this structure:
 {
-  "enterprise": {
-    "fields": { "dpa_available":"...","customer_owns_data":"...","trains_on_customer_data":"...","opt_out_of_training":"...","data_retention":"...","data_deletion":"...","data_residency":"...","subprocessor_list":"...","pii_sharing_third_parties":"...","data_sharing_genai_vendor":"...","enterprise_tier":"...","sso_saml":"...","mfa_support":"...","role_based_auth":"...","authorization_policies":"...","admin_console":"...","user_audit_logs":"...","data_access_audit_logs":"...","tenant_isolation":"...","soc2":"...","iso27001":"...","iso27018":"...","fedramp":"...","pci_dss":"...","hipaa_baa":"...","encryption_at_rest":"...","encryption_in_transit":"...","tenant_segregation":"...","model_provider_clear":"...","prompt_retention_controls":"...","private_instance":"...","connectors_agents_risk":"..." },
-    "dlp": { "post_prompt":"...","upload":"...","login_instance":"...","edit":"...","response":"...","download":"...","attach":"..." },
-    "breach_info": { "recent_breach":"...","older_breach":"...","breach_disclosed":"...","source_disclosure":"...","breach_remediated":"...","breach_name":null,"breach_date":null,"breach_description":null }
-  },
-  "personal": {
-    "fields": { ... same 32 fields for the personal/free tier ... },
-    "dlp": { ... same 7 activities ... },
-    "breach_info": { ... same as enterprise ... }
-  },
-  "notes": "Brief factual summary of key security characteristics and any notable risks."
+  "fields": { "dpa_available":"...","customer_owns_data":"...","trains_on_customer_data":"...","opt_out_of_training":"...","data_retention":"...","data_deletion":"...","data_residency":"...","subprocessor_list":"...","pii_sharing_third_parties":"...","data_sharing_genai_vendor":"...","soc2":"...","iso27001":"...","iso27018":"...","fedramp":"...","pci_dss":"...","hipaa_baa":"...","encryption_at_rest":"...","encryption_in_transit":"...","tenant_segregation":"...","model_provider_clear":"...","prompt_retention_controls":"...","connectors_agents_risk":"..." },
+  "dlp": { "post_prompt":"...","upload":"...","login_instance":"...","edit":"...","response":"...","download":"...","attach":"..." },
+  "breach_info": { "recent_breach":"...","older_breach":"...","breach_disclosed":"...","source_disclosure":"...","breach_remediated":"...","breach_name":null,"breach_date":null,"breach_description":null },
+  "notes": "Brief factual summary of key security characteristics and notable risks for personal-tier users."
 }`,
     }],
   })
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
   const parsed = JSON.parse(text)
   return {
-    enterprise: { fields: parseFields(parsed.enterprise.fields), dlp: parseDLP(parsed.enterprise.dlp), breach_info: parseBreach(parsed.enterprise.breach_info) },
-    personal:   { fields: parseFields(parsed.personal.fields),   dlp: parseDLP(parsed.personal.dlp),   breach_info: parseBreach(parsed.personal.breach_info) },
-    notes: typeof parsed.notes === 'string' ? parsed.notes : '',
+    fields:      parseFields(parsed.fields),
+    dlp:         parseDLP(parsed.dlp),
+    breach_info: parseBreach(parsed.breach_info),
+    notes:       typeof parsed.notes === 'string' ? parsed.notes : '',
   }
 }
 
@@ -247,27 +246,21 @@ serve(async () => {
         break
       }
       try {
-        const { data: existing } = await supabase.from('genai_app_profiles').select('fields, dlp').eq('app_id', app.app_id).eq('mode', 'enterprise').single()
+        const { data: existing } = await supabase.from('genai_app_profiles').select('fields, dlp').eq('app_id', app.app_id).maybeSingle()
         const profile = await researchApp(app)
 
         if (existing) {
           allChanges.push(
-            ...diffProfiles(app.app_id, app.app_name, existing.fields as Record<string, string>, profile.enterprise.fields as unknown as Record<string, string>),
-            ...diffProfiles(app.app_id, app.app_name, existing.dlp as Record<string, string>, profile.enterprise.dlp as unknown as Record<string, string>, 'dlp.'),
+            ...diffProfiles(app.app_id, app.app_name, existing.fields as Record<string, string>, profile.fields as unknown as Record<string, string>),
+            ...diffProfiles(app.app_id, app.app_name, existing.dlp as Record<string, string>, profile.dlp as unknown as Record<string, string>, 'dlp.'),
           )
         }
 
-        const { error: eErr } = await supabase.from('genai_app_profiles').upsert(
-          { app_id: app.app_id, mode: 'enterprise', fields: profile.enterprise.fields, dlp: profile.enterprise.dlp, breach_info: profile.enterprise.breach_info },
+        const { error: upsertErr } = await supabase.from('genai_app_profiles').upsert(
+          { app_id: app.app_id, mode: 'personal', fields: profile.fields, dlp: profile.dlp, breach_info: profile.breach_info },
           { onConflict: 'app_id,mode' },
         )
-        if (eErr) { errors.push({ app_id: app.app_id, error: `Enterprise upsert: ${eErr.message}` }); continue }
-
-        const { error: pErr } = await supabase.from('genai_app_profiles').upsert(
-          { app_id: app.app_id, mode: 'personal', fields: profile.personal.fields, dlp: profile.personal.dlp, breach_info: profile.personal.breach_info },
-          { onConflict: 'app_id,mode' },
-        )
-        if (pErr) { errors.push({ app_id: app.app_id, error: `Personal upsert: ${pErr.message}` }); continue }
+        if (upsertErr) { errors.push({ app_id: app.app_id, error: `Upsert: ${upsertErr.message}` }); continue }
 
         await supabase.from('genai_apps').update({ last_updated: new Date().toISOString(), auto_researched: true, research_notes: profile.notes }).eq('app_id', app.app_id)
         appsUpdated++

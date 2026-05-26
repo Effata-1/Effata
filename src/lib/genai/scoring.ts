@@ -2,9 +2,9 @@ import type { AppFields, DLPActivities, BreachInfo, TrustScores, FieldValue, DLP
 
 // ── Field value → score ────────────────────────────────────────
 const POS: Record<string, number> = {
-  'yes': 100, 'enterprise-only': 80, 'configurable': 80,
+  'yes': 100, 'configurable': 80,
   'tier-dependent': 60, 'partial': 60,
-  'no-published': 40, 'no': 0, 'na': 0,
+  'no-published': 40, 'enterprise-only': 0, 'no': 0, 'na': 0,
 }
 
 const NEG: Record<string, number> = {
@@ -69,12 +69,11 @@ function scoreSecurityCompliance(f: AppFields): number {
 // ── Sub-score D: GenAI-Specific Risk (15%) ─────────────────────
 function scoreGenAIRisk(f: AppFields): number {
   return (
-    p(f.model_provider_clear)    * 0.15 +
-    n(f.trains_on_customer_data) * 0.25 +
-    p(f.opt_out_of_training)     * 0.20 +
-    p(f.prompt_retention_controls) * 0.15 +
-    p(f.private_instance)        * 0.15 +
-    n(f.connectors_agents_risk)  * 0.10
+    p(f.model_provider_clear)      * 0.15 +
+    n(f.trains_on_customer_data)   * 0.25 +
+    p(f.opt_out_of_training)       * 0.25 +
+    p(f.prompt_retention_controls) * 0.25 +
+    n(f.connectors_agents_risk)    * 0.10
   )
 }
 
@@ -193,7 +192,6 @@ export const FIELD_LABELS: Record<string, string> = {
   // GenAI
   model_provider_clear: 'Model provider clarity',
   prompt_retention_controls: 'Prompt / data retention controls',
-  private_instance: 'Tenant / private instance support',
   connectors_agents_risk: 'Connectors / agents / external actions',
 }
 

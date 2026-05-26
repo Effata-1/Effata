@@ -41,7 +41,6 @@ export default async function GenAIAppsPage() {
   const { data: profiles } = await supabase
     .from('genai_app_profiles')
     .select('*')
-    .eq('mode', 'enterprise')
 
   const { data: { session } } = await supabase.auth.getSession()
   const orgId = session?.access_token

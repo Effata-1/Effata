@@ -34,7 +34,7 @@ export default async function GenAIAppCatalogPage() {
     .eq('status', 'active')
     .order('app_name')
 
-  // All profiles (enterprise + personal)
+  // All profiles
   const { data: profiles } = await supabase
     .from('genai_app_profiles')
     .select('*')
@@ -45,27 +45,22 @@ export default async function GenAIAppCatalogPage() {
     .select('*')
     .eq('org_id', user.orgId)
 
-  // Group profiles by app_id, then by mode
-  const profilesByApp = new Map<string, Map<string, GenAIAppProfile>>()
+  // One profile per app — first profile wins
+  const profileMap = new Map<string, GenAIAppProfile>()
   for (const p of (profiles as GenAIAppProfile[] ?? [])) {
-    if (!profilesByApp.has(p.app_id)) profilesByApp.set(p.app_id, new Map())
-    profilesByApp.get(p.app_id)!.set(p.mode, p)
+    if (!profileMap.has(p.app_id)) profileMap.set(p.app_id, p)
   }
   const classMap = new Map((classifications as CustomerClassification[] ?? []).map(c => [c.app_id, c]))
 
   const totalInDb = (allApps ?? []).length
 
-  // One entry per mode per app (only apps with at least one evaluated profile)
+  // One entry per app (only apps with an evaluated profile)
   const entries: CatalogEntry[] = []
   for (const app of (allApps as GenAIApp[] ?? [])) {
-    const modeMap = profilesByApp.get(app.app_id)
-    if (!modeMap) continue
-    for (const mode of (['enterprise', 'personal'] as const)) {
-      const profile = modeMap.get(mode)
-      if (!profile) continue
-      const score = computeTrustScore(profile.fields, profile.dlp, profile.breach_info)
-      entries.push({ app, score, classification: classMap.get(app.app_id) ?? null, mode })
-    }
+    const profile = profileMap.get(app.app_id)
+    if (!profile) continue
+    const score = computeTrustScore(profile.fields, profile.dlp, profile.breach_info)
+    entries.push({ app, score, classification: classMap.get(app.app_id) ?? null })
   }
 
   return (

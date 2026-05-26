@@ -14,7 +14,7 @@ export default async function AppGovernancePage() {
   const [categories, { data: apps }, { data: profiles }, { data: classifications }, { data: refNotes }] = await Promise.all([
     ensureGenAIGovernanceCategories(),
     supabase.from('genai_apps').select('*').eq('status', 'active').order('app_name'),
-    supabase.from('genai_app_profiles').select('*').eq('mode', 'enterprise'),
+    supabase.from('genai_app_profiles').select('*'),
     supabase.from('genai_customer_classifications').select('*').eq('org_id', user.orgId),
     supabase.from('org_reference_app_notes').select('app_slug, notes, in_scope, classification').eq('org_id', user.orgId),
   ])
