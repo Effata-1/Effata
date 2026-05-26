@@ -4,10 +4,10 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import {
   Pencil, Plus, Search,
-  ShieldAlert, Trash2, X,
+  ShieldAlert, ShieldCheck, Sparkles, Trash2, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { deletePolicy, togglePolicyActive } from '../actions'
+import { deletePolicy, generatePoliciesFromGovernance, togglePolicyActive } from '../actions'
 import type { GenAIPolicy, ApprovalStatus, ActionCode, PolicyRule } from '@/lib/genai/types'
 import { lintAllPolicies, SEVERITY_STYLES, type LintIssue } from '@/lib/genai/lint'
 import type { RuleItem } from '../new/_components/policy-builder'
@@ -70,6 +70,32 @@ const ACTIVITIES: { key: Activity; label: string }[] = [
   { key: 'download',    label: 'Download' },
   { key: 'response',    label: 'Response' },
 ]
+
+const TEST_CHIP: Record<string, string> = {
+  'untested':    'bg-muted/60 text-muted-foreground/60 border-border/50',
+  'in-progress': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  'passed':      'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  'failed':      'bg-red-500/10 text-red-400 border-red-500/20',
+}
+const TEST_LABELS: Record<string, string> = {
+  'untested':    '—',
+  'in-progress': 'Testing',
+  'passed':      'Passed',
+  'failed':      'Failed',
+}
+
+const VENDOR_CHIP: Record<string, string> = {
+  'pending':        'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  'translated':     'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  'verified':       'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  'not-applicable': 'bg-muted/60 text-muted-foreground/60 border-border/50',
+}
+const VENDOR_LABELS: Record<string, string> = {
+  'pending':        'Pending',
+  'translated':     'Translated',
+  'verified':       'Verified',
+  'not-applicable': 'N/A',
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -137,6 +163,15 @@ function DataCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: RuleI
   const { selectedDataKeys, selectedActivities } = deriveFromRules(rules, ruleItems)
   const names = ruleItems.filter(i => selectedDataKeys.has(i.key)).map(i => i.name)
   const acts  = ACTIVITIES.filter(a => selectedActivities.has(a.key)).map(a => a.label)
+
+  // If no rules but policy has a data_classification_label, show that instead
+  if (names.length === 0 && policy.data_classification_label) {
+    return (
+      <span className="text-[11px] text-muted-foreground/60 capitalize italic">
+        {policy.data_classification_label === 'all' ? 'All data' : policy.data_classification_label}
+      </span>
+    )
+  }
   if (names.length === 0) {
     return (
       <div className="space-y-1">
@@ -160,10 +195,13 @@ function DataCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: RuleI
 }
 
 function ActionCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: RuleItem[] }) {
-  const { primaryAction } = deriveFromRules(policy.rules ?? [], ruleItems)
-  const label = primaryAction === 'not-set' ? 'Inherited' : ACTION_LABELS[primaryAction]
+  const hasRules = (policy.rules ?? []).length > 0
+  const action: ActionCode = hasRules
+    ? deriveFromRules(policy.rules ?? [], ruleItems).primaryAction
+    : (policy.primary_action ?? 'not-set')
+  const label = action === 'not-set' ? 'Inherited' : ACTION_LABELS[action]
   return (
-    <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded border whitespace-nowrap', ACTION_CHIP[primaryAction])}>
+    <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded border whitespace-nowrap', ACTION_CHIP[action])}>
       {label}
     </span>
   )
@@ -176,8 +214,10 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
   const [filterStatus, setFilterStatus]       = useState<ApprovalStatus | 'all'>('all')
   const [activeOnly, setActiveOnly]           = useState(false)
   const [search, setSearch]                   = useState('')
-  const [lintResults, setLintResults] = useState<LintIssue[] | null>(null)
-  const [, startTransition]           = useTransition()
+  const [lintResults, setLintResults]         = useState<LintIssue[] | null>(null)
+  const [isGenerating, setIsGenerating]       = useState(false)
+  const [generateError, setGenerateError]     = useState<string | null>(null)
+  const [, startTransition]                   = useTransition()
 
   void categories
   void classifications
@@ -201,7 +241,13 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
     startTransition(async () => { await deletePolicy(id) })
   }
 
-  const colCount = 8
+  async function handleGenerate() {
+    setIsGenerating(true)
+    setGenerateError(null)
+    const result = await generatePoliciesFromGovernance()
+    setIsGenerating(false)
+    if (result.error) setGenerateError(result.error)
+  }
 
   return (
     <>
@@ -235,6 +281,16 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
             <span className="ml-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/20">{lintResults.length}</span>
           )}
         </button>
+        {policies.length === 0 && (
+          <button
+            onClick={handleGenerate}
+            disabled={isGenerating}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md border border-border bg-muted/30 hover:bg-muted/60 text-foreground/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            {isGenerating ? 'Generating…' : 'Generate Policies'}
+          </button>
+        )}
         <Link
           href="/genai-controls/policies/new"
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 transition-colors"
@@ -243,6 +299,14 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
           New Policy
         </Link>
       </div>
+
+      {/* Generate error */}
+      {generateError && (
+        <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs mb-4">
+          <span>{generateError}</span>
+          <button onClick={() => setGenerateError(null)} className="text-red-400/60 hover:text-red-400 transition-colors"><X className="w-3.5 h-3.5" /></button>
+        </div>
+      )}
 
       {/* Lint panel */}
       {lintResults !== null && (
@@ -295,17 +359,35 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
 
       {/* Empty state */}
       {visible.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <p className="text-sm text-muted-foreground/60 mb-4">
-            {policies.length === 0 ? 'No policies yet. Create your first GenAI governance policy.' : 'No policies match the current filters.'}
-          </p>
-          {policies.length === 0 && (
-            <Link
-              href="/genai-controls/policies/new"
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" /> Create Policy
-            </Link>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          {policies.length === 0 ? (
+            <>
+              <div className="w-12 h-12 rounded-xl bg-card border border-border flex items-center justify-center mb-4 shadow-sm">
+                <ShieldCheck className="w-6 h-6 text-muted-foreground/40" />
+              </div>
+              <p className="text-sm font-semibold text-foreground/70 mb-1">No policies yet</p>
+              <p className="text-xs text-muted-foreground/50 mb-6 max-w-xs">
+                Generate the recommended GenAI policy set from your App Governance control matrix, or create one manually.
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleGenerate}
+                  disabled={isGenerating}
+                  className="flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {isGenerating ? 'Generating…' : 'Generate Policies'}
+                </button>
+                <Link
+                  href="/genai-controls/policies/new"
+                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-md border border-border bg-card hover:bg-muted/40 text-foreground/70 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" /> New Policy
+                </Link>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground/60">No policies match the current filters.</p>
           )}
         </div>
       )}
@@ -327,6 +409,9 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                   <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5 hidden lg:table-cell">Data / Activities</th>
                   <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Action</th>
                   <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Status</th>
+                  <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5 hidden xl:table-cell">Family</th>
+                  <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5 hidden xl:table-cell">Test</th>
+                  <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5 hidden xl:table-cell">Vendor</th>
                   <th className="w-16 px-3 py-2.5" />
                 </tr>
               </thead>
@@ -372,6 +457,26 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                     <td className="px-3 py-2.5 align-middle">
                       <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded border', APPROVAL_STYLES[policy.approval_status])}>
                         {policy.approval_status.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                      </span>
+                    </td>
+
+                    <td className="px-3 py-2.5 align-middle hidden xl:table-cell">
+                      {policy.policy_family ? (
+                        <span className="text-[10px] text-muted-foreground/70 truncate block max-w-[120px]">{policy.policy_family}</span>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground/30 italic">—</span>
+                      )}
+                    </td>
+
+                    <td className="px-3 py-2.5 align-middle hidden xl:table-cell">
+                      <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded border whitespace-nowrap', TEST_CHIP[policy.test_status ?? 'untested'])}>
+                        {TEST_LABELS[policy.test_status ?? 'untested']}
+                      </span>
+                    </td>
+
+                    <td className="px-3 py-2.5 align-middle hidden xl:table-cell">
+                      <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded border whitespace-nowrap', VENDOR_CHIP[policy.vendor_translation_status ?? 'pending'])}>
+                        {VENDOR_LABELS[policy.vendor_translation_status ?? 'pending']}
                       </span>
                     </td>
 

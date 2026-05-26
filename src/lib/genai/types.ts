@@ -154,6 +154,16 @@ export interface GenAIPolicy {
   rules:            PolicyRule[]
   // P2-9 identity context (migration 047)
   identity_context: string[] | null
+  // P3 policy metadata (migration 052)
+  policy_family:             string | null
+  generated_from:            string | null
+  data_classification_label: string | null
+  primary_action:            ActionCode | null
+  fallback_action:           ActionCode | null
+  coaching_template_id:      string | null
+  vendor_translation_status: 'pending' | 'translated' | 'verified' | 'not-applicable'
+  required_dependencies:     string[]
+  test_status:               'untested' | 'in-progress' | 'passed' | 'failed'
   created_at:       string
   updated_at:       string
 }

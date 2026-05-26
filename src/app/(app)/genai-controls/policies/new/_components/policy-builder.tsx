@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Check, ChevronDown, Loader2, Search, Users2, Target, ShieldCheck, Zap, FileText, ToggleLeft, X } from 'lucide-react'
+import { Check, ChevronDown, Loader2, Search, Settings, Users2, Target, ShieldCheck, Zap, FileText, ToggleLeft, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { colorClasses } from '@/lib/data-catalog/types'
 import { upsertPolicy } from '../../actions'
@@ -32,6 +32,15 @@ export interface InitialPolicyData {
   scope_app_ids:    string[]
   rules:            PolicyRule[]
   identity_context: string[] | null
+  // migration 052 metadata
+  policy_family?:             string | null
+  generated_from?:            string | null
+  data_classification_label?: string | null
+  fallback_action?:           ActionCode | null
+  coaching_template_id?:      string | null
+  vendor_translation_status?: 'pending' | 'translated' | 'verified' | 'not-applicable' | null
+  required_dependencies?:     string[]
+  test_status?:               'untested' | 'in-progress' | 'passed' | 'failed' | null
 }
 
 // ── Local types ───────────────────────────────────────────────────────────────
@@ -69,13 +78,18 @@ interface Classification {
   customer_classification: string
 }
 
+interface CoachingTemplate { id: string; name: string; coach_label: string | null }
+interface PolicyOption     { id: string; name: string }
+
 interface Props {
-  apps:            App[]
-  categories:      Category[]
-  classifications: Classification[]
-  identityFields:  Record<string, IdentityOption[]>
-  ruleItems:       RuleItem[]
-  initialPolicy?:  InitialPolicyData | null
+  apps:              App[]
+  categories:        Category[]
+  classifications:   Classification[]
+  identityFields:    Record<string, IdentityOption[]>
+  ruleItems:         RuleItem[]
+  initialPolicy?:    InitialPolicyData | null
+  coachingTemplates?: CoachingTemplate[]
+  allPolicies?:       PolicyOption[]
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -754,6 +768,158 @@ function PolicyDetailsSection({
   )
 }
 
+// ── Metadata section ──────────────────────────────────────────────────────────
+
+const VENDOR_STATUSES = ['pending', 'translated', 'verified', 'not-applicable'] as const
+const VENDOR_LABELS: Record<string, string> = {
+  pending:          'Pending',
+  translated:       'Translated',
+  verified:         'Verified',
+  'not-applicable': 'Not Applicable',
+}
+const TEST_STATUSES   = ['untested', 'in-progress', 'passed', 'failed'] as const
+const TEST_LABELS_MAP: Record<string, string> = {
+  untested:      'Untested',
+  'in-progress': 'In Progress',
+  passed:        'Passed',
+  failed:        'Failed',
+}
+
+function MetadataSection({
+  policyFamily, setPolicyFamily,
+  generatedFrom,
+  dataClassLabel, setDataClassLabel,
+  fallbackAction, setFallbackAction,
+  coachingTemplateId, setCoachingTemplateId,
+  vendorStatus, setVendorStatus,
+  selectedDependencies, setSelectedDependencies,
+  testStatus, setTestStatus,
+  coachingTemplates, allPolicies,
+  currentPolicyId,
+}: {
+  policyFamily: string; setPolicyFamily: (v: string) => void
+  generatedFrom: string | null | undefined
+  dataClassLabel: string; setDataClassLabel: (v: string) => void
+  fallbackAction: ActionCode | null; setFallbackAction: (v: ActionCode | null) => void
+  coachingTemplateId: string | null; setCoachingTemplateId: (v: string | null) => void
+  vendorStatus: 'pending' | 'translated' | 'verified' | 'not-applicable'; setVendorStatus: (v: 'pending' | 'translated' | 'verified' | 'not-applicable') => void
+  selectedDependencies: Set<string>; setSelectedDependencies: (v: Set<string>) => void
+  testStatus: 'untested' | 'in-progress' | 'passed' | 'failed'; setTestStatus: (v: 'untested' | 'in-progress' | 'passed' | 'failed') => void
+  coachingTemplates: CoachingTemplate[]
+  allPolicies: PolicyOption[]
+  currentPolicyId?: string
+}) {
+  const inputCls   = 'w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/30 border border-border/60 rounded-lg px-3.5 py-2.5 focus:border-border focus:outline-none transition-colors'
+  const selectCls  = 'bg-card text-xs text-foreground border border-border/60 rounded-lg px-3 py-2.5 focus:outline-none appearance-none cursor-pointer'
+
+  const otherPolicies = allPolicies.filter(p => p.id !== currentPolicyId)
+
+  function toggleDep(id: string) {
+    const next = new Set(selectedDependencies)
+    if (next.has(id)) { next.delete(id) } else { next.add(id) }
+    setSelectedDependencies(next)
+  }
+
+  return (
+    <div className="space-y-4 max-w-lg">
+      {/* Generated From badge (read-only) */}
+      {generatedFrom && (
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide w-40 shrink-0">Generated From</span>
+          <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 font-semibold">{generatedFrom}</span>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Policy Family</label>
+          <input value={policyFamily} onChange={e => setPolicyFamily(e.target.value)} placeholder="e.g. GenAI Data Protection" className={inputCls} />
+        </div>
+        <div>
+          <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Data Classification Label</label>
+          <input value={dataClassLabel} onChange={e => setDataClassLabel(e.target.value)} placeholder="e.g. secret, highly-confidential, all" className={inputCls} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Fallback Action</label>
+          <select
+            value={fallbackAction ?? ''}
+            onChange={e => setFallbackAction((e.target.value as ActionCode) || null)}
+            className={selectCls}
+          >
+            <option value="">— None</option>
+            {ACTION_CODES.filter(a => a !== 'not-set').map(ac => (
+              <option key={ac} value={ac}>{ACTION_LABELS[ac]}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Coaching Template</label>
+          <select
+            value={coachingTemplateId ?? ''}
+            onChange={e => setCoachingTemplateId(e.target.value || null)}
+            className={selectCls}
+          >
+            <option value="">— None</option>
+            {coachingTemplates.map(t => (
+              <option key={t.id} value={t.id}>{t.coach_label ?? t.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Vendor Translation Status</label>
+          <select value={vendorStatus} onChange={e => setVendorStatus(e.target.value as 'pending' | 'translated' | 'verified' | 'not-applicable')} className={selectCls}>
+            {VENDOR_STATUSES.map(s => <option key={s} value={s}>{VENDOR_LABELS[s]}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Test Status</label>
+          <select value={testStatus} onChange={e => setTestStatus(e.target.value as 'untested' | 'in-progress' | 'passed' | 'failed')} className={selectCls}>
+            {TEST_STATUSES.map(s => <option key={s} value={s}>{TEST_LABELS_MAP[s]}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {otherPolicies.length > 0 && (
+        <div>
+          <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">
+            Required Dependencies
+          </label>
+          <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1">
+            {otherPolicies.map(p => {
+              const sel = selectedDependencies.has(p.id)
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => toggleDep(p.id)}
+                  className={cn(
+                    'flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-medium transition-all',
+                    sel ? 'bg-foreground/10 border-foreground/30 text-foreground' : 'border-border text-muted-foreground/60 hover:border-border-strong',
+                  )}
+                >
+                  {sel && <Check className="w-2.5 h-2.5 shrink-0" />}
+                  <span className="truncate max-w-[160px]">{p.name}</span>
+                </button>
+              )
+            })}
+          </div>
+          {selectedDependencies.size > 0 && (
+            <button type="button" onClick={() => setSelectedDependencies(new Set())} className="text-[10px] text-muted-foreground/40 hover:text-muted-foreground/60 underline mt-1">
+              Clear all
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Status section ────────────────────────────────────────────────────────────
 
 function StatusSection({
@@ -787,7 +953,7 @@ function StatusSection({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function PolicyBuilder({ apps, categories, classifications, identityFields, ruleItems, initialPolicy }: Props) {
+export function PolicyBuilder({ apps, categories, classifications, identityFields, ruleItems, initialPolicy, coachingTemplates = [], allPolicies = [] }: Props) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -823,6 +989,15 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
   // Status
   const [isActive, setIsActive] = useState(initialPolicy?.is_active ?? true)
 
+  // Metadata (migration 052)
+  const [policyFamily, setPolicyFamily]             = useState(initialPolicy?.policy_family ?? '')
+  const [dataClassLabel, setDataClassLabel]         = useState(initialPolicy?.data_classification_label ?? '')
+  const [fallbackAction, setFallbackAction]         = useState<ActionCode | null>(initialPolicy?.fallback_action ?? null)
+  const [coachingTemplateId, setCoachingTemplateId] = useState<string | null>(initialPolicy?.coaching_template_id ?? null)
+  const [vendorStatus, setVendorStatus]             = useState<'pending' | 'translated' | 'verified' | 'not-applicable'>(initialPolicy?.vendor_translation_status ?? 'pending')
+  const [selectedDependencies, setSelectedDependencies] = useState<Set<string>>(new Set(initialPolicy?.required_dependencies ?? []))
+  const [testStatus, setTestStatus]                 = useState<'untested' | 'in-progress' | 'passed' | 'failed'>(initialPolicy?.test_status ?? 'untested')
+
   function handleSave() {
     if (!name.trim()) { setError('Policy name is required.'); return }
     setError(null)
@@ -850,6 +1025,15 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
         scope_app_ids:    Array.from(selectedAppIds),
         rules:            saveRules,
         identity_context: identityContext.size > 0 ? [...identityContext] : null,
+        // migration 052
+        primary_action:             primaryAction === 'not-set' ? null : primaryAction,
+        policy_family:              policyFamily || null,
+        data_classification_label:  dataClassLabel || null,
+        fallback_action:            fallbackAction,
+        coaching_template_id:       coachingTemplateId,
+        vendor_translation_status:  vendorStatus,
+        required_dependencies:      Array.from(selectedDependencies),
+        test_status:                testStatus,
       })
       if (result.error) { setError(result.error); return }
       router.push('/genai-controls/policies')
@@ -891,6 +1075,22 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
             name={name} setName={setName}
             description={description} setDescription={setDescription}
             approvalStatus={approvalStatus} setApprovalStatus={setApprovalStatus}
+          />
+        </PolicySection>
+
+        <PolicySection icon={<Settings />} label="Metadata">
+          <MetadataSection
+            policyFamily={policyFamily} setPolicyFamily={setPolicyFamily}
+            generatedFrom={initialPolicy?.generated_from}
+            dataClassLabel={dataClassLabel} setDataClassLabel={setDataClassLabel}
+            fallbackAction={fallbackAction} setFallbackAction={setFallbackAction}
+            coachingTemplateId={coachingTemplateId} setCoachingTemplateId={setCoachingTemplateId}
+            vendorStatus={vendorStatus} setVendorStatus={setVendorStatus}
+            selectedDependencies={selectedDependencies} setSelectedDependencies={setSelectedDependencies}
+            testStatus={testStatus} setTestStatus={setTestStatus}
+            coachingTemplates={coachingTemplates}
+            allPolicies={allPolicies}
+            currentPolicyId={initialPolicy?.id}
           />
         </PolicySection>
 

@@ -20,6 +20,8 @@ export default async function NewPolicyPage() {
     orgTypesResult,
     orgTypeMappingsResult,
     catalogTypesResult,
+    coachingTemplatesResult,
+    allPoliciesResult,
   ] = await Promise.all([
     supabase
       .from('genai_apps')
@@ -53,14 +55,26 @@ export default async function NewPolicyPage() {
       .eq('active', true)
       .order('priority')
       .order('name'),
+    supabase
+      .from('org_coaching_notifications')
+      .select('id, name, coach_label')
+      .eq('org_id', user.orgId)
+      .order('name'),
+    supabase
+      .from('org_genai_policies')
+      .select('id, name')
+      .eq('org_id', user.orgId)
+      .order('priority'),
   ])
 
-  const apps            = appsResult.data            ?? []
-  const categories      = categoriesResult.data      ?? []
-  const classifications = classificationsResult.data ?? []
-  const orgTypes        = orgTypesResult.data        ?? []
-  const orgTypeMappings = orgTypeMappingsResult.data ?? []
-  const catalogTypes    = catalogTypesResult.data    ?? []
+  const apps              = appsResult.data              ?? []
+  const categories        = categoriesResult.data        ?? []
+  const classifications   = classificationsResult.data   ?? []
+  const orgTypes          = orgTypesResult.data          ?? []
+  const orgTypeMappings   = orgTypeMappingsResult.data   ?? []
+  const catalogTypes      = catalogTypesResult.data      ?? []
+  const coachingTemplates = coachingTemplatesResult.data ?? []
+  const allPolicies       = allPoliciesResult.data       ?? []
 
   // Map org data type ID → classification label ID
   const orgTypeLabelMap = new Map(
@@ -147,6 +161,8 @@ export default async function NewPolicyPage() {
         identityFields={identityFields}
         ruleItems={ruleItems}
         initialPolicy={null}
+        coachingTemplates={coachingTemplates}
+        allPolicies={allPolicies}
       />
     </div>
   )

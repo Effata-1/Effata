@@ -23,6 +23,8 @@ export default async function EditPolicyPage({ params }: { params: Promise<{ id:
     orgTypesResult,
     orgTypeMappingsResult,
     catalogTypesResult,
+    coachingTemplatesResult,
+    allPoliciesResult,
   ] = await Promise.all([
     supabase.from('org_genai_policies').select('*').eq('id', id).eq('org_id', user.orgId).single(),
     supabase.from('genai_apps').select('app_id, app_name, vendor, app_type, logo_letter, logo_bg').order('app_name'),
@@ -33,17 +35,21 @@ export default async function EditPolicyPage({ params }: { params: Promise<{ id:
     supabase.from('org_data_types').select('id, name, catalog_data_type_id').eq('org_id', user.orgId).eq('is_in_scope', true).order('name'),
     supabase.from('org_data_type_classifications').select('org_data_type_id, org_classification_label_id').eq('org_id', user.orgId),
     supabase.from('catalog_data_types').select('id, name, system_level, subcategory').eq('active', true).order('priority').order('name'),
+    supabase.from('org_coaching_notifications').select('id, name, coach_label').eq('org_id', user.orgId).order('name'),
+    supabase.from('org_genai_policies').select('id, name').eq('org_id', user.orgId).order('priority'),
   ])
 
   if (!policyResult.data) notFound()
 
-  const policy          = policyResult.data
-  const apps            = appsResult.data            ?? []
-  const categories      = categoriesResult.data      ?? []
-  const classifications = classificationsResult.data ?? []
-  const orgTypes        = orgTypesResult.data        ?? []
-  const orgTypeMappings = orgTypeMappingsResult.data ?? []
-  const catalogTypes    = catalogTypesResult.data    ?? []
+  const policy            = policyResult.data
+  const apps              = appsResult.data              ?? []
+  const categories        = categoriesResult.data        ?? []
+  const classifications   = classificationsResult.data   ?? []
+  const orgTypes          = orgTypesResult.data          ?? []
+  const orgTypeMappings   = orgTypeMappingsResult.data   ?? []
+  const catalogTypes      = catalogTypesResult.data      ?? []
+  const coachingTemplates = coachingTemplatesResult.data ?? []
+  const allPolicies       = allPoliciesResult.data       ?? []
 
   const orgTypeLabelMap = new Map(
     orgTypeMappings.map(m => [m.org_data_type_id as string, m.org_classification_label_id as string]),
@@ -117,6 +123,8 @@ export default async function EditPolicyPage({ params }: { params: Promise<{ id:
         classifications={classifications}
         identityFields={identityFields}
         ruleItems={ruleItems}
+        coachingTemplates={coachingTemplates}
+        allPolicies={allPolicies}
         initialPolicy={{
           id:               policy.id,
           name:             policy.name,
@@ -127,6 +135,15 @@ export default async function EditPolicyPage({ params }: { params: Promise<{ id:
           scope_app_ids:    policy.scope_app_ids ?? [],
           rules:            policy.rules ?? [],
           identity_context: policy.identity_context,
+          // migration 052
+          policy_family:             policy.policy_family ?? null,
+          generated_from:            policy.generated_from ?? null,
+          data_classification_label: policy.data_classification_label ?? null,
+          fallback_action:           policy.fallback_action ?? null,
+          coaching_template_id:      policy.coaching_template_id ?? null,
+          vendor_translation_status: policy.vendor_translation_status ?? 'pending',
+          required_dependencies:     policy.required_dependencies ?? [],
+          test_status:               policy.test_status ?? 'untested',
         }}
       />
     </div>
