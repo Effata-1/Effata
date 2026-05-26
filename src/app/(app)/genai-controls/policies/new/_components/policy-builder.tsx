@@ -1,14 +1,15 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Check, ChevronDown, Loader2, Search, Users2, Target, ShieldCheck, Zap, FileText, ToggleLeft, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { colorClasses } from '@/lib/data-catalog/types'
 import { upsertPolicy } from '../../actions'
-import type { PolicyRule, ActionCode } from '@/lib/genai/types'
+import type { PolicyRule, ActionCode, ApprovalStatus } from '@/lib/genai/types'
 
-// ── Exported types (used by page.tsx) ─────────────────────────────────────────
+// ── Exported types (used by page.tsx + edit page) ─────────────────────────────
 
 export type RuleItemKind = 'label' | 'type' | 'catalog'
 
@@ -19,6 +20,18 @@ export interface RuleItem {
   color:      string
   layer:      1 | 2 | 3
   layerLabel: string | undefined
+}
+
+export interface InitialPolicyData {
+  id:               string
+  name:             string
+  description:      string | null
+  is_active:        boolean
+  approval_status:  ApprovalStatus
+  category_id:      string | null
+  scope_app_ids:    string[]
+  rules:            PolicyRule[]
+  identity_context: string[] | null
 }
 
 // ── Local types ───────────────────────────────────────────────────────────────
@@ -62,6 +75,7 @@ interface Props {
   classifications: Classification[]
   identityFields:  Record<string, IdentityOption[]>
   ruleItems:       RuleItem[]
+  initialPolicy?:  InitialPolicyData | null
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -90,7 +104,7 @@ const RISK_DOT: Record<string, string> = {
 const ACTION_CODES: ActionCode[] = ['not-set', 'allow', 'monitor', 'alert', 'coach', 'coach-ack', 'coach-just', 'block']
 
 const ACTION_LABELS: Record<ActionCode, string> = {
-  'not-set':    '— No action (inherit from Control Matrix)',
+  'not-set':    '— Inherit from Control Matrix',
   'allow':      'Allow',
   'monitor':    'Monitor',
   'alert':      'Alert',
@@ -111,6 +125,8 @@ const ACTION_CHIP: Record<ActionCode, string> = {
   'not-set':    'bg-muted/40 text-muted-foreground/50 border-border/60',
 }
 
+const APPROVAL_STATUSES: ApprovalStatus[] = ['draft', 'under-review', 'approved', 'rejected', 'expired']
+
 type Activity = 'post_prompt' | 'upload' | 'download' | 'response'
 const ACTIVITIES: { key: Activity; label: string }[] = [
   { key: 'post_prompt', label: 'Prompt' },
@@ -127,6 +143,35 @@ const LAYER_LABELS: Record<1 | 2 | 3, string> = {
 
 type ScopeMode = 'category' | 'specific'
 
+// ── Derive initial form state from saved policy rules ─────────────────────────
+
+function deriveFromRules(rules: PolicyRule[], ruleItems: RuleItem[]) {
+  const validKeys = new Set(ruleItems.map(i => i.key))
+  const selectedDataKeys = new Set(
+    rules
+      .filter(r => validKeys.has(r.data_type))
+      .filter(r => r.post_prompt !== 'not-set' || r.upload !== 'not-set' || r.download !== 'not-set' || r.response !== 'not-set')
+      .map(r => r.data_type),
+  )
+  const selectedActivities = new Set<Activity>()
+  for (const r of rules) {
+    if (r.post_prompt !== 'not-set') selectedActivities.add('post_prompt')
+    if (r.upload      !== 'not-set') selectedActivities.add('upload')
+    if (r.download    !== 'not-set') selectedActivities.add('download')
+    if (r.response    !== 'not-set') selectedActivities.add('response')
+  }
+  if (selectedActivities.size === 0) {
+    selectedActivities.add('post_prompt'); selectedActivities.add('upload')
+    selectedActivities.add('download');    selectedActivities.add('response')
+  }
+  const counts: Record<string, number> = {}
+  for (const r of rules)
+    for (const a of ['post_prompt', 'upload', 'download', 'response'] as const)
+      if (r[a] !== 'not-set') counts[r[a]] = (counts[r[a]] ?? 0) + 1
+  const primaryAction = (Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] as ActionCode) ?? 'not-set'
+  return { selectedDataKeys, selectedActivities, primaryAction }
+}
+
 // ── Section wrapper ───────────────────────────────────────────────────────────
 
 function PolicySection({
@@ -139,12 +184,10 @@ function PolicySection({
 }) {
   return (
     <div className={cn('flex gap-0', !noBorder && 'border-b border-border/60')}>
-      {/* Left label */}
       <div className="w-36 shrink-0 flex items-start gap-2 px-5 py-5 text-muted-foreground/60">
         <span className="mt-0.5 shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5">{icon}</span>
         <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
       </div>
-      {/* Right content */}
       <div className="flex-1 px-5 py-5 min-w-0">
         {children}
       </div>
@@ -183,7 +226,6 @@ function SourceSection({
 
   return (
     <div className="space-y-2">
-      {/* Row chip showing current state */}
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
@@ -215,7 +257,6 @@ function SourceSection({
         <ChevronDown className={cn('w-3.5 h-3.5 text-muted-foreground/30 shrink-0 transition-transform', open && 'rotate-180')} />
       </button>
 
-      {/* Expanded accordion */}
       {open && (
         <div className="rounded-lg border border-border/50 bg-card/30 overflow-hidden">
           {!hasAny ? (
@@ -349,12 +390,11 @@ function DestinationSection({
   function scopeLabel(): string {
     if (scopeMode === 'category' && selectedCategory) return selectedCategory.name
     if (scopeMode === 'specific' && selectedAppIds.size > 0) return `${selectedAppIds.size} app${selectedAppIds.size !== 1 ? 's' : ''} selected`
-    return 'All apps — click to scope'
+    return 'All apps — click to scope to specific apps'
   }
 
   return (
     <div className="space-y-2">
-      {/* Summary row */}
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
@@ -378,7 +418,6 @@ function DestinationSection({
         <ChevronDown className={cn('w-3.5 h-3.5 text-muted-foreground/30 shrink-0 ml-auto transition-transform', open && 'rotate-180')} />
       </button>
 
-      {/* Expanded picker */}
       {open && (
         <div className="rounded-lg border border-border/50 bg-card/30 p-4 space-y-3">
           <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wide font-semibold">Select by governance category or specific apps</p>
@@ -406,7 +445,6 @@ function DestinationSection({
               )
             })}
 
-            {/* Specific apps */}
             <button
               type="button"
               onClick={() => { setScopeMode('specific'); setScopeCategoryId(null) }}
@@ -506,7 +544,6 @@ function DataProfileSection({
 
   return (
     <div className="space-y-3">
-      {/* Data types row */}
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
@@ -529,10 +566,8 @@ function DataProfileSection({
         <ChevronDown className={cn('w-3.5 h-3.5 text-muted-foreground/30 shrink-0 ml-auto transition-transform', open && 'rotate-180')} />
       </button>
 
-      {/* Expanded data type picker */}
       {open && (
         <div className="rounded-lg border border-border/50 bg-card/30 overflow-hidden">
-          {/* Layer tabs */}
           {layers.length > 1 && (
             <div className="flex border-b border-border/50 bg-card/50">
               {layers.map(l => (
@@ -554,7 +589,6 @@ function DataProfileSection({
             </div>
           )}
 
-          {/* Chips for active layer */}
           <div className="p-4 flex flex-wrap gap-1.5">
             {visibleItems.length === 0 ? (
               <p className="text-xs text-muted-foreground/40 italic">No items in this layer.</p>
@@ -593,7 +627,6 @@ function DataProfileSection({
         </div>
       )}
 
-      {/* Activities row — always visible */}
       <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-border/60">
         <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide shrink-0 w-20">Activities</span>
         <span className="text-xs text-muted-foreground/40 mr-1">=</span>
@@ -674,11 +707,17 @@ function ActionSection({
 
 function PolicyDetailsSection({
   name, setName, description, setDescription,
+  approvalStatus, setApprovalStatus,
+  categoryId, setCategoryId, categories,
 }: {
   name: string; setName: (v: string) => void
   description: string; setDescription: (v: string) => void
+  approvalStatus: ApprovalStatus; setApprovalStatus: (v: ApprovalStatus) => void
+  categoryId: string | null; setCategoryId: (v: string | null) => void
+  categories: Category[]
 }) {
   const inputCls = 'w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/30 border border-border/60 rounded-lg px-3.5 py-2.5 focus:border-border focus:outline-none transition-colors'
+  const selectCls = 'bg-card text-xs text-foreground border border-border/60 rounded-lg px-3 py-2.5 focus:outline-none appearance-none cursor-pointer'
 
   return (
     <div className="space-y-3 max-w-lg">
@@ -702,6 +741,23 @@ function PolicyDetailsSection({
           rows={2}
           className={`${inputCls} resize-none`}
         />
+      </div>
+      {categories.length > 0 && (
+        <div>
+          <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Policy Group</label>
+          <select value={categoryId ?? ''} onChange={e => setCategoryId(e.target.value || null)} className={selectCls}>
+            <option value="">— No group —</option>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+      )}
+      <div>
+        <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Approval Status</label>
+        <select value={approvalStatus} onChange={e => setApprovalStatus(e.target.value as ApprovalStatus)} className={selectCls}>
+          {APPROVAL_STATUSES.map(s => (
+            <option key={s} value={s}>{s.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>
+          ))}
+        </select>
       </div>
     </div>
   )
@@ -740,40 +796,50 @@ function StatusSection({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function PolicyBuilder({ apps, categories, classifications, identityFields, ruleItems }: Props) {
+export function PolicyBuilder({ apps, categories, classifications, identityFields, ruleItems, initialPolicy }: Props) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
+  const isEdit = Boolean(initialPolicy?.id)
+
+  // Derive initial state from saved policy (if editing)
+  const derived = initialPolicy?.rules?.length
+    ? deriveFromRules(initialPolicy.rules, ruleItems)
+    : {
+        selectedDataKeys:   new Set<string>(),
+        selectedActivities: new Set<Activity>(['post_prompt', 'upload', 'download', 'response']),
+        primaryAction:      'not-set' as ActionCode,
+      }
+
   // Source
-  const [identityContext, setIdentityContext] = useState<Set<string>>(new Set())
+  const [identityContext, setIdentityContext] = useState<Set<string>>(new Set(initialPolicy?.identity_context ?? []))
 
   // Destination
-  const [scopeMode, setScopeMode]             = useState<ScopeMode | null>(null)
+  const [scopeMode, setScopeMode]             = useState<ScopeMode | null>(initialPolicy?.scope_app_ids?.length ? 'specific' : null)
   const [scopeCategoryId, setScopeCategoryId] = useState<string | null>(null)
-  const [selectedAppIds, setSelectedAppIds]   = useState<Set<string>>(new Set())
+  const [selectedAppIds, setSelectedAppIds]   = useState<Set<string>>(new Set(initialPolicy?.scope_app_ids ?? []))
 
   // Data Profile
-  const [selectedDataKeys, setSelectedDataKeys]     = useState<Set<string>>(new Set())
-  const [selectedActivities, setSelectedActivities] = useState<Set<Activity>>(
-    new Set<Activity>(['post_prompt', 'upload', 'download', 'response']),
-  )
+  const [selectedDataKeys, setSelectedDataKeys]     = useState<Set<string>>(derived.selectedDataKeys)
+  const [selectedActivities, setSelectedActivities] = useState<Set<Activity>>(derived.selectedActivities)
 
   // Action
-  const [primaryAction, setPrimaryAction] = useState<ActionCode>('not-set')
+  const [primaryAction, setPrimaryAction] = useState<ActionCode>(derived.primaryAction)
 
   // Details
-  const [name, setName]               = useState('')
-  const [description, setDescription] = useState('')
+  const [name, setName]                         = useState(initialPolicy?.name ?? '')
+  const [description, setDescription]           = useState(initialPolicy?.description ?? '')
+  const [approvalStatus, setApprovalStatus]     = useState<ApprovalStatus>(initialPolicy?.approval_status ?? 'draft')
+  const [categoryId, setCategoryId]             = useState<string | null>(initialPolicy?.category_id ?? null)
 
   // Status
-  const [isActive, setIsActive] = useState(true)
+  const [isActive, setIsActive] = useState(initialPolicy?.is_active ?? true)
 
-  function handleSave(submitForReview: boolean) {
+  function handleSave() {
     if (!name.trim()) { setError('Policy name is required.'); return }
     setError(null)
 
-    // Expand category scope to app IDs
     let saveAppIds: string[] = []
     if (scopeMode === 'category' && scopeCategoryId) {
       const cat = categories.find(c => c.id === scopeCategoryId)
@@ -786,7 +852,6 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
       saveAppIds = Array.from(selectedAppIds)
     }
 
-    // Build rules: selected data types × selected activities → primary action
     const saveRules: PolicyRule[] = primaryAction === 'not-set'
       ? []
       : ruleItems
@@ -800,11 +865,12 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
           }))
 
     startTransition(async () => {
-      const result = await upsertPolicy(null, {
+      const result = await upsertPolicy(initialPolicy?.id ?? null, {
         name:             name.trim(),
         description:      description || undefined,
         policy_type:      'usage',
-        approval_status:  submitForReview ? 'under-review' : 'draft',
+        category_id:      categoryId,
+        approval_status:  approvalStatus,
         is_active:        isActive,
         scope_all_apps:   false,
         scope_app_ids:    saveAppIds,
@@ -818,7 +884,6 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
 
   return (
     <div className="space-y-6">
-      {/* Policy form */}
       <div className="rounded-xl border border-border bg-card/50 shadow-sm overflow-hidden">
         <PolicySection icon={<Users2 />} label="Source">
           <SourceSection
@@ -853,6 +918,9 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
           <PolicyDetailsSection
             name={name} setName={setName}
             description={description} setDescription={setDescription}
+            approvalStatus={approvalStatus} setApprovalStatus={setApprovalStatus}
+            categoryId={categoryId} setCategoryId={setCategoryId}
+            categories={categories}
           />
         </PolicySection>
 
@@ -863,23 +931,20 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
 
       {error && <p className="text-xs text-red-400">{error}</p>}
 
-      {/* Save buttons */}
-      <div className="flex items-center justify-end gap-3">
-        <button
-          onClick={() => handleSave(false)}
-          disabled={isPending}
-          className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-md border border-border hover:bg-card/80 transition-colors disabled:opacity-50"
+      <div className="flex items-center justify-end gap-3 pb-8">
+        <Link
+          href="/genai-controls/policies"
+          className="px-4 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
-          {isPending && <Loader2 className="w-3 h-3 animate-spin" />}
-          Save as Draft
-        </button>
+          Cancel
+        </Link>
         <button
-          onClick={() => handleSave(true)}
+          onClick={handleSave}
           disabled={isPending}
           className="flex items-center gap-1.5 px-5 py-2 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
         >
           {isPending && <Loader2 className="w-3 h-3 animate-spin" />}
-          Submit for Review →
+          {isEdit ? 'Save Changes' : 'Create Policy'}
         </button>
       </div>
     </div>

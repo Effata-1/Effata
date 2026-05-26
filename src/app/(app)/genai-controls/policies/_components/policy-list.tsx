@@ -1,14 +1,14 @@
 'use client'
 
 import { Fragment, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import {
-  Check, ChevronDown, ChevronRight, Loader2, Pencil, Plus, Search,
-  ShieldAlert, Trash2, Users2, Target, ShieldCheck, Zap, FileText, ToggleLeft, X,
+  ChevronDown, ChevronRight, Pencil, Plus, Search,
+  ShieldAlert, Trash2, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { colorClasses } from '@/lib/data-catalog/types'
-import { upsertPolicy, deletePolicy, togglePolicyActive } from '../actions'
+import { deletePolicy, togglePolicyActive } from '../actions'
 import type { GenAIPolicy, ApprovalStatus, ActionCode, PolicyRule } from '@/lib/genai/types'
 import { lintAllPolicies, SEVERITY_STYLES, type LintIssue } from '@/lib/genai/lint'
 import type { RuleItem } from '../new/_components/policy-builder'
@@ -71,20 +71,6 @@ const ACTIVITIES: { key: Activity; label: string }[] = [
   { key: 'download',    label: 'Download' },
   { key: 'response',    label: 'Response' },
 ]
-
-const IDENTITY_FIELD_ORDER = ['business_function', 'privilege_level', 'employment_type', 'user_lifecycle_status'] as const
-const IDENTITY_FIELD_LABELS: Record<string, string> = {
-  business_function:     'Business Function',
-  privilege_level:       'Privilege Level',
-  employment_type:       'Employment Type',
-  user_lifecycle_status: 'User Lifecycle Status',
-}
-const RISK_DOT: Record<string, string> = {
-  critical: 'bg-red-400', high: 'bg-amber-400', medium: 'bg-blue-400', low: 'bg-emerald-400',
-}
-const LAYER_LABELS: Record<number, string> = {
-  1: 'Classification Levels', 2: 'Org Data Types', 3: 'Catalog Reference Types',
-}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -184,487 +170,20 @@ function ActionCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: Rul
   )
 }
 
-// ── Section wrapper ───────────────────────────────────────────────────────────
-
-function Section({ icon, label, children, noBorder }: {
-  icon: React.ReactNode; label: string; children: React.ReactNode; noBorder?: boolean
-}) {
-  return (
-    <div className={cn('flex gap-0', !noBorder && 'border-b border-border/60')}>
-      <div className="w-32 shrink-0 flex items-start gap-2 px-4 py-4 text-muted-foreground/60">
-        <span className="mt-0.5 shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5">{icon}</span>
-        <span className="text-[10px] font-semibold uppercase tracking-wide">{label}</span>
-      </div>
-      <div className="flex-1 px-4 py-4 min-w-0">{children}</div>
-    </div>
-  )
-}
-
-// ── Source section ────────────────────────────────────────────────────────────
-
-function EditSourceSection({ identityContext, setIdentityContext, identityFields }: {
-  identityContext:    Set<string>
-  setIdentityContext: (v: Set<string>) => void
-  identityFields:     Record<string, IdentityOption[]>
-}) {
-  const [open, setOpen]           = useState(false)
-  const [fieldOpen, setFieldOpen] = useState<string | null>(null)
-
-  function toggle(id: string) {
-    const next = new Set(identityContext)
-    next.has(id) ? next.delete(id) : next.add(id)
-    setIdentityContext(next)
-  }
-
-  const allValues    = IDENTITY_FIELD_ORDER.flatMap(f => identityFields[f] ?? [])
-  const selectedVals = allValues.filter(v => identityContext.has(v.id))
-  const hasAny       = IDENTITY_FIELD_ORDER.some(f => (identityFields[f]?.length ?? 0) > 0)
-
-  return (
-    <div className="space-y-2">
-      <button type="button" onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 px-3.5 py-2 rounded-lg border border-border/60 text-left hover:border-border transition-colors"
-      >
-        <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide shrink-0 w-8">User</span>
-        <span className="text-xs text-muted-foreground/40 mr-1">=</span>
-        {selectedVals.length === 0 ? (
-          <span className="flex-1 text-xs text-muted-foreground/40 italic">All Users — click to filter</span>
-        ) : (
-          <div className="flex-1 flex flex-wrap gap-1">
-            {selectedVals.map(v => (
-              <span key={v.id} className="flex items-center gap-1 px-2 py-0.5 rounded bg-foreground/10 border border-foreground/20 text-xs text-foreground/80">
-                <span className={cn('w-1.5 h-1.5 rounded-full', RISK_DOT[v.risk_level] ?? 'bg-muted')} />
-                {v.value_name}
-                <span role="button" tabIndex={0}
-                  onClick={e => { e.stopPropagation(); toggle(v.id) }}
-                  onKeyDown={e => e.key === 'Enter' && toggle(v.id)}
-                  className="ml-0.5 text-muted-foreground/40 hover:text-foreground/60"
-                ><X className="w-2.5 h-2.5" /></span>
-              </span>
-            ))}
-          </div>
-        )}
-        <ChevronDown className={cn('w-3.5 h-3.5 text-muted-foreground/30 shrink-0 ml-auto transition-transform', open && 'rotate-180')} />
-      </button>
-
-      {open && (
-        <div className="rounded-lg border border-border/50 bg-card/30 overflow-hidden">
-          {!hasAny ? (
-            <p className="px-4 py-3 text-xs text-muted-foreground/40 italic">No identity values configured.</p>
-          ) : IDENTITY_FIELD_ORDER.map(field => {
-            const values  = identityFields[field] ?? []
-            if (!values.length) return null
-            const isOpen  = fieldOpen === field
-            const selCount = values.filter(v => identityContext.has(v.id)).length
-            return (
-              <div key={field} className="border-b border-border/40 last:border-0">
-                <button type="button"
-                  onClick={() => setFieldOpen(isOpen ? null : field)}
-                  className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-muted/20 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-foreground/80">{IDENTITY_FIELD_LABELS[field]}</span>
-                    {selCount > 0 && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-foreground/10 border border-foreground/20 text-foreground/70 font-semibold">{selCount}</span>
-                    )}
-                  </div>
-                  <ChevronDown className={cn('w-3 h-3 text-muted-foreground/30 transition-transform', isOpen && 'rotate-180')} />
-                </button>
-                {isOpen && (
-                  <div className="px-4 pb-3 pt-1 flex flex-wrap gap-1.5 border-t border-border/30 bg-card/20">
-                    {values.map(v => {
-                      const sel = identityContext.has(v.id)
-                      return (
-                        <button key={v.id} type="button" onClick={() => toggle(v.id)}
-                          className={cn('flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all',
-                            sel ? 'bg-foreground/10 border-foreground/30 text-foreground'
-                                : 'border-border text-muted-foreground/70 hover:border-border-strong')}
-                        >
-                          <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', RISK_DOT[v.risk_level] ?? 'bg-muted')} />
-                          {v.value_name}
-                          {sel && <Check className="w-2.5 h-2.5 ml-0.5" />}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Destination section ───────────────────────────────────────────────────────
-
-function EditDestSection({ selectedAppIds, setSelectedAppIds, apps }: {
-  selectedAppIds:    Set<string>
-  setSelectedAppIds: (v: Set<string>) => void
-  apps:              App[]
-}) {
-  const [open, setOpen]     = useState(false)
-  const [search, setSearch] = useState('')
-  const filtered = apps.filter(a =>
-    a.app_name.toLowerCase().includes(search.toLowerCase()) ||
-    (a.vendor ?? '').toLowerCase().includes(search.toLowerCase())
-  )
-
-  function toggle(id: string) {
-    const next = new Set(selectedAppIds)
-    next.has(id) ? next.delete(id) : next.add(id)
-    setSelectedAppIds(next)
-  }
-
-  const selectedApps = apps.filter(a => selectedAppIds.has(a.app_id))
-
-  return (
-    <div className="space-y-2">
-      <button type="button" onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 px-3.5 py-2 rounded-lg border border-border/60 text-left hover:border-border transition-colors"
-      >
-        <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide shrink-0 w-8">Apps</span>
-        <span className="text-xs text-muted-foreground/40 mr-1">=</span>
-        {selectedApps.length === 0 ? (
-          <span className="flex-1 text-xs text-muted-foreground/40 italic">All apps — click to scope to specific apps</span>
-        ) : (
-          <div className="flex-1 flex flex-wrap gap-1">
-            {selectedApps.slice(0, 4).map(a => (
-              <span key={a.app_id} className="flex items-center gap-1 px-2 py-0.5 rounded bg-foreground/10 border border-foreground/20 text-xs text-foreground/80">
-                <span className="w-3 h-3 rounded flex items-center justify-center text-[8px] font-bold text-foreground shrink-0" style={{ backgroundColor: a.logo_bg }}>{a.logo_letter}</span>
-                {a.app_name}
-              </span>
-            ))}
-            {selectedApps.length > 4 && <span className="px-2 py-0.5 rounded bg-muted/60 border border-border text-xs text-muted-foreground/60">+{selectedApps.length - 4} more</span>}
-          </div>
-        )}
-        <ChevronDown className={cn('w-3.5 h-3.5 text-muted-foreground/30 shrink-0 ml-auto transition-transform', open && 'rotate-180')} />
-      </button>
-
-      {open && (
-        <div className="rounded-lg border border-border/50 bg-card/30 p-3 space-y-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/30" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search apps…"
-              className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/30 border border-border/50 rounded-md pl-7 pr-3 py-1.5 focus:outline-none focus:border-border transition-colors"
-            />
-          </div>
-          <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-y-auto">
-            {filtered.map(app => {
-              const checked = selectedAppIds.has(app.app_id)
-              return (
-                <button key={app.app_id} type="button" onClick={() => toggle(app.app_id)}
-                  className={cn('flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left transition-all',
-                    checked ? 'border-foreground/30 bg-foreground/10' : 'border-border hover:border-border-strong')}
-                >
-                  <div className="w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold text-foreground shrink-0" style={{ backgroundColor: app.logo_bg }}>{app.logo_letter}</div>
-                  <span className="text-xs font-medium text-foreground/80 truncate">{app.app_name}</span>
-                  {checked && <Check className="w-3 h-3 text-foreground/60 ml-auto shrink-0" />}
-                </button>
-              )
-            })}
-          </div>
-          {selectedAppIds.size > 0 && (
-            <button type="button" onClick={() => setSelectedAppIds(new Set())} className="text-[10px] text-muted-foreground/40 hover:text-foreground/60 underline">Clear selection (apply to all apps)</button>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Data Profile section ──────────────────────────────────────────────────────
-
-function EditDataSection({ selectedDataKeys, setSelectedDataKeys, selectedActivities, setSelectedActivities, ruleItems }: {
-  selectedDataKeys:      Set<string>
-  setSelectedDataKeys:   (v: Set<string>) => void
-  selectedActivities:    Set<Activity>
-  setSelectedActivities: (v: Set<Activity>) => void
-  ruleItems:             RuleItem[]
-}) {
-  const [open, setOpen]             = useState(false)
-  const [activeLayer, setActiveLayer] = useState<1 | 2 | 3>(1)
-
-  function toggleData(key: string) {
-    const next = new Set(selectedDataKeys)
-    next.has(key) ? next.delete(key) : next.add(key)
-    setSelectedDataKeys(next)
-  }
-
-  function toggleAct(act: Activity) {
-    const next = new Set(selectedActivities)
-    next.has(act) ? next.delete(act) : next.add(act)
-    setSelectedActivities(next)
-  }
-
-  const layers       = [...new Set(ruleItems.map(i => i.layer))] as (1 | 2 | 3)[]
-  const visibleItems = ruleItems.filter(i => i.layer === activeLayer)
-  const selectedNames = ruleItems.filter(i => selectedDataKeys.has(i.key)).map(i => i.name)
-
-  return (
-    <div className="space-y-3">
-      <button type="button" onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 px-3.5 py-2 rounded-lg border border-border/60 text-left hover:border-border transition-colors"
-      >
-        <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide shrink-0 w-8">Data</span>
-        <span className="text-xs text-muted-foreground/40 mr-1">=</span>
-        {selectedNames.length === 0 ? (
-          <span className="flex-1 text-xs text-muted-foreground/40 italic">All data — click to select types</span>
-        ) : (
-          <div className="flex-1 flex flex-wrap gap-1">
-            {selectedNames.slice(0, 4).map(n => (
-              <span key={n} className="px-2 py-0.5 rounded bg-foreground/10 border border-foreground/20 text-xs text-foreground/80">{n}</span>
-            ))}
-            {selectedNames.length > 4 && <span className="px-2 py-0.5 rounded bg-muted/60 border border-border text-xs text-muted-foreground/60">+{selectedNames.length - 4} more</span>}
-          </div>
-        )}
-        <ChevronDown className={cn('w-3.5 h-3.5 text-muted-foreground/30 shrink-0 ml-auto transition-transform', open && 'rotate-180')} />
-      </button>
-
-      {open && (
-        <div className="rounded-lg border border-border/50 bg-card/30 overflow-hidden">
-          {layers.length > 1 && (
-            <div className="flex border-b border-border/50 bg-card/50">
-              {layers.map(l => (
-                <button key={l} type="button" onClick={() => setActiveLayer(l)}
-                  className={cn('px-4 py-2 text-[10px] font-semibold uppercase tracking-wide transition-colors',
-                    activeLayer === l ? 'text-foreground border-b-2 border-foreground -mb-px bg-card/30' : 'text-muted-foreground/50 hover:text-muted-foreground/80')}
-                >
-                  Layer {l} — {LAYER_LABELS[l]}
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="p-3 flex flex-wrap gap-1.5">
-            {visibleItems.map(item => {
-              const cc  = colorClasses(item.color)
-              const sel = selectedDataKeys.has(item.key)
-              return (
-                <button key={item.key} type="button" onClick={() => toggleData(item.key)}
-                  className={cn('flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all',
-                    item.layer === 3 && 'opacity-60',
-                    sel ? 'bg-foreground/10 border-foreground/30 text-foreground' : 'border-border text-muted-foreground/70 hover:border-border-strong')}
-                >
-                  <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', cc.dot)} />
-                  {item.name}
-                  {sel && <Check className="w-2.5 h-2.5 ml-0.5 shrink-0" />}
-                </button>
-              )
-            })}
-          </div>
-          {selectedDataKeys.size > 0 && (
-            <div className="px-3 py-2 border-t border-border/40">
-              <button type="button" onClick={() => setSelectedDataKeys(new Set())} className="text-[10px] text-muted-foreground/40 hover:text-foreground/60 underline">Clear all</button>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="flex items-center gap-3 px-3.5 py-2 rounded-lg border border-border/60">
-        <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide shrink-0 w-16">Activities</span>
-        <span className="text-xs text-muted-foreground/40 mr-1">=</span>
-        <div className="flex flex-wrap gap-1.5">
-          {ACTIVITIES.map(act => {
-            const sel = selectedActivities.has(act.key)
-            return (
-              <button key={act.key} type="button" onClick={() => toggleAct(act.key)}
-                className={cn('flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all',
-                  sel ? 'bg-foreground/10 border-foreground/30 text-foreground' : 'border-border text-muted-foreground/50 hover:border-border-strong')}
-              >
-                {sel && <Check className="w-2.5 h-2.5 shrink-0" />}
-                {act.label}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Policy Form Modal (create + edit) ─────────────────────────────────────────
-
-function PolicyFormModal({ policy, apps, classifications, identityFields, ruleItems, onClose, onRefresh }: {
-  policy:          GenAIPolicy | null   // null = create new
-  apps:            App[]
-  classifications: Classification[]
-  identityFields:  Record<string, IdentityOption[]>
-  ruleItems:       RuleItem[]
-  onClose:         () => void
-  onRefresh:       () => void
-}) {
-  const isNew    = policy === null
-  const derived  = deriveFromRules(policy?.rules ?? [], ruleItems)
-
-  const [identityContext, setIdentityContext]   = useState<Set<string>>(new Set(policy?.identity_context ?? []))
-  const [selectedAppIds, setSelectedAppIds]     = useState<Set<string>>(new Set(policy?.scope_app_ids ?? []))
-  const [selectedDataKeys, setSelectedDataKeys] = useState<Set<string>>(derived.selectedDataKeys)
-  const [selectedActivities, setSelectedActivities] = useState<Set<Activity>>(derived.selectedActivities)
-  const [primaryAction, setPrimaryAction]       = useState<ActionCode>(derived.primaryAction)
-  const [name, setName]                         = useState(policy?.name ?? '')
-  const [description, setDescription]           = useState(policy?.description ?? '')
-  const [approvalStatus, setApprovalStatus]     = useState<ApprovalStatus>(policy?.approval_status ?? 'draft')
-  const [isActive, setIsActive]                 = useState(policy?.is_active ?? true)
-  const [isPending, startTransition]            = useTransition()
-  const [error, setError]                       = useState<string | null>(null)
-
-  function handleSave() {
-    if (!name.trim()) { setError('Policy name is required.'); return }
-    setError(null)
-
-    const saveRules: PolicyRule[] = primaryAction === 'not-set'
-      ? []
-      : ruleItems
-          .filter(i => selectedDataKeys.has(i.key))
-          .map(i => ({
-            data_type:   i.key,
-            post_prompt: selectedActivities.has('post_prompt') ? primaryAction : 'not-set',
-            upload:      selectedActivities.has('upload')      ? primaryAction : 'not-set',
-            download:    selectedActivities.has('download')    ? primaryAction : 'not-set',
-            response:    selectedActivities.has('response')    ? primaryAction : 'not-set',
-          }))
-
-    startTransition(async () => {
-      const res = await upsertPolicy(policy?.id ?? null, {
-        name:             name.trim(),
-        description:      description || undefined,
-        approval_status:  approvalStatus,
-        is_active:        isActive,
-        scope_all_apps:   false,
-        scope_app_ids:    Array.from(selectedAppIds),
-        rules:            saveRules,
-        identity_context: identityContext.size > 0 ? [...identityContext] : null,
-      })
-      if (res.error) { setError(res.error); return }
-      onRefresh()
-      onClose()
-    })
-  }
-
-  const inputCls = 'w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/30 border border-border/60 rounded-lg px-3.5 py-2.5 focus:border-border focus:outline-none transition-colors'
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-2xl my-8">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border sticky top-0 bg-card z-10 rounded-t-xl">
-          <h2 className="text-sm font-semibold text-foreground">{isNew ? 'New Policy' : 'Edit Policy'}</h2>
-          <button onClick={onClose} className="text-muted-foreground/60 hover:text-foreground transition-colors">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="divide-y divide-border/60">
-          <Section icon={<Users2 />} label="Source">
-            <EditSourceSection
-              identityContext={identityContext} setIdentityContext={setIdentityContext}
-              identityFields={identityFields}
-            />
-          </Section>
-
-          <Section icon={<Target />} label="Destination">
-            <EditDestSection
-              selectedAppIds={selectedAppIds} setSelectedAppIds={setSelectedAppIds}
-              apps={apps}
-            />
-          </Section>
-
-          <Section icon={<ShieldCheck />} label="Data Profile">
-            <EditDataSection
-              selectedDataKeys={selectedDataKeys} setSelectedDataKeys={setSelectedDataKeys}
-              selectedActivities={selectedActivities} setSelectedActivities={setSelectedActivities}
-              ruleItems={ruleItems}
-            />
-          </Section>
-
-          <Section icon={<Zap />} label="Action">
-            <div className="flex items-center gap-3">
-              <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide">Action</span>
-              <span className="text-xs text-muted-foreground/40">=</span>
-              <select
-                value={primaryAction}
-                onChange={e => setPrimaryAction(e.target.value as ActionCode)}
-                className={cn('text-xs font-semibold px-3 py-2 rounded-lg border cursor-pointer appearance-none focus:outline-none transition-colors bg-card',
-                  primaryAction !== 'not-set' ? ACTION_CHIP[primaryAction] : 'border-border/60 text-muted-foreground/60')}
-              >
-                {ACTION_CODES.map(ac => (
-                  <option key={ac} value={ac} className="bg-card text-foreground font-normal">{ACTION_LABELS[ac]}</option>
-                ))}
-              </select>
-            </div>
-          </Section>
-
-          <Section icon={<FileText />} label="Details">
-            <div className="space-y-3 max-w-md">
-              <div>
-                <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">
-                  Policy Name <span className="text-red-400">*</span>
-                </label>
-                <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. GenAI Data Handling Policy" className={inputCls} />
-              </div>
-              <div>
-                <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Description</label>
-                <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} className={`${inputCls} resize-none`} />
-              </div>
-              <div>
-                <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Approval Status</label>
-                <select value={approvalStatus} onChange={e => setApprovalStatus(e.target.value as ApprovalStatus)}
-                  className="bg-card text-xs text-foreground border border-border/60 rounded-lg px-3 py-2 focus:outline-none appearance-none cursor-pointer"
-                >
-                  {APPROVAL_STATUSES.map(s => (
-                    <option key={s} value={s}>{s.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </Section>
-
-          <Section icon={<ToggleLeft />} label="Status" noBorder>
-            <div className="flex gap-2">
-              {[true, false].map(val => (
-                <button key={String(val)} type="button" onClick={() => setIsActive(val)}
-                  className={cn('flex items-center gap-2 px-4 py-2 rounded-lg border text-xs font-semibold transition-all',
-                    isActive === val
-                      ? val ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-muted/60 border-border text-muted-foreground'
-                      : 'border-border text-muted-foreground/50 hover:border-border-strong')}
-                >
-                  <span className={cn('w-2 h-2 rounded-full', val ? 'bg-emerald-400' : 'bg-muted-foreground/40')} />
-                  {val ? 'Enabled' : 'Draft / Disabled'}
-                </button>
-              ))}
-            </div>
-          </Section>
-        </div>
-
-        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border sticky bottom-0 bg-card rounded-b-xl">
-          {error && <p className="text-xs text-red-400 mr-auto">{error}</p>}
-          <button onClick={onClose} className="px-4 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
-          <button onClick={handleSave} disabled={isPending}
-            className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 transition-colors"
-          >
-            {isPending && <Loader2 className="w-3 h-3 animate-spin" />}
-            {isNew ? 'Create Policy' : 'Save Changes'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function PolicyList({ policies: initialPolicies, categories, apps, classifications, identityFields, ruleItems }: Props) {
-  const router                              = useRouter()
-  const [policies, setPolicies]             = useState<GenAIPolicy[]>(initialPolicies)
-  const [filterStatus, setFilterStatus]     = useState<ApprovalStatus | 'all'>('all')
-  const [activeOnly, setActiveOnly]         = useState(false)
-  const [search, setSearch]                 = useState('')
-  const [modalPolicy, setModalPolicy]       = useState<GenAIPolicy | null | 'new'>(null)  // null=closed, 'new'=create, GenAIPolicy=edit
-  const [lintResults, setLintResults]       = useState<LintIssue[] | null>(null)
+  const [policies, setPolicies]               = useState<GenAIPolicy[]>(initialPolicies)
+  const [filterStatus, setFilterStatus]       = useState<ApprovalStatus | 'all'>('all')
+  const [activeOnly, setActiveOnly]           = useState(false)
+  const [search, setSearch]                   = useState('')
+  const [lintResults, setLintResults]         = useState<LintIssue[] | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
-  const [, startTransition]                 = useTransition()
+  const [, startTransition]                   = useTransition()
 
-  const categoryMap = new Map(categories.map(c => [c.id, c]))
+  // suppress unused warnings — kept for filter display logic
+  void classifications
+  void ACTION_CODES
 
   const visible = policies.filter(p => {
     if (filterStatus !== 'all' && p.approval_status !== filterStatus) return false
@@ -673,7 +192,6 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
     return true
   })
 
-  // Group by governance category
   type Group = { cat: Category | null; key: string; policies: GenAIPolicy[] }
   const groups: Group[] = []
   const byCategory = new Map<string | null, GenAIPolicy[]>()
@@ -706,10 +224,6 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
     if (!confirm('Delete this policy? This cannot be undone.')) return
     setPolicies(ps => ps.filter(p => p.id !== id))
     startTransition(async () => { await deletePolicy(id) })
-  }
-
-  function handleRefresh() {
-    router.refresh()
   }
 
   const colCount = 8
@@ -746,13 +260,13 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
             <span className="ml-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/20">{lintResults.length}</span>
           )}
         </button>
-        <button
-          onClick={() => setModalPolicy('new')}
+        <Link
+          href="/genai-controls/policies/new"
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
           New Policy
-        </button>
+        </Link>
       </div>
 
       {/* Lint panel */}
@@ -811,11 +325,12 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
             {policies.length === 0 ? 'No policies yet. Create your first GenAI governance policy.' : 'No policies match the current filters.'}
           </p>
           {policies.length === 0 && (
-            <button onClick={() => setModalPolicy('new')}
+            <Link
+              href="/genai-controls/policies/new"
               className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 transition-colors"
             >
               <Plus className="w-3.5 h-3.5" /> Create Policy
-            </button>
+            </Link>
           )}
         </div>
       )}
@@ -848,7 +363,6 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
 
                   return (
                     <Fragment key={groupKey}>
-                      {/* Group header */}
                       <tr className="bg-muted/20 border-y border-border/50 hover:bg-muted/30 transition-colors cursor-pointer"
                         onClick={() => toggleGroup(groupKey)}
                       >
@@ -867,12 +381,10 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                         </td>
                       </tr>
 
-                      {/* Policy rows */}
                       {!collapsed && groupPolicies.map((policy) => (
                         <tr key={policy.id}
                           className={cn('border-b border-border/40 last:border-0 hover:bg-card/40 transition-colors', !policy.is_active && 'opacity-50')}
                         >
-                          {/* Active toggle */}
                           <td className="px-3 py-2.5 align-middle">
                             <button
                               onClick={() => handleToggle(policy.id, policy.is_active)}
@@ -883,7 +395,6 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                             </button>
                           </td>
 
-                          {/* Name */}
                           <td className="px-3 py-2.5 align-middle max-w-[200px]">
                             <p className="font-semibold text-foreground/90 leading-tight truncate">{policy.name}</p>
                             {policy.description && (
@@ -891,39 +402,37 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                             )}
                           </td>
 
-                          {/* Source */}
                           <td className="px-3 py-2.5 align-middle hidden md:table-cell">
                             <SourceCell policy={policy} identityFields={identityFields} />
                           </td>
 
-                          {/* Destination */}
                           <td className="px-3 py-2.5 align-middle hidden md:table-cell">
                             <DestCell policy={policy} apps={apps} />
                           </td>
 
-                          {/* Data / Activities */}
                           <td className="px-3 py-2.5 align-middle hidden lg:table-cell">
                             <DataCell policy={policy} ruleItems={ruleItems} />
                           </td>
 
-                          {/* Action */}
                           <td className="px-3 py-2.5 align-middle">
                             <ActionCell policy={policy} ruleItems={ruleItems} />
                           </td>
 
-                          {/* Status */}
                           <td className="px-3 py-2.5 align-middle">
                             <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded border', APPROVAL_STYLES[policy.approval_status])}>
                               {policy.approval_status.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}
                             </span>
                           </td>
 
-                          {/* Actions */}
                           <td className="px-3 py-2.5 align-middle">
                             <div className="flex items-center gap-2 justify-end">
-                              <button onClick={() => setModalPolicy(policy)} className="text-muted-foreground/50 hover:text-foreground transition-colors" title="Edit">
+                              <Link
+                                href={`/genai-controls/policies/${policy.id}/edit`}
+                                className="text-muted-foreground/50 hover:text-foreground transition-colors"
+                                title="Edit"
+                              >
                                 <Pencil className="w-3.5 h-3.5" />
-                              </button>
+                              </Link>
                               <button onClick={() => handleDelete(policy.id)} className="text-muted-foreground/50 hover:text-red-400 transition-colors" title="Delete">
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -938,19 +447,6 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
             </table>
           </div>
         </div>
-      )}
-
-      {/* Form modal — new or edit */}
-      {modalPolicy !== null && (
-        <PolicyFormModal
-          policy={modalPolicy === 'new' ? null : modalPolicy}
-          apps={apps}
-          classifications={classifications}
-          identityFields={identityFields}
-          ruleItems={ruleItems}
-          onClose={() => setModalPolicy(null)}
-          onRefresh={handleRefresh}
-        />
       )}
     </>
   )

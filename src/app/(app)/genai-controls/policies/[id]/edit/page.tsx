@@ -1,17 +1,20 @@
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
-import { PolicyBuilder } from './_components/policy-builder'
+import { PolicyBuilder } from '../../new/_components/policy-builder'
 import { getIdentityPageData } from '@/app/(app)/policies/identity/actions'
 import { ensureClassificationLabels } from '@/lib/data-catalog/actions'
-import type { RuleItem } from './_components/policy-builder'
+import type { RuleItem } from '../../new/_components/policy-builder'
 
-export default async function NewPolicyPage() {
-  const user = await requireRole('analyst')
+export default async function EditPolicyPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const user     = await requireRole('analyst')
   const supabase = await createClient()
 
   const [
+    policyResult,
     appsResult,
     categoriesResult,
     classificationsResult,
@@ -21,40 +24,20 @@ export default async function NewPolicyPage() {
     orgTypeMappingsResult,
     catalogTypesResult,
   ] = await Promise.all([
-    supabase
-      .from('genai_apps')
-      .select('app_id, app_name, vendor, app_type, logo_letter, logo_bg')
-      .order('app_name'),
-    supabase
-      .from('org_genai_governance_categories')
-      .select('id, system_tag, name, color')
-      .eq('org_id', user.orgId)
-      .eq('active', true)
-      .order('priority'),
-    supabase
-      .from('org_customer_classifications')
-      .select('app_id, customer_classification')
-      .eq('org_id', user.orgId),
+    supabase.from('org_genai_policies').select('*').eq('id', id).eq('org_id', user.orgId).single(),
+    supabase.from('genai_apps').select('app_id, app_name, vendor, app_type, logo_letter, logo_bg').order('app_name'),
+    supabase.from('org_genai_governance_categories').select('id, system_tag, name, color').eq('org_id', user.orgId).eq('active', true).order('priority'),
+    supabase.from('org_customer_classifications').select('app_id, customer_classification').eq('org_id', user.orgId),
     getIdentityPageData(),
     ensureClassificationLabels(),
-    supabase
-      .from('org_data_types')
-      .select('id, name, catalog_data_type_id')
-      .eq('org_id', user.orgId)
-      .eq('is_in_scope', true)
-      .order('name'),
-    supabase
-      .from('org_data_type_classifications')
-      .select('org_data_type_id, org_classification_label_id')
-      .eq('org_id', user.orgId),
-    supabase
-      .from('catalog_data_types')
-      .select('id, name, system_level, subcategory')
-      .eq('active', true)
-      .order('priority')
-      .order('name'),
+    supabase.from('org_data_types').select('id, name, catalog_data_type_id').eq('org_id', user.orgId).eq('is_in_scope', true).order('name'),
+    supabase.from('org_data_type_classifications').select('org_data_type_id, org_classification_label_id').eq('org_id', user.orgId),
+    supabase.from('catalog_data_types').select('id, name, system_level, subcategory').eq('active', true).order('priority').order('name'),
   ])
 
+  if (!policyResult.data) notFound()
+
+  const policy          = policyResult.data
   const apps            = appsResult.data            ?? []
   const categories      = categoriesResult.data      ?? []
   const classifications = classificationsResult.data ?? []
@@ -62,17 +45,12 @@ export default async function NewPolicyPage() {
   const orgTypeMappings = orgTypeMappingsResult.data ?? []
   const catalogTypes    = catalogTypesResult.data    ?? []
 
-  // Map org data type ID → classification label ID
   const orgTypeLabelMap = new Map(
     orgTypeMappings.map(m => [m.org_data_type_id as string, m.org_classification_label_id as string]),
   )
-
-  // Set of catalog_data_type_ids already covered by org data types
   const coveredCatalogIds = new Set(orgTypes.map(t => t.catalog_data_type_id).filter(Boolean))
 
-  // Build rule items for all 3 layers
   const ruleItems: RuleItem[] = [
-    // Layer 1 — Classification Labels
     ...classificationLabels.map(l => ({
       key:         `label:${l.system_level ?? l.id}`,
       name:        l.name,
@@ -81,8 +59,6 @@ export default async function NewPolicyPage() {
       layer:       1 as const,
       layerLabel:  undefined as string | undefined,
     })),
-
-    // Layer 2 — Org Data Types (in scope, mapped to a label)
     ...orgTypes.map(dt => {
       const labelId = orgTypeLabelMap.get(dt.id)
       const label   = classificationLabels.find(l => l.id === labelId)
@@ -95,8 +71,6 @@ export default async function NewPolicyPage() {
         layerLabel: label?.name,
       }
     }),
-
-    // Layer 3 — Catalog types not yet added to org scope (reference only, still configurable)
     ...catalogTypes
       .filter(c => !coveredCatalogIds.has(c.id))
       .map(c => {
@@ -112,7 +86,6 @@ export default async function NewPolicyPage() {
       }),
   ]
 
-  // Flatten identity fields to simple options for the picker
   const identityFields = Object.fromEntries(
     identityData.fieldOrder.map(f => [
       f,
@@ -134,10 +107,8 @@ export default async function NewPolicyPage() {
         >
           <ChevronLeft className="h-3 w-3" /> Policy Library
         </Link>
-        <h1 className="text-xl font-bold text-foreground">New Policy</h1>
-        <p className="text-sm text-muted-foreground/70 mt-0.5">
-          Build a structured GenAI governance policy with app scope and DLP rules.
-        </p>
+        <h1 className="text-xl font-bold text-foreground">Edit Policy</h1>
+        <p className="text-sm text-muted-foreground/70 mt-0.5 truncate">{policy.name}</p>
       </div>
 
       <PolicyBuilder
@@ -146,7 +117,17 @@ export default async function NewPolicyPage() {
         classifications={classifications as { app_id: string; customer_classification: string }[]}
         identityFields={identityFields}
         ruleItems={ruleItems}
-        initialPolicy={null}
+        initialPolicy={{
+          id:               policy.id,
+          name:             policy.name,
+          description:      policy.description,
+          is_active:        policy.is_active,
+          approval_status:  policy.approval_status,
+          category_id:      policy.category_id,
+          scope_app_ids:    policy.scope_app_ids ?? [],
+          rules:            policy.rules ?? [],
+          identity_context: policy.identity_context,
+        }}
       />
     </div>
   )
