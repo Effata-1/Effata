@@ -901,10 +901,10 @@ export function CatalogClient({
 
         {/* Custom types */}
         {customTypes.length > 0 && (
-          <div className="rounded-xl border border-border overflow-hidden">
+          <div className="rounded-xl border border-border">
             <button
               onClick={() => setCustomSectionOpen(o => !o)}
-              className="w-full px-5 py-3 bg-card/60 flex items-center justify-between hover:bg-card/80 transition-colors"
+              className={cn('w-full px-5 py-3 bg-card/60 flex items-center justify-between hover:bg-card/80 transition-colors', customSectionOpen ? 'rounded-t-xl' : 'rounded-xl')}
             >
               <p className="text-xs font-semibold text-muted-foreground/80 uppercase tracking-widest">Your custom types</p>
               <div className="flex items-center gap-2">
@@ -913,7 +913,7 @@ export function CatalogClient({
               </div>
             </button>
             {customSectionOpen && (
-              <table className="w-full border-t border-border">
+              <table className="w-full border-t border-border rounded-b-xl overflow-hidden">
                 <tbody className="divide-y divide-border/40">
                   {customTypes.map(t => (
                     <tr key={t.id} className="hover:bg-card/30 transition-colors">

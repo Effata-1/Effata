@@ -298,7 +298,7 @@ function LabelsTab({
 
       {delError && <p className="text-xs text-red-400 px-1">{delError}</p>}
 
-      <div className="rounded-xl border border-border overflow-hidden divide-y divide-border">
+      <div className="rounded-xl border border-border divide-y divide-border [&>*:first-child]:rounded-t-xl [&>*:last-child]:rounded-b-xl">
         {sortedLabels.map(label => {
           const cc         = colorClasses(label.color)
           const count      = countByLabel[label.id] ?? 0
@@ -520,7 +520,7 @@ function DestinationsTab({
 
       {delError && <p className="text-xs text-red-400 px-1">{delError}</p>}
 
-      <div className="rounded-xl border border-border overflow-hidden divide-y divide-border">
+      <div className="rounded-xl border border-border divide-y divide-border [&>*:first-child]:rounded-t-xl [&>*:last-child]:rounded-b-xl">
         {sortedLabels.map(label => {
           const cc          = colorClasses(label.color)
           const count       = label.system_tag ? (destCountByTag[label.system_tag] ?? 0) : 0
