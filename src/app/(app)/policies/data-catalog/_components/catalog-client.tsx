@@ -679,13 +679,14 @@ export function CatalogClient({
   customTypes: CustomType[]
   labels:      OrgClassificationLabel[]
 }) {
-  const [search,           setSearch]           = useState('')
-  const [levelFilter,      setLevelFilter]      = useState<string[]>([])
-  const [subcatFilter,     setSubcatFilter]     = useState<string>('')
-  const [complianceFilter, setComplianceFilter] = useState<string[]>([])
-  const [scopeFilter,      setScopeFilter]      = useState<string>('')
-  const [showAddModal,     setShowAddModal]     = useState(false)
-  const [isPending,        startTransition]     = useTransition()
+  const [search,            setSearch]            = useState('')
+  const [levelFilter,       setLevelFilter]       = useState<string[]>([])
+  const [subcatFilter,      setSubcatFilter]      = useState<string>('')
+  const [complianceFilter,  setComplianceFilter]  = useState<string[]>([])
+  const [scopeFilter,       setScopeFilter]       = useState<string>('')
+  const [showAddModal,      setShowAddModal]      = useState(false)
+  const [customSectionOpen, setCustomSectionOpen] = useState(false)
+  const [isPending,         startTransition]      = useTransition()
 
   type OptimisticAction =
     | { type: 'toggle';   catalogId: string;    inScope: boolean }
@@ -901,37 +902,45 @@ export function CatalogClient({
         {/* Custom types */}
         {customTypes.length > 0 && (
           <div className="rounded-xl border border-border overflow-hidden">
-            <div className="px-5 py-3 bg-card/60 border-b border-border flex items-center justify-between">
+            <button
+              onClick={() => setCustomSectionOpen(o => !o)}
+              className="w-full px-5 py-3 bg-card/60 flex items-center justify-between hover:bg-card/80 transition-colors"
+            >
               <p className="text-xs font-semibold text-muted-foreground/80 uppercase tracking-widest">Your custom types</p>
-              <p className="text-xs text-muted-foreground/60">{customTypes.length} added</p>
-            </div>
-            <table className="w-full">
-              <tbody className="divide-y divide-border/40">
-                {customTypes.map(t => (
-                  <tr key={t.id} className="hover:bg-card/30 transition-colors">
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-start gap-2.5">
-                        <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 bg-blue-400" />
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{t.name}</p>
-                          {t.examples.length > 0 && <p className="text-xs text-muted-foreground/60 mt-0.5">{t.examples.slice(0, 3).join('  ·  ')}</p>}
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-muted-foreground/60">{customTypes.length} added</p>
+                <ChevronDown className={cn('w-3.5 h-3.5 text-muted-foreground/40 transition-transform', customSectionOpen && 'rotate-180')} />
+              </div>
+            </button>
+            {customSectionOpen && (
+              <table className="w-full border-t border-border">
+                <tbody className="divide-y divide-border/40">
+                  {customTypes.map(t => (
+                    <tr key={t.id} className="hover:bg-card/30 transition-colors">
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-start gap-2.5">
+                          <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 bg-blue-400" />
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{t.name}</p>
+                            {t.examples.length > 0 && <p className="text-xs text-muted-foreground/60 mt-0.5">{t.examples.slice(0, 3).join('  ·  ')}</p>}
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5 w-44">
-                      <ClassificationSelect
-                        value={t.classification_label_id}
-                        labels={labels}
-                        onChange={labelId => handleClassify(t.org_data_type_id, labelId)}
-                      />
-                    </td>
-                    <td className="px-5 py-3.5 w-32 text-right">
-                      <span className="text-[10px] text-muted-foreground/60 bg-muted px-2 py-1 rounded-lg border border-border-strong">Custom</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </td>
+                      <td className="px-4 py-3.5 w-44">
+                        <ClassificationSelect
+                          value={t.classification_label_id}
+                          labels={labels}
+                          onChange={labelId => handleClassify(t.org_data_type_id, labelId)}
+                        />
+                      </td>
+                      <td className="px-5 py-3.5 w-32 text-right">
+                        <span className="text-[10px] text-muted-foreground/60 bg-muted px-2 py-1 rounded-lg border border-border-strong">Custom</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
       </div>

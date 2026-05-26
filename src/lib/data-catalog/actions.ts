@@ -412,12 +412,13 @@ export async function getClassificationsPageData() {
     ensureDestinationTrustLabels(),
   ])
 
-  const [{ data: orgTypes }, { data: mappings }, { data: destProfiles }, { data: catalogSubcats }, { data: catalogDataSubcats }] = await Promise.all([
+  const [{ data: orgTypes }, { data: mappings }, { data: destProfiles }, { data: catalogSubcats }, { data: catalogDataSubcats }, { data: subcatOverrides }] = await Promise.all([
     supabase.from('org_data_types').select('*').eq('org_id', user.orgId).eq('is_in_scope', true),
     supabase.from('org_data_type_classifications').select('*').eq('org_id', user.orgId),
     supabase.from('org_destination_profiles').select('trust_tag, subcategory').eq('org_id', user.orgId).eq('is_in_scope', true),
     supabase.from('catalog_destinations').select('trust_tag, subcategory').eq('active', true),
     supabase.from('catalog_data_types').select('id, system_level, subcategory').eq('active', true).not('subcategory', 'is', null),
+    supabase.from('org_subcategory_label_overrides').select('subcategory, org_classification_label_id').eq('org_id', user.orgId),
   ])
 
   // destCountByTag — in-scope org_destination_profiles per trust_tag
@@ -479,7 +480,18 @@ export async function getClassificationsPageData() {
     if (!subcatByLevelSet[level]) subcatByLevelSet[level] = new Set()
     subcatByLevelSet[level].add(subcat)
   }
-  // Catalog fallback for subcategories not yet org-classified
+  // Org-level subcategory overrides — applied before catalog fallback.
+  // These record manual moves for subcategories that have no org_data_types in scope.
+  for (const o of (subcatOverrides ?? [])) {
+    if (orgClassifiedSubcats.has(o.subcategory)) continue  // org type classifications take precedence
+    const level = labelIdToLevel[o.org_classification_label_id]
+    if (!level) continue
+    orgClassifiedSubcats.add(o.subcategory)  // prevent catalog fallback from overwriting
+    if (!subcatByLevelSet[level]) subcatByLevelSet[level] = new Set()
+    subcatByLevelSet[level].add(o.subcategory)
+  }
+
+  // Catalog fallback for subcategories not yet org-classified or overridden
   for (const c of (catalogDataSubcats ?? [])) {
     if (!c.subcategory || !c.system_level || orgClassifiedSubcats.has(c.subcategory)) continue
     if (!subcatByLevelSet[c.system_level]) subcatByLevelSet[c.system_level] = new Set()
@@ -600,7 +612,17 @@ export async function moveDataTypeSubcategoryToLabel(
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
-  // Resolve which org_data_types belong to this subcategory (via catalog join)
+  // Always persist the subcategory-level override so the move is visible even
+  // when the org has no data types in scope for this subcategory.
+  const { error: overrideErr } = await supabase
+    .from('org_subcategory_label_overrides')
+    .upsert(
+      { org_id: user.orgId, subcategory, org_classification_label_id: newLabelId, updated_at: new Date().toISOString() },
+      { onConflict: 'org_id,subcategory' },
+    )
+  if (overrideErr) return { error: overrideErr.message }
+
+  // Also update org_data_type_classifications for any org types that belong to this subcategory
   const [{ data: catalogTypes }, { data: orgTypes }] = await Promise.all([
     supabase.from('catalog_data_types').select('id').eq('subcategory', subcategory).eq('active', true),
     supabase.from('org_data_types').select('id, catalog_data_type_id').eq('org_id', user.orgId),
@@ -611,21 +633,20 @@ export async function moveDataTypeSubcategoryToLabel(
     .filter(t => t.catalog_data_type_id && catalogIds.has(t.catalog_data_type_id))
     .map(t => t.id)
 
-  if (affectedOrgTypeIds.length === 0) return {}
+  if (affectedOrgTypeIds.length > 0) {
+    const rows = affectedOrgTypeIds.map(id => ({
+      org_id:                      user.orgId,
+      org_data_type_id:            id,
+      org_classification_label_id: newLabelId,
+      mapped_by:                   'user' as const,
+      confidence:                  null,
+    }))
+    const { error } = await supabase
+      .from('org_data_type_classifications')
+      .upsert(rows, { onConflict: 'org_id,org_data_type_id' })
+    if (error) return { error: error.message }
+  }
 
-  const rows = affectedOrgTypeIds.map(id => ({
-    org_id:                      user.orgId,
-    org_data_type_id:            id,
-    org_classification_label_id: newLabelId,
-    mapped_by:                   'user' as const,
-    confidence:                  null,
-  }))
-
-  const { error } = await supabase
-    .from('org_data_type_classifications')
-    .upsert(rows, { onConflict: 'org_id,org_data_type_id' })
-
-  if (error) return { error: error.message }
   revalidatePolicies()
   revalidatePath('/policies/data-catalog')
   return {}
