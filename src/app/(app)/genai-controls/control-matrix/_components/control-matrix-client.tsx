@@ -55,7 +55,7 @@ const FILENAME_LEVELS: SystemLevel[] = ['highly_confidential', 'secret']
 // ── Sections ──────────────────────────────────────────────────────────────────
 
 const SECTIONS = [
-  { id: 'pp',    label: 'Post / Prompt',                       color: 'text-orange-400' },
+  { id: 'pp',    label: 'Prompt / Upload',                     color: 'text-orange-400' },
   { id: 'ul_dc', label: 'Upload — Data Classification Labels', color: 'text-orange-400' },
   { id: 'ul_fn', label: 'Upload — Filename Detection',         color: 'text-muted-foreground/60' },
 ] as const
@@ -206,8 +206,8 @@ export function ControlMatrixClient({ categories, overrides, labels, notificatio
   const flatItems: FlatItem[] = []
   let rowIndex = 0
 
-  // Post/Prompt — all labels
-  flatItems.push({ type: 'section', sectionId: 'pp', label: 'Post / Prompt', color: 'text-orange-400' })
+  // Prompt/Upload — all labels
+  flatItems.push({ type: 'section', sectionId: 'pp', label: 'Prompt / Upload', color: 'text-orange-400' })
   localLabels.forEach(lbl => {
     flatItems.push({ type: 'row', rowKey: `pp|${lbl.id}`, label: lbl, sectionId: 'pp', ri: rowIndex++ })
   })
