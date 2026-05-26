@@ -18,16 +18,6 @@ export interface AppFields {
   subprocessor_list: FieldValue
   pii_sharing_third_parties: FieldValue
   data_sharing_genai_vendor: FieldValue
-  // Enterprise Capability & Access Control
-  enterprise_tier: FieldValue
-  sso_saml: FieldValue
-  mfa_support: FieldValue
-  role_based_auth: FieldValue
-  authorization_policies: FieldValue
-  admin_console: FieldValue
-  user_audit_logs: FieldValue
-  data_access_audit_logs: FieldValue
-  tenant_isolation: FieldValue
   // Security & Compliance
   soc2: FieldValue
   iso27001: FieldValue
@@ -199,7 +189,6 @@ export interface CoachingNotification {
 export interface TrustScores {
   data_governance: number
   dlp_activity: number
-  enterprise_access: number
   security_compliance: number
   genai_risk: number
   breach_transparency: number

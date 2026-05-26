@@ -20,7 +20,7 @@ interface ColDef {
   negative?: boolean
 }
 
-type GroupId = 'dlp' | 'enterprise' | 'compliance' | 'data-privacy' | 'security-genai'
+type GroupId = 'dlp' | 'compliance' | 'data-privacy' | 'security-genai'
 
 const COLUMN_GROUPS: Record<GroupId, { label: string; type: 'dlp' | 'field'; columns: ColDef[] }> = {
   dlp: {
@@ -33,20 +33,6 @@ const COLUMN_GROUPS: Record<GroupId, { label: string; type: 'dlp' | 'field'; col
       { key: 'login_instance', label: 'Login'    },
       { key: 'edit',           label: 'Edit'     },
       { key: 'attach',         label: 'Attach'   },
-    ],
-  },
-  enterprise: {
-    label: 'Enterprise Controls', type: 'field',
-    columns: [
-      { key: 'enterprise_tier',        label: 'Ent. Tier'   },
-      { key: 'sso_saml',               label: 'SSO/SAML'    },
-      { key: 'mfa_support',            label: 'MFA'         },
-      { key: 'role_based_auth',        label: 'RBAC'        },
-      { key: 'authorization_policies', label: 'Auth Policy' },
-      { key: 'admin_console',          label: 'Admin'       },
-      { key: 'user_audit_logs',        label: 'User Logs'   },
-      { key: 'data_access_audit_logs', label: 'Data Logs'   },
-      { key: 'tenant_isolation',       label: 'Isolation'   },
     ],
   },
   compliance: {
@@ -89,7 +75,7 @@ const COLUMN_GROUPS: Record<GroupId, { label: string; type: 'dlp' | 'field'; col
   },
 }
 
-const GROUP_ORDER: GroupId[] = ['dlp', 'enterprise', 'compliance', 'data-privacy', 'security-genai']
+const GROUP_ORDER: GroupId[] = ['dlp', 'compliance', 'data-privacy', 'security-genai']
 
 const DLP_CELL: Record<string, { label: string; cls: string }> = {
   'enforcement':   { label: 'Enf.',  cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' },

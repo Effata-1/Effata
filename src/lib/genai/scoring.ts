@@ -51,22 +51,7 @@ function scoreDLPActivity(dlp: DLPActivities): number {
   )
 }
 
-// ── Sub-score C: Enterprise Capability & Access Control (20%) ─
-function scoreEnterpriseAccess(f: AppFields): number {
-  return (
-    p(f.enterprise_tier)        * 0.10 +
-    p(f.sso_saml)               * 0.15 +
-    p(f.mfa_support)            * 0.10 +
-    p(f.role_based_auth)        * 0.10 +
-    p(f.authorization_policies) * 0.10 +
-    p(f.admin_console)          * 0.10 +
-    p(f.user_audit_logs)        * 0.10 +
-    p(f.data_access_audit_logs) * 0.10 +
-    p(f.tenant_isolation)       * 0.15
-  )
-}
-
-// ── Sub-score D: Security & Compliance Assurance (15%) ────────
+// ── Sub-score C: Security & Compliance Assurance (20%) ────────
 function scoreSecurityCompliance(f: AppFields): number {
   return (
     p(f.soc2)               * 0.15 +
@@ -81,7 +66,7 @@ function scoreSecurityCompliance(f: AppFields): number {
   )
 }
 
-// ── Sub-score E: GenAI-Specific Risk (10%) ─────────────────────
+// ── Sub-score D: GenAI-Specific Risk (15%) ─────────────────────
 function scoreGenAIRisk(f: AppFields): number {
   return (
     p(f.model_provider_clear)    * 0.15 +
@@ -93,7 +78,7 @@ function scoreGenAIRisk(f: AppFields): number {
   )
 }
 
-// ── Sub-score F: Breach History & Transparency (5%) ───────────
+// ── Sub-score E: Breach History & Transparency (5%) ───────────
 function scoreBreachTransparency(b: BreachInfo): number {
   return (
     n(b.recent_breach)    * 0.40 +
@@ -114,14 +99,9 @@ function applyHardCaps(
   let cap: string | null = null
   let max = 100
 
-  if (f.enterprise_tier === 'no') { max = Math.min(max, 70); cap = 'No enterprise tier' }
-  if (f.sso_saml === 'no' && f.admin_console === 'no' && f.user_audit_logs === 'no') {
-    max = Math.min(max, 70); cap = 'No enterprise access controls'
-  }
   if (f.trains_on_customer_data === 'yes' && f.opt_out_of_training === 'no') {
     max = Math.min(max, 60); cap = 'Training on customer data with no opt-out'
   }
-  if (f.tenant_isolation === 'no') { max = Math.min(max, 70); cap = 'No tenant isolation' }
   if (dlp.post_prompt === 'not-supported' && dlp.upload === 'not-supported') {
     max = Math.min(max, 65); cap = 'Post/Prompt and Upload both not inspectable'
   }
@@ -160,13 +140,12 @@ export function computeTrustScore(
 ): TrustScores {
   const dg  = scoreDataGovernance(fields)
   const da  = scoreDLPActivity(dlp)
-  const ea  = scoreEnterpriseAccess(fields)
   const sc  = scoreSecurityCompliance(fields)
   const gr  = scoreGenAIRisk(fields)
   const bt  = scoreBreachTransparency(breach)
 
   const raw = Math.round(
-    dg * 0.25 + da * 0.25 + ea * 0.20 + sc * 0.15 + gr * 0.10 + bt * 0.05
+    dg * 0.30 + da * 0.30 + sc * 0.20 + gr * 0.15 + bt * 0.05
   )
 
   const { score: capped, cap } = applyHardCaps(raw, fields, dlp, breach)
@@ -176,7 +155,6 @@ export function computeTrustScore(
   return {
     data_governance:       Math.round(dg),
     dlp_activity:          Math.round(da),
-    enterprise_access:     Math.round(ea),
     security_compliance:   Math.round(sc),
     genai_risk:            Math.round(gr),
     breach_transparency:   Math.round(bt),
@@ -202,16 +180,6 @@ export const FIELD_LABELS: Record<string, string> = {
   subprocessor_list: 'Subprocessor list published',
   pii_sharing_third_parties: 'PII sharing with third parties',
   data_sharing_genai_vendor: 'Data sharing with GenAI vendor',
-  // Enterprise
-  enterprise_tier: 'Enterprise tier available',
-  sso_saml: 'SSO / SAML support',
-  mfa_support: 'MFA support',
-  role_based_auth: 'Role-based authorisation',
-  authorization_policies: 'Authorisation policies',
-  admin_console: 'Admin console',
-  user_audit_logs: 'User audit logs',
-  data_access_audit_logs: 'Data access audit logs',
-  tenant_isolation: 'Tenant isolation / private instance',
   // Security
   soc2: 'SOC 2',
   iso27001: 'ISO 27001',

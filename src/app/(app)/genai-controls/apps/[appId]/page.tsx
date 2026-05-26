@@ -133,15 +133,15 @@ export default async function GenAIAppProfilePage({
     s >= 85 ? 'text-green-400' : s >= 70 ? 'text-blue-400' : s >= 50 ? 'text-yellow-400' : 'text-red-400'
 
   const COMPARE_FIELDS: { key: keyof AppFields; label: string }[] = [
-    { key: 'sso_saml', label: 'SSO / SAML' },
-    { key: 'admin_console', label: 'Admin console' },
-    { key: 'user_audit_logs', label: 'User audit logs' },
-    { key: 'data_access_audit_logs', label: 'Data access audit logs' },
-    { key: 'tenant_isolation', label: 'Tenant isolation / private instance' },
     { key: 'trains_on_customer_data', label: 'Customer data used for training' },
-    { key: 'data_retention', label: 'Data retention controls' },
+    { key: 'opt_out_of_training', label: 'Opt out of training' },
     { key: 'dpa_available', label: 'DPA available' },
+    { key: 'data_retention', label: 'Data retention controls' },
     { key: 'data_residency', label: 'Data residency' },
+    { key: 'soc2', label: 'SOC 2' },
+    { key: 'hipaa_baa', label: 'HIPAA / BAA' },
+    { key: 'encryption_at_rest', label: 'Encryption at rest' },
+    { key: 'model_provider_clear', label: 'Model provider clarity' },
   ]
 
   return (
@@ -199,11 +199,10 @@ export default async function GenAIAppProfilePage({
       {/* Sub-scores */}
       {score && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <SubScoreCard label="Data Governance" score={score.data_governance} weight="25%" />
-          <SubScoreCard label="DLP Activity Support" score={score.dlp_activity} weight="25%" />
-          <SubScoreCard label="Enterprise Access" score={score.enterprise_access} weight="20%" />
-          <SubScoreCard label="Security & Compliance" score={score.security_compliance} weight="15%" />
-          <SubScoreCard label="GenAI-Specific Risk" score={score.genai_risk} weight="10%" />
+          <SubScoreCard label="Data Governance" score={score.data_governance} weight="30%" />
+          <SubScoreCard label="DLP Activity Support" score={score.dlp_activity} weight="30%" />
+          <SubScoreCard label="Security & Compliance" score={score.security_compliance} weight="20%" />
+          <SubScoreCard label="GenAI-Specific Risk" score={score.genai_risk} weight="15%" />
           <SubScoreCard label="Breach & Transparency" score={score.breach_transparency} weight="5%" />
         </div>
       )}
@@ -316,26 +315,11 @@ export default async function GenAIAppProfilePage({
         </div>
       )}
 
-      {/* Enterprise Capability & Access */}
-      {fields && (
-        <div className="rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm">
-          <div className="px-5 py-3 border-b border-border bg-card flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Enterprise Capability & Access Control</h2>
-            {score && <span className={cn('text-sm font-bold', scoreColor(score.enterprise_access))}>{score.enterprise_access}/100</span>}
-          </div>
-          <div className="px-5">
-            {(['enterprise_tier','sso_saml','mfa_support','role_based_auth','authorization_policies','admin_console','user_audit_logs','data_access_audit_logs','tenant_isolation'] as const).map(key => (
-              <FieldRow key={key} label={FIELD_LABELS[key]} value={fields[key] as string} />
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Security & Compliance */}
       {fields && (
         <div className="rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm">
           <div className="px-5 py-3 border-b border-border bg-card flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Security & Compliance Assurance</h2>
+            <h2 className="text-sm font-semibold text-foreground">Security & Compliance</h2>
             {score && <span className={cn('text-sm font-bold', scoreColor(score.security_compliance))}>{score.security_compliance}/100</span>}
           </div>
           <div className="px-5">
