@@ -1,4 +1,4 @@
-import type { AppFields, DLPActivities, BreachInfo, TrustScores, FieldValue, DLPValue } from './types'
+import type { AppFields, DLPActivities, BreachInfo, TrustScores, FieldValue, DLPValue, CustomerClass } from './types'
 
 // ── Field value → score ────────────────────────────────────────
 const POS: Record<string, number> = {
@@ -124,12 +124,12 @@ function countDLPSupported(dlp: DLPActivities): number {
 }
 
 // ── System suggested classification ───────────────────────────
-function suggestClassification(score: number): string {
-  if (score >= 85) return 'Enterprise Approved'
-  if (score >= 70) return 'Approved with Conditions'
-  if (score >= 50) return 'Permitted with Restriction'
-  if (score >= 30) return 'Unknown / High Review'
-  return 'Prohibited Candidate'
+function suggestClassification(score: number): CustomerClass {
+  if (score >= 85) return 'enterprise-approved'
+  if (score >= 70) return 'approved-with-conditions'
+  if (score >= 50) return 'permitted-with-restriction'
+  if (score >= 30) return 'unknown'
+  return 'prohibited'
 }
 
 // ── Main export ────────────────────────────────────────────────
@@ -222,10 +222,10 @@ export const VALUE_DISPLAY: Record<string, { label: string; color: string }> = {
 }
 
 export const CLASSIFICATION_LABELS: Record<string, { label: string; color: string }> = {
-  'enterprise-approved':       { label: 'Enterprise Approved',       color: 'green'  },
-  'approved-with-conditions':  { label: 'Approved with Conditions',  color: 'blue'   },
-  'permitted-with-restriction':{ label: 'Permitted with Restriction', color: 'amber' },
-  'personal':                  { label: 'Personal',                  color: 'purple' },
-  'unknown':                   { label: 'Unknown',                   color: 'zinc'   },
-  'prohibited':                { label: 'Prohibited',                color: 'red'    },
+  'enterprise-approved':       { label: 'Approved & Supported GenAI',   color: 'green'  },
+  'approved-with-conditions':  { label: 'Approved with Conditions',     color: 'blue'   },
+  'permitted-with-restriction':{ label: 'Restricted / Unassessed GenAI', color: 'amber' },
+  'personal':                  { label: 'Personal',                     color: 'purple' },
+  'unknown':                   { label: 'Unknown',                      color: 'zinc'   },
+  'prohibited':                { label: 'Prohibited GenAI',             color: 'red'    },
 }

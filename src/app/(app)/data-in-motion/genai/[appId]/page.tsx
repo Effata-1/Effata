@@ -158,11 +158,6 @@ export default async function GenAIAppProfilePage({
             <h1 className="text-xl font-bold text-foreground">{typedApp.app_name}</h1>
             <p className="text-sm text-muted-foreground/80">{typedApp.vendor} · {typedApp.domain} · {typedApp.app_type}</p>
             <div className="flex flex-wrap gap-2 mt-2">
-              {score && (
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-muted text-foreground/70 border border-border-strong">
-                  System: {score.suggested_classification}
-                </span>
-              )}
               <span className={cn(
                 'text-[11px] font-bold px-2 py-0.5 rounded border',
                 CLASSIFICATION_LABELS[currentClassification].color === 'green' ? 'bg-green-500/10 text-green-400 border-green-500/20' :

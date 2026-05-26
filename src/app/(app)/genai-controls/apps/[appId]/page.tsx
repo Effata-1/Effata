@@ -7,7 +7,6 @@ import { cn } from '@/lib/utils'
 import type { GenAIApp, GenAIAppProfile, AppFields, DLPActivities, BreachInfo, CustomerClass, CustomerClassification } from '@/lib/genai/types'
 import { ClassificationSelector } from './_components/classification-selector'
 import type { GovernanceCategory } from './_components/classification-selector'
-import { GovernanceRecord } from './_components/governance-record'
 
 // ── Value display helpers ──────────────────────────────────────
 function FieldBadge({ value }: { value: string }) {
@@ -164,11 +163,6 @@ export default async function GenAIAppProfilePage({
             <h1 className="text-xl font-bold text-foreground">{typedApp.app_name}</h1>
             <p className="text-sm text-muted-foreground/80">{typedApp.vendor} · {typedApp.domain} · {typedApp.app_type}</p>
             <div className="flex flex-wrap gap-2 mt-2">
-              {score && (
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-muted text-foreground/70 border border-border-strong">
-                  System: {score.suggested_classification}
-                </span>
-              )}
               <span className={cn(
                 'text-[11px] font-bold px-2 py-0.5 rounded border',
                 CLASSIFICATION_LABELS[currentClassification].color === 'green' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
@@ -220,19 +214,6 @@ export default async function GenAIAppProfilePage({
           categories={categories}
         />
       </div>
-
-      {/* Governance Record */}
-      <GovernanceRecord
-        appId={appId}
-        initial={{
-          business_owner:   typedClassification?.business_owner  ?? null,
-          technical_owner:  typedClassification?.technical_owner ?? null,
-          approval_status:  typedClassification?.approval_status ?? null,
-          review_date:      typedClassification?.review_date     ?? null,
-          next_review_date: typedClassification?.next_review_date ?? null,
-          notes:            typedClassification?.notes            ?? null,
-        }}
-      />
 
       {/* Enterprise vs Personal comparison */}
       {enterpriseProfile && personalProfile && (

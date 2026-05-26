@@ -195,7 +195,7 @@ export interface TrustScores {
   raw_score: number
   applied_cap: string | null
   final_score: number
-  suggested_classification: string
+  suggested_classification: CustomerClass
   dlp_activities_supported: number
   dlp_activities_total: number
 }
