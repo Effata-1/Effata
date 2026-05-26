@@ -16,7 +16,7 @@ export default async function AppGovernancePage() {
     supabase.from('genai_apps').select('*').eq('status', 'active').order('app_name'),
     supabase.from('genai_app_profiles').select('*').eq('mode', 'enterprise'),
     supabase.from('genai_customer_classifications').select('*').eq('org_id', user.orgId),
-    supabase.from('org_reference_app_notes').select('app_slug, notes').eq('org_id', user.orgId),
+    supabase.from('org_reference_app_notes').select('app_slug, notes, in_scope, classification').eq('org_id', user.orgId),
   ])
 
   const profileMap = new Map((profiles as GenAIAppProfile[] ?? []).map(p => [p.app_id, p]))
@@ -37,8 +37,15 @@ export default async function AppGovernancePage() {
     appsByCategoryTag[tag].push({ app, profile, classification })
   }
 
-  const notesBySlug = Object.fromEntries(
-    (refNotes ?? []).map(n => [n.app_slug as string, (n.notes ?? '') as string]),
+  const refDataBySlug = Object.fromEntries(
+    (refNotes ?? []).map(n => [
+      n.app_slug as string,
+      {
+        notes:          (n.notes          ?? '')    as string,
+        in_scope:       (n.in_scope       ?? false) as boolean,
+        classification: (n.classification ?? null)  as string | null,
+      },
+    ]),
   )
 
   return (
@@ -46,7 +53,7 @@ export default async function AppGovernancePage() {
       categories={categories}
       appsByCategoryTag={appsByCategoryTag}
       userRole={user.role}
-      initialNotes={notesBySlug}
+      initialNotes={refDataBySlug}
     />
   )
 }

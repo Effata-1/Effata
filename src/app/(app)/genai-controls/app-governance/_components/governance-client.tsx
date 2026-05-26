@@ -38,11 +38,17 @@ export interface AppEntry {
   classification: CustomerClassification | null
 }
 
+export interface RefAppData {
+  notes:          string
+  in_scope:       boolean
+  classification: string | null
+}
+
 interface Props {
   categories:        GenAIGovernanceCategory[]
   appsByCategoryTag: Record<string, AppEntry[]>
   userRole:          string
-  initialNotes:      Record<string, string>
+  initialNotes:      Record<string, RefAppData>
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -316,7 +322,7 @@ function CategorySection({
 }: {
   category:     GenAIGovernanceCategory
   apps:         AppEntry[]
-  initialNotes: Record<string, string>
+  initialNotes: Record<string, RefAppData>
 }) {
   const [open, setOpen] = useState(false)
   const cc = colorClasses(category.color)
