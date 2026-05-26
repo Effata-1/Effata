@@ -4,19 +4,33 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, Loader2, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { colorClasses } from '@/lib/data-catalog/types'
 import { upsertPolicy } from '../../actions'
 import type { PolicyRule, ActionCode, GenAIPolicy } from '@/lib/genai/types'
 import { lintPolicy, SEVERITY_STYLES } from '@/lib/genai/lint'
 
+// ── Exported types (used by page.tsx) ─────────────────────────────────────────
+
+export type RuleItemKind = 'label' | 'type' | 'catalog'
+
+export interface RuleItem {
+  key:        string
+  name:       string
+  kind:       RuleItemKind
+  color:      string
+  layer:      1 | 2 | 3
+  layerLabel: string | undefined
+}
+
 // ── Local types ───────────────────────────────────────────────────────────────
+
+type RuleMode = 'matrix' | 'custom'
 
 type IdentityFieldName =
   | 'business_function'
   | 'privilege_level'
   | 'employment_type'
   | 'user_lifecycle_status'
-
-type RiskLevel = 'critical' | 'high' | 'medium' | 'low'
 
 interface IdentityOption {
   id:         string
@@ -51,6 +65,7 @@ interface Props {
   categories:      Category[]
   classifications: Classification[]
   identityFields:  Record<string, IdentityOption[]>
+  ruleItems:       RuleItem[]
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -103,30 +118,23 @@ const ACTION_CELL: Record<ActionCode, string> = {
   'not-set':    'bg-transparent text-muted-foreground/30 border-border',
 }
 
-const DATA_TYPES: { key: string; label: string }[] = [
-  { key: 'public',              label: 'Public' },
-  { key: 'internal',            label: 'Internal' },
-  { key: 'confidential',        label: 'Confidential' },
-  { key: 'highly-confidential', label: 'Highly Confidential' },
-  { key: 'secret',              label: 'Secret' },
-  { key: 'credentials',         label: 'Credentials / Secrets' },
-  { key: 'pci',                 label: 'PCI Data' },
-  { key: 'pii-low',             label: 'Low-volume PII' },
-  { key: 'pii-bulk',            label: 'Bulk PII' },
-  { key: 'source-code',         label: 'Source Code' },
-]
+const LAYER_META: Record<1 | 2 | 3, { label: string; desc: string }> = {
+  1: { label: 'Classification Levels',  desc: 'Applies to all data at this sensitivity level.' },
+  2: { label: 'Org Data Types',         desc: 'Your in-scope specific data types, mapped to a classification level.' },
+  3: { label: 'Catalog Reference Types', desc: 'Available catalog types not yet added to your scope. Add them in Data Catalog → Classification.' },
+}
 
 type Activity = 'post_prompt' | 'upload' | 'download' | 'response'
 const ACTIVITIES: { key: Activity; label: string }[] = [
-  { key: 'post_prompt', label: 'Post / Prompt' },
+  { key: 'post_prompt', label: 'Prompt' },
   { key: 'upload',      label: 'Upload' },
   { key: 'download',    label: 'Download' },
   { key: 'response',    label: 'Response' },
 ]
 
-const defaultRules = (): PolicyRule[] =>
-  DATA_TYPES.map(dt => ({
-    data_type:   dt.key,
+const defaultRulesFromItems = (items: RuleItem[]): PolicyRule[] =>
+  items.map(item => ({
+    data_type:   item.key,
     post_prompt: 'not-set',
     upload:      'not-set',
     download:    'not-set',
@@ -276,16 +284,6 @@ function StepScope({
     setSelectedAppIds(next)
   }
 
-  function selectCategory(catId: string) {
-    setScopeMode('category')
-    setScopeCategoryId(catId)
-  }
-
-  function selectSpecific() {
-    setScopeMode('specific')
-    setScopeCategoryId(null)
-  }
-
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground/70">
@@ -299,7 +297,7 @@ function StepScope({
           return (
             <button
               key={cat.id}
-              onClick={() => selectCategory(cat.id)}
+              onClick={() => { setScopeMode('category'); setScopeCategoryId(cat.id) }}
               className={cn(
                 'px-4 py-3 rounded-lg border text-sm font-semibold transition-all text-left',
                 isSelected
@@ -316,7 +314,7 @@ function StepScope({
         })}
 
         <button
-          onClick={selectSpecific}
+          onClick={() => { setScopeMode('specific'); setScopeCategoryId(null) }}
           className={cn(
             'px-4 py-3 rounded-lg border text-sm font-semibold transition-all text-left',
             scopeMode === 'specific'
@@ -382,76 +380,252 @@ function StepScope({
 
 // ── Step 3: DLP Rules ─────────────────────────────────────────────────────────
 
-function StepRules({ rules, setRules }: { rules: PolicyRule[]; setRules: (r: PolicyRule[]) => void }) {
-  function setCell(dataType: string, activity: Activity, value: ActionCode) {
-    setRules(rules.map(r => r.data_type === dataType ? { ...r, [activity]: value } : r))
+function RuleSelect({
+  value, onChange, disabled,
+}: {
+  value: ActionCode; onChange: (v: ActionCode) => void; disabled?: boolean
+}) {
+  return (
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value as ActionCode)}
+      disabled={disabled}
+      className={cn(
+        'text-xs font-semibold px-2 py-1 rounded-md border cursor-pointer appearance-none focus:outline-none text-center transition-colors',
+        ACTION_CELL[value],
+        disabled && 'opacity-40 cursor-not-allowed',
+      )}
+    >
+      {ACTION_CODES.map(ac => (
+        <option key={ac} value={ac} className="bg-card text-foreground">{ACTION_LABELS[ac]}</option>
+      ))}
+    </select>
+  )
+}
+
+function StepRules({
+  ruleMode, setRuleMode, rules, setRules, ruleItems,
+}: {
+  ruleMode: RuleMode
+  setRuleMode: (v: RuleMode) => void
+  rules: PolicyRule[]
+  setRules: (r: PolicyRule[]) => void
+  ruleItems: RuleItem[]
+}) {
+  function setCell(key: string, activity: Activity, value: ActionCode) {
+    setRules(rules.map(r => r.data_type === key ? { ...r, [activity]: value } : r))
   }
 
-  function fillColumn(activity: Activity, value: ActionCode) {
-    setRules(rules.map(r => ({ ...r, [activity]: value })))
+  function fillLayer(layer: 1 | 2 | 3, activity: Activity, value: ActionCode) {
+    const layerKeys = new Set(ruleItems.filter(i => i.layer === layer).map(i => i.key))
+    setRules(rules.map(r => layerKeys.has(r.data_type) ? { ...r, [activity]: value } : r))
   }
+
+  const layer1 = ruleItems.filter(i => i.layer === 1)
+  const layer2 = ruleItems.filter(i => i.layer === 2)
+  const layer3 = ruleItems.filter(i => i.layer === 3)
+
+  const configuredCount = rules.filter(r =>
+    r.post_prompt !== 'not-set' || r.upload !== 'not-set' ||
+    r.download !== 'not-set' || r.response !== 'not-set'
+  ).length
 
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-muted-foreground/70">
-        Define what DLP action to apply when each type of data is sent to a GenAI app covered by this policy.
-        Leave cells as <span className="font-medium text-muted-foreground">—</span> to inherit from the Control Matrix.
-      </p>
-
-      <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-border bg-card">
-              <th className="text-left text-[10px] text-muted-foreground/50 uppercase tracking-wide px-4 py-3 w-40">Data Type</th>
-              {ACTIVITIES.map(act => (
-                <th key={act.key} className="text-center text-[10px] text-muted-foreground/50 uppercase tracking-wide px-2 py-3">
-                  <div>{act.label}</div>
-                  <div className="flex justify-center mt-1.5">
-                    <select
-                      onChange={e => fillColumn(act.key, e.target.value as ActionCode)}
-                      defaultValue=""
-                      className="bg-muted/60 text-[9px] text-muted-foreground/70 border border-border/60 rounded px-1 py-0.5 cursor-pointer appearance-none focus:outline-none"
-                    >
-                      <option value="" disabled>fill all</option>
-                      {ACTION_CODES.map(ac => <option key={ac} value={ac}>{ACTION_LABELS[ac]}</option>)}
-                    </select>
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {DATA_TYPES.map((dt, i) => {
-              const rule = rules.find(r => r.data_type === dt.key)!
-              return (
-                <tr key={dt.key} className={cn('border-b border-border/60 last:border-0', i % 2 === 0 ? 'bg-card/40' : '')}>
-                  <td className="px-4 py-2.5 text-foreground/80 font-medium">{dt.label}</td>
-                  {ACTIVITIES.map(act => {
-                    const val = rule[act.key]
-                    return (
-                      <td key={act.key} className="px-2 py-2.5 text-center">
-                        <select
-                          value={val}
-                          onChange={e => setCell(dt.key, act.key, e.target.value as ActionCode)}
-                          className={cn(
-                            'text-xs font-semibold px-2 py-1 rounded-md border cursor-pointer appearance-none focus:outline-none text-center',
-                            ACTION_CELL[val],
-                          )}
-                        >
-                          {ACTION_CODES.map(ac => (
-                            <option key={ac} value={ac} className="bg-card text-foreground">{ACTION_LABELS[ac]}</option>
-                          ))}
-                        </select>
-                      </td>
-                    )
-                  })}
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+    <div className="space-y-4">
+      {/* Mode toggle */}
+      <div className="flex gap-3">
+        <button
+          onClick={() => setRuleMode('matrix')}
+          className={cn(
+            'flex-1 px-4 py-3 rounded-lg border text-sm font-semibold transition-all text-left',
+            ruleMode === 'matrix'
+              ? 'bg-foreground/10 border-foreground/30 text-foreground'
+              : 'border-border text-muted-foreground hover:border-border-strong',
+          )}
+        >
+          Control Matrix
+          <p className="text-xs font-normal text-muted-foreground/70 mt-0.5">
+            Inherit DLP actions from the global control matrix — no custom rules needed
+          </p>
+        </button>
+        <button
+          onClick={() => setRuleMode('custom')}
+          className={cn(
+            'flex-1 px-4 py-3 rounded-lg border text-sm font-semibold transition-all text-left',
+            ruleMode === 'custom'
+              ? 'bg-foreground/10 border-foreground/30 text-foreground'
+              : 'border-border text-muted-foreground hover:border-border-strong',
+          )}
+        >
+          Custom Rules
+          {ruleMode === 'custom' && configuredCount > 0 && (
+            <span className="ml-2 text-xs font-semibold text-foreground/70 bg-muted px-1.5 py-0.5 rounded">
+              {configuredCount} rule{configuredCount !== 1 ? 's' : ''} set
+            </span>
+          )}
+          <p className="text-xs font-normal text-muted-foreground/70 mt-0.5">
+            Define per-data-type DLP actions from your data catalog
+          </p>
+        </button>
       </div>
+
+      {ruleMode === 'matrix' ? (
+        <div className="rounded-xl border border-border bg-card/40 px-5 py-5 flex items-start gap-4">
+          <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+            <span className="text-sm">⬡</span>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foreground/90">Using Control Matrix</p>
+            <p className="text-xs text-muted-foreground/70 mt-1 leading-relaxed">
+              This policy will not define its own DLP rules. All enforcement actions are inherited from the{' '}
+              <a href="/genai-controls/control-matrix" className="underline hover:text-foreground/60 transition-colors">Control Matrix</a>{' '}
+              based on the app scope and data type.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-0 overflow-x-auto rounded-xl border border-border">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border bg-card sticky top-0 z-10">
+                <th className="text-left text-[10px] text-muted-foreground/50 uppercase tracking-wide px-4 py-3 w-52">Data Type</th>
+                {ACTIVITIES.map(act => (
+                  <th key={act.key} className="text-center text-[10px] text-muted-foreground/50 uppercase tracking-wide px-2 py-3 w-28">
+                    {act.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {/* Layer 1 — Classification Levels */}
+              {layer1.length > 0 && (
+                <>
+                  <LayerHeader layer={1} items={layer1} onFillLayer={fillLayer} />
+                  {layer1.map((item, i) => (
+                    <RuleRow
+                      key={item.key}
+                      item={item}
+                      rule={rules.find(r => r.data_type === item.key)!}
+                      onCell={setCell}
+                      zebra={i % 2 === 0}
+                    />
+                  ))}
+                </>
+              )}
+
+              {/* Layer 2 — Org Data Types */}
+              {layer2.length > 0 && (
+                <>
+                  <LayerHeader layer={2} items={layer2} onFillLayer={fillLayer} />
+                  {layer2.map((item, i) => (
+                    <RuleRow
+                      key={item.key}
+                      item={item}
+                      rule={rules.find(r => r.data_type === item.key)!}
+                      onCell={setCell}
+                      zebra={i % 2 === 0}
+                    />
+                  ))}
+                </>
+              )}
+
+              {/* Layer 3 — Catalog Reference Types */}
+              {layer3.length > 0 && (
+                <>
+                  <LayerHeader layer={3} items={layer3} onFillLayer={fillLayer} />
+                  {layer3.map((item, i) => (
+                    <RuleRow
+                      key={item.key}
+                      item={item}
+                      rule={rules.find(r => r.data_type === item.key)!}
+                      onCell={setCell}
+                      zebra={i % 2 === 0}
+                      dim
+                    />
+                  ))}
+                </>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
+  )
+}
+
+function LayerHeader({
+  layer, items, onFillLayer,
+}: {
+  layer: 1 | 2 | 3
+  items: RuleItem[]
+  onFillLayer: (layer: 1 | 2 | 3, activity: Activity, value: ActionCode) => void
+}) {
+  const meta = LAYER_META[layer]
+  return (
+    <tr className="border-b border-border/60 bg-muted/20">
+      <td className="px-4 py-2.5" colSpan={5}>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest">
+            Layer {layer} — {meta.label}
+          </span>
+          <span className="text-[10px] text-muted-foreground/40">
+            {items.length} type{items.length !== 1 ? 's' : ''}
+          </span>
+          {/* Fill-all dropdowns per activity for this layer */}
+          <div className="ml-auto flex gap-1.5">
+            {ACTIVITIES.map(act => (
+              <select
+                key={act.key}
+                onChange={e => { if (e.target.value) onFillLayer(layer, act.key, e.target.value as ActionCode) }}
+                value=""
+                className="bg-muted/60 text-[9px] text-muted-foreground/60 border border-border/60 rounded px-1 py-0.5 cursor-pointer appearance-none focus:outline-none"
+              >
+                <option value="" disabled>fill {act.label.toLowerCase()}</option>
+                {ACTION_CODES.map(ac => <option key={ac} value={ac}>{ACTION_LABELS[ac]}</option>)}
+              </select>
+            ))}
+          </div>
+        </div>
+        <p className="text-[10px] text-muted-foreground/40 mt-0.5">{meta.desc}</p>
+      </td>
+    </tr>
+  )
+}
+
+function RuleRow({
+  item, rule, onCell, zebra, dim,
+}: {
+  item:   RuleItem
+  rule:   PolicyRule | undefined
+  onCell: (key: string, activity: Activity, value: ActionCode) => void
+  zebra:  boolean
+  dim?:   boolean
+}) {
+  if (!rule) return null
+  const cc = colorClasses(item.color)
+
+  return (
+    <tr className={cn('border-b border-border/40 last:border-0', zebra ? 'bg-card/30' : '', dim && 'opacity-60')}>
+      <td className="px-4 py-2.5">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className={cn('w-2 h-2 rounded-full shrink-0', cc.dot)} />
+          <span className="text-foreground/85 font-medium truncate">{item.name}</span>
+          {item.layerLabel && (
+            <span className={cn('text-[9px] px-1.5 py-0.5 rounded border shrink-0', cc.bg, cc.text, cc.border)}>
+              {item.layerLabel}
+            </span>
+          )}
+        </div>
+      </td>
+      {ACTIVITIES.map(act => (
+        <td key={act.key} className="px-2 py-2 text-center">
+          <RuleSelect
+            value={rule[act.key]}
+            onChange={v => onCell(item.key, act.key, v)}
+          />
+        </td>
+      ))}
+    </tr>
   )
 }
 
@@ -459,7 +633,8 @@ function StepRules({ rules, setRules }: { rules: PolicyRule[]; setRules: (r: Pol
 
 function StepReview({
   name, description, scopeMode, scopeCategoryId, selectedAppIds,
-  identityContext, identityFields, rules, categories, apps, classifications,
+  identityContext, identityFields, ruleMode, rules, ruleItems,
+  categories, apps, classifications,
 }: {
   name: string
   description: string
@@ -468,7 +643,9 @@ function StepReview({
   selectedAppIds: Set<string>
   identityContext: Set<string>
   identityFields: Record<string, IdentityOption[]>
+  ruleMode: RuleMode
   rules: PolicyRule[]
+  ruleItems: RuleItem[]
   categories: Category[]
   apps: App[]
   classifications: Classification[]
@@ -501,6 +678,12 @@ function StepReview({
     return `${selected.slice(0, 2).map(v => v.value_name).join(', ')} +${selected.length - 2} more`
   }
 
+  function rulesLabel(): string {
+    if (ruleMode === 'matrix') return 'Inherited from Control Matrix'
+    if (configuredRules.length === 0) return 'No rules set (inherits from Control Matrix)'
+    return `${configuredRules.length} custom rule${configuredRules.length !== 1 ? 's' : ''} across ${ruleItems.filter(i => configuredRules.some(r => r.data_type === i.key)).length} data type${configuredRules.length !== 1 ? 's' : ''}`
+  }
+
   // Minimal draft for linting
   const draft: GenAIPolicy = {
     id: 'draft', org_id: '', name, description,
@@ -510,7 +693,7 @@ function StepReview({
     notes: null, is_active: true, priority: 99,
     scope_all_apps: false,
     scope_app_ids: scopeMode === 'specific' ? [...selectedAppIds] : [],
-    rules,
+    rules: ruleMode === 'matrix' ? [] : configuredRules,
     identity_context: identityContext.size > 0 ? [...identityContext] : null,
     created_at: '', updated_at: '',
   }
@@ -523,11 +706,7 @@ function StepReview({
         <Row label="Description" value={description || '—'} />
         <Row label="App Scope" value={appScopeLabel()} />
         <Row label="Identity Context" value={identityLabel()} />
-        <Row label="Rules Configured" value={
-          configuredRules.length > 0
-            ? `${configuredRules.length} of 10 data types have DLP actions`
-            : 'No rules configured (inherits from Control Matrix)'
-        } />
+        <Row label="DLP Rules" value={rulesLabel()} />
       </div>
 
       {lintIssues.length === 0 ? (
@@ -579,7 +758,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 
 // ── Main wizard ───────────────────────────────────────────────────────────────
 
-export function PolicyBuilder({ apps, categories, classifications, identityFields }: Props) {
+export function PolicyBuilder({ apps, categories, classifications, identityFields, ruleItems }: Props) {
   const router = useRouter()
   const [step, setStep]   = useState<Step>(0)
   const [error, setError] = useState<string | null>(null)
@@ -591,12 +770,13 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
   const [identityContext, setIdentityContext] = useState<Set<string>>(new Set())
 
   // Step 2 state
-  const [scopeMode, setScopeMode]           = useState<ScopeMode | null>(null)
+  const [scopeMode, setScopeMode]             = useState<ScopeMode | null>(null)
   const [scopeCategoryId, setScopeCategoryId] = useState<string | null>(null)
   const [selectedAppIds, setSelectedAppIds]   = useState<Set<string>>(new Set())
 
   // Step 3 state
-  const [rules, setRules] = useState<PolicyRule[]>(defaultRules())
+  const [ruleMode, setRuleMode] = useState<RuleMode>('matrix')
+  const [rules, setRules]       = useState<PolicyRule[]>(() => defaultRulesFromItems(ruleItems))
 
   function canAdvance(): boolean {
     if (step === 0) return name.trim().length > 0
@@ -631,6 +811,12 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
       saveAppIds = Array.from(selectedAppIds)
     }
 
+    // Custom rules: only save rows where at least one action is set
+    const saveRules = ruleMode === 'matrix' ? [] : rules.filter(r =>
+      r.post_prompt !== 'not-set' || r.upload !== 'not-set' ||
+      r.download !== 'not-set'   || r.response !== 'not-set'
+    )
+
     startTransition(async () => {
       const result = await upsertPolicy(null, {
         name:             name.trim(),
@@ -639,10 +825,7 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
         approval_status:  submitForReview ? 'under-review' : 'draft',
         scope_all_apps:   false,
         scope_app_ids:    saveAppIds,
-        rules:            rules.filter(r =>
-          r.post_prompt !== 'not-set' || r.upload !== 'not-set' ||
-          r.download !== 'not-set'   || r.response !== 'not-set'
-        ),
+        rules:            saveRules,
         identity_context: identityContext.size > 0 ? [...identityContext] : null,
       })
       if (result.error) { setError(result.error); return }
@@ -712,14 +895,19 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
           />
         )}
         {step === 2 && (
-          <StepRules rules={rules} setRules={setRules} />
+          <StepRules
+            ruleMode={ruleMode} setRuleMode={setRuleMode}
+            rules={rules} setRules={setRules}
+            ruleItems={ruleItems}
+          />
         )}
         {step === 3 && (
           <StepReview
             name={name} description={description}
             scopeMode={scopeMode} scopeCategoryId={scopeCategoryId}
             selectedAppIds={selectedAppIds} identityContext={identityContext}
-            identityFields={identityFields} rules={rules}
+            identityFields={identityFields} ruleMode={ruleMode}
+            rules={rules} ruleItems={ruleItems}
             categories={categories} apps={apps} classifications={classifications}
           />
         )}
