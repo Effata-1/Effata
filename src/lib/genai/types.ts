@@ -164,6 +164,8 @@ export interface GenAIPolicy {
   scope_all_apps:   boolean
   scope_app_ids:    string[]
   rules:            PolicyRule[]
+  // P2-9 identity context (migration 047)
+  identity_context: string[] | null
   created_at:       string
   updated_at:       string
 }

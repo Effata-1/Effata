@@ -4,12 +4,26 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, Loader2, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { colorClasses } from '@/lib/data-catalog/types'
 import { upsertPolicy } from '../../actions'
-import type { ApprovalStatus, PolicyType, PolicyRule, ActionCode, GenAIPolicy } from '@/lib/genai/types'
+import type { PolicyRule, ActionCode, GenAIPolicy } from '@/lib/genai/types'
 import { lintPolicy, SEVERITY_STYLES } from '@/lib/genai/lint'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Local types ───────────────────────────────────────────────────────────────
+
+type IdentityFieldName =
+  | 'business_function'
+  | 'privilege_level'
+  | 'employment_type'
+  | 'user_lifecycle_status'
+
+type RiskLevel = 'critical' | 'high' | 'medium' | 'low'
+
+interface IdentityOption {
+  id:         string
+  field_name: string
+  value_name: string
+  risk_level: string
+}
 
 interface App {
   app_id:      string
@@ -27,9 +41,16 @@ interface Category {
   color:      string
 }
 
+interface Classification {
+  app_id:                  string
+  customer_classification: string
+}
+
 interface Props {
-  apps:       App[]
-  categories: Category[]
+  apps:            App[]
+  categories:      Category[]
+  classifications: Classification[]
+  identityFields:  Record<string, IdentityOption[]>
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -37,14 +58,25 @@ interface Props {
 const STEPS = ['Details', 'App Scope', 'DLP Rules', 'Review'] as const
 type Step = 0 | 1 | 2 | 3
 
-const APPROVAL_STATUSES: ApprovalStatus[] = ['draft', 'under-review', 'approved', 'rejected', 'expired']
-const POLICY_TYPES: PolicyType[]          = ['usage', 'data-handling', 'approved-use', 'prohibited']
+const IDENTITY_FIELD_ORDER: IdentityFieldName[] = [
+  'business_function',
+  'privilege_level',
+  'employment_type',
+  'user_lifecycle_status',
+]
 
-const POLICY_TYPE_LABELS: Record<PolicyType, string> = {
-  'usage':         'Usage Policy',
-  'data-handling': 'Data Handling Policy',
-  'approved-use':  'Approved Use Policy',
-  'prohibited':    'Prohibited Use Policy',
+const IDENTITY_FIELD_LABELS: Record<IdentityFieldName, string> = {
+  business_function:     'Business Function',
+  privilege_level:       'Privilege Level',
+  employment_type:       'Employment Type',
+  user_lifecycle_status: 'User Lifecycle Status',
+}
+
+const RISK_DOT: Record<string, string> = {
+  critical: 'bg-red-400',
+  high:     'bg-amber-400',
+  medium:   'bg-blue-400',
+  low:      'bg-emerald-400',
 }
 
 const ACTION_CODES: ActionCode[] = ['not-set', 'allow', 'monitor', 'alert', 'coach', 'coach-ack', 'coach-just', 'block']
@@ -72,16 +104,16 @@ const ACTION_CELL: Record<ActionCode, string> = {
 }
 
 const DATA_TYPES: { key: string; label: string }[] = [
-  { key: 'public',             label: 'Public' },
-  { key: 'internal',           label: 'Internal' },
-  { key: 'confidential',       label: 'Confidential' },
-  { key: 'highly-confidential',label: 'Highly Confidential' },
-  { key: 'secret',             label: 'Secret' },
-  { key: 'credentials',        label: 'Credentials / Secrets' },
-  { key: 'pci',                label: 'PCI Data' },
-  { key: 'pii-low',            label: 'Low-volume PII' },
-  { key: 'pii-bulk',           label: 'Bulk PII' },
-  { key: 'source-code',        label: 'Source Code' },
+  { key: 'public',              label: 'Public' },
+  { key: 'internal',            label: 'Internal' },
+  { key: 'confidential',        label: 'Confidential' },
+  { key: 'highly-confidential', label: 'Highly Confidential' },
+  { key: 'secret',              label: 'Secret' },
+  { key: 'credentials',         label: 'Credentials / Secrets' },
+  { key: 'pci',                 label: 'PCI Data' },
+  { key: 'pii-low',             label: 'Low-volume PII' },
+  { key: 'pii-bulk',            label: 'Bulk PII' },
+  { key: 'source-code',         label: 'Source Code' },
 ]
 
 type Activity = 'post_prompt' | 'upload' | 'download' | 'response'
@@ -94,89 +126,114 @@ const ACTIVITIES: { key: Activity; label: string }[] = [
 
 const defaultRules = (): PolicyRule[] =>
   DATA_TYPES.map(dt => ({
-    data_type: dt.key,
-    post_prompt: 'not-set', upload: 'not-set', download: 'not-set', response: 'not-set',
+    data_type:   dt.key,
+    post_prompt: 'not-set',
+    upload:      'not-set',
+    download:    'not-set',
+    response:    'not-set',
   }))
 
 // ── Step 1: Details ───────────────────────────────────────────────────────────
 
 function StepDetails({
   name, setName, description, setDescription,
-  policyType, setPolicyType, categoryId, setCategoryId,
-  approvalStatus, setApprovalStatus, policyOwner, setPolicyOwner,
-  technicalOwner, setTechnicalOwner, effectiveDate, setEffectiveDate,
-  reviewDate, setReviewDate, nextReviewDate, setNextReviewDate,
-  notes, setNotes, categories,
+  identityContext, setIdentityContext, identityFields,
 }: {
   name: string; setName: (v: string) => void
   description: string; setDescription: (v: string) => void
-  policyType: PolicyType; setPolicyType: (v: PolicyType) => void
-  categoryId: string | null; setCategoryId: (v: string | null) => void
-  approvalStatus: ApprovalStatus; setApprovalStatus: (v: ApprovalStatus) => void
-  policyOwner: string; setPolicyOwner: (v: string) => void
-  technicalOwner: string; setTechnicalOwner: (v: string) => void
-  effectiveDate: string; setEffectiveDate: (v: string) => void
-  reviewDate: string; setReviewDate: (v: string) => void
-  nextReviewDate: string; setNextReviewDate: (v: string) => void
-  notes: string; setNotes: (v: string) => void
-  categories: Category[]
+  identityContext: Set<string>; setIdentityContext: (v: Set<string>) => void
+  identityFields: Record<string, IdentityOption[]>
 }) {
   const inputCls = 'w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/30 border border-border/60 rounded-md px-3 py-2 focus:border-border focus:outline-none transition-colors'
-  const selectCls = 'w-full bg-card text-sm text-foreground border border-border/60 rounded-md px-3 py-2 focus:border-border focus:outline-none appearance-none cursor-pointer'
   const labelCls = 'text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1'
 
+  function toggle(id: string) {
+    const next = new Set(identityContext)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setIdentityContext(next)
+  }
+
+  const hasAnyIdentity = IDENTITY_FIELD_ORDER.some(f => (identityFields[f]?.length ?? 0) > 0)
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div>
         <label className={labelCls}>Policy Name <span className="text-red-400">*</span></label>
-        <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. ChatGPT Enterprise Usage Policy" className={inputCls} />
+        <input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="e.g. ChatGPT Enterprise Usage Policy"
+          className={inputCls}
+        />
       </div>
+
       <div>
         <label className={labelCls}>Description</label>
-        <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="What does this policy govern?" rows={2} className={`${inputCls} resize-none`} />
+        <textarea
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+          placeholder="What does this policy govern?"
+          rows={2}
+          className={`${inputCls} resize-none`}
+        />
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={labelCls}>Policy Type</label>
-          <select value={policyType} onChange={e => setPolicyType(e.target.value as PolicyType)} className={selectCls}>
-            {POLICY_TYPES.map(t => <option key={t} value={t}>{POLICY_TYPE_LABELS[t]}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className={labelCls}>Approval Status</label>
-          <select value={approvalStatus} onChange={e => setApprovalStatus(e.target.value as ApprovalStatus)} className={selectCls}>
-            {APPROVAL_STATUSES.map(s => <option key={s} value={s}>{s.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>)}
-          </select>
-        </div>
-      </div>
+
       <div>
-        <label className={labelCls}>Linked Governance Category</label>
-        <select value={categoryId ?? ''} onChange={e => setCategoryId(e.target.value || null)} className={selectCls}>
-          <option value="">— None —</option>
-          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={labelCls}>Policy Owner</label>
-          <input value={policyOwner} onChange={e => setPolicyOwner(e.target.value)} placeholder="e.g. IT Security" className={inputCls} />
-        </div>
-        <div>
-          <label className={labelCls}>Technical Owner</label>
-          <input value={technicalOwner} onChange={e => setTechnicalOwner(e.target.value)} placeholder="e.g. DLP Team" className={inputCls} />
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        {([['effectiveDate', 'Effective Date', effectiveDate, setEffectiveDate], ['reviewDate', 'Review Date', reviewDate, setReviewDate], ['nextReviewDate', 'Next Review', nextReviewDate, setNextReviewDate]] as const).map(([, label, val, setter]) => (
-          <div key={label}>
-            <label className={labelCls}>{label}</label>
-            <input type="date" value={val} onChange={e => setter(e.target.value)} className={inputCls} />
+        <label className={labelCls}>Identity Context</label>
+        <p className="text-xs text-muted-foreground/60 mb-3">
+          Optionally restrict this policy to specific user groups. Leave empty to apply to all users.
+        </p>
+
+        {!hasAnyIdentity ? (
+          <p className="text-xs text-muted-foreground/40 italic">
+            No identity values configured yet. Set them up in{' '}
+            <a href="/policies/identity" className="underline hover:text-muted-foreground/60 transition-colors">
+              Policies → Identity
+            </a>.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {IDENTITY_FIELD_ORDER.map(field => {
+              const values = identityFields[field] ?? []
+              if (!values.length) return null
+              return (
+                <div key={field}>
+                  <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide mb-2">
+                    {IDENTITY_FIELD_LABELS[field]}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {values.map(v => {
+                      const selected = identityContext.has(v.id)
+                      return (
+                        <button
+                          key={v.id}
+                          onClick={() => toggle(v.id)}
+                          className={cn(
+                            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all',
+                            selected
+                              ? 'bg-foreground/10 border-foreground/30 text-foreground'
+                              : 'border-border text-muted-foreground/70 hover:border-border-strong',
+                          )}
+                        >
+                          <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', RISK_DOT[v.risk_level] ?? 'bg-muted')} />
+                          {v.value_name}
+                          {selected && <Check className="w-3 h-3 ml-0.5 shrink-0" />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
           </div>
-        ))}
-      </div>
-      <div>
-        <label className={labelCls}>Notes</label>
-        <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Additional context or justification…" rows={2} className={`${inputCls} resize-none`} />
+        )}
+
+        {identityContext.size > 0 && (
+          <p className="text-[10px] text-muted-foreground/50 mt-3">
+            {identityContext.size} group{identityContext.size !== 1 ? 's' : ''} selected — policy applies only to matching users.
+          </p>
+        )}
       </div>
     </div>
   )
@@ -184,12 +241,21 @@ function StepDetails({
 
 // ── Step 2: App Scope ─────────────────────────────────────────────────────────
 
+type ScopeMode = 'category' | 'specific'
+
 function StepScope({
-  scopeAllApps, setScopeAllApps, selectedAppIds, setSelectedAppIds, apps,
+  scopeMode, setScopeMode, scopeCategoryId, setScopeCategoryId,
+  selectedAppIds, setSelectedAppIds, categories, apps, classifications,
 }: {
-  scopeAllApps: boolean; setScopeAllApps: (v: boolean) => void
-  selectedAppIds: Set<string>; setSelectedAppIds: (v: Set<string>) => void
+  scopeMode: ScopeMode | null
+  setScopeMode: (v: ScopeMode) => void
+  scopeCategoryId: string | null
+  setScopeCategoryId: (v: string | null) => void
+  selectedAppIds: Set<string>
+  setSelectedAppIds: (v: Set<string>) => void
+  categories: Category[]
   apps: App[]
+  classifications: Classification[]
 }) {
   const [search, setSearch] = useState('')
 
@@ -198,6 +264,11 @@ function StepScope({
     a.vendor.toLowerCase().includes(search.toLowerCase())
   )
 
+  function appCountForCategory(cat: Category): number {
+    if (!cat.system_tag) return 0
+    return classifications.filter(c => c.customer_classification === cat.system_tag).length
+  }
+
   function toggle(appId: string) {
     const next = new Set(selectedAppIds)
     if (next.has(appId)) next.delete(appId)
@@ -205,45 +276,65 @@ function StepScope({
     setSelectedAppIds(next)
   }
 
+  function selectCategory(catId: string) {
+    setScopeMode('category')
+    setScopeCategoryId(catId)
+  }
+
+  function selectSpecific() {
+    setScopeMode('specific')
+    setScopeCategoryId(null)
+  }
+
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground/70">
-        Choose whether this policy applies to all GenAI apps in the catalog, or only specific ones.
+        Choose which apps this policy applies to — by governance category or by selecting specific apps.
       </p>
 
-      <div className="flex gap-3">
+      <div className="grid grid-cols-2 gap-3">
+        {categories.map(cat => {
+          const isSelected = scopeMode === 'category' && scopeCategoryId === cat.id
+          const count = appCountForCategory(cat)
+          return (
+            <button
+              key={cat.id}
+              onClick={() => selectCategory(cat.id)}
+              className={cn(
+                'px-4 py-3 rounded-lg border text-sm font-semibold transition-all text-left',
+                isSelected
+                  ? 'bg-foreground/10 border-foreground/30 text-foreground'
+                  : 'border-border text-muted-foreground hover:border-border-strong',
+              )}
+            >
+              {cat.name}
+              <p className="text-xs font-normal text-muted-foreground/70 mt-0.5">
+                {count} classified app{count !== 1 ? 's' : ''}
+              </p>
+            </button>
+          )
+        })}
+
         <button
-          onClick={() => setScopeAllApps(true)}
+          onClick={selectSpecific}
           className={cn(
-            'flex-1 px-4 py-3 rounded-lg border text-sm font-semibold transition-all text-left',
-            scopeAllApps
+            'px-4 py-3 rounded-lg border text-sm font-semibold transition-all text-left',
+            scopeMode === 'specific'
               ? 'bg-foreground/10 border-foreground/30 text-foreground'
               : 'border-border text-muted-foreground hover:border-border-strong',
           )}
         >
-          All apps
-          <p className="text-xs font-normal text-muted-foreground/70 mt-0.5">Applies to every GenAI app in the catalog</p>
-        </button>
-        <button
-          onClick={() => setScopeAllApps(false)}
-          className={cn(
-            'flex-1 px-4 py-3 rounded-lg border text-sm font-semibold transition-all text-left',
-            !scopeAllApps
-              ? 'bg-foreground/10 border-foreground/30 text-foreground'
-              : 'border-border text-muted-foreground hover:border-border-strong',
-          )}
-        >
-          Specific apps
-          {selectedAppIds.size > 0 && (
+          Specific Apps
+          {scopeMode === 'specific' && selectedAppIds.size > 0 && (
             <span className="ml-2 text-xs font-semibold text-foreground/70 bg-muted px-1.5 py-0.5 rounded">
               {selectedAppIds.size} selected
             </span>
           )}
-          <p className="text-xs font-normal text-muted-foreground/70 mt-0.5">Select individual apps from the catalog</p>
+          <p className="text-xs font-normal text-muted-foreground/70 mt-0.5">Pick individual apps from the catalog</p>
         </button>
       </div>
 
-      {!scopeAllApps && (
+      {scopeMode === 'specific' && (
         <div className="space-y-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
@@ -337,7 +428,6 @@ function StepRules({ rules, setRules }: { rules: PolicyRule[]; setRules: (r: Pol
                   <td className="px-4 py-2.5 text-foreground/80 font-medium">{dt.label}</td>
                   {ACTIVITIES.map(act => {
                     const val = rule[act.key]
-                    const cellCls = ACTION_CELL[val]
                     return (
                       <td key={act.key} className="px-2 py-2.5 text-center">
                         <select
@@ -345,7 +435,7 @@ function StepRules({ rules, setRules }: { rules: PolicyRule[]; setRules: (r: Pol
                           onChange={e => setCell(dt.key, act.key, e.target.value as ActionCode)}
                           className={cn(
                             'text-xs font-semibold px-2 py-1 rounded-md border cursor-pointer appearance-none focus:outline-none text-center',
-                            cellCls,
+                            ACTION_CELL[val],
                           )}
                         >
                           {ACTION_CODES.map(ac => (
@@ -368,38 +458,61 @@ function StepRules({ rules, setRules }: { rules: PolicyRule[]; setRules: (r: Pol
 // ── Step 4: Review ────────────────────────────────────────────────────────────
 
 function StepReview({
-  name, description, policyType, categoryId, approvalStatus,
-  policyOwner, scopeAllApps, selectedAppIds, rules, categories, apps, nextReviewDate,
+  name, description, scopeMode, scopeCategoryId, selectedAppIds,
+  identityContext, identityFields, rules, categories, apps, classifications,
 }: {
-  name: string; description: string; policyType: PolicyType; categoryId: string | null
-  approvalStatus: ApprovalStatus; policyOwner: string; scopeAllApps: boolean
-  selectedAppIds: Set<string>; rules: PolicyRule[]; categories: Category[]; apps: App[]
-  nextReviewDate: string
+  name: string
+  description: string
+  scopeMode: ScopeMode | null
+  scopeCategoryId: string | null
+  selectedAppIds: Set<string>
+  identityContext: Set<string>
+  identityFields: Record<string, IdentityOption[]>
+  rules: PolicyRule[]
+  categories: Category[]
+  apps: App[]
+  classifications: Classification[]
 }) {
-  const category = categories.find(c => c.id === categoryId)
-  const catCc = category ? colorClasses(category.color) : null
   const configuredRules = rules.filter(r =>
-    r.post_prompt !== 'not-set' || r.upload !== 'not-set' || r.download !== 'not-set' || r.response !== 'not-set'
+    r.post_prompt !== 'not-set' || r.upload !== 'not-set' ||
+    r.download !== 'not-set' || r.response !== 'not-set'
   )
 
-  const APPROVAL_CHIP: Record<ApprovalStatus, string> = {
-    approved:       'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    'under-review': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-    draft:          'bg-muted/60 text-muted-foreground border-border',
-    rejected:       'bg-red-500/10 text-red-400 border-red-500/20',
-    expired:        'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  const selectedCategory = categories.find(c => c.id === scopeCategoryId)
+
+  function appScopeLabel(): string {
+    if (scopeMode === 'category' && selectedCategory) {
+      const count = selectedCategory.system_tag
+        ? classifications.filter(c => c.customer_classification === selectedCategory.system_tag).length
+        : 0
+      return `${selectedCategory.name} (${count} app${count !== 1 ? 's' : ''})`
+    }
+    if (scopeMode === 'specific') {
+      return `${selectedAppIds.size} specific app${selectedAppIds.size !== 1 ? 's' : ''}`
+    }
+    return 'Not selected'
   }
 
-  // Run linter on the draft
+  function identityLabel(): string {
+    if (identityContext.size === 0) return 'All users'
+    const allValues = IDENTITY_FIELD_ORDER.flatMap(f => identityFields[f] ?? [])
+    const selected = allValues.filter(v => identityContext.has(v.id))
+    if (selected.length <= 3) return selected.map(v => v.value_name).join(', ')
+    return `${selected.slice(0, 2).map(v => v.value_name).join(', ')} +${selected.length - 2} more`
+  }
+
+  // Minimal draft for linting
   const draft: GenAIPolicy = {
-    id: 'draft', org_id: '', name, description, policy_type: policyType,
-    category_id: categoryId, approval_status: approvalStatus,
-    policy_owner: policyOwner, technical_owner: null,
-    effective_date: null, review_date: null,
-    next_review_date: nextReviewDate || null,
+    id: 'draft', org_id: '', name, description,
+    policy_type: 'usage', category_id: null, approval_status: 'draft',
+    policy_owner: null, technical_owner: null,
+    effective_date: null, review_date: null, next_review_date: null,
     notes: null, is_active: true, priority: 99,
-    scope_all_apps: scopeAllApps, scope_app_ids: [...selectedAppIds],
-    rules, created_at: '', updated_at: '',
+    scope_all_apps: false,
+    scope_app_ids: scopeMode === 'specific' ? [...selectedAppIds] : [],
+    rules,
+    identity_context: identityContext.size > 0 ? [...identityContext] : null,
+    created_at: '', updated_at: '',
   }
   const lintIssues = lintPolicy(draft)
 
@@ -408,23 +521,8 @@ function StepReview({
       <div className="rounded-xl border border-border bg-card/50 divide-y divide-border/60">
         <Row label="Name" value={name || '—'} />
         <Row label="Description" value={description || '—'} />
-        <Row label="Type" value={POLICY_TYPE_LABELS[policyType]} />
-        <Row label="Category" value={
-          category && catCc
-            ? <span className="flex items-center gap-1.5"><span className={cn('w-2 h-2 rounded-full', catCc.bg)} />{category.name}</span>
-            : '—'
-        } />
-        <Row label="Status" value={
-          <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded border', APPROVAL_CHIP[approvalStatus])}>
-            {approvalStatus.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}
-          </span>
-        } />
-        <Row label="Owner" value={policyOwner || '—'} />
-        <Row label="App Scope" value={
-          scopeAllApps
-            ? `All apps (${apps.length} total)`
-            : `${selectedAppIds.size} specific app${selectedAppIds.size !== 1 ? 's' : ''}`
-        } />
+        <Row label="App Scope" value={appScopeLabel()} />
+        <Row label="Identity Context" value={identityLabel()} />
         <Row label="Rules Configured" value={
           configuredRules.length > 0
             ? `${configuredRules.length} of 10 data types have DLP actions`
@@ -432,7 +530,6 @@ function StepReview({
         } />
       </div>
 
-      {/* Linter results */}
       {lintIssues.length === 0 ? (
         <div className="flex items-center gap-2 px-4 py-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-xs text-emerald-400">
           <span>✅</span>
@@ -480,29 +577,22 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
-// ── Main wizard component ─────────────────────────────────────────────────────
+// ── Main wizard ───────────────────────────────────────────────────────────────
 
-export function PolicyBuilder({ apps, categories }: Props) {
+export function PolicyBuilder({ apps, categories, classifications, identityFields }: Props) {
   const router = useRouter()
   const [step, setStep]   = useState<Step>(0)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   // Step 1 state
-  const [name, setName]                     = useState('')
-  const [description, setDescription]       = useState('')
-  const [policyType, setPolicyType]         = useState<PolicyType>('usage')
-  const [categoryId, setCategoryId]         = useState<string | null>(null)
-  const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>('draft')
-  const [policyOwner, setPolicyOwner]       = useState('')
-  const [technicalOwner, setTechnicalOwner] = useState('')
-  const [effectiveDate, setEffectiveDate]   = useState('')
-  const [reviewDate, setReviewDate]         = useState('')
-  const [nextReviewDate, setNextReviewDate] = useState('')
-  const [notes, setNotes]                   = useState('')
+  const [name, setName]               = useState('')
+  const [description, setDescription] = useState('')
+  const [identityContext, setIdentityContext] = useState<Set<string>>(new Set())
 
   // Step 2 state
-  const [scopeAllApps, setScopeAllApps]       = useState(true)
+  const [scopeMode, setScopeMode]           = useState<ScopeMode | null>(null)
+  const [scopeCategoryId, setScopeCategoryId] = useState<string | null>(null)
   const [selectedAppIds, setSelectedAppIds]   = useState<Set<string>>(new Set())
 
   // Step 3 state
@@ -527,25 +617,33 @@ export function PolicyBuilder({ apps, categories }: Props) {
   function handleSave(submitForReview: boolean) {
     if (!name.trim()) { setError('Policy name is required.'); return }
     setError(null)
+
+    // Expand category scope to app IDs
+    let saveAppIds: string[] = []
+    if (scopeMode === 'category' && scopeCategoryId) {
+      const cat = categories.find(c => c.id === scopeCategoryId)
+      if (cat?.system_tag) {
+        saveAppIds = classifications
+          .filter(c => c.customer_classification === cat.system_tag)
+          .map(c => c.app_id)
+      }
+    } else if (scopeMode === 'specific') {
+      saveAppIds = Array.from(selectedAppIds)
+    }
+
     startTransition(async () => {
       const result = await upsertPolicy(null, {
-        name: name.trim(),
-        description:    description || undefined,
-        policy_type:    policyType,
-        category_id:    categoryId,
-        approval_status: submitForReview ? 'under-review' : approvalStatus,
-        policy_owner:    policyOwner || undefined,
-        technical_owner: technicalOwner || undefined,
-        effective_date:  effectiveDate || null,
-        review_date:     reviewDate || null,
-        next_review_date: nextReviewDate || null,
-        notes:           notes || undefined,
-        scope_all_apps:  scopeAllApps,
-        scope_app_ids:   scopeAllApps ? [] : Array.from(selectedAppIds),
-        rules:           rules.filter(r =>
+        name:             name.trim(),
+        description:      description || undefined,
+        policy_type:      'usage',
+        approval_status:  submitForReview ? 'under-review' : 'draft',
+        scope_all_apps:   false,
+        scope_app_ids:    saveAppIds,
+        rules:            rules.filter(r =>
           r.post_prompt !== 'not-set' || r.upload !== 'not-set' ||
           r.download !== 'not-set'   || r.response !== 'not-set'
         ),
+        identity_context: identityContext.size > 0 ? [...identityContext] : null,
       })
       if (result.error) { setError(result.error); return }
       router.push('/genai-controls/policies')
@@ -601,23 +699,16 @@ export function PolicyBuilder({ apps, categories }: Props) {
           <StepDetails
             name={name} setName={setName}
             description={description} setDescription={setDescription}
-            policyType={policyType} setPolicyType={setPolicyType}
-            categoryId={categoryId} setCategoryId={setCategoryId}
-            approvalStatus={approvalStatus} setApprovalStatus={setApprovalStatus}
-            policyOwner={policyOwner} setPolicyOwner={setPolicyOwner}
-            technicalOwner={technicalOwner} setTechnicalOwner={setTechnicalOwner}
-            effectiveDate={effectiveDate} setEffectiveDate={setEffectiveDate}
-            reviewDate={reviewDate} setReviewDate={setReviewDate}
-            nextReviewDate={nextReviewDate} setNextReviewDate={setNextReviewDate}
-            notes={notes} setNotes={setNotes}
-            categories={categories}
+            identityContext={identityContext} setIdentityContext={setIdentityContext}
+            identityFields={identityFields}
           />
         )}
         {step === 1 && (
           <StepScope
-            scopeAllApps={scopeAllApps} setScopeAllApps={setScopeAllApps}
+            scopeMode={scopeMode} setScopeMode={setScopeMode}
+            scopeCategoryId={scopeCategoryId} setScopeCategoryId={setScopeCategoryId}
             selectedAppIds={selectedAppIds} setSelectedAppIds={setSelectedAppIds}
-            apps={apps}
+            categories={categories} apps={apps} classifications={classifications}
           />
         )}
         {step === 2 && (
@@ -625,12 +716,11 @@ export function PolicyBuilder({ apps, categories }: Props) {
         )}
         {step === 3 && (
           <StepReview
-            name={name} description={description} policyType={policyType}
-            categoryId={categoryId} approvalStatus={approvalStatus}
-            policyOwner={policyOwner} scopeAllApps={scopeAllApps}
-            selectedAppIds={selectedAppIds} rules={rules}
-            categories={categories} apps={apps}
-            nextReviewDate={nextReviewDate}
+            name={name} description={description}
+            scopeMode={scopeMode} scopeCategoryId={scopeCategoryId}
+            selectedAppIds={selectedAppIds} identityContext={identityContext}
+            identityFields={identityFields} rules={rules}
+            categories={categories} apps={apps} classifications={classifications}
           />
         )}
       </div>

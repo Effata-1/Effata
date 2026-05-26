@@ -22,6 +22,7 @@ export interface PolicyFields {
   scope_all_apps?:   boolean
   scope_app_ids?:    string[]
   rules?:            PolicyRule[]
+  identity_context?: string[] | null
 }
 
 export async function upsertPolicy(
