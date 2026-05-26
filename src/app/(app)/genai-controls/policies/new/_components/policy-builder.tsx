@@ -64,9 +64,15 @@ interface Category {
   color:      string
 }
 
+interface Classification {
+  app_id:                  string
+  customer_classification: string
+}
+
 interface Props {
   apps:            App[]
   categories:      Category[]
+  classifications: Classification[]
   identityFields:  Record<string, IdentityOption[]>
   ruleItems:       RuleItem[]
   initialPolicy?:  InitialPolicyData | null
@@ -345,11 +351,13 @@ function SourceSection({
 // ── Destination section — app scope ───────────────────────────────────────────
 
 function DestinationSection({
-  selectedAppIds, setSelectedAppIds, apps,
+  selectedAppIds, setSelectedAppIds, apps, categories, classifications,
 }: {
-  selectedAppIds: Set<string>
+  selectedAppIds:    Set<string>
   setSelectedAppIds: (v: Set<string>) => void
-  apps: App[]
+  apps:              App[]
+  categories:        Category[]
+  classifications:   Classification[]
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -361,8 +369,15 @@ function DestinationSection({
     setSelectedAppIds(next)
   }
 
-  const selectedApps  = apps.filter(a => selectedAppIds.has(a.app_id))
-  const filteredApps  = apps.filter(a =>
+  function selectCategory(cat: Category) {
+    const ids = classifications
+      .filter(c => c.customer_classification === cat.system_tag)
+      .map(c => c.app_id)
+    setSelectedAppIds(new Set(ids))
+  }
+
+  const selectedApps = apps.filter(a => selectedAppIds.has(a.app_id))
+  const filteredApps = apps.filter(a =>
     a.app_name.toLowerCase().includes(search.toLowerCase()) ||
     (a.vendor ?? '').toLowerCase().includes(search.toLowerCase())
   )
@@ -394,6 +409,59 @@ function DestinationSection({
 
       {open && (
         <div className="rounded-lg border border-border/50 bg-card/30 p-4 space-y-3">
+          {/* Category shortcuts */}
+          {categories.length > 0 && (
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-semibold text-muted-foreground/40 uppercase tracking-wide">Scope by category</span>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSelectedAppIds(new Set())}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all',
+                    selectedAppIds.size === 0
+                      ? 'border-foreground/30 bg-foreground/10 text-foreground'
+                      : 'border-border text-muted-foreground/50 hover:border-border-strong',
+                  )}
+                >
+                  All Apps
+                </button>
+                {categories.map(cat => {
+                  const cc = colorClasses(cat.color)
+                  const catIds = new Set(
+                    classifications
+                      .filter(c => c.customer_classification === cat.system_tag)
+                      .map(c => c.app_id),
+                  )
+                  const isActive =
+                    catIds.size > 0 &&
+                    catIds.size === selectedAppIds.size &&
+                    [...catIds].every(id => selectedAppIds.has(id))
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => selectCategory(cat)}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all',
+                        isActive
+                          ? 'border-foreground/30 bg-foreground/10 text-foreground'
+                          : cn('border-border hover:border-border-strong', cc.text),
+                      )}
+                    >
+                      <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', cc.dot)} />
+                      {cat.name}
+                      {catIds.size > 0 && (
+                        <span className="text-[9px] text-muted-foreground/40">({catIds.size})</span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Search */}
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/30" />
             <input
@@ -403,6 +471,8 @@ function DestinationSection({
               className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/30 border border-border/50 rounded-md pl-7 pr-3 py-1.5 focus:outline-none focus:border-border transition-colors"
             />
           </div>
+
+          {/* App grid */}
           <div className="grid grid-cols-3 gap-1.5 max-h-56 overflow-y-auto pr-0.5">
             {filteredApps.map(app => {
               const checked = selectedAppIds.has(app.app_id)
@@ -428,6 +498,7 @@ function DestinationSection({
               )
             })}
           </div>
+
           {selectedAppIds.size > 0 && (
             <div className="flex items-center gap-2 pt-1 border-t border-border/40">
               <span className="text-[10px] text-muted-foreground/50">{selectedAppIds.size} app{selectedAppIds.size !== 1 ? 's' : ''} selected</span>
@@ -716,7 +787,7 @@ function StatusSection({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function PolicyBuilder({ apps, categories, identityFields, ruleItems, initialPolicy }: Props) {
+export function PolicyBuilder({ apps, categories, classifications, identityFields, ruleItems, initialPolicy }: Props) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -799,7 +870,7 @@ export function PolicyBuilder({ apps, categories, identityFields, ruleItems, ini
         <PolicySection icon={<Target />} label="Destination">
           <DestinationSection
             selectedAppIds={selectedAppIds} setSelectedAppIds={setSelectedAppIds}
-            apps={apps}
+            apps={apps} categories={categories} classifications={classifications}
           />
         </PolicySection>
 

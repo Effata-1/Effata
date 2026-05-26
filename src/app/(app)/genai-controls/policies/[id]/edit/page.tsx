@@ -114,6 +114,7 @@ export default async function EditPolicyPage({ params }: { params: Promise<{ id:
       <PolicyBuilder
         apps={apps}
         categories={categories}
+        classifications={classifications}
         identityFields={identityFields}
         ruleItems={ruleItems}
         initialPolicy={{

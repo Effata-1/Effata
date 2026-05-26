@@ -143,6 +143,7 @@ export default async function NewPolicyPage() {
       <PolicyBuilder
         apps={apps}
         categories={categories}
+        classifications={classifications}
         identityFields={identityFields}
         ruleItems={ruleItems}
         initialPolicy={null}

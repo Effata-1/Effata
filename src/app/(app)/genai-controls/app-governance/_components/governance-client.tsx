@@ -9,6 +9,7 @@ import { CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
 import { computeTrustScore } from '@/lib/genai/scoring'
 import { deleteGenAICategory, setAppGovernanceClassification } from '../actions'
 import { EditCategoryModal } from './edit-category-modal'
+import { ProhibitedCatalog } from './prohibited-catalog'
 import type { GenAIGovernanceCategory } from '../actions'
 import type { GenAIApp, GenAIAppProfile, CustomerClassification, CustomerClass, DLPActivities } from '@/lib/genai/types'
 
@@ -28,92 +29,6 @@ const CATEGORY_COMPLIANCE: Record<string, string[]> = {
   'prohibited':                 ['GDPR Art. 5(1)(f)', 'GDPR Art. 32', 'HIPAA §164.312'],
 }
 
-// ── Reference app catalog (static) ───────────────────────────────────────────
-
-interface AppGroup {
-  group: string
-  apps: string[]
-  control?: string
-}
-
-const REFERENCE_APPS: Record<string, AppGroup[]> = {
-  'permitted-with-restriction': [
-    { group: 'Consumer AI chatbots',        apps: ['ChatGPT', 'Claude', 'Gemini', 'Microsoft Copilot', 'DeepSeek', 'Grok', 'Meta AI', 'Poe', 'Perplexity', 'You.com AI', 'HuggingChat'] },
-    { group: 'Personal AI coding tools',    apps: ['Cursor', 'Windsurf', 'Replit AI', 'GitHub Copilot personal', 'Tabnine personal', 'Blackbox AI', 'Codeium', 'Sourcegraph Cody'] },
-    { group: 'Personal AI writing tools',   apps: ['Grammarly AI', 'QuillBot', 'Wordtune', 'Jasper', 'Copy.ai', 'Writesonic', 'Rytr', 'HyperWrite'] },
-    { group: 'Personal AI design / media',  apps: ['Midjourney', 'Leonardo AI', 'Ideogram', 'Runway', 'Pika', 'Canva Magic Studio', 'Gamma', 'Tome', 'Beautiful.ai'] },
-    { group: 'Personal AI document tools',  apps: ['ChatPDF', 'AskYourPDF', 'Humata', 'PDF.ai', 'Sharly AI', 'ChatDOC', 'Unriddle'] },
-    { group: 'Personal AI data tools',      apps: ['Julius AI', 'ChatCSV', 'Rows AI', 'Polymer AI', 'Akkio'] },
-  ],
-  prohibited: [
-    { group: 'AI companion / roleplay bots',        apps: ['Character.AI', 'Replika', 'Chai', 'Talkie', 'JanitorAI', 'Botify AI', 'SpicyChat AI'],                                                        control: 'Block' },
-    { group: 'NSFW / adult AI chatbots',            apps: ['CrushOn AI', 'Candy AI', 'DreamGF', 'Anima AI', 'Kupid AI', 'Muah AI', 'Nastia AI'],                                                          control: 'Block' },
-    { group: 'AI girlfriend / boyfriend apps',      apps: ['Replika', 'Romantic AI', 'EVA AI', 'iGirl', 'iBoy', 'Anima'],                                                                                  control: 'Block' },
-    { group: 'Deepfake / face-swap tools',          apps: ['DeepSwap', 'FaceMagic', 'Reface', 'Swapface', 'FaceApp AI', 'Vidnoz Face Swap', 'Pixble Face Swap'],                                          control: 'Block' },
-    { group: 'Voice cloning / impersonation',       apps: ['Voice.ai', 'ElevenLabs personal', 'Resemble AI personal', 'PlayHT voice clone', 'Kits AI voice clone'],                                       control: 'Block' },
-    { group: 'AI avatar / synthetic identity',      apps: ['HeyGen personal', 'Synthesia personal', 'D-ID personal', 'Vidnoz AI Avatar'],                                                                  control: 'Block' },
-    { group: 'Unapproved autonomous AI agents',     apps: ['AgentGPT', 'AutoGPT hosted', 'BabyAGI hosted', 'MultiOn', 'OpenInterpreter cloud', 'Manus-style public agents'],                              control: 'Block' },
-    { group: 'AI browser agents',                   apps: ['Adept-style browser agents', 'MultiOn', 'HyperWrite Agent', 'Bardeen AI personal', 'Harpa AI'],                                               control: 'Block' },
-    { group: 'AI meeting bots / call recorders',    apps: ['Otter.ai', 'Fireflies.ai', 'Fathom', 'Read.ai', 'tl;dv', 'Avoma', 'Sembly', 'MeetGeek', 'Granola'],                                          control: 'Block unless enterprise-approved' },
-    { group: 'AI scraping / automation tools',      apps: ['PhantomBuster AI', 'TexAu AI', 'Browse AI', 'Bardeen AI personal', 'Clay personal'],                                                          control: 'Block unless approved' },
-    { group: 'AI tools with broad SaaS connectors', apps: ['Unapproved AI requesting Google Drive', 'OneDrive', 'SharePoint', 'Slack', 'Gmail', 'Outlook', 'GitHub', 'Jira', 'Confluence', 'Salesforce'], control: 'Block OAuth / connector access' },
-    { group: 'AI malware / hacking tools',          apps: ['WormGPT-style tools', 'FraudGPT-style tools', 'DarkBERT-style tools', 'Phishing AI generators', 'Malware prompt marketplaces'],               control: 'Block' },
-    { group: 'Bypass / jailbreaking AI tools',      apps: ['Prompt injection marketplaces', 'Jailbreak prompt tools', 'Uncensored LLM frontends', 'Unrestricted AI mirrors'],                             control: 'Block' },
-    { group: 'Unsafe synthetic media tools',        apps: ['Undress AI apps', 'Non-consensual image generators', 'NSFW face-swap tools', 'Explicit image generators'],                                    control: 'Block' },
-  ],
-}
-
-const CONTROL_STYLE: Record<string, string> = {
-  'Block':                       'bg-red-500/10 text-red-400 border-red-500/20',
-  'Block unless enterprise-approved': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  'Block unless approved':       'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  'Block OAuth / connector access': 'bg-red-500/10 text-red-400 border-red-500/20',
-}
-
-function ReferenceAppsPanel({ groups, categoryColor }: { groups: AppGroup[]; categoryColor: string }) {
-  const [open, setOpen] = useState(false)
-  const cc = colorClasses(categoryColor)
-  const totalApps = groups.reduce((s, g) => s + g.apps.length, 0)
-
-  return (
-    <div className="border-t border-border/40">
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-2 px-5 py-2.5 text-left hover:bg-muted/30 transition-colors"
-      >
-        <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">
-          Reference Application Catalog
-        </span>
-        <span className="text-[10px] text-muted-foreground/40">— {groups.length} groups, {totalApps}+ apps</span>
-        <ChevronDown className={cn('ml-auto w-3.5 h-3.5 text-muted-foreground/40 transition-transform', !open && '-rotate-90')} />
-      </button>
-
-      {open && (
-        <div className="px-5 pb-5 pt-1 space-y-4 bg-card/5">
-          {groups.map(g => (
-            <div key={g.group}>
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-xs font-semibold text-muted-foreground/70">{g.group}</span>
-                {g.control && (
-                  <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded border', CONTROL_STYLE[g.control] ?? 'bg-muted/60 text-muted-foreground border-border-strong')}>
-                    {g.control}
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {g.apps.map(app => (
-                  <span key={app} className={cn('text-[11px] px-2 py-0.5 rounded border font-medium', cc.bg, cc.text, 'border-transparent opacity-75')}>
-                    {app}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -124,9 +39,10 @@ export interface AppEntry {
 }
 
 interface Props {
-  categories: GenAIGovernanceCategory[]
+  categories:        GenAIGovernanceCategory[]
   appsByCategoryTag: Record<string, AppEntry[]>
-  userRole: string
+  userRole:          string
+  initialNotes:      Record<string, string>
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -353,14 +269,54 @@ function AppRow({
   )
 }
 
-// ── Category section ──────────────────────────────────────────────────────────
+// ── App group section (Layer 2 — groups DB apps by app_group) ────────────────
+
+function AppGroupSection({
+  groupName, entries, categorySystemTag,
+}: {
+  groupName:         string
+  entries:           AppEntry[]
+  categorySystemTag: string | null
+}) {
+  const [open, setOpen] = useState(true)
+
+  return (
+    <div className="border-t border-border/40 first:border-t-0">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2 px-5 py-2.5 text-left bg-muted/10 hover:bg-muted/20 transition-colors"
+      >
+        <ChevronDown className={cn('w-3.5 h-3.5 text-muted-foreground/40 shrink-0 transition-transform', !open && '-rotate-90')} />
+        <span className="text-xs font-semibold text-foreground/70">{groupName}</span>
+        <span className="text-[10px] text-muted-foreground/40">
+          {entries.length} {entries.length === 1 ? 'app' : 'apps'}
+        </span>
+      </button>
+
+      {open && (
+        <div className="bg-card/5">
+          {entries.map(entry => (
+            <AppRow
+              key={entry.app.app_id}
+              entry={entry}
+              categorySystemTag={categorySystemTag}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Category section (Layer 1) ────────────────────────────────────────────────
 
 function CategorySection({
-  category,
-  apps,
+  category, apps, initialNotes,
 }: {
-  category: GenAIGovernanceCategory
-  apps: AppEntry[]
+  category:     GenAIGovernanceCategory
+  apps:         AppEntry[]
+  initialNotes: Record<string, string>
 }) {
   const [open, setOpen] = useState(false)
   const cc = colorClasses(category.color)
@@ -370,18 +326,31 @@ function CategorySection({
     e.classification.customer_classification !== 'unknown'
   ).length
 
+  // Group DB apps by app_group (Layer 2)
+  const byGroup = new Map<string, AppEntry[]>()
+  for (const entry of apps) {
+    const g = entry.app.app_group ?? 'Other'
+    if (!byGroup.has(g)) byGroup.set(g, [])
+    byGroup.get(g)!.push(entry)
+  }
+
+  const isProhibited = category.system_tag === 'prohibited'
+
   return (
     <div className="rounded-xl border border-border overflow-hidden">
-      {/* Header */}
+      {/* Category header */}
       <button
         onClick={() => setOpen(v => !v)}
         className={cn('w-full flex items-center gap-2.5 px-5 py-3.5 text-left transition-opacity select-none hover:opacity-90', cc.bg)}
       >
         <div className={cn('w-2.5 h-2.5 rounded-full shrink-0', cc.dot)} />
         <span className={cn('text-sm font-bold uppercase tracking-wide', cc.text)}>{category.name}</span>
-        <span className="text-xs text-muted-foreground/50 ml-0.5">Priority {category.priority}</span>
-        <span className="mx-1 text-muted-foreground/30">·</span>
-        <span className="text-xs text-muted-foreground/60">{apps.length} {apps.length === 1 ? 'app' : 'apps'}</span>
+        {apps.length > 0 && (
+          <>
+            <span className="mx-1 text-muted-foreground/30">·</span>
+            <span className="text-xs text-muted-foreground/60">{apps.length} {apps.length === 1 ? 'app' : 'apps'}</span>
+          </>
+        )}
         {inScopeCount > 0 && (
           <>
             <span className="mx-1 text-muted-foreground/30">·</span>
@@ -393,34 +362,38 @@ function CategorySection({
 
       {open && (
         <>
-          {/* Column headers */}
-          <div className="flex items-center px-5 py-2 border-b border-border/60 bg-card/20">
-            <span className="flex-1 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">App</span>
-            <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">Your Classification</span>
-          </div>
+          {/* DB apps — grouped by app_group (Layer 2 → Layer 3) */}
+          {apps.length > 0 && (
+            <>
+              <div className="flex items-center px-5 py-2 border-b border-border/60 bg-card/20">
+                <span className="flex-1 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">App</span>
+                <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">Your Classification</span>
+              </div>
+              {[...byGroup.entries()].map(([groupName, entries]) => (
+                byGroup.size === 1
+                  ? entries.map(entry => (
+                      <AppRow key={entry.app.app_id} entry={entry} categorySystemTag={category.system_tag} />
+                    ))
+                  : <AppGroupSection
+                      key={groupName}
+                      groupName={groupName}
+                      entries={entries}
+                      categorySystemTag={category.system_tag}
+                    />
+              ))}
+            </>
+          )}
 
-          {apps.length === 0 ? (
+          {/* Prohibited reference catalog */}
+          {isProhibited && (
+            <ProhibitedCatalog initialNotes={initialNotes} />
+          )}
+
+          {/* Empty state (non-prohibited categories with no DB apps) */}
+          {!isProhibited && apps.length === 0 && (
             <div className="px-5 py-8 text-center bg-card/5">
               <p className="text-sm text-muted-foreground/40">No apps assigned to this category</p>
             </div>
-          ) : (
-            <div className="bg-card/5">
-              {apps.map(entry => (
-                <AppRow
-                  key={entry.app.app_id}
-                  entry={entry}
-                  categorySystemTag={category.system_tag}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Reference catalog for personal + prohibited categories */}
-          {category.system_tag && REFERENCE_APPS[category.system_tag] && (
-            <ReferenceAppsPanel
-              groups={REFERENCE_APPS[category.system_tag]!}
-              categoryColor={category.color}
-            />
           )}
         </>
       )}
@@ -539,7 +512,7 @@ function ManagePanel({
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
-export function GovernanceClient({ categories, appsByCategoryTag, userRole }: Props) {
+export function GovernanceClient({ categories, appsByCategoryTag, userRole, initialNotes }: Props) {
   const [manageOpen, setManageOpen] = useState(false)
   const isAdmin = userRole === 'admin'
   const sorted = [...categories].sort((a, b) => a.priority - b.priority)
@@ -573,13 +546,20 @@ export function GovernanceClient({ categories, appsByCategoryTag, userRole }: Pr
 
         {/* Category sections */}
         <div className="space-y-3">
-          {sorted.map(cat => (
-            <CategorySection
-              key={cat.id}
-              category={cat}
-              apps={appsByCategoryTag[cat.system_tag ?? cat.id] ?? []}
-            />
-          ))}
+          {sorted
+            .filter(cat => {
+              const hasApps = (appsByCategoryTag[cat.system_tag ?? cat.id] ?? []).length > 0
+              const isProhibited = cat.system_tag === 'prohibited'
+              return hasApps || isProhibited
+            })
+            .map(cat => (
+              <CategorySection
+                key={cat.id}
+                category={cat}
+                apps={appsByCategoryTag[cat.system_tag ?? cat.id] ?? []}
+                initialNotes={initialNotes}
+              />
+            ))}
         </div>
       </div>
 

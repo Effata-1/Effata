@@ -1,13 +1,12 @@
 'use client'
 
-import { Fragment, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import {
-  ChevronDown, ChevronRight, Pencil, Plus, Search,
+  Pencil, Plus, Search,
   ShieldAlert, Trash2, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { colorClasses } from '@/lib/data-catalog/types'
 import { deletePolicy, togglePolicyActive } from '../actions'
 import type { GenAIPolicy, ApprovalStatus, ActionCode, PolicyRule } from '@/lib/genai/types'
 import { lintAllPolicies, SEVERITY_STYLES, type LintIssue } from '@/lib/genai/lint'
@@ -177,11 +176,10 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
   const [filterStatus, setFilterStatus]       = useState<ApprovalStatus | 'all'>('all')
   const [activeOnly, setActiveOnly]           = useState(false)
   const [search, setSearch]                   = useState('')
-  const [lintResults, setLintResults]         = useState<LintIssue[] | null>(null)
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
-  const [, startTransition]                   = useTransition()
+  const [lintResults, setLintResults] = useState<LintIssue[] | null>(null)
+  const [, startTransition]           = useTransition()
 
-  // suppress unused warnings — kept for filter display logic
+  void categories
   void classifications
   void ACTION_CODES
 
@@ -191,29 +189,6 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
     if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
-
-  type Group = { cat: Category | null; key: string; policies: GenAIPolicy[] }
-  const groups: Group[] = []
-  const byCategory = new Map<string | null, GenAIPolicy[]>()
-  for (const p of visible) {
-    const key = p.category_id ?? null
-    if (!byCategory.has(key)) byCategory.set(key, [])
-    byCategory.get(key)!.push(p)
-  }
-  for (const cat of categories) {
-    const ps = byCategory.get(cat.id)
-    if (ps?.length) groups.push({ cat, key: cat.id, policies: ps })
-  }
-  const uncategorized = byCategory.get(null) ?? []
-  if (uncategorized.length) groups.push({ cat: null, key: 'uncategorized', policies: uncategorized })
-
-  function toggleGroup(key: string) {
-    setCollapsedGroups(prev => {
-      const next = new Set(prev)
-      next.has(key) ? next.delete(key) : next.add(key)
-      return next
-    })
-  }
 
   function handleToggle(id: string, current: boolean) {
     setPolicies(ps => ps.map(p => p.id === id ? { ...p, is_active: !current } : p))
@@ -357,92 +332,65 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
               </thead>
 
               <tbody>
-                {groups.map(({ cat, key: groupKey, policies: groupPolicies }) => {
-                  const cc        = cat ? colorClasses(cat.color) : null
-                  const collapsed = collapsedGroups.has(groupKey)
-
-                  return (
-                    <Fragment key={groupKey}>
-                      <tr className="bg-muted/20 border-y border-border/50 hover:bg-muted/30 transition-colors cursor-pointer"
-                        onClick={() => toggleGroup(groupKey)}
+                {visible.map(policy => (
+                  <tr key={policy.id}
+                    className={cn('border-b border-border/40 last:border-0 hover:bg-card/40 transition-colors', !policy.is_active && 'opacity-50')}
+                  >
+                    <td className="px-3 py-2.5 align-middle">
+                      <button
+                        onClick={() => handleToggle(policy.id, policy.is_active)}
+                        className={cn('w-7 h-4 rounded-full transition-colors relative shrink-0', policy.is_active ? 'bg-emerald-500/70' : 'bg-muted')}
+                        title={policy.is_active ? 'Deactivate' : 'Activate'}
                       >
-                        <td colSpan={colCount} className="px-3 py-2">
-                          <div className="flex items-center gap-2">
-                            {collapsed
-                              ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />
-                              : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />}
-                            {cat && cc ? (
-                              <span className={cn('text-[11px] font-bold', cc.text)}>{cat.name}</span>
-                            ) : (
-                              <span className="text-[11px] font-bold text-muted-foreground/60">Uncategorized</span>
-                            )}
-                            <span className="text-[10px] text-muted-foreground/40 font-normal">({groupPolicies.length})</span>
-                          </div>
-                        </td>
-                      </tr>
+                        <span className={cn('absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all', policy.is_active ? 'left-3.5' : 'left-0.5')} />
+                      </button>
+                    </td>
 
-                      {!collapsed && groupPolicies.map((policy) => (
-                        <tr key={policy.id}
-                          className={cn('border-b border-border/40 last:border-0 hover:bg-card/40 transition-colors', !policy.is_active && 'opacity-50')}
+                    <td className="px-3 py-2.5 align-middle max-w-[200px]">
+                      <p className="font-semibold text-foreground/90 leading-tight truncate">{policy.name}</p>
+                      {policy.description && (
+                        <p className="text-muted-foreground/50 mt-0.5 truncate text-[10px]">{policy.description}</p>
+                      )}
+                    </td>
+
+                    <td className="px-3 py-2.5 align-middle hidden md:table-cell">
+                      <SourceCell policy={policy} identityFields={identityFields} />
+                    </td>
+
+                    <td className="px-3 py-2.5 align-middle hidden md:table-cell">
+                      <DestCell policy={policy} apps={apps} />
+                    </td>
+
+                    <td className="px-3 py-2.5 align-middle hidden lg:table-cell">
+                      <DataCell policy={policy} ruleItems={ruleItems} />
+                    </td>
+
+                    <td className="px-3 py-2.5 align-middle">
+                      <ActionCell policy={policy} ruleItems={ruleItems} />
+                    </td>
+
+                    <td className="px-3 py-2.5 align-middle">
+                      <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded border', APPROVAL_STYLES[policy.approval_status])}>
+                        {policy.approval_status.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                      </span>
+                    </td>
+
+                    <td className="px-3 py-2.5 align-middle">
+                      <div className="flex items-center gap-2 justify-end">
+                        <Link
+                          href={`/genai-controls/policies/${policy.id}/edit`}
+                          className="text-muted-foreground/50 hover:text-foreground transition-colors"
+                          title="Edit"
                         >
-                          <td className="px-3 py-2.5 align-middle">
-                            <button
-                              onClick={() => handleToggle(policy.id, policy.is_active)}
-                              className={cn('w-7 h-4 rounded-full transition-colors relative shrink-0', policy.is_active ? 'bg-emerald-500/70' : 'bg-muted')}
-                              title={policy.is_active ? 'Deactivate' : 'Activate'}
-                            >
-                              <span className={cn('absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all', policy.is_active ? 'left-3.5' : 'left-0.5')} />
-                            </button>
-                          </td>
-
-                          <td className="px-3 py-2.5 align-middle max-w-[200px]">
-                            <p className="font-semibold text-foreground/90 leading-tight truncate">{policy.name}</p>
-                            {policy.description && (
-                              <p className="text-muted-foreground/50 mt-0.5 truncate text-[10px]">{policy.description}</p>
-                            )}
-                          </td>
-
-                          <td className="px-3 py-2.5 align-middle hidden md:table-cell">
-                            <SourceCell policy={policy} identityFields={identityFields} />
-                          </td>
-
-                          <td className="px-3 py-2.5 align-middle hidden md:table-cell">
-                            <DestCell policy={policy} apps={apps} />
-                          </td>
-
-                          <td className="px-3 py-2.5 align-middle hidden lg:table-cell">
-                            <DataCell policy={policy} ruleItems={ruleItems} />
-                          </td>
-
-                          <td className="px-3 py-2.5 align-middle">
-                            <ActionCell policy={policy} ruleItems={ruleItems} />
-                          </td>
-
-                          <td className="px-3 py-2.5 align-middle">
-                            <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded border', APPROVAL_STYLES[policy.approval_status])}>
-                              {policy.approval_status.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                            </span>
-                          </td>
-
-                          <td className="px-3 py-2.5 align-middle">
-                            <div className="flex items-center gap-2 justify-end">
-                              <Link
-                                href={`/genai-controls/policies/${policy.id}/edit`}
-                                className="text-muted-foreground/50 hover:text-foreground transition-colors"
-                                title="Edit"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </Link>
-                              <button onClick={() => handleDelete(policy.id)} className="text-muted-foreground/50 hover:text-red-400 transition-colors" title="Delete">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </Fragment>
-                  )
-                })}
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Link>
+                        <button onClick={() => handleDelete(policy.id)} className="text-muted-foreground/50 hover:text-red-400 transition-colors" title="Delete">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
