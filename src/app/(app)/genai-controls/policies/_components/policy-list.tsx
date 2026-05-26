@@ -1,15 +1,15 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import Link from 'next/link'
+import { Fragment, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import {
-  Check, ChevronDown, Loader2, Pencil, Plus, Search,
+  Check, ChevronDown, ChevronRight, Loader2, Pencil, Plus, Search,
   ShieldAlert, Trash2, Users2, Target, ShieldCheck, Zap, FileText, ToggleLeft, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { colorClasses } from '@/lib/data-catalog/types'
 import { upsertPolicy, deletePolicy, togglePolicyActive } from '../actions'
-import type { GenAIPolicy, ApprovalStatus, PolicyType, ActionCode, PolicyRule } from '@/lib/genai/types'
+import type { GenAIPolicy, ApprovalStatus, ActionCode, PolicyRule } from '@/lib/genai/types'
 import { lintAllPolicies, SEVERITY_STYLES, type LintIssue } from '@/lib/genai/lint'
 import type { RuleItem } from '../new/_components/policy-builder'
 
@@ -18,11 +18,8 @@ import type { RuleItem } from '../new/_components/policy-builder'
 type Activity = 'post_prompt' | 'upload' | 'download' | 'response'
 
 interface IdentityOption { id: string; field_name: string; value_name: string; risk_level: string }
-
 interface App { app_id: string; app_name: string; vendor: string; logo_letter: string; logo_bg: string }
-
 interface Category { id: string; system_tag: string | null; name: string; color: string }
-
 interface Classification { app_id: string; customer_classification: string }
 
 interface Props {
@@ -44,15 +41,7 @@ const APPROVAL_STYLES: Record<ApprovalStatus, string> = {
   expired:        'bg-amber-500/10 text-amber-400 border-amber-500/20',
 }
 
-const POLICY_TYPE_META: Record<PolicyType, { label: string; style: string }> = {
-  'usage':          { label: 'Usage Policy',         style: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-  'data-handling':  { label: 'Data Handling Policy', style: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
-  'approved-use':   { label: 'Approved Use Policy',  style: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-  'prohibited':     { label: 'Prohibited Use Policy',style: 'bg-red-500/10 text-red-400 border-red-500/20' },
-}
-
 const APPROVAL_STATUSES: ApprovalStatus[] = ['draft', 'under-review', 'approved', 'rejected', 'expired']
-const POLICY_TYPES: PolicyType[] = ['usage', 'data-handling', 'approved-use', 'prohibited']
 
 const ACTION_CODES: ActionCode[] = ['not-set', 'allow', 'monitor', 'alert', 'coach', 'coach-ack', 'coach-just', 'block']
 const ACTION_LABELS: Record<ActionCode, string> = {
@@ -73,12 +62,12 @@ const ACTION_CHIP: Record<ActionCode, string> = {
   'coach-ack':  'bg-orange-500/15 text-orange-300 border-orange-500/30',
   'coach-just': 'bg-amber-600/15 text-amber-300 border-amber-600/25',
   'block':      'bg-red-500/10 text-red-400 border-red-500/20',
-  'not-set':    'bg-muted/40 text-muted-foreground/50 border-border/60',
+  'not-set':    'bg-muted/30 text-muted-foreground/50 border-border/50',
 }
 
 const ACTIVITIES: { key: Activity; label: string }[] = [
-  { key: 'post_prompt', label: 'Prompt' },
-  { key: 'upload',      label: 'Upload' },
+  { key: 'post_prompt', label: 'Prompt'   },
+  { key: 'upload',      label: 'Upload'   },
   { key: 'download',    label: 'Download' },
   { key: 'response',    label: 'Response' },
 ]
@@ -99,25 +88,14 @@ const LAYER_LABELS: Record<number, string> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function reviewDateColor(date: string | null): string {
-  if (!date) return 'text-muted-foreground/50'
-  const today = new Date().toISOString().split('T')[0]
-  if (date < today) return 'text-red-400'
-  const thirtyDays = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]
-  if (date <= thirtyDays) return 'text-yellow-400'
-  return 'text-muted-foreground/70'
-}
-
 function deriveFromRules(rules: PolicyRule[], ruleItems: RuleItem[]) {
   const validKeys = new Set(ruleItems.map(i => i.key))
-
   const selectedDataKeys = new Set(
     rules
       .filter(r => validKeys.has(r.data_type))
       .filter(r => r.post_prompt !== 'not-set' || r.upload !== 'not-set' || r.download !== 'not-set' || r.response !== 'not-set')
       .map(r => r.data_type),
   )
-
   const selectedActivities = new Set<Activity>()
   for (const r of rules) {
     if (r.post_prompt !== 'not-set') selectedActivities.add('post_prompt')
@@ -129,15 +107,81 @@ function deriveFromRules(rules: PolicyRule[], ruleItems: RuleItem[]) {
     selectedActivities.add('post_prompt'); selectedActivities.add('upload')
     selectedActivities.add('download');    selectedActivities.add('response')
   }
-
   const counts: Record<string, number> = {}
   for (const r of rules)
     for (const a of ['post_prompt', 'upload', 'download', 'response'] as const)
       if (r[a] !== 'not-set') counts[r[a]] = (counts[r[a]] ?? 0) + 1
-
   const primaryAction = (Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] as ActionCode) ?? 'not-set'
-
   return { selectedDataKeys, selectedActivities, primaryAction }
+}
+
+// ── Row summary cells ─────────────────────────────────────────────────────────
+
+function SourceCell({ policy, identityFields }: { policy: GenAIPolicy; identityFields: Record<string, IdentityOption[]> }) {
+  const ids = policy.identity_context ?? []
+  if (ids.length === 0) return <span className="text-[11px] text-muted-foreground/40 italic">Any user</span>
+  const all = Object.values(identityFields).flat()
+  const names = ids.map(id => all.find(v => v.id === id)?.value_name).filter(Boolean) as string[]
+  if (names.length === 0) return <span className="text-[11px] text-muted-foreground/40 italic">Any user</span>
+  return (
+    <div className="space-y-0.5">
+      <span className="text-[11px] text-foreground/80 truncate block max-w-[120px]">{names[0]}</span>
+      {names.length > 1 && <span className="text-[10px] text-muted-foreground/50">+{names.length - 1} more</span>}
+    </div>
+  )
+}
+
+function DestCell({ policy, apps }: { policy: GenAIPolicy; apps: App[] }) {
+  const ids = policy.scope_app_ids ?? []
+  if (ids.length === 0) return <span className="text-[11px] text-muted-foreground/40 italic">All GenAI apps</span>
+  const scoped = apps.filter(a => ids.includes(a.app_id))
+  if (scoped.length === 0) return <span className="text-[11px] text-muted-foreground/40 italic">All GenAI apps</span>
+  return (
+    <div className="space-y-0.5">
+      <div className="flex items-center gap-1.5">
+        <span className="w-3.5 h-3.5 rounded flex items-center justify-center text-[8px] font-bold text-foreground shrink-0" style={{ backgroundColor: scoped[0].logo_bg }}>{scoped[0].logo_letter}</span>
+        <span className="text-[11px] text-foreground/80 truncate max-w-[100px]">{scoped[0].app_name}</span>
+      </div>
+      {scoped.length > 1 && <span className="text-[10px] text-muted-foreground/50">+{scoped.length - 1} more</span>}
+    </div>
+  )
+}
+
+function DataCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: RuleItem[] }) {
+  const rules = policy.rules ?? []
+  const { selectedDataKeys, selectedActivities } = deriveFromRules(rules, ruleItems)
+  const names = ruleItems.filter(i => selectedDataKeys.has(i.key)).map(i => i.name)
+  const acts  = ACTIVITIES.filter(a => selectedActivities.has(a.key)).map(a => a.label)
+  if (names.length === 0) {
+    return (
+      <div className="space-y-1">
+        <span className="text-[11px] text-muted-foreground/40 italic">All data</span>
+        <div className="flex gap-0.5 flex-wrap">
+          {acts.map(l => <span key={l} className="text-[9px] px-1 py-0.5 rounded bg-muted/40 border border-border/40 text-muted-foreground/50">{l}</span>)}
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-1">
+      <span className="text-[11px] text-foreground/80 truncate block max-w-[140px]">
+        {names[0]}{names.length > 1 ? ` +${names.length - 1}` : ''}
+      </span>
+      <div className="flex gap-0.5 flex-wrap">
+        {acts.map(l => <span key={l} className="text-[9px] px-1 py-0.5 rounded bg-muted/40 border border-border/40 text-muted-foreground/50">{l}</span>)}
+      </div>
+    </div>
+  )
+}
+
+function ActionCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: RuleItem[] }) {
+  const { primaryAction } = deriveFromRules(policy.rules ?? [], ruleItems)
+  const label = primaryAction === 'not-set' ? 'Inherited' : ACTION_LABELS[primaryAction]
+  return (
+    <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded border whitespace-nowrap', ACTION_CHIP[primaryAction])}>
+      {label}
+    </span>
+  )
 }
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
@@ -159,11 +203,11 @@ function Section({ icon, label, children, noBorder }: {
 // ── Source section ────────────────────────────────────────────────────────────
 
 function EditSourceSection({ identityContext, setIdentityContext, identityFields }: {
-  identityContext: Set<string>
+  identityContext:    Set<string>
   setIdentityContext: (v: Set<string>) => void
-  identityFields: Record<string, IdentityOption[]>
+  identityFields:     Record<string, IdentityOption[]>
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen]           = useState(false)
   const [fieldOpen, setFieldOpen] = useState<string | null>(null)
 
   function toggle(id: string) {
@@ -172,24 +216,22 @@ function EditSourceSection({ identityContext, setIdentityContext, identityFields
     setIdentityContext(next)
   }
 
-  const allValues = IDENTITY_FIELD_ORDER.flatMap(f => identityFields[f] ?? [])
-  const selectedValues = allValues.filter(v => identityContext.has(v.id))
-  const hasAny = IDENTITY_FIELD_ORDER.some(f => (identityFields[f]?.length ?? 0) > 0)
+  const allValues    = IDENTITY_FIELD_ORDER.flatMap(f => identityFields[f] ?? [])
+  const selectedVals = allValues.filter(v => identityContext.has(v.id))
+  const hasAny       = IDENTITY_FIELD_ORDER.some(f => (identityFields[f]?.length ?? 0) > 0)
 
   return (
     <div className="space-y-2">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
+      <button type="button" onClick={() => setOpen(o => !o)}
         className="w-full flex items-center gap-3 px-3.5 py-2 rounded-lg border border-border/60 text-left hover:border-border transition-colors"
       >
         <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide shrink-0 w-8">User</span>
         <span className="text-xs text-muted-foreground/40 mr-1">=</span>
-        {selectedValues.length === 0 ? (
+        {selectedVals.length === 0 ? (
           <span className="flex-1 text-xs text-muted-foreground/40 italic">All Users — click to filter</span>
         ) : (
           <div className="flex-1 flex flex-wrap gap-1">
-            {selectedValues.map(v => (
+            {selectedVals.map(v => (
               <span key={v.id} className="flex items-center gap-1 px-2 py-0.5 rounded bg-foreground/10 border border-foreground/20 text-xs text-foreground/80">
                 <span className={cn('w-1.5 h-1.5 rounded-full', RISK_DOT[v.risk_level] ?? 'bg-muted')} />
                 {v.value_name}
@@ -210,11 +252,10 @@ function EditSourceSection({ identityContext, setIdentityContext, identityFields
           {!hasAny ? (
             <p className="px-4 py-3 text-xs text-muted-foreground/40 italic">No identity values configured.</p>
           ) : IDENTITY_FIELD_ORDER.map(field => {
-            const values = identityFields[field] ?? []
+            const values  = identityFields[field] ?? []
             if (!values.length) return null
-            const isOpen = fieldOpen === field
+            const isOpen  = fieldOpen === field
             const selCount = values.filter(v => identityContext.has(v.id)).length
-
             return (
               <div key={field} className="border-b border-border/40 last:border-0">
                 <button type="button"
@@ -259,11 +300,11 @@ function EditSourceSection({ identityContext, setIdentityContext, identityFields
 // ── Destination section ───────────────────────────────────────────────────────
 
 function EditDestSection({ selectedAppIds, setSelectedAppIds, apps }: {
-  selectedAppIds: Set<string>
+  selectedAppIds:    Set<string>
   setSelectedAppIds: (v: Set<string>) => void
-  apps: App[]
+  apps:              App[]
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen]     = useState(false)
   const [search, setSearch] = useState('')
   const filtered = apps.filter(a =>
     a.app_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -342,7 +383,7 @@ function EditDataSection({ selectedDataKeys, setSelectedDataKeys, selectedActivi
   setSelectedActivities: (v: Set<Activity>) => void
   ruleItems:             RuleItem[]
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen]             = useState(false)
   const [activeLayer, setActiveLayer] = useState<1 | 2 | 3>(1)
 
   function toggleData(key: string) {
@@ -357,13 +398,12 @@ function EditDataSection({ selectedDataKeys, setSelectedDataKeys, selectedActivi
     setSelectedActivities(next)
   }
 
-  const layers = [...new Set(ruleItems.map(i => i.layer))] as (1 | 2 | 3)[]
+  const layers       = [...new Set(ruleItems.map(i => i.layer))] as (1 | 2 | 3)[]
   const visibleItems = ruleItems.filter(i => i.layer === activeLayer)
   const selectedNames = ruleItems.filter(i => selectedDataKeys.has(i.key)).map(i => i.name)
 
   return (
     <div className="space-y-3">
-      {/* Data types toggle row */}
       <button type="button" onClick={() => setOpen(o => !o)}
         className="w-full flex items-center gap-3 px-3.5 py-2 rounded-lg border border-border/60 text-left hover:border-border transition-colors"
       >
@@ -398,7 +438,7 @@ function EditDataSection({ selectedDataKeys, setSelectedDataKeys, selectedActivi
           )}
           <div className="p-3 flex flex-wrap gap-1.5">
             {visibleItems.map(item => {
-              const cc = colorClasses(item.color)
+              const cc  = colorClasses(item.color)
               const sel = selectedDataKeys.has(item.key)
               return (
                 <button key={item.key} type="button" onClick={() => toggleData(item.key)}
@@ -421,7 +461,6 @@ function EditDataSection({ selectedDataKeys, setSelectedDataKeys, selectedActivi
         </div>
       )}
 
-      {/* Activities — always visible */}
       <div className="flex items-center gap-3 px-3.5 py-2 rounded-lg border border-border/60">
         <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide shrink-0 w-16">Activities</span>
         <span className="text-xs text-muted-foreground/40 mr-1">=</span>
@@ -444,27 +483,29 @@ function EditDataSection({ selectedDataKeys, setSelectedDataKeys, selectedActivi
   )
 }
 
-// ── Edit Policy Modal ─────────────────────────────────────────────────────────
+// ── Policy Form Modal (create + edit) ─────────────────────────────────────────
 
-function PolicyModal({ policy, apps, classifications, identityFields, ruleItems, onClose }: {
-  policy:          GenAIPolicy
+function PolicyFormModal({ policy, apps, classifications, identityFields, ruleItems, onClose, onRefresh }: {
+  policy:          GenAIPolicy | null   // null = create new
   apps:            App[]
   classifications: Classification[]
   identityFields:  Record<string, IdentityOption[]>
   ruleItems:       RuleItem[]
   onClose:         () => void
+  onRefresh:       () => void
 }) {
-  const derived = deriveFromRules(policy.rules ?? [], ruleItems)
+  const isNew    = policy === null
+  const derived  = deriveFromRules(policy?.rules ?? [], ruleItems)
 
-  const [identityContext, setIdentityContext]   = useState<Set<string>>(new Set(policy.identity_context ?? []))
-  const [selectedAppIds, setSelectedAppIds]     = useState<Set<string>>(new Set(policy.scope_app_ids ?? []))
+  const [identityContext, setIdentityContext]   = useState<Set<string>>(new Set(policy?.identity_context ?? []))
+  const [selectedAppIds, setSelectedAppIds]     = useState<Set<string>>(new Set(policy?.scope_app_ids ?? []))
   const [selectedDataKeys, setSelectedDataKeys] = useState<Set<string>>(derived.selectedDataKeys)
   const [selectedActivities, setSelectedActivities] = useState<Set<Activity>>(derived.selectedActivities)
   const [primaryAction, setPrimaryAction]       = useState<ActionCode>(derived.primaryAction)
-  const [name, setName]                         = useState(policy.name)
-  const [description, setDescription]           = useState(policy.description ?? '')
-  const [approvalStatus, setApprovalStatus]     = useState<ApprovalStatus>(policy.approval_status)
-  const [isActive, setIsActive]                 = useState(policy.is_active)
+  const [name, setName]                         = useState(policy?.name ?? '')
+  const [description, setDescription]           = useState(policy?.description ?? '')
+  const [approvalStatus, setApprovalStatus]     = useState<ApprovalStatus>(policy?.approval_status ?? 'draft')
+  const [isActive, setIsActive]                 = useState(policy?.is_active ?? true)
   const [isPending, startTransition]            = useTransition()
   const [error, setError]                       = useState<string | null>(null)
 
@@ -485,7 +526,7 @@ function PolicyModal({ policy, apps, classifications, identityFields, ruleItems,
           }))
 
     startTransition(async () => {
-      const res = await upsertPolicy(policy.id, {
+      const res = await upsertPolicy(policy?.id ?? null, {
         name:             name.trim(),
         description:      description || undefined,
         approval_status:  approvalStatus,
@@ -496,6 +537,7 @@ function PolicyModal({ policy, apps, classifications, identityFields, ruleItems,
         identity_context: identityContext.size > 0 ? [...identityContext] : null,
       })
       if (res.error) { setError(res.error); return }
+      onRefresh()
       onClose()
     })
   }
@@ -505,15 +547,13 @@ function PolicyModal({ policy, apps, classifications, identityFields, ruleItems,
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
       <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-2xl my-8">
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border sticky top-0 bg-card z-10 rounded-t-xl">
-          <h2 className="text-sm font-semibold text-foreground">Edit Policy</h2>
+          <h2 className="text-sm font-semibold text-foreground">{isNew ? 'New Policy' : 'Edit Policy'}</h2>
           <button onClick={onClose} className="text-muted-foreground/60 hover:text-foreground transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Netskope-style sections */}
         <div className="divide-y divide-border/60">
           <Section icon={<Users2 />} label="Source">
             <EditSourceSection
@@ -560,7 +600,7 @@ function PolicyModal({ policy, apps, classifications, identityFields, ruleItems,
                 <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">
                   Policy Name <span className="text-red-400">*</span>
                 </label>
-                <input value={name} onChange={e => setName(e.target.value)} className={inputCls} />
+                <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. GenAI Data Handling Policy" className={inputCls} />
               </div>
               <div>
                 <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Description</label>
@@ -596,7 +636,6 @@ function PolicyModal({ policy, apps, classifications, identityFields, ruleItems,
           </Section>
         </div>
 
-        {/* Footer */}
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border sticky bottom-0 bg-card rounded-b-xl">
           {error && <p className="text-xs text-red-400 mr-auto">{error}</p>}
           <button onClick={onClose} className="px-4 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
@@ -604,7 +643,7 @@ function PolicyModal({ policy, apps, classifications, identityFields, ruleItems,
             className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 transition-colors"
           >
             {isPending && <Loader2 className="w-3 h-3 animate-spin" />}
-            Save Changes
+            {isNew ? 'Create Policy' : 'Save Changes'}
           </button>
         </div>
       </div>
@@ -615,22 +654,48 @@ function PolicyModal({ policy, apps, classifications, identityFields, ruleItems,
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function PolicyList({ policies: initialPolicies, categories, apps, classifications, identityFields, ruleItems }: Props) {
-  const [policies, setPolicies] = useState<GenAIPolicy[]>(initialPolicies)
-  const [filterStatus, setFilterStatus] = useState<ApprovalStatus | 'all'>('all')
-  const [filterType, setFilterType]     = useState<PolicyType | 'all'>('all')
-  const [activeOnly, setActiveOnly]     = useState(false)
-  const [editing, setEditing]           = useState<GenAIPolicy | undefined>()
-  const [lintResults, setLintResults]   = useState<LintIssue[] | null>(null)
-  const [, startTransition]             = useTransition()
+  const router                              = useRouter()
+  const [policies, setPolicies]             = useState<GenAIPolicy[]>(initialPolicies)
+  const [filterStatus, setFilterStatus]     = useState<ApprovalStatus | 'all'>('all')
+  const [activeOnly, setActiveOnly]         = useState(false)
+  const [search, setSearch]                 = useState('')
+  const [modalPolicy, setModalPolicy]       = useState<GenAIPolicy | null | 'new'>(null)  // null=closed, 'new'=create, GenAIPolicy=edit
+  const [lintResults, setLintResults]       = useState<LintIssue[] | null>(null)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [, startTransition]                 = useTransition()
 
   const categoryMap = new Map(categories.map(c => [c.id, c]))
 
   const visible = policies.filter(p => {
     if (filterStatus !== 'all' && p.approval_status !== filterStatus) return false
-    if (filterType   !== 'all' && p.policy_type    !== filterType)    return false
     if (activeOnly && !p.is_active) return false
+    if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
+
+  // Group by governance category
+  type Group = { cat: Category | null; key: string; policies: GenAIPolicy[] }
+  const groups: Group[] = []
+  const byCategory = new Map<string | null, GenAIPolicy[]>()
+  for (const p of visible) {
+    const key = p.category_id ?? null
+    if (!byCategory.has(key)) byCategory.set(key, [])
+    byCategory.get(key)!.push(p)
+  }
+  for (const cat of categories) {
+    const ps = byCategory.get(cat.id)
+    if (ps?.length) groups.push({ cat, key: cat.id, policies: ps })
+  }
+  const uncategorized = byCategory.get(null) ?? []
+  if (uncategorized.length) groups.push({ cat: null, key: 'uncategorized', policies: uncategorized })
+
+  function toggleGroup(key: string) {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
 
   function handleToggle(id: string, current: boolean) {
     setPolicies(ps => ps.map(p => p.id === id ? { ...p, is_active: !current } : p))
@@ -643,21 +708,29 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
     startTransition(async () => { await deletePolicy(id) })
   }
 
+  function handleRefresh() {
+    router.refresh()
+  }
+
+  const colCount = 8
+
   return (
     <>
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2 mb-5">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/30" />
+          <input
+            value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search policies…"
+            className="bg-card text-xs text-foreground placeholder:text-muted-foreground/30 border border-border/60 rounded-md pl-8 pr-3 py-1.5 w-52 focus:outline-none focus:border-border transition-colors"
+          />
+        </div>
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as ApprovalStatus | 'all')}
           className="bg-card text-xs text-foreground border border-border/60 rounded-md px-2.5 py-1.5 focus:outline-none appearance-none cursor-pointer"
         >
           <option value="all">All statuses</option>
           {APPROVAL_STATUSES.map(s => <option key={s} value={s}>{s.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>)}
-        </select>
-        <select value={filterType} onChange={e => setFilterType(e.target.value as PolicyType | 'all')}
-          className="bg-card text-xs text-foreground border border-border/60 rounded-md px-2.5 py-1.5 focus:outline-none appearance-none cursor-pointer"
-        >
-          <option value="all">All types</option>
-          {POLICY_TYPES.map(t => <option key={t} value={t}>{POLICY_TYPE_META[t].label}</option>)}
         </select>
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground/70 cursor-pointer select-none">
           <input type="checkbox" checked={activeOnly} onChange={e => setActiveOnly(e.target.checked)} className="accent-foreground" />
@@ -673,17 +746,18 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
             <span className="ml-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/20">{lintResults.length}</span>
           )}
         </button>
-        <Link href="/genai-controls/policies/new"
+        <button
+          onClick={() => setModalPolicy('new')}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
           New Policy
-        </Link>
+        </button>
       </div>
 
-      {/* Lint results panel */}
+      {/* Lint panel */}
       {lintResults !== null && (
-        <div className="rounded-xl border border-border bg-card/50 shadow-sm overflow-hidden mb-5">
+        <div className="rounded-xl border border-border bg-card/50 shadow-sm overflow-hidden mb-4">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-semibold text-foreground/80">Lint Results</span>
@@ -705,7 +779,7 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
           ) : (
             <ul className="divide-y divide-border/40">
               {lintResults.map(issue => {
-                const s = SEVERITY_STYLES[issue.severity]
+                const s     = SEVERITY_STYLES[issue.severity]
                 const names = issue.policyIds.map(id => policies.find(p => p.id === id)?.name).filter((n): n is string => Boolean(n))
                 return (
                   <li key={issue.id} className="px-4 py-3 flex items-start gap-3">
@@ -737,11 +811,11 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
             {policies.length === 0 ? 'No policies yet. Create your first GenAI governance policy.' : 'No policies match the current filters.'}
           </p>
           {policies.length === 0 && (
-            <Link href="/genai-controls/policies/new"
+            <button onClick={() => setModalPolicy('new')}
               className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 transition-colors"
             >
               <Plus className="w-3.5 h-3.5" /> Create Policy
-            </Link>
+            </button>
           )}
         </div>
       )}
@@ -749,84 +823,133 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
       {/* Policy table */}
       {visible.length > 0 && (
         <div className="rounded-xl border border-border overflow-hidden">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-border bg-card">
-                <th className="text-left text-[10px] text-muted-foreground/50 uppercase tracking-wide px-4 py-3 w-8">Active</th>
-                <th className="text-left text-[10px] text-muted-foreground/50 uppercase tracking-wide px-4 py-3">Policy</th>
-                <th className="text-left text-[10px] text-muted-foreground/50 uppercase tracking-wide px-4 py-3 hidden md:table-cell">Category</th>
-                <th className="text-left text-[10px] text-muted-foreground/50 uppercase tracking-wide px-4 py-3">Status</th>
-                <th className="text-left text-[10px] text-muted-foreground/50 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Owner</th>
-                <th className="text-left text-[10px] text-muted-foreground/50 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Next Review</th>
-                <th className="px-4 py-3 w-16" />
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((policy, i) => {
-                const cat       = policy.category_id ? categoryMap.get(policy.category_id) : null
-                const catCc     = cat ? colorClasses(cat.color) : null
-                const typeMeta  = POLICY_TYPE_META[policy.policy_type]
-                const approvalStyle = APPROVAL_STYLES[policy.approval_status]
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border bg-card/80">
+                  <th className="w-10 px-3 py-2.5" />
+                  <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">
+                    Name
+                    <span className="ml-2 text-[10px] font-normal text-muted-foreground/30 normal-case tracking-normal">{visible.length} {visible.length === 1 ? 'policy' : 'policies'}</span>
+                  </th>
+                  <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5 hidden md:table-cell">Source</th>
+                  <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5 hidden md:table-cell">Destination</th>
+                  <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5 hidden lg:table-cell">Data / Activities</th>
+                  <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Action</th>
+                  <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Status</th>
+                  <th className="w-16 px-3 py-2.5" />
+                </tr>
+              </thead>
 
-                return (
-                  <tr key={policy.id}
-                    className={cn('border-b border-border/60 last:border-0', !policy.is_active && 'opacity-50', i % 2 === 0 ? 'bg-card/50' : 'bg-transparent')}
-                  >
-                    <td className="px-4 py-3">
-                      <button onClick={() => handleToggle(policy.id, policy.is_active)}
-                        className={cn('w-8 h-4.5 rounded-full transition-colors relative', policy.is_active ? 'bg-emerald-500/70' : 'bg-muted')}
-                        title={policy.is_active ? 'Deactivate' : 'Activate'}
+              <tbody>
+                {groups.map(({ cat, key: groupKey, policies: groupPolicies }) => {
+                  const cc        = cat ? colorClasses(cat.color) : null
+                  const collapsed = collapsedGroups.has(groupKey)
+
+                  return (
+                    <Fragment key={groupKey}>
+                      {/* Group header */}
+                      <tr className="bg-muted/20 border-y border-border/50 hover:bg-muted/30 transition-colors cursor-pointer"
+                        onClick={() => toggleGroup(groupKey)}
                       >
-                        <span className={cn('absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow transition-all', policy.is_active ? 'left-4' : 'left-0.5')} />
-                      </button>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-foreground/90 leading-tight">{policy.name}</p>
-                      {policy.description && <p className="text-muted-foreground/60 mt-0.5 line-clamp-1">{policy.description}</p>}
-                      <span className={cn('inline-block mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border', typeMeta.style)}>{typeMeta.label}</span>
-                    </td>
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      {cat && catCc ? (
-                        <span className="flex items-center gap-1.5">
-                          <span className={cn('w-2 h-2 rounded-full shrink-0', catCc.bg)} /><span className="text-foreground/80">{cat.name}</span>
-                        </span>
-                      ) : <span className="text-muted-foreground/40">—</span>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded border', approvalStyle)}>
-                        {policy.approval_status.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground/70">{policy.policy_owner ?? <span className="text-muted-foreground/30">—</span>}</td>
-                    <td className="px-4 py-3 hidden lg:table-cell">
-                      <span className={reviewDateColor(policy.next_review_date)}>{policy.next_review_date ?? '—'}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2 justify-end">
-                        <button onClick={() => setEditing(policy)} className="text-muted-foreground/50 hover:text-foreground transition-colors" title="Edit">
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button onClick={() => handleDelete(policy.id)} className="text-muted-foreground/50 hover:text-red-400 transition-colors" title="Delete">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                        <td colSpan={colCount} className="px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            {collapsed
+                              ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />
+                              : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />}
+                            {cat && cc ? (
+                              <span className={cn('text-[11px] font-bold', cc.text)}>{cat.name}</span>
+                            ) : (
+                              <span className="text-[11px] font-bold text-muted-foreground/60">Uncategorized</span>
+                            )}
+                            <span className="text-[10px] text-muted-foreground/40 font-normal">({groupPolicies.length})</span>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Policy rows */}
+                      {!collapsed && groupPolicies.map((policy) => (
+                        <tr key={policy.id}
+                          className={cn('border-b border-border/40 last:border-0 hover:bg-card/40 transition-colors', !policy.is_active && 'opacity-50')}
+                        >
+                          {/* Active toggle */}
+                          <td className="px-3 py-2.5 align-middle">
+                            <button
+                              onClick={() => handleToggle(policy.id, policy.is_active)}
+                              className={cn('w-7 h-4 rounded-full transition-colors relative shrink-0', policy.is_active ? 'bg-emerald-500/70' : 'bg-muted')}
+                              title={policy.is_active ? 'Deactivate' : 'Activate'}
+                            >
+                              <span className={cn('absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all', policy.is_active ? 'left-3.5' : 'left-0.5')} />
+                            </button>
+                          </td>
+
+                          {/* Name */}
+                          <td className="px-3 py-2.5 align-middle max-w-[200px]">
+                            <p className="font-semibold text-foreground/90 leading-tight truncate">{policy.name}</p>
+                            {policy.description && (
+                              <p className="text-muted-foreground/50 mt-0.5 truncate text-[10px]">{policy.description}</p>
+                            )}
+                          </td>
+
+                          {/* Source */}
+                          <td className="px-3 py-2.5 align-middle hidden md:table-cell">
+                            <SourceCell policy={policy} identityFields={identityFields} />
+                          </td>
+
+                          {/* Destination */}
+                          <td className="px-3 py-2.5 align-middle hidden md:table-cell">
+                            <DestCell policy={policy} apps={apps} />
+                          </td>
+
+                          {/* Data / Activities */}
+                          <td className="px-3 py-2.5 align-middle hidden lg:table-cell">
+                            <DataCell policy={policy} ruleItems={ruleItems} />
+                          </td>
+
+                          {/* Action */}
+                          <td className="px-3 py-2.5 align-middle">
+                            <ActionCell policy={policy} ruleItems={ruleItems} />
+                          </td>
+
+                          {/* Status */}
+                          <td className="px-3 py-2.5 align-middle">
+                            <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded border', APPROVAL_STYLES[policy.approval_status])}>
+                              {policy.approval_status.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                            </span>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="px-3 py-2.5 align-middle">
+                            <div className="flex items-center gap-2 justify-end">
+                              <button onClick={() => setModalPolicy(policy)} className="text-muted-foreground/50 hover:text-foreground transition-colors" title="Edit">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => handleDelete(policy.id)} className="text-muted-foreground/50 hover:text-red-400 transition-colors" title="Delete">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {editing && (
-        <PolicyModal
-          policy={editing}
+      {/* Form modal — new or edit */}
+      {modalPolicy !== null && (
+        <PolicyFormModal
+          policy={modalPolicy === 'new' ? null : modalPolicy}
           apps={apps}
           classifications={classifications}
           identityFields={identityFields}
           ruleItems={ruleItems}
-          onClose={() => setEditing(undefined)}
+          onClose={() => setModalPolicy(null)}
+          onRefresh={handleRefresh}
         />
       )}
     </>
