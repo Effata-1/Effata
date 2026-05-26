@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   Pencil, Plus, Search,
   ShieldAlert, ShieldCheck, Sparkles, Trash2, X,
@@ -210,7 +211,11 @@ function ActionCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: Rul
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function PolicyList({ policies: initialPolicies, categories, apps, classifications, identityFields, ruleItems }: Props) {
+  const router = useRouter()
   const [policies, setPolicies]               = useState<GenAIPolicy[]>(initialPolicies)
+
+  // Sync local state when server re-renders with fresh data (e.g. after generate)
+  useEffect(() => { setPolicies(initialPolicies) }, [initialPolicies])
   const [filterStatus, setFilterStatus]       = useState<ApprovalStatus | 'all'>('all')
   const [activeOnly, setActiveOnly]           = useState(false)
   const [search, setSearch]                   = useState('')
@@ -246,7 +251,11 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
     setGenerateError(null)
     const result = await generatePoliciesFromGovernance()
     setIsGenerating(false)
-    if (result.error) setGenerateError(result.error)
+    if (result.error) {
+      setGenerateError(result.error)
+    } else {
+      router.refresh()
+    }
   }
 
   return (
