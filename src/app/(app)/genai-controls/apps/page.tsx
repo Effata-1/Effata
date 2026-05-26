@@ -34,11 +34,10 @@ export default async function GenAIAppCatalogPage() {
     .eq('status', 'active')
     .order('app_name')
 
-  // Enterprise profiles only
+  // All profiles (enterprise + personal)
   const { data: profiles } = await supabase
     .from('genai_app_profiles')
     .select('*')
-    .eq('mode', 'enterprise')
 
   // Org-specific classifications
   const { data: classifications } = await supabase
@@ -46,19 +45,28 @@ export default async function GenAIAppCatalogPage() {
     .select('*')
     .eq('org_id', user.orgId)
 
-  const profileMap = new Map((profiles as GenAIAppProfile[] ?? []).map(p => [p.app_id, p]))
-  const classMap   = new Map((classifications as CustomerClassification[] ?? []).map(c => [c.app_id, c]))
+  // Group profiles by app_id, then by mode
+  const profilesByApp = new Map<string, Map<string, GenAIAppProfile>>()
+  for (const p of (profiles as GenAIAppProfile[] ?? [])) {
+    if (!profilesByApp.has(p.app_id)) profilesByApp.set(p.app_id, new Map())
+    profilesByApp.get(p.app_id)!.set(p.mode, p)
+  }
+  const classMap = new Map((classifications as CustomerClassification[] ?? []).map(c => [c.app_id, c]))
 
   const totalInDb = (allApps ?? []).length
 
-  // Only include apps that have a fully evaluated enterprise profile
-  const entries: CatalogEntry[] = (allApps as GenAIApp[] ?? [])
-    .filter(app => profileMap.has(app.app_id))
-    .map(app => {
-      const profile = profileMap.get(app.app_id)!
+  // One entry per mode per app (only apps with at least one evaluated profile)
+  const entries: CatalogEntry[] = []
+  for (const app of (allApps as GenAIApp[] ?? [])) {
+    const modeMap = profilesByApp.get(app.app_id)
+    if (!modeMap) continue
+    for (const mode of (['enterprise', 'personal'] as const)) {
+      const profile = modeMap.get(mode)
+      if (!profile) continue
       const score = computeTrustScore(profile.fields, profile.dlp, profile.breach_info)
-      return { app, score, classification: classMap.get(app.app_id) ?? null }
-    })
+      entries.push({ app, score, classification: classMap.get(app.app_id) ?? null, mode })
+    }
+  }
 
   return (
     <AppCatalogClient

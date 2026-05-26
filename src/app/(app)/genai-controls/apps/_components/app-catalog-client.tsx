@@ -13,6 +13,7 @@ export interface CatalogEntry {
   app: GenAIApp
   score: TrustScores | null
   classification: CustomerClassification | null
+  mode: 'enterprise' | 'personal'
 }
 
 interface Props {
@@ -36,7 +37,7 @@ const APPROVAL_CHIP: Record<string, string> = {
   expired:        'bg-amber-500/10 text-amber-400 border-amber-500/20',
 }
 
-function AppCard({ app, score, classification, href }: { app: GenAIApp; score: TrustScores | null; classification: CustomerClassification | null; href: string }) {
+function AppCard({ app, score, classification, mode, href }: { app: GenAIApp; score: TrustScores | null; classification: CustomerClassification | null; mode: 'enterprise' | 'personal'; href: string }) {
   const cls = classification?.customer_classification ?? 'unknown'
   const clsMeta = CLASSIFICATION_LABELS[cls]
   const suggested = score?.suggested_classification ?? null
@@ -61,6 +62,14 @@ function AppCard({ app, score, classification, href }: { app: GenAIApp; score: T
         {score && <RiskBadge score={score.final_score} />}
       </div>
       <div className="flex flex-wrap gap-1.5 mb-3">
+        <span className={cn(
+          'text-[10px] font-semibold px-1.5 py-0.5 rounded border',
+          mode === 'enterprise'
+            ? 'bg-violet-500/10 text-violet-400 border-violet-500/20'
+            : 'bg-sky-500/10 text-sky-400 border-sky-500/20',
+        )}>
+          {mode === 'enterprise' ? 'Enterprise' : 'Personal'}
+        </span>
         {app.app_group && (
           <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground/70 border border-border">
             {app.app_group}
@@ -379,12 +388,13 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
       {/* App grid */}
       {!isPending && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map(({ app, score, classification }) => (
+          {filtered.map(({ app, score, classification, mode }) => (
             <AppCard
-              key={app.app_id}
+              key={`${app.app_id}-${mode}`}
               app={app}
               score={score}
               classification={classification}
+              mode={mode}
               href={`/genai-controls/apps/${app.app_id}`}
             />
           ))}
