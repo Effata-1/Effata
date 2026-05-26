@@ -94,7 +94,7 @@ export default async function GenAIPoliciesPage() {
   ) as Record<string, { id: string; field_name: string; value_name: string; risk_level: string }[]>
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">Policy Library</h1>
