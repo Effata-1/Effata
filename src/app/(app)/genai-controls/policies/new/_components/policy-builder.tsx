@@ -2,12 +2,11 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, ChevronDown, Loader2, Search, X } from 'lucide-react'
+import { Check, ChevronDown, Loader2, Search, Users2, Target, ShieldCheck, Zap, FileText, ToggleLeft, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { colorClasses } from '@/lib/data-catalog/types'
 import { upsertPolicy } from '../../actions'
-import type { PolicyRule, ActionCode, GenAIPolicy } from '@/lib/genai/types'
-import { lintPolicy, SEVERITY_STYLES } from '@/lib/genai/lint'
+import type { PolicyRule, ActionCode } from '@/lib/genai/types'
 
 // ── Exported types (used by page.tsx) ─────────────────────────────────────────
 
@@ -23,8 +22,6 @@ export interface RuleItem {
 }
 
 // ── Local types ───────────────────────────────────────────────────────────────
-
-type RuleMode = 'matrix' | 'custom'
 
 type IdentityFieldName =
   | 'business_function'
@@ -43,7 +40,6 @@ interface App {
   app_id:      string
   app_name:    string
   vendor:      string
-  app_type:    string
   logo_letter: string
   logo_bg:     string
 }
@@ -70,9 +66,6 @@ interface Props {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const STEPS = ['Details', 'App Scope', 'DLP Rules', 'Review'] as const
-type Step = 0 | 1 | 2 | 3
-
 const IDENTITY_FIELD_ORDER: IdentityFieldName[] = [
   'business_function',
   'privilege_level',
@@ -97,17 +90,17 @@ const RISK_DOT: Record<string, string> = {
 const ACTION_CODES: ActionCode[] = ['not-set', 'allow', 'monitor', 'alert', 'coach', 'coach-ack', 'coach-just', 'block']
 
 const ACTION_LABELS: Record<ActionCode, string> = {
-  'not-set':    '—',
+  'not-set':    '— No action (inherit from Control Matrix)',
   'allow':      'Allow',
   'monitor':    'Monitor',
   'alert':      'Alert',
   'coach':      'Coach',
-  'coach-ack':  'Coach + Ack',
+  'coach-ack':  'Coach + Acknowledge',
   'coach-just': 'Coach + Justify',
   'block':      'Block',
 }
 
-const ACTION_CELL: Record<ActionCode, string> = {
+const ACTION_CHIP: Record<ActionCode, string> = {
   'allow':      'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   'monitor':    'bg-blue-500/10 text-blue-400 border-blue-500/20',
   'alert':      'bg-amber-500/10 text-amber-400 border-amber-500/20',
@@ -115,13 +108,7 @@ const ACTION_CELL: Record<ActionCode, string> = {
   'coach-ack':  'bg-orange-500/15 text-orange-300 border-orange-500/30',
   'coach-just': 'bg-amber-600/15 text-amber-300 border-amber-600/25',
   'block':      'bg-red-500/10 text-red-400 border-red-500/20',
-  'not-set':    'bg-transparent text-muted-foreground/30 border-border',
-}
-
-const LAYER_META: Record<1 | 2 | 3, { label: string; desc: string }> = {
-  1: { label: 'Classification Levels',  desc: 'Applies to all data at this sensitivity level.' },
-  2: { label: 'Org Data Types',         desc: 'Your in-scope specific data types, mapped to a classification level.' },
-  3: { label: 'Catalog Reference Types', desc: 'Available catalog types not yet added to your scope. Add them in Data Catalog → Classification.' },
+  'not-set':    'bg-muted/40 text-muted-foreground/50 border-border/60',
 }
 
 type Activity = 'post_prompt' | 'upload' | 'download' | 'response'
@@ -132,25 +119,50 @@ const ACTIVITIES: { key: Activity; label: string }[] = [
   { key: 'response',    label: 'Response' },
 ]
 
-const defaultRulesFromItems = (items: RuleItem[]): PolicyRule[] =>
-  items.map(item => ({
-    data_type:   item.key,
-    post_prompt: 'not-set',
-    upload:      'not-set',
-    download:    'not-set',
-    response:    'not-set',
-  }))
+const LAYER_LABELS: Record<1 | 2 | 3, string> = {
+  1: 'Classification Levels',
+  2: 'Org Data Types',
+  3: 'Catalog Reference Types',
+}
 
-// ── Step 1: Details ───────────────────────────────────────────────────────────
+type ScopeMode = 'category' | 'specific'
 
-function IdentityAccordion({
+// ── Section wrapper ───────────────────────────────────────────────────────────
+
+function PolicySection({
+  icon, label, children, noBorder,
+}: {
+  icon: React.ReactNode
+  label: string
+  children: React.ReactNode
+  noBorder?: boolean
+}) {
+  return (
+    <div className={cn('flex gap-0', !noBorder && 'border-b border-border/60')}>
+      {/* Left label */}
+      <div className="w-36 shrink-0 flex items-start gap-2 px-5 py-5 text-muted-foreground/60">
+        <span className="mt-0.5 shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5">{icon}</span>
+        <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
+      </div>
+      {/* Right content */}
+      <div className="flex-1 px-5 py-5 min-w-0">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+// ── Source section — identity context ─────────────────────────────────────────
+
+function SourceSection({
   identityContext, setIdentityContext, identityFields,
 }: {
   identityContext: Set<string>
   setIdentityContext: (v: Set<string>) => void
   identityFields: Record<string, IdentityOption[]>
 }) {
-  const [expandedField, setExpandedField] = useState<IdentityFieldName | null>(null)
+  const [open, setOpen] = useState(false)
+  const [fieldOpen, setFieldOpen] = useState<IdentityFieldName | null>(null)
   const [search, setSearch] = useState<Record<string, string>>({})
 
   function toggle(id: string) {
@@ -162,195 +174,144 @@ function IdentityAccordion({
 
   function clearField(field: IdentityFieldName) {
     const ids = new Set((identityFields[field] ?? []).map(v => v.id))
-    const next = new Set([...identityContext].filter(id => !ids.has(id)))
-    setIdentityContext(next)
-  }
-
-  const hasAnyIdentity = IDENTITY_FIELD_ORDER.some(f => (identityFields[f]?.length ?? 0) > 0)
-
-  if (!hasAnyIdentity) {
-    return (
-      <p className="text-xs text-muted-foreground/40 italic">
-        No identity values configured yet. Set them up in{' '}
-        <a href="/policies/identity" className="underline hover:text-muted-foreground/60 transition-colors">
-          Policies → Identity
-        </a>.
-      </p>
-    )
+    setIdentityContext(new Set([...identityContext].filter(id => !ids.has(id))))
   }
 
   const allValues = IDENTITY_FIELD_ORDER.flatMap(f => identityFields[f] ?? [])
   const selectedValues = allValues.filter(v => identityContext.has(v.id))
+  const hasAny = IDENTITY_FIELD_ORDER.some(f => (identityFields[f]?.length ?? 0) > 0)
 
   return (
     <div className="space-y-2">
-      {/* Summary chips when collapsed */}
-      {selectedValues.length > 0 && !expandedField && (
-        <div className="flex flex-wrap gap-1.5 mb-3">
-          {selectedValues.map(v => (
-            <span
-              key={v.id}
-              className="flex items-center gap-1 px-2 py-1 rounded-md bg-foreground/10 border border-foreground/20 text-xs text-foreground/80"
-            >
-              <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', RISK_DOT[v.risk_level] ?? 'bg-muted')} />
-              {v.value_name}
-              <button onClick={() => toggle(v.id)} className="ml-0.5 text-muted-foreground/50 hover:text-foreground/70 transition-colors">
-                <X className="w-2.5 h-2.5" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
+      {/* Row chip showing current state */}
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border border-border/60 text-left hover:border-border transition-colors group"
+      >
+        <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide shrink-0 w-10">User</span>
+        <span className="text-xs text-muted-foreground/40 mr-1">=</span>
+        {selectedValues.length === 0 ? (
+          <span className="flex-1 text-xs text-muted-foreground/40 italic">All Users — click to filter by group</span>
+        ) : (
+          <div className="flex-1 flex flex-wrap gap-1">
+            {selectedValues.map(v => (
+              <span key={v.id} className="flex items-center gap-1 px-2 py-0.5 rounded bg-foreground/10 border border-foreground/20 text-xs text-foreground/80">
+                <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', RISK_DOT[v.risk_level] ?? 'bg-muted')} />
+                {v.value_name}
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={e => { e.stopPropagation(); toggle(v.id) }}
+                  onKeyDown={e => e.key === 'Enter' && (e.stopPropagation(), toggle(v.id))}
+                  className="ml-0.5 text-muted-foreground/40 hover:text-foreground/70"
+                >
+                  <X className="w-2.5 h-2.5" />
+                </span>
+              </span>
+            ))}
+          </div>
+        )}
+        <ChevronDown className={cn('w-3.5 h-3.5 text-muted-foreground/30 shrink-0 transition-transform', open && 'rotate-180')} />
+      </button>
 
-      {/* Accordion rows */}
-      {IDENTITY_FIELD_ORDER.map(field => {
-        const values = identityFields[field] ?? []
-        if (!values.length) return null
+      {/* Expanded accordion */}
+      {open && (
+        <div className="rounded-lg border border-border/50 bg-card/30 overflow-hidden">
+          {!hasAny ? (
+            <p className="px-4 py-3 text-xs text-muted-foreground/40 italic">
+              No identity values configured. Set them up in{' '}
+              <a href="/policies/identity" className="underline hover:text-muted-foreground/60">Policies → Identity</a>.
+            </p>
+          ) : (
+            IDENTITY_FIELD_ORDER.map(field => {
+              const values = identityFields[field] ?? []
+              if (!values.length) return null
+              const isFieldOpen = fieldOpen === field
+              const selectedInField = values.filter(v => identityContext.has(v.id)).length
+              const q = (search[field] ?? '').toLowerCase()
+              const filtered = q ? values.filter(v => v.value_name.toLowerCase().includes(q)) : values
 
-        const isOpen = expandedField === field
-        const selectedInField = values.filter(v => identityContext.has(v.id)).length
-        const q = (search[field] ?? '').toLowerCase()
-        const filtered = q ? values.filter(v => v.value_name.toLowerCase().includes(q)) : values
-
-        return (
-          <div key={field} className="rounded-lg border border-border/60 overflow-hidden">
-            {/* Header */}
-            <button
-              type="button"
-              onClick={() => setExpandedField(isOpen ? null : field)}
-              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/20 transition-colors"
-            >
-              <div className="flex items-center gap-2.5">
-                <span className="text-xs font-semibold text-foreground/80">{IDENTITY_FIELD_LABELS[field]}</span>
-                {selectedInField > 0 && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-foreground/10 border border-foreground/20 text-foreground/70 font-semibold">
-                    {selectedInField} selected
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {selectedInField > 0 && (
+              return (
+                <div key={field} className="border-b border-border/40 last:border-0">
                   <button
                     type="button"
-                    onClick={e => { e.stopPropagation(); clearField(field) }}
-                    className="text-[10px] text-muted-foreground/50 hover:text-foreground/70 transition-colors px-1.5 py-0.5 rounded hover:bg-muted/40"
+                    onClick={() => setFieldOpen(isFieldOpen ? null : field)}
+                    className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-muted/20 transition-colors"
                   >
-                    Clear
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-foreground/80">{IDENTITY_FIELD_LABELS[field]}</span>
+                      {selectedInField > 0 && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-foreground/10 border border-foreground/20 text-foreground/70 font-semibold">
+                          {selectedInField}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {selectedInField > 0 && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={e => { e.stopPropagation(); clearField(field) }}
+                          onKeyDown={e => e.key === 'Enter' && (e.stopPropagation(), clearField(field))}
+                          className="text-[10px] text-muted-foreground/40 hover:text-foreground/60 px-1 rounded"
+                        >
+                          Clear
+                        </span>
+                      )}
+                      <ChevronDown className={cn('w-3 h-3 text-muted-foreground/30 transition-transform', isFieldOpen && 'rotate-180')} />
+                    </div>
                   </button>
-                )}
-                <ChevronDown className={cn('w-3.5 h-3.5 text-muted-foreground/40 transition-transform duration-150', isOpen && 'rotate-180')} />
-              </div>
-            </button>
 
-            {/* Expanded panel */}
-            {isOpen && (
-              <div className="border-t border-border/40 bg-card/30 px-4 py-3 space-y-3">
-                {values.length > 6 && (
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/40" />
-                    <input
-                      value={search[field] ?? ''}
-                      onChange={e => setSearch(s => ({ ...s, [field]: e.target.value }))}
-                      placeholder={`Search ${IDENTITY_FIELD_LABELS[field].toLowerCase()}…`}
-                      className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/30 border border-border/60 rounded-md pl-7 pr-3 py-1.5 focus:border-border focus:outline-none transition-colors"
-                    />
-                  </div>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  {filtered.map(v => {
-                    const selected = identityContext.has(v.id)
-                    return (
-                      <button
-                        key={v.id}
-                        type="button"
-                        onClick={() => toggle(v.id)}
-                        className={cn(
-                          'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all',
-                          selected
-                            ? 'bg-foreground/10 border-foreground/30 text-foreground'
-                            : 'border-border text-muted-foreground/70 hover:border-border-strong',
-                        )}
-                      >
-                        <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', RISK_DOT[v.risk_level] ?? 'bg-muted')} />
-                        {v.value_name}
-                        {selected && <Check className="w-3 h-3 ml-0.5 shrink-0" />}
-                      </button>
-                    )
-                  })}
-                  {filtered.length === 0 && (
-                    <p className="text-xs text-muted-foreground/40 py-1">No matches.</p>
+                  {isFieldOpen && (
+                    <div className="px-4 pb-3 pt-1 space-y-2 border-t border-border/30 bg-card/20">
+                      {values.length > 6 && (
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/30" />
+                          <input
+                            value={search[field] ?? ''}
+                            onChange={e => setSearch(s => ({ ...s, [field]: e.target.value }))}
+                            placeholder="Search…"
+                            className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/30 border border-border/50 rounded-md pl-7 pr-3 py-1.5 focus:outline-none focus:border-border transition-colors"
+                          />
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-1.5">
+                        {filtered.map(v => {
+                          const sel = identityContext.has(v.id)
+                          return (
+                            <button
+                              key={v.id}
+                              type="button"
+                              onClick={() => toggle(v.id)}
+                              className={cn(
+                                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all',
+                                sel ? 'bg-foreground/10 border-foreground/30 text-foreground'
+                                    : 'border-border text-muted-foreground/70 hover:border-border-strong',
+                              )}
+                            >
+                              <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', RISK_DOT[v.risk_level] ?? 'bg-muted')} />
+                              {v.value_name}
+                              {sel && <Check className="w-2.5 h-2.5 ml-0.5 shrink-0" />}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
                   )}
                 </div>
-              </div>
-            )}
-          </div>
-        )
-      })}
-
-      {identityContext.size === 0 && (
-        <p className="text-[10px] text-muted-foreground/40 pt-1">
-          No filter applied — policy applies to all users.
-        </p>
+              )
+            })
+          )}
+        </div>
       )}
     </div>
   )
 }
 
-function StepDetails({
-  name, setName, description, setDescription,
-  identityContext, setIdentityContext, identityFields,
-}: {
-  name: string; setName: (v: string) => void
-  description: string; setDescription: (v: string) => void
-  identityContext: Set<string>; setIdentityContext: (v: Set<string>) => void
-  identityFields: Record<string, IdentityOption[]>
-}) {
-  const inputCls = 'w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/30 border border-border/60 rounded-md px-3 py-2 focus:border-border focus:outline-none transition-colors'
-  const labelCls = 'text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1'
+// ── Destination section — app scope ───────────────────────────────────────────
 
-  return (
-    <div className="space-y-5">
-      <div>
-        <label className={labelCls}>Policy Name <span className="text-red-400">*</span></label>
-        <input
-          value={name}
-          onChange={e => setName(e.target.value)}
-          placeholder="e.g. ChatGPT Enterprise Usage Policy"
-          className={inputCls}
-        />
-      </div>
-
-      <div>
-        <label className={labelCls}>Description</label>
-        <textarea
-          value={description}
-          onChange={e => setDescription(e.target.value)}
-          placeholder="What does this policy govern?"
-          rows={2}
-          className={`${inputCls} resize-none`}
-        />
-      </div>
-
-      <div>
-        <label className={labelCls}>Identity Context</label>
-        <p className="text-xs text-muted-foreground/60 mb-3">
-          Optionally restrict this policy to specific user groups. Leave empty to apply to all users.
-        </p>
-        <IdentityAccordion
-          identityContext={identityContext}
-          setIdentityContext={setIdentityContext}
-          identityFields={identityFields}
-        />
-      </div>
-    </div>
-  )
-}
-
-// ── Step 2: App Scope ─────────────────────────────────────────────────────────
-
-type ScopeMode = 'category' | 'specific'
-
-function StepScope({
+function DestinationSection({
   scopeMode, setScopeMode, scopeCategoryId, setScopeCategoryId,
   selectedAppIds, setSelectedAppIds, categories, apps, classifications,
 }: {
@@ -364,534 +325,449 @@ function StepScope({
   apps: App[]
   classifications: Classification[]
 }) {
+  const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
-
-  const filtered = apps.filter(a =>
-    a.app_name.toLowerCase().includes(search.toLowerCase()) ||
-    a.vendor.toLowerCase().includes(search.toLowerCase())
-  )
 
   function appCountForCategory(cat: Category): number {
     if (!cat.system_tag) return 0
     return classifications.filter(c => c.customer_classification === cat.system_tag).length
   }
 
-  function toggle(appId: string) {
+  function toggleApp(appId: string) {
     const next = new Set(selectedAppIds)
     if (next.has(appId)) next.delete(appId)
     else next.add(appId)
     setSelectedAppIds(next)
   }
 
+  const selectedCategory = categories.find(c => c.id === scopeCategoryId)
+  const filteredApps = apps.filter(a =>
+    a.app_name.toLowerCase().includes(search.toLowerCase()) ||
+    a.vendor?.toLowerCase().includes(search.toLowerCase())
+  )
+
+  function scopeLabel(): string {
+    if (scopeMode === 'category' && selectedCategory) return selectedCategory.name
+    if (scopeMode === 'specific' && selectedAppIds.size > 0) return `${selectedAppIds.size} app${selectedAppIds.size !== 1 ? 's' : ''} selected`
+    return 'All apps — click to scope'
+  }
+
   return (
-    <div className="space-y-4">
-      <p className="text-xs text-muted-foreground/70">
-        Choose which apps this policy applies to — by governance category or by selecting specific apps.
-      </p>
+    <div className="space-y-2">
+      {/* Summary row */}
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border border-border/60 text-left hover:border-border transition-colors"
+      >
+        <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide shrink-0 w-10">Apps</span>
+        <span className="text-xs text-muted-foreground/40 mr-1">=</span>
+        {scopeMode ? (
+          <span className={cn('flex items-center gap-1.5 px-2.5 py-0.5 rounded border text-xs font-medium',
+            selectedCategory ? colorClasses(selectedCategory.color).bg + ' ' + colorClasses(selectedCategory.color).text + ' ' + colorClasses(selectedCategory.color).border
+                             : 'bg-foreground/10 border-foreground/20 text-foreground/80'
+          )}>
+            {scopeMode === 'category' && selectedCategory && (
+              <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', colorClasses(selectedCategory.color).dot)} />
+            )}
+            {scopeLabel()}
+          </span>
+        ) : (
+          <span className="flex-1 text-xs text-muted-foreground/40 italic">{scopeLabel()}</span>
+        )}
+        <ChevronDown className={cn('w-3.5 h-3.5 text-muted-foreground/30 shrink-0 ml-auto transition-transform', open && 'rotate-180')} />
+      </button>
 
-      <div className="grid grid-cols-2 gap-3">
-        {categories.map(cat => {
-          const isSelected = scopeMode === 'category' && scopeCategoryId === cat.id
-          const count = appCountForCategory(cat)
-          return (
-            <button
-              key={cat.id}
-              onClick={() => { setScopeMode('category'); setScopeCategoryId(cat.id) }}
-              className={cn(
-                'px-4 py-3 rounded-lg border text-sm font-semibold transition-all text-left',
-                isSelected
-                  ? 'bg-foreground/10 border-foreground/30 text-foreground'
-                  : 'border-border text-muted-foreground hover:border-border-strong',
-              )}
-            >
-              {cat.name}
-              <p className="text-xs font-normal text-muted-foreground/70 mt-0.5">
-                {count} classified app{count !== 1 ? 's' : ''}
-              </p>
-            </button>
-          )
-        })}
-
-        <button
-          onClick={() => { setScopeMode('specific'); setScopeCategoryId(null) }}
-          className={cn(
-            'px-4 py-3 rounded-lg border text-sm font-semibold transition-all text-left',
-            scopeMode === 'specific'
-              ? 'bg-foreground/10 border-foreground/30 text-foreground'
-              : 'border-border text-muted-foreground hover:border-border-strong',
-          )}
-        >
-          Specific Apps
-          {scopeMode === 'specific' && selectedAppIds.size > 0 && (
-            <span className="ml-2 text-xs font-semibold text-foreground/70 bg-muted px-1.5 py-0.5 rounded">
-              {selectedAppIds.size} selected
-            </span>
-          )}
-          <p className="text-xs font-normal text-muted-foreground/70 mt-0.5">Pick individual apps from the catalog</p>
-        </button>
-      </div>
-
-      {scopeMode === 'specific' && (
-        <div className="space-y-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search apps…"
-              className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/30 border border-border/60 rounded-md pl-8 pr-3 py-2 focus:border-border focus:outline-none transition-colors"
-            />
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto pr-1">
-            {filtered.map(app => {
-              const checked = selectedAppIds.has(app.app_id)
+      {/* Expanded picker */}
+      {open && (
+        <div className="rounded-lg border border-border/50 bg-card/30 p-4 space-y-3">
+          <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wide font-semibold">Select by governance category or specific apps</p>
+          <div className="grid grid-cols-2 gap-2">
+            {categories.map(cat => {
+              const cc = colorClasses(cat.color)
+              const isSelected = scopeMode === 'category' && scopeCategoryId === cat.id
               return (
                 <button
-                  key={app.app_id}
-                  onClick={() => toggle(app.app_id)}
+                  key={cat.id}
+                  type="button"
+                  onClick={() => { setScopeMode('category'); setScopeCategoryId(cat.id) }}
                   className={cn(
-                    'flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-all',
-                    checked
-                      ? 'border-foreground/30 bg-foreground/10'
-                      : 'border-border hover:border-border-strong',
+                    'flex items-center gap-2.5 px-3.5 py-3 rounded-lg border text-left transition-all',
+                    isSelected ? 'bg-foreground/10 border-foreground/30' : 'border-border hover:border-border-strong',
                   )}
                 >
-                  <div
-                    className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold text-foreground shrink-0"
-                    style={{ backgroundColor: app.logo_bg }}
-                  >
-                    {app.logo_letter}
+                  <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', cc.dot)} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-foreground/85 truncate">{cat.name}</p>
+                    <p className="text-[10px] text-muted-foreground/50">{appCountForCategory(cat)} apps</p>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-foreground truncate">{app.app_name}</p>
-                    <p className="text-[10px] text-muted-foreground/60 truncate">{app.vendor}</p>
-                  </div>
-                  {checked && <Check className="w-3.5 h-3.5 text-foreground/70 shrink-0" />}
+                  {isSelected && <Check className="w-3 h-3 text-foreground/60 ml-auto shrink-0" />}
+                </button>
+              )
+            })}
+
+            {/* Specific apps */}
+            <button
+              type="button"
+              onClick={() => { setScopeMode('specific'); setScopeCategoryId(null) }}
+              className={cn(
+                'flex items-center gap-2.5 px-3.5 py-3 rounded-lg border text-left transition-all',
+                scopeMode === 'specific' ? 'bg-foreground/10 border-foreground/30' : 'border-border hover:border-border-strong',
+              )}
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground/40 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-foreground/85">Specific Apps</p>
+                <p className="text-[10px] text-muted-foreground/50">
+                  {selectedAppIds.size > 0 ? `${selectedAppIds.size} selected` : 'Pick from catalog'}
+                </p>
+              </div>
+              {scopeMode === 'specific' && <Check className="w-3 h-3 text-foreground/60 ml-auto shrink-0" />}
+            </button>
+          </div>
+
+          {scopeMode === 'specific' && (
+            <div className="space-y-2 pt-1">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/30" />
+                <input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search apps…"
+                  className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/30 border border-border/50 rounded-md pl-7 pr-3 py-1.5 focus:outline-none focus:border-border transition-colors"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-y-auto pr-0.5">
+                {filteredApps.map(app => {
+                  const checked = selectedAppIds.has(app.app_id)
+                  return (
+                    <button
+                      key={app.app_id}
+                      type="button"
+                      onClick={() => toggleApp(app.app_id)}
+                      className={cn(
+                        'flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left transition-all',
+                        checked ? 'border-foreground/30 bg-foreground/10' : 'border-border hover:border-border-strong',
+                      )}
+                    >
+                      <div
+                        className="w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold text-foreground shrink-0"
+                        style={{ backgroundColor: app.logo_bg }}
+                      >
+                        {app.logo_letter}
+                      </div>
+                      <span className="text-xs font-medium text-foreground/80 truncate">{app.app_name}</span>
+                      {checked && <Check className="w-3 h-3 text-foreground/60 ml-auto shrink-0" />}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Data Profile section — data types + activities ────────────────────────────
+
+function DataProfileSection({
+  selectedDataKeys, setSelectedDataKeys,
+  selectedActivities, setSelectedActivities,
+  ruleItems,
+}: {
+  selectedDataKeys:      Set<string>
+  setSelectedDataKeys:   (v: Set<string>) => void
+  selectedActivities:    Set<Activity>
+  setSelectedActivities: (v: Set<Activity>) => void
+  ruleItems:             RuleItem[]
+}) {
+  const [open, setOpen] = useState(false)
+  const [activeLayer, setActiveLayer] = useState<1 | 2 | 3>(1)
+
+  function toggleData(key: string) {
+    const next = new Set(selectedDataKeys)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    setSelectedDataKeys(next)
+  }
+
+  function toggleActivity(act: Activity) {
+    const next = new Set(selectedActivities)
+    if (next.has(act)) next.delete(act)
+    else next.add(act)
+    setSelectedActivities(next)
+  }
+
+  const layers: (1 | 2 | 3)[] = [...new Set(ruleItems.map(i => i.layer))] as (1 | 2 | 3)[]
+  const visibleItems = ruleItems.filter(i => i.layer === activeLayer)
+  const selectedNames = ruleItems.filter(i => selectedDataKeys.has(i.key)).map(i => i.name)
+
+  return (
+    <div className="space-y-3">
+      {/* Data types row */}
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border border-border/60 text-left hover:border-border transition-colors"
+      >
+        <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide shrink-0 w-10">Data</span>
+        <span className="text-xs text-muted-foreground/40 mr-1">=</span>
+        {selectedNames.length === 0 ? (
+          <span className="flex-1 text-xs text-muted-foreground/40 italic">All data — click to select types</span>
+        ) : (
+          <div className="flex-1 flex flex-wrap gap-1">
+            {selectedNames.slice(0, 5).map(name => (
+              <span key={name} className="px-2 py-0.5 rounded bg-foreground/10 border border-foreground/20 text-xs text-foreground/80">{name}</span>
+            ))}
+            {selectedNames.length > 5 && (
+              <span className="px-2 py-0.5 rounded bg-muted/60 border border-border text-xs text-muted-foreground/60">+{selectedNames.length - 5} more</span>
+            )}
+          </div>
+        )}
+        <ChevronDown className={cn('w-3.5 h-3.5 text-muted-foreground/30 shrink-0 ml-auto transition-transform', open && 'rotate-180')} />
+      </button>
+
+      {/* Expanded data type picker */}
+      {open && (
+        <div className="rounded-lg border border-border/50 bg-card/30 overflow-hidden">
+          {/* Layer tabs */}
+          {layers.length > 1 && (
+            <div className="flex border-b border-border/50 bg-card/50">
+              {layers.map(l => (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => setActiveLayer(l)}
+                  className={cn(
+                    'px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide transition-colors',
+                    activeLayer === l
+                      ? 'text-foreground border-b-2 border-foreground -mb-px bg-card/30'
+                      : 'text-muted-foreground/50 hover:text-muted-foreground/80',
+                  )}
+                >
+                  Layer {l} — {LAYER_LABELS[l]}
+                  {l === 3 && <span className="ml-1.5 text-[9px] opacity-60">(catalog)</span>}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Chips for active layer */}
+          <div className="p-4 flex flex-wrap gap-1.5">
+            {visibleItems.length === 0 ? (
+              <p className="text-xs text-muted-foreground/40 italic">No items in this layer.</p>
+            ) : visibleItems.map(item => {
+              const cc = colorClasses(item.color)
+              const sel = selectedDataKeys.has(item.key)
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => toggleData(item.key)}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all',
+                    item.layer === 3 && 'opacity-60',
+                    sel ? 'bg-foreground/10 border-foreground/30 text-foreground'
+                        : cn('border-border text-muted-foreground/70 hover:border-border-strong'),
+                  )}
+                >
+                  <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', cc.dot)} />
+                  {item.name}
+                  {item.layerLabel && !sel && (
+                    <span className={cn('text-[9px] px-1 rounded', cc.bg, cc.text)}>{item.layerLabel}</span>
+                  )}
+                  {sel && <Check className="w-2.5 h-2.5 ml-0.5 shrink-0" />}
                 </button>
               )
             })}
           </div>
+
+          {selectedDataKeys.size > 0 && (
+            <div className="px-4 py-2 border-t border-border/40 flex items-center gap-2">
+              <span className="text-[10px] text-muted-foreground/50">{selectedDataKeys.size} type{selectedDataKeys.size !== 1 ? 's' : ''} selected</span>
+              <button type="button" onClick={() => setSelectedDataKeys(new Set())} className="text-[10px] text-muted-foreground/40 hover:text-foreground/60 underline">Clear all</button>
+            </div>
+          )}
         </div>
       )}
-    </div>
-  )
-}
 
-// ── Step 3: DLP Rules ─────────────────────────────────────────────────────────
-
-function RuleSelect({
-  value, onChange, disabled,
-}: {
-  value: ActionCode; onChange: (v: ActionCode) => void; disabled?: boolean
-}) {
-  return (
-    <select
-      value={value}
-      onChange={e => onChange(e.target.value as ActionCode)}
-      disabled={disabled}
-      className={cn(
-        'text-xs font-semibold px-2 py-1 rounded-md border cursor-pointer appearance-none focus:outline-none text-center transition-colors',
-        ACTION_CELL[value],
-        disabled && 'opacity-40 cursor-not-allowed',
-      )}
-    >
-      {ACTION_CODES.map(ac => (
-        <option key={ac} value={ac} className="bg-card text-foreground">{ACTION_LABELS[ac]}</option>
-      ))}
-    </select>
-  )
-}
-
-function StepRules({
-  ruleMode, setRuleMode, rules, setRules, ruleItems,
-}: {
-  ruleMode: RuleMode
-  setRuleMode: (v: RuleMode) => void
-  rules: PolicyRule[]
-  setRules: (r: PolicyRule[]) => void
-  ruleItems: RuleItem[]
-}) {
-  function setCell(key: string, activity: Activity, value: ActionCode) {
-    setRules(rules.map(r => r.data_type === key ? { ...r, [activity]: value } : r))
-  }
-
-  function fillLayer(layer: 1 | 2 | 3, activity: Activity, value: ActionCode) {
-    const layerKeys = new Set(ruleItems.filter(i => i.layer === layer).map(i => i.key))
-    setRules(rules.map(r => layerKeys.has(r.data_type) ? { ...r, [activity]: value } : r))
-  }
-
-  const layer1 = ruleItems.filter(i => i.layer === 1)
-  const layer2 = ruleItems.filter(i => i.layer === 2)
-  const layer3 = ruleItems.filter(i => i.layer === 3)
-
-  const configuredCount = rules.filter(r =>
-    r.post_prompt !== 'not-set' || r.upload !== 'not-set' ||
-    r.download !== 'not-set' || r.response !== 'not-set'
-  ).length
-
-  return (
-    <div className="space-y-4">
-      {/* Mode toggle */}
-      <div className="flex gap-3">
-        <button
-          onClick={() => setRuleMode('matrix')}
-          className={cn(
-            'flex-1 px-4 py-3 rounded-lg border text-sm font-semibold transition-all text-left',
-            ruleMode === 'matrix'
-              ? 'bg-foreground/10 border-foreground/30 text-foreground'
-              : 'border-border text-muted-foreground hover:border-border-strong',
-          )}
-        >
-          Control Matrix
-          <p className="text-xs font-normal text-muted-foreground/70 mt-0.5">
-            Inherit DLP actions from the global control matrix — no custom rules needed
-          </p>
-        </button>
-        <button
-          onClick={() => setRuleMode('custom')}
-          className={cn(
-            'flex-1 px-4 py-3 rounded-lg border text-sm font-semibold transition-all text-left',
-            ruleMode === 'custom'
-              ? 'bg-foreground/10 border-foreground/30 text-foreground'
-              : 'border-border text-muted-foreground hover:border-border-strong',
-          )}
-        >
-          Custom Rules
-          {ruleMode === 'custom' && configuredCount > 0 && (
-            <span className="ml-2 text-xs font-semibold text-foreground/70 bg-muted px-1.5 py-0.5 rounded">
-              {configuredCount} rule{configuredCount !== 1 ? 's' : ''} set
-            </span>
-          )}
-          <p className="text-xs font-normal text-muted-foreground/70 mt-0.5">
-            Define per-data-type DLP actions from your data catalog
-          </p>
-        </button>
-      </div>
-
-      {ruleMode === 'matrix' ? (
-        <div className="rounded-xl border border-border bg-card/40 px-5 py-5 flex items-start gap-4">
-          <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
-            <span className="text-sm">⬡</span>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-foreground/90">Using Control Matrix</p>
-            <p className="text-xs text-muted-foreground/70 mt-1 leading-relaxed">
-              This policy will not define its own DLP rules. All enforcement actions are inherited from the{' '}
-              <a href="/genai-controls/control-matrix" className="underline hover:text-foreground/60 transition-colors">Control Matrix</a>{' '}
-              based on the app scope and data type.
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-0 overflow-x-auto rounded-xl border border-border">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-border bg-card sticky top-0 z-10">
-                <th className="text-left text-[10px] text-muted-foreground/50 uppercase tracking-wide px-4 py-3 w-52">Data Type</th>
-                {ACTIVITIES.map(act => (
-                  <th key={act.key} className="text-center text-[10px] text-muted-foreground/50 uppercase tracking-wide px-2 py-3 w-28">
-                    {act.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {/* Layer 1 — Classification Levels */}
-              {layer1.length > 0 && (
-                <>
-                  <LayerHeader layer={1} items={layer1} onFillLayer={fillLayer} />
-                  {layer1.map((item, i) => (
-                    <RuleRow
-                      key={item.key}
-                      item={item}
-                      rule={rules.find(r => r.data_type === item.key)!}
-                      onCell={setCell}
-                      zebra={i % 2 === 0}
-                    />
-                  ))}
-                </>
-              )}
-
-              {/* Layer 2 — Org Data Types */}
-              {layer2.length > 0 && (
-                <>
-                  <LayerHeader layer={2} items={layer2} onFillLayer={fillLayer} />
-                  {layer2.map((item, i) => (
-                    <RuleRow
-                      key={item.key}
-                      item={item}
-                      rule={rules.find(r => r.data_type === item.key)!}
-                      onCell={setCell}
-                      zebra={i % 2 === 0}
-                    />
-                  ))}
-                </>
-              )}
-
-              {/* Layer 3 — Catalog Reference Types */}
-              {layer3.length > 0 && (
-                <>
-                  <LayerHeader layer={3} items={layer3} onFillLayer={fillLayer} />
-                  {layer3.map((item, i) => (
-                    <RuleRow
-                      key={item.key}
-                      item={item}
-                      rule={rules.find(r => r.data_type === item.key)!}
-                      onCell={setCell}
-                      zebra={i % 2 === 0}
-                      dim
-                    />
-                  ))}
-                </>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function LayerHeader({
-  layer, items, onFillLayer,
-}: {
-  layer: 1 | 2 | 3
-  items: RuleItem[]
-  onFillLayer: (layer: 1 | 2 | 3, activity: Activity, value: ActionCode) => void
-}) {
-  const meta = LAYER_META[layer]
-  return (
-    <tr className="border-b border-border/60 bg-muted/20">
-      <td className="px-4 py-2.5" colSpan={5}>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest">
-            Layer {layer} — {meta.label}
-          </span>
-          <span className="text-[10px] text-muted-foreground/40">
-            {items.length} type{items.length !== 1 ? 's' : ''}
-          </span>
-          {/* Fill-all dropdowns per activity for this layer */}
-          <div className="ml-auto flex gap-1.5">
-            {ACTIVITIES.map(act => (
-              <select
+      {/* Activities row — always visible */}
+      <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-border/60">
+        <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide shrink-0 w-20">Activities</span>
+        <span className="text-xs text-muted-foreground/40 mr-1">=</span>
+        <div className="flex flex-wrap gap-2">
+          {ACTIVITIES.map(act => {
+            const sel = selectedActivities.has(act.key)
+            return (
+              <button
                 key={act.key}
-                onChange={e => { if (e.target.value) onFillLayer(layer, act.key, e.target.value as ActionCode) }}
-                value=""
-                className="bg-muted/60 text-[9px] text-muted-foreground/60 border border-border/60 rounded px-1 py-0.5 cursor-pointer appearance-none focus:outline-none"
+                type="button"
+                onClick={() => toggleActivity(act.key)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all',
+                  sel ? 'bg-foreground/10 border-foreground/30 text-foreground'
+                      : 'border-border text-muted-foreground/50 hover:border-border-strong',
+                )}
               >
-                <option value="" disabled>fill {act.label.toLowerCase()}</option>
-                {ACTION_CODES.map(ac => <option key={ac} value={ac}>{ACTION_LABELS[ac]}</option>)}
-              </select>
-            ))}
-          </div>
+                {sel && <Check className="w-2.5 h-2.5 shrink-0" />}
+                {act.label}
+              </button>
+            )
+          })}
         </div>
-        <p className="text-[10px] text-muted-foreground/40 mt-0.5">{meta.desc}</p>
-      </td>
-    </tr>
+        {selectedActivities.size === 0 && (
+          <span className="text-[10px] text-amber-400 ml-1">Select at least one</span>
+        )}
+      </div>
+    </div>
   )
 }
 
-function RuleRow({
-  item, rule, onCell, zebra, dim,
-}: {
-  item:   RuleItem
-  rule:   PolicyRule | undefined
-  onCell: (key: string, activity: Activity, value: ActionCode) => void
-  zebra:  boolean
-  dim?:   boolean
-}) {
-  if (!rule) return null
-  const cc = colorClasses(item.color)
+// ── Action section ────────────────────────────────────────────────────────────
 
+function ActionSection({
+  primaryAction, setPrimaryAction,
+}: {
+  primaryAction: ActionCode
+  setPrimaryAction: (v: ActionCode) => void
+}) {
   return (
-    <tr className={cn('border-b border-border/40 last:border-0', zebra ? 'bg-card/30' : '', dim && 'opacity-60')}>
-      <td className="px-4 py-2.5">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className={cn('w-2 h-2 rounded-full shrink-0', cc.dot)} />
-          <span className="text-foreground/85 font-medium truncate">{item.name}</span>
-          {item.layerLabel && (
-            <span className={cn('text-[9px] px-1.5 py-0.5 rounded border shrink-0', cc.bg, cc.text, cc.border)}>
-              {item.layerLabel}
-            </span>
+    <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide">Action</span>
+        <span className="text-xs text-muted-foreground/40">=</span>
+        <select
+          value={primaryAction}
+          onChange={e => setPrimaryAction(e.target.value as ActionCode)}
+          className={cn(
+            'text-xs font-semibold px-3 py-2 rounded-lg border cursor-pointer appearance-none focus:outline-none transition-colors bg-card',
+            primaryAction !== 'not-set' ? ACTION_CHIP[primaryAction] : 'border-border/60 text-muted-foreground/60',
           )}
-        </div>
-      </td>
-      {ACTIVITIES.map(act => (
-        <td key={act.key} className="px-2 py-2 text-center">
-          <RuleSelect
-            value={rule[act.key]}
-            onChange={v => onCell(item.key, act.key, v)}
-          />
-        </td>
-      ))}
-    </tr>
-  )
-}
-
-// ── Step 4: Review ────────────────────────────────────────────────────────────
-
-function StepReview({
-  name, description, scopeMode, scopeCategoryId, selectedAppIds,
-  identityContext, identityFields, ruleMode, rules, ruleItems,
-  categories, apps, classifications,
-}: {
-  name: string
-  description: string
-  scopeMode: ScopeMode | null
-  scopeCategoryId: string | null
-  selectedAppIds: Set<string>
-  identityContext: Set<string>
-  identityFields: Record<string, IdentityOption[]>
-  ruleMode: RuleMode
-  rules: PolicyRule[]
-  ruleItems: RuleItem[]
-  categories: Category[]
-  apps: App[]
-  classifications: Classification[]
-}) {
-  const configuredRules = rules.filter(r =>
-    r.post_prompt !== 'not-set' || r.upload !== 'not-set' ||
-    r.download !== 'not-set' || r.response !== 'not-set'
-  )
-
-  const selectedCategory = categories.find(c => c.id === scopeCategoryId)
-
-  function appScopeLabel(): string {
-    if (scopeMode === 'category' && selectedCategory) {
-      const count = selectedCategory.system_tag
-        ? classifications.filter(c => c.customer_classification === selectedCategory.system_tag).length
-        : 0
-      return `${selectedCategory.name} (${count} app${count !== 1 ? 's' : ''})`
-    }
-    if (scopeMode === 'specific') {
-      return `${selectedAppIds.size} specific app${selectedAppIds.size !== 1 ? 's' : ''}`
-    }
-    return 'Not selected'
-  }
-
-  function identityLabel(): string {
-    if (identityContext.size === 0) return 'All users'
-    const allValues = IDENTITY_FIELD_ORDER.flatMap(f => identityFields[f] ?? [])
-    const selected = allValues.filter(v => identityContext.has(v.id))
-    if (selected.length <= 3) return selected.map(v => v.value_name).join(', ')
-    return `${selected.slice(0, 2).map(v => v.value_name).join(', ')} +${selected.length - 2} more`
-  }
-
-  function rulesLabel(): string {
-    if (ruleMode === 'matrix') return 'Inherited from Control Matrix'
-    if (configuredRules.length === 0) return 'No rules set (inherits from Control Matrix)'
-    return `${configuredRules.length} custom rule${configuredRules.length !== 1 ? 's' : ''} across ${ruleItems.filter(i => configuredRules.some(r => r.data_type === i.key)).length} data type${configuredRules.length !== 1 ? 's' : ''}`
-  }
-
-  // Minimal draft for linting
-  const draft: GenAIPolicy = {
-    id: 'draft', org_id: '', name, description,
-    policy_type: 'usage', category_id: null, approval_status: 'draft',
-    policy_owner: null, technical_owner: null,
-    effective_date: null, review_date: null, next_review_date: null,
-    notes: null, is_active: true, priority: 99,
-    scope_all_apps: false,
-    scope_app_ids: scopeMode === 'specific' ? [...selectedAppIds] : [],
-    rules: ruleMode === 'matrix' ? [] : configuredRules,
-    identity_context: identityContext.size > 0 ? [...identityContext] : null,
-    created_at: '', updated_at: '',
-  }
-  const lintIssues = lintPolicy(draft)
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-card/50 divide-y divide-border/60">
-        <Row label="Name" value={name || '—'} />
-        <Row label="Description" value={description || '—'} />
-        <Row label="App Scope" value={appScopeLabel()} />
-        <Row label="Identity Context" value={identityLabel()} />
-        <Row label="DLP Rules" value={rulesLabel()} />
+        >
+          {ACTION_CODES.map(ac => (
+            <option key={ac} value={ac} className="bg-card text-foreground font-normal">
+              {ACTION_LABELS[ac]}
+            </option>
+          ))}
+        </select>
       </div>
 
-      {lintIssues.length === 0 ? (
-        <div className="flex items-center gap-2 px-4 py-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-xs text-emerald-400">
-          <span>✅</span>
-          <span>No issues detected with this policy.</span>
-        </div>
-      ) : (
-        <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-border flex items-center gap-2">
-            <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest">Policy Check</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
-              {lintIssues.length} issue{lintIssues.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-          <ul className="divide-y divide-border/40">
-            {lintIssues.map(issue => {
-              const s = SEVERITY_STYLES[issue.severity]
-              return (
-                <li key={issue.id} className="px-4 py-3 flex items-start gap-3">
-                  <span className="text-xs shrink-0 mt-0.5">{s.icon}</span>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded border', s.bg, s.text, s.border)}>
-                        {s.label}
-                      </span>
-                      <span className="text-xs font-semibold text-foreground/90">{issue.title}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground/70 mt-0.5 leading-relaxed">{issue.detail}</p>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
+      {primaryAction !== 'not-set' && (
+        <span className={cn('text-[10px] px-2 py-1 rounded border font-semibold', ACTION_CHIP[primaryAction])}>
+          {primaryAction.toUpperCase().replace(/-/g, ' ')}
+        </span>
+      )}
+
+      {primaryAction === 'not-set' && (
+        <p className="text-xs text-muted-foreground/40 italic">
+          Rules inherit from the{' '}
+          <a href="/genai-controls/control-matrix" className="underline hover:text-muted-foreground/60 transition-colors">Control Matrix</a>
+        </p>
       )}
     </div>
   )
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
+// ── Policy Details section ────────────────────────────────────────────────────
+
+function PolicyDetailsSection({
+  name, setName, description, setDescription,
+}: {
+  name: string; setName: (v: string) => void
+  description: string; setDescription: (v: string) => void
+}) {
+  const inputCls = 'w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/30 border border-border/60 rounded-lg px-3.5 py-2.5 focus:border-border focus:outline-none transition-colors'
+
   return (
-    <div className="flex items-start gap-4 px-5 py-3">
-      <span className="text-xs text-muted-foreground/60 w-36 shrink-0">{label}</span>
-      <span className="text-xs text-foreground/90">{value}</span>
+    <div className="space-y-3 max-w-lg">
+      <div>
+        <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">
+          Policy Name <span className="text-red-400">*</span>
+        </label>
+        <input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="e.g. ChatGPT Enterprise Upload Block"
+          className={inputCls}
+        />
+      </div>
+      <div>
+        <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Description</label>
+        <textarea
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+          placeholder="What does this policy enforce?"
+          rows={2}
+          className={`${inputCls} resize-none`}
+        />
+      </div>
     </div>
   )
 }
 
-// ── Main wizard ───────────────────────────────────────────────────────────────
+// ── Status section ────────────────────────────────────────────────────────────
+
+function StatusSection({
+  isActive, setIsActive,
+}: {
+  isActive: boolean; setIsActive: (v: boolean) => void
+}) {
+  return (
+    <div className="flex gap-3">
+      {[true, false].map(val => (
+        <button
+          key={String(val)}
+          type="button"
+          onClick={() => setIsActive(val)}
+          className={cn(
+            'flex items-center gap-2 px-4 py-2.5 rounded-lg border text-xs font-semibold transition-all',
+            isActive === val
+              ? val
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                : 'bg-muted/60 border-border text-muted-foreground'
+              : 'border-border text-muted-foreground/50 hover:border-border-strong',
+          )}
+        >
+          <span className={cn('w-2 h-2 rounded-full', val ? 'bg-emerald-400' : 'bg-muted-foreground/40')} />
+          {val ? 'Enabled' : 'Draft / Disabled'}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export function PolicyBuilder({ apps, categories, classifications, identityFields, ruleItems }: Props) {
   const router = useRouter()
-  const [step, setStep]   = useState<Step>(0)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
-  // Step 1 state
-  const [name, setName]               = useState('')
-  const [description, setDescription] = useState('')
+  // Source
   const [identityContext, setIdentityContext] = useState<Set<string>>(new Set())
 
-  // Step 2 state
+  // Destination
   const [scopeMode, setScopeMode]             = useState<ScopeMode | null>(null)
   const [scopeCategoryId, setScopeCategoryId] = useState<string | null>(null)
   const [selectedAppIds, setSelectedAppIds]   = useState<Set<string>>(new Set())
 
-  // Step 3 state
-  const [ruleMode, setRuleMode] = useState<RuleMode>('matrix')
-  const [rules, setRules]       = useState<PolicyRule[]>(() => defaultRulesFromItems(ruleItems))
+  // Data Profile
+  const [selectedDataKeys, setSelectedDataKeys]     = useState<Set<string>>(new Set())
+  const [selectedActivities, setSelectedActivities] = useState<Set<Activity>>(
+    new Set<Activity>(['post_prompt', 'upload', 'download', 'response']),
+  )
 
-  function canAdvance(): boolean {
-    if (step === 0) return name.trim().length > 0
-    return true
-  }
+  // Action
+  const [primaryAction, setPrimaryAction] = useState<ActionCode>('not-set')
 
-  function handleNext() {
-    if (!canAdvance()) { setError('Policy name is required.'); return }
-    setError(null)
-    setStep(s => Math.min(s + 1, 3) as Step)
-  }
+  // Details
+  const [name, setName]               = useState('')
+  const [description, setDescription] = useState('')
 
-  function handleBack() {
-    setError(null)
-    setStep(s => Math.max(s - 1, 0) as Step)
-  }
+  // Status
+  const [isActive, setIsActive] = useState(true)
 
   function handleSave(submitForReview: boolean) {
     if (!name.trim()) { setError('Policy name is required.'); return }
@@ -910,11 +786,18 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
       saveAppIds = Array.from(selectedAppIds)
     }
 
-    // Custom rules: only save rows where at least one action is set
-    const saveRules = ruleMode === 'matrix' ? [] : rules.filter(r =>
-      r.post_prompt !== 'not-set' || r.upload !== 'not-set' ||
-      r.download !== 'not-set'   || r.response !== 'not-set'
-    )
+    // Build rules: selected data types × selected activities → primary action
+    const saveRules: PolicyRule[] = primaryAction === 'not-set'
+      ? []
+      : ruleItems
+          .filter(i => selectedDataKeys.has(i.key))
+          .map(i => ({
+            data_type:   i.key,
+            post_prompt: selectedActivities.has('post_prompt') ? primaryAction : 'not-set',
+            upload:      selectedActivities.has('upload')      ? primaryAction : 'not-set',
+            download:    selectedActivities.has('download')    ? primaryAction : 'not-set',
+            response:    selectedActivities.has('response')    ? primaryAction : 'not-set',
+          }))
 
     startTransition(async () => {
       const result = await upsertPolicy(null, {
@@ -922,6 +805,7 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
         description:      description || undefined,
         policy_type:      'usage',
         approval_status:  submitForReview ? 'under-review' : 'draft',
+        is_active:        isActive,
         scope_all_apps:   false,
         scope_app_ids:    saveAppIds,
         rules:            saveRules,
@@ -932,127 +816,71 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
     })
   }
 
-  const completedSteps = new Set<number>()
-  if (name.trim()) completedSteps.add(0)
-  if (step > 1) completedSteps.add(1)
-  if (step > 2) completedSteps.add(2)
-
   return (
     <div className="space-y-6">
-      {/* Step indicator */}
-      <div className="flex items-center gap-0">
-        {STEPS.map((label, i) => {
-          const isCurrent   = step === i
-          const isCompleted = completedSteps.has(i)
-          const isReachable = i <= step || isCompleted
-          return (
-            <div key={i} className="flex items-center flex-1 last:flex-none">
-              <button
-                onClick={() => isReachable ? setStep(i as Step) : undefined}
-                disabled={!isReachable}
-                className={cn(
-                  'flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all',
-                  isCurrent   ? 'bg-foreground/10 text-foreground' :
-                  isCompleted ? 'text-emerald-400 hover:bg-emerald-500/10' :
-                  'text-muted-foreground/40 cursor-default',
-                )}
-              >
-                <span className={cn(
-                  'w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold border',
-                  isCurrent   ? 'bg-foreground text-background border-foreground' :
-                  isCompleted ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                  'border-border text-muted-foreground/40',
-                )}>
-                  {isCompleted && !isCurrent ? <Check className="w-2.5 h-2.5" /> : i + 1}
-                </span>
-                {label}
-              </button>
-              {i < STEPS.length - 1 && (
-                <div className="flex-1 h-px bg-border/60 mx-1" />
-              )}
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Step content */}
-      <div className="rounded-xl border border-border bg-card/50 shadow-sm p-6">
-        {step === 0 && (
-          <StepDetails
-            name={name} setName={setName}
-            description={description} setDescription={setDescription}
-            identityContext={identityContext} setIdentityContext={setIdentityContext}
+      {/* Policy form */}
+      <div className="rounded-xl border border-border bg-card/50 shadow-sm overflow-hidden">
+        <PolicySection icon={<Users2 />} label="Source">
+          <SourceSection
+            identityContext={identityContext}
+            setIdentityContext={setIdentityContext}
             identityFields={identityFields}
           />
-        )}
-        {step === 1 && (
-          <StepScope
+        </PolicySection>
+
+        <PolicySection icon={<Target />} label="Destination">
+          <DestinationSection
             scopeMode={scopeMode} setScopeMode={setScopeMode}
             scopeCategoryId={scopeCategoryId} setScopeCategoryId={setScopeCategoryId}
             selectedAppIds={selectedAppIds} setSelectedAppIds={setSelectedAppIds}
             categories={categories} apps={apps} classifications={classifications}
           />
-        )}
-        {step === 2 && (
-          <StepRules
-            ruleMode={ruleMode} setRuleMode={setRuleMode}
-            rules={rules} setRules={setRules}
+        </PolicySection>
+
+        <PolicySection icon={<ShieldCheck />} label="Data Profile">
+          <DataProfileSection
+            selectedDataKeys={selectedDataKeys} setSelectedDataKeys={setSelectedDataKeys}
+            selectedActivities={selectedActivities} setSelectedActivities={setSelectedActivities}
             ruleItems={ruleItems}
           />
-        )}
-        {step === 3 && (
-          <StepReview
-            name={name} description={description}
-            scopeMode={scopeMode} scopeCategoryId={scopeCategoryId}
-            selectedAppIds={selectedAppIds} identityContext={identityContext}
-            identityFields={identityFields} ruleMode={ruleMode}
-            rules={rules} ruleItems={ruleItems}
-            categories={categories} apps={apps} classifications={classifications}
+        </PolicySection>
+
+        <PolicySection icon={<Zap />} label="Action">
+          <ActionSection primaryAction={primaryAction} setPrimaryAction={setPrimaryAction} />
+        </PolicySection>
+
+        <PolicySection icon={<FileText />} label="Details">
+          <PolicyDetailsSection
+            name={name} setName={setName}
+            description={description} setDescription={setDescription}
           />
-        )}
+        </PolicySection>
+
+        <PolicySection icon={<ToggleLeft />} label="Status" noBorder>
+          <StatusSection isActive={isActive} setIsActive={setIsActive} />
+        </PolicySection>
       </div>
 
       {error && <p className="text-xs text-red-400">{error}</p>}
 
-      {/* Navigation */}
-      <div className="flex items-center justify-between">
+      {/* Save buttons */}
+      <div className="flex items-center justify-end gap-3">
         <button
-          onClick={handleBack}
-          disabled={step === 0}
-          className="px-4 py-2 text-xs text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-default transition-colors"
+          onClick={() => handleSave(false)}
+          disabled={isPending}
+          className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-md border border-border hover:bg-card/80 transition-colors disabled:opacity-50"
         >
-          ← Back
+          {isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+          Save as Draft
         </button>
-
-        <div className="flex items-center gap-2">
-          {step < 3 ? (
-            <button
-              onClick={handleNext}
-              className="flex items-center gap-1.5 px-5 py-2 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 transition-colors"
-            >
-              Next →
-            </button>
-          ) : (
-            <>
-              <button
-                onClick={() => handleSave(false)}
-                disabled={isPending}
-                className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-md border border-border hover:bg-card/80 transition-colors disabled:opacity-50"
-              >
-                {isPending && <Loader2 className="w-3 h-3 animate-spin" />}
-                Save as Draft
-              </button>
-              <button
-                onClick={() => handleSave(true)}
-                disabled={isPending}
-                className="flex items-center gap-1.5 px-5 py-2 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
-              >
-                {isPending && <Loader2 className="w-3 h-3 animate-spin" />}
-                Submit for Review
-              </button>
-            </>
-          )}
-        </div>
+        <button
+          onClick={() => handleSave(true)}
+          disabled={isPending}
+          className="flex items-center gap-1.5 px-5 py-2 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
+        >
+          {isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+          Submit for Review →
+        </button>
       </div>
     </div>
   )
