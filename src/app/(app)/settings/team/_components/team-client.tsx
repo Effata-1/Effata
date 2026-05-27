@@ -323,7 +323,7 @@ function AdministratorsTab({
   const filtered = useMemo(() => {
     return members.filter(m => {
       const matchSearch = !search ||
-        m.email.toLowerCase().includes(search.toLowerCase()) ||
+        (m.email ?? '').toLowerCase().includes(search.toLowerCase()) ||
         (m.full_name ?? '').toLowerCase().includes(search.toLowerCase())
       const matchRole = roleFilter === 'all' || m.role === roleFilter
       return matchSearch && matchRole
