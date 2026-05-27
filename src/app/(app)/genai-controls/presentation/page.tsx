@@ -60,7 +60,7 @@ export default async function PresentationPage() {
   const draftCount    = policies.filter(p => p.approval_status === 'draft').length
 
   return (
-    <div className="space-y-8 max-w-4xl">
+    <div className="space-y-8">
       {/* Page header — hidden on print */}
       <div className="print:hidden flex items-start justify-between">
         <div>

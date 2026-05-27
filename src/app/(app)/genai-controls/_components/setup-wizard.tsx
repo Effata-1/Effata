@@ -202,7 +202,7 @@ export function SetupWizard({ steps }: Props) {
             <p className="text-sm font-medium text-emerald-400">6/6 Core Setup Complete</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
             {coreSteps.map((step, i) => (
               <StepCard key={step.id} step={step} index={i} isNext={i === nextCoreIndex} />
             ))}
@@ -218,7 +218,7 @@ export function SetupWizard({ steps }: Props) {
             Refine your policies with AI and share results with your security leadership.
           </p>
         </div>
-        <div className="space-y-2">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
           {optionalSteps.map((step, i) => (
             <StepCard key={step.id} step={step} index={CORE_STEPS + i} isNext={allCoreComplete && !step.completed && i === 0} />
           ))}
