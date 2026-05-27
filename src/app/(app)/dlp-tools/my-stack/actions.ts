@@ -66,8 +66,14 @@ export async function saveChannelAssessment(
   revalidatePath(`/channels/${channelSlug}`)
 }
 
-export async function requestCoverageReview() {
+export async function requestCoverageReview(): Promise<{ jobId: string }> {
   await requireRole('analyst')
-  await callData('/api/data/coverage-review', { method: 'POST' })
-  revalidatePath('/dlp-tools/my-stack')
+  const result = await callData<{ jobId: string }>('/api/data/coverage-review', { method: 'POST' })
+  return { jobId: result.jobId }
+}
+
+export async function getJobStatus(jobId: string): Promise<{ status: string }> {
+  await requireRole('analyst')
+  const data = await callData<{ status: string }>(`/api/jobs/${jobId}`)
+  return { status: data.status }
 }

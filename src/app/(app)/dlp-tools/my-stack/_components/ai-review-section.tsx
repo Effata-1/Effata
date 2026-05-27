@@ -1,28 +1,29 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { requestCoverageReview } from '../actions'
+import { requestCoverageReview, getJobStatus } from '../actions'
 
 interface Gap {
-  channel: string
-  severity: string
+  channel:     string
+  severity:    string
   description: string
 }
 
 interface Recommendation {
-  priority: number
-  title: string
+  priority:    number
+  title:       string
   description: string
 }
 
 interface AiReview {
-  id: string
-  coverage_score: number | null
-  gaps: Gap[]
+  id:              string
+  coverage_score:  number | null
+  gaps:            Gap[]
   recommendations: Recommendation[]
-  reviewed_at: string
-  review_type: string
+  reviewed_at:     string
+  review_type:     string
 }
 
 interface Props {
@@ -42,22 +43,74 @@ const SEVERITY_STYLES: Record<string, string> = {
   low:      'text-blue-400 bg-blue-500/10 border-blue-500/20',
 }
 
+type PollStatus = 'idle' | 'polling' | 'completed' | 'failed'
+
 export function AiReviewSection({ latestReview }: Props) {
-  const [isPending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
-  const [requested, setRequested] = useState(false)
+  const router                          = useRouter()
+  const [isPending, startTransition]    = useTransition()
+  const [error, setError]               = useState<string | null>(null)
+  const [pollStatus, setPollStatus]     = useState<PollStatus>('idle')
+  const intervalRef                     = useRef<ReturnType<typeof setInterval> | null>(null)
+  const inflightRef                     = useRef(false)
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+    }
+  }, [])
+
+  function stopPolling() {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+  }
+
+  function startPolling(jobId: string) {
+    setPollStatus('polling')
+    intervalRef.current = setInterval(async () => {
+      if (inflightRef.current) return
+      inflightRef.current = true
+      try {
+        const { status } = await getJobStatus(jobId)
+        if (status === 'completed') {
+          stopPolling()
+          setPollStatus('completed')
+          router.refresh()
+        } else if (status === 'failed') {
+          stopPolling()
+          setPollStatus('failed')
+          setError('Review failed. Please try again.')
+        }
+      } catch {
+        stopPolling()
+        setPollStatus('failed')
+        setError('Could not check review status. Please refresh the page.')
+      } finally {
+        inflightRef.current = false
+      }
+    }, 3000)
+  }
 
   function handleRequest() {
     setError(null)
     startTransition(async () => {
       try {
-        await requestCoverageReview()
-        setRequested(true)
+        const { jobId } = await requestCoverageReview()
+        startPolling(jobId)
       } catch {
         setError('Review request failed. Please try again.')
       }
     })
   }
+
+  const isActive    = isPending || pollStatus === 'polling'
+  const isDone      = pollStatus === 'completed'
+  const buttonLabel =
+    isPending              ? 'Requesting…'
+    : pollStatus === 'polling'   ? 'Analysing…'
+    : pollStatus === 'completed' ? 'Review Complete'
+    : 'Request AI Review'
 
   return (
     <section className="space-y-4">
@@ -72,28 +125,41 @@ export function AiReviewSection({ latestReview }: Props) {
           <button
             type="button"
             onClick={handleRequest}
-            disabled={isPending || requested}
+            disabled={isActive || isDone}
             className={cn(
               'px-3 py-1.5 text-xs rounded-md transition-colors',
-              requested
+              isDone
                 ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
-                : 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50',
+                : isActive
+                  ? 'bg-blue-600/50 text-white/70 cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700',
             )}
           >
-            {isPending ? 'Requesting…' : requested ? 'Review Requested' : 'Request AI Review'}
+            {isActive && (
+              <span className="inline-block w-2.5 h-2.5 rounded-full border-2 border-white/40 border-t-white animate-spin mr-1.5 align-[-1px]" />
+            )}
+            {buttonLabel}
           </button>
           {error && <p className="text-xs text-red-400">{error}</p>}
         </div>
       </div>
 
-      {!latestReview ? (
+      {pollStatus === 'polling' && (
+        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 text-center space-y-1">
+          <p className="text-sm text-blue-400 font-medium">Analysing your DLP coverage…</p>
+          <p className="text-xs text-muted-foreground">Claude is reviewing your tool stack and channel assessments. This takes about 30 seconds.</p>
+        </div>
+      )}
+
+      {pollStatus !== 'polling' && !latestReview && (
         <div className="rounded-xl border border-dashed border-border p-8 text-center space-y-1">
           <p className="text-sm text-muted-foreground">No AI review yet.</p>
           <p className="text-xs text-muted-foreground/60">Request one above or wait for the monthly automated review.</p>
         </div>
-      ) : (
+      )}
+
+      {pollStatus !== 'polling' && latestReview && (
         <div className="space-y-4">
-          {/* Meta bar */}
           <div className="flex items-center gap-3 flex-wrap">
             <span className={cn(
               'px-3 py-1 rounded-lg border text-sm font-bold',
@@ -111,7 +177,6 @@ export function AiReviewSection({ latestReview }: Props) {
             </span>
           </div>
 
-          {/* Gaps */}
           {latestReview.gaps.length > 0 && (
             <div className="space-y-2">
               <h3 className="text-xs font-semibold text-foreground/80">Coverage Gaps</h3>
@@ -134,7 +199,6 @@ export function AiReviewSection({ latestReview }: Props) {
             </div>
           )}
 
-          {/* Recommendations */}
           {latestReview.recommendations.length > 0 && (
             <div className="space-y-2">
               <h3 className="text-xs font-semibold text-foreground/80">Recommendations</h3>
