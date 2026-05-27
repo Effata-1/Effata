@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import { callData } from '@/lib/api-client.server'
+import { logAuditEvent } from '@/lib/audit'
 import type { ApprovalStatus, PolicyType, PolicyRule, ActionCode } from '@/lib/genai/types'
 
 export interface PolicyFields {
@@ -383,4 +384,60 @@ export async function generatePoliciesFromGovernance(): Promise<{ error?: string
 
   revalidatePath('/genai-controls/policies')
   return { count: policies.length }
+}
+
+const ALLOWED_DIFF_KEYS: Set<keyof PolicyFields> = new Set([
+  'name', 'description', 'policy_type', 'notes', 'is_active', 'priority',
+  'scope_all_apps', 'scope_app_ids', 'rules', 'identity_context',
+  'policy_family', 'data_classification_label', 'primary_action',
+  'fallback_action', 'coaching_template_id', 'vendor_translation_status',
+  'required_dependencies', 'test_status', 'review_date', 'next_review_date',
+  'effective_date',
+])
+
+export async function applyPolicyDiff(diff: {
+  policyId: string
+  changes:  Record<string, never>
+}): Promise<{ error?: string }> {
+  const user    = await requireRole('analyst')
+  const supabase = await createClient()
+
+  const { data: policy, error: fetchErr } = await supabase
+    .from('org_genai_policies')
+    .select('id, org_id, approval_status')
+    .eq('id', diff.policyId)
+    .eq('org_id', user.orgId)
+    .maybeSingle()
+
+  if (fetchErr) return { error: fetchErr.message }
+  if (!policy)  return { error: 'Policy not found.' }
+
+  if (policy.approval_status === 'approved') {
+    return { error: 'Cannot edit an approved policy. Create a new draft instead.' }
+  }
+
+  const sanitized: Partial<PolicyFields> = {}
+  for (const [k, v] of Object.entries(diff.changes)) {
+    if (ALLOWED_DIFF_KEYS.has(k as keyof PolicyFields)) {
+      (sanitized as Record<string, unknown>)[k] = v
+    }
+  }
+
+  if (Object.keys(sanitized).length === 0) {
+    return { error: 'No valid fields to apply.' }
+  }
+
+  const result = await upsertPolicy(diff.policyId, sanitized)
+  if (result.error) return result
+
+  void logAuditEvent({
+    action:      'policy_chat.diff_applied',
+    entity_type: 'org_genai_policies',
+    entity_id:   diff.policyId,
+    details:     { changedFields: Object.keys(sanitized) },
+    org_id:      user.orgId,
+    user_id:     user.id,
+  })
+
+  return {}
 }

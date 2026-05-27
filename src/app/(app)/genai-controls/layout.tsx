@@ -2,15 +2,17 @@ import { SectionSidebar } from '@/components/nav/section-sidebar'
 import { requireRole } from '@/lib/auth'
 
 const ITEMS = [
-  { label: 'Dashboard',       href: '/genai-controls/dashboard' },
-  { label: 'App Governance',  href: '/genai-controls/app-governance' },
+  { label: 'Setup Guide',         href: '/genai-controls' },
+  { label: 'Dashboard',           href: '/genai-controls/dashboard' },
+  { label: 'App Governance',      href: '/genai-controls/app-governance' },
   { label: 'Policy Library',      href: '/genai-controls/policies' },
   { label: 'Coaching Templates',  href: '/genai-controls/notifications' },
   { label: 'Testing Lab',         href: '/genai-controls/testing' },
   { label: 'Vendor Capabilities', href: '/genai-controls/vendor-capabilities' },
   { label: 'App Catalog',         href: '/genai-controls/apps' },
-  { label: 'Control Matrix',  href: '/genai-controls/control-matrix' },
-  { label: 'Refresh Logs',    href: '/genai-controls/refresh-logs' },
+  { label: 'Control Matrix',      href: '/genai-controls/control-matrix' },
+  { label: 'Presentation',        href: '/genai-controls/presentation' },
+  { label: 'Refresh Logs',        href: '/genai-controls/refresh-logs' },
 ]
 
 export default async function GenAIControlsLayout({ children }: { children: React.ReactNode }) {

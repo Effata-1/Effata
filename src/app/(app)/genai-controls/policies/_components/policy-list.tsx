@@ -4,11 +4,12 @@ import { useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  Pencil, Plus, Search,
+  MessageSquare, Pencil, Plus, Search,
   ShieldAlert, ShieldCheck, Sparkles, Trash2, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { deletePolicy, generatePoliciesFromGovernance, togglePolicyActive } from '../actions'
+import { PolicyChatPanel } from './policy-chat-panel'
 import type { GenAIPolicy, ApprovalStatus, ActionCode, PolicyRule } from '@/lib/genai/types'
 import { lintAllPolicies, SEVERITY_STYLES, type LintIssue } from '@/lib/genai/lint'
 import type { RuleItem } from '../new/_components/policy-builder'
@@ -223,10 +224,17 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
   const [isGenerating, setIsGenerating]       = useState(false)
   const [generateError, setGenerateError]     = useState<string | null>(null)
   const [, startTransition]                   = useTransition()
+  const [chatOpen, setChatOpen]               = useState(false)
+  const [chatPolicyId, setChatPolicyId]       = useState<string | undefined>(undefined)
 
   void categories
   void classifications
   void ACTION_CODES
+
+  function openChat(policyId?: string) {
+    setChatPolicyId(policyId)
+    setChatOpen(true)
+  }
 
   const visible = policies.filter(p => {
     if (filterStatus !== 'all' && p.approval_status !== filterStatus) return false
@@ -260,6 +268,27 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
 
   return (
     <>
+      {/* AI Chat Panel */}
+      {chatOpen && (
+        <PolicyChatPanel
+          policies={policies}
+          initialPolicyId={chatPolicyId}
+          onClose={() => setChatOpen(false)}
+        />
+      )}
+
+      {/* Floating "Refine with AI" button */}
+      {policies.length > 0 && !chatOpen && (
+        <button
+          type="button"
+          onClick={() => openChat()}
+          className="fixed bottom-6 right-6 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full bg-blue-600 text-white text-xs font-semibold shadow-lg hover:bg-blue-700 transition-colors"
+        >
+          <MessageSquare className="w-4 h-4" />
+          Refine with AI
+        </button>
+      )}
+
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="relative">
@@ -491,6 +520,14 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
 
                     <td className="px-3 py-2.5 align-middle">
                       <div className="flex items-center gap-2 justify-end">
+                        <button
+                          type="button"
+                          onClick={() => openChat(policy.id)}
+                          className="text-muted-foreground/50 hover:text-blue-400 transition-colors"
+                          title="Refine with AI"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                        </button>
                         <Link
                           href={`/genai-controls/policies/${policy.id}/edit`}
                           className="text-muted-foreground/50 hover:text-foreground transition-colors"
