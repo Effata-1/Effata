@@ -26,8 +26,7 @@ interface Props {
   steps: StepConfig[]
 }
 
-const CORE_STEPS     = 6
-const OPTIONAL_STEPS = [6, 7] // 0-indexed within their section
+const CORE_STEPS = 6
 
 function StepIcon({ completed, index, isNext }: { completed: boolean; index: number; isNext: boolean }) {
   if (completed) {

@@ -27,7 +27,7 @@ export interface PresentationSnapshot {
   generated_at: string
 }
 
-export async function generatePresentation(): Promise<{ token?: string; error?: string }> {
+export async function generatePresentation(): Promise<{ id?: string; token?: string; error?: string }> {
   const user    = await requireRole('analyst')
   const supabase = await createClient()
 
@@ -88,7 +88,7 @@ export async function generatePresentation(): Promise<{ token?: string; error?: 
       snapshot,
       is_public: true,
     })
-    .select('public_token')
+    .select('id, public_token')
     .single()
 
   if (error) return { error: error.message }
@@ -103,7 +103,7 @@ export async function generatePresentation(): Promise<{ token?: string; error?: 
 
   revalidatePath('/genai-controls/presentation')
   revalidatePath('/genai-controls')
-  return { token: inserted.public_token as string }
+  return { id: inserted.id as string, token: inserted.public_token as string }
 }
 
 export async function revokePresentation(id: string): Promise<{ error?: string }> {

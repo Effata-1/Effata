@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { generatePresentation, revokePresentation } from '../actions'
 
@@ -19,10 +19,12 @@ export function PresentationActionsBar({ existing }: Props) {
   )
   const [copied, setCopied]       = useState(false)
   const [error, setError]         = useState<string | null>(null)
+  const [origin, setOrigin]       = useState('')
 
-  const shareUrl = shareToken
-    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/share/${shareToken}`
-    : null
+  // Resolve origin client-side only to avoid SSR/hydration mismatch
+  useEffect(() => { setOrigin(window.location.origin) }, [])
+
+  const shareUrl = shareToken ? `${origin}/share/${shareToken}` : null
 
   function handlePrint() {
     window.print()
@@ -33,8 +35,9 @@ export function PresentationActionsBar({ existing }: Props) {
     start(async () => {
       const result = await generatePresentation()
       if (result.error) { setError(result.error); return }
-      if (result.token) {
+      if (result.token && result.id) {
         setShareToken(result.token)
+        setShareId(result.id)
         router.refresh()
       }
     })

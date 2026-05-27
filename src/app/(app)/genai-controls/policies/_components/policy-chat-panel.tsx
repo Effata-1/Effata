@@ -127,6 +127,11 @@ export function PolicyChatPanel({ policies, initialPolicyId, onClose }: Props) {
     inputRef.current?.focus()
   }, [])
 
+  // Abort any in-flight stream when the panel is closed/unmounted
+  useEffect(() => {
+    return () => { abortRef.current?.abort() }
+  }, [])
+
   async function sendMessage() {
     const text = input.trim()
     if (!text || streaming) return
