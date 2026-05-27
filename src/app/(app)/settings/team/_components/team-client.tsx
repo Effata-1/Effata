@@ -263,7 +263,7 @@ function MemberRow({ member, isCurrentUser }: { member: TeamMember; isCurrentUse
       <td className="px-5 py-3.5">
         <div className="flex items-center gap-3">
           <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground shrink-0">
-            {(member.full_name ?? member.email).charAt(0).toUpperCase()}
+            {(member.full_name ?? member.email ?? '?').charAt(0).toUpperCase()}
           </div>
           <div>
             <p className="text-sm text-foreground font-medium leading-tight">{member.email}</p>
