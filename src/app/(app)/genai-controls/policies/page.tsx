@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { ensureClassificationLabels } from '@/lib/data-catalog/actions'
 import { getIdentityPageData } from '@/app/(app)/policies/identity/actions'
 import { PolicyList } from './_components/policy-list'
+import { AiPolicyPackSection } from './_components/ai-policy-pack-section'
 import type { GenAIPolicy } from '@/lib/genai/types'
 import type { RuleItem } from './new/_components/policy-builder'
 
@@ -32,7 +33,8 @@ export default async function GenAIPoliciesPage() {
     getIdentityPageData(),
   ])
 
-  const policies        = (policyResult.data        ?? []) as GenAIPolicy[]
+  const policies            = (policyResult.data        ?? []) as GenAIPolicy[]
+  const hasPolicyPackPolicies = policies.some(p => (p as { generated_from?: string }).generated_from === 'policy-pack-agent')
   const categories      = (categoryResult.data      ?? []) as Array<{ id: string; system_tag: string | null; name: string; color: string }>
   const apps            = appsResult.data            ?? []
   const classifications = classificationsResult.data ?? []
@@ -109,6 +111,11 @@ export default async function GenAIPoliciesPage() {
           </p>
         </div>
       </div>
+
+      <AiPolicyPackSection
+        hasPolicyPackPolicies={hasPolicyPackPolicies}
+        userRole={user.role}
+      />
 
       <PolicyList
         policies={policies}

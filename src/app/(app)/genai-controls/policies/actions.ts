@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
+import { callData } from '@/lib/api-client.server'
 import type { ApprovalStatus, PolicyType, PolicyRule, ActionCode } from '@/lib/genai/types'
 
 export interface PolicyFields {
@@ -89,6 +90,36 @@ export async function togglePolicyActive(
   if (error) return { error: error.message }
   revalidatePath('/genai-controls/policies')
   return {}
+}
+
+export async function requestPolicyPackJob(): Promise<{ jobId: string }> {
+  await requireRole('admin')
+  const result = await callData<{ jobId: string }>('/api/jobs', {
+    method: 'POST',
+    body:   { jobType: 'policy-pack', payload: {} },
+  })
+  return { jobId: result.jobId }
+}
+
+export async function getPolicyPackJobStatus(jobId: string): Promise<{
+  status:         string
+  processedItems: number | null
+  totalItems:     number | null
+  error:          string | null
+}> {
+  await requireRole('admin')
+  const data = await callData<{
+    status:          string
+    processed_items: number | null
+    total_items:     number | null
+    error:           string | null
+  }>(`/api/jobs/${jobId}`)
+  return {
+    status:         data.status,
+    processedItems: data.processed_items,
+    totalItems:     data.total_items,
+    error:          data.error,
+  }
 }
 
 export async function generatePoliciesFromGovernance(): Promise<{ error?: string; count?: number }> {
