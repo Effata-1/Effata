@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -209,6 +209,71 @@ function ActionCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: Rul
   )
 }
 
+// ── Delete confirm modal ──────────────────────────────────────────────────────
+
+function DeleteConfirmModal({
+  policyName,
+  onConfirm,
+  onCancel,
+}: {
+  policyName: string
+  onConfirm:  () => void
+  onCancel:   () => void
+}) {
+  const cancelRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    cancelRef.current?.focus()
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onCancel() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onCancel])
+
+  return (
+    <>
+      <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="delete-title"
+        aria-describedby="delete-desc"
+        className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm rounded-xl border border-border bg-card shadow-2xl p-6 space-y-4"
+      >
+        <div className="flex items-start gap-3">
+          <div className="shrink-0 w-9 h-9 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+            <Trash2 className="w-4 h-4 text-red-400" />
+          </div>
+          <div className="min-w-0">
+            <p id="delete-title" className="text-sm font-semibold text-foreground">Delete policy?</p>
+            <p id="delete-desc" className="text-xs text-muted-foreground/70 mt-1 leading-relaxed">
+              <span className="font-medium text-foreground/80">&ldquo;{policyName}&rdquo;</span> will be permanently deleted.
+              This cannot be undone — any references to this policy will be lost.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button
+            ref={cancelRef}
+            type="button"
+            onClick={onCancel}
+            className="px-3.5 py-1.5 text-xs font-medium rounded-md border border-border bg-muted/30 hover:bg-muted/60 text-foreground/70 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="px-3.5 py-1.5 text-xs font-semibold rounded-md bg-red-600 hover:bg-red-700 text-white transition-colors"
+          >
+            Delete policy
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function PolicyList({ policies: initialPolicies, categories, apps, classifications, identityFields, ruleItems }: Props) {
@@ -226,6 +291,7 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
   const [, startTransition]                   = useTransition()
   const [chatOpen, setChatOpen]               = useState(false)
   const [chatPolicyId, setChatPolicyId]       = useState<string | undefined>(undefined)
+  const [deleteTarget, setDeleteTarget]       = useState<{ id: string; name: string } | null>(null)
 
   void categories
   void classifications
@@ -248,8 +314,14 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
     startTransition(async () => { await togglePolicyActive(id, !current) })
   }
 
-  function handleDelete(id: string) {
-    if (!confirm('Delete this policy? This cannot be undone.')) return
+  function handleDelete(id: string, name: string) {
+    setDeleteTarget({ id, name })
+  }
+
+  function confirmDelete() {
+    if (!deleteTarget) return
+    const { id } = deleteTarget
+    setDeleteTarget(null)
     setPolicies(ps => ps.filter(p => p.id !== id))
     startTransition(async () => { await deletePolicy(id) })
   }
@@ -268,6 +340,15 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
 
   return (
     <>
+      {/* Delete confirm modal */}
+      {deleteTarget && (
+        <DeleteConfirmModal
+          policyName={deleteTarget.name}
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
       {/* AI Chat Panel */}
       {chatOpen && (
         <PolicyChatPanel
@@ -535,7 +616,7 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </Link>
-                        <button onClick={() => handleDelete(policy.id)} className="text-muted-foreground/50 hover:text-red-400 transition-colors" title="Delete">
+                        <button onClick={() => handleDelete(policy.id, policy.name)} className="text-muted-foreground/50 hover:text-red-400 transition-colors" title="Delete">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
