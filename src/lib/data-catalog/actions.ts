@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
-import Anthropic from '@anthropic-ai/sdk'
+import { callAgent } from '@/lib/api-client'
 import type { OrgClassificationLabel, OrgDataType, AISuggestion, SystemLevel, OrgDestinationTrustLabel, TrustTag } from './types'
 import { SYSTEM_TRUST_DEFAULTS } from './types'
 
@@ -319,45 +319,27 @@ export async function suggestClassificationsAI(
   if (!labels?.length) return { error: 'No classification labels found. Set up your labels first.' }
   if (!dataTypes?.length) return { error: 'No data types found.' }
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY_GENAI_Intellegence_PIPELINE! })
-
-  const systemPrompt = `You are a DLP data classification expert. Given an organisation's classification labels and a list of data types, suggest the most appropriate classification label for each data type. Respond ONLY with a valid JSON array. No markdown, no explanation outside the JSON.`
-
-  const userPrompt = `Classification labels (priority 1 = highest risk):
-${labels.map(l => `${l.priority}. "${l.name}": ${l.description ?? ''}`).join('\n')}
-
-Data types to classify:
-${dataTypes.map(d => `- id: "${d.id}", name: "${d.name}", examples: [${(d.examples ?? []).slice(0, 3).join(', ')}]${d.notes ? `, notes: "${d.notes}"` : ''}`).join('\n')}
-
-Return JSON array:
-[{ "data_type_id": "uuid", "label_name": "exact label name from list above", "confidence": 0.0-1.0, "reasoning": "one sentence" }]`
-
-  const response = await client.messages.create({
-    model:      'claude-sonnet-4-6',
-    max_tokens: 4096,
-    system:     systemPrompt,
-    messages:   [{ role: 'user', content: userPrompt }],
-  })
-
-  const text = response.content[0].type === 'text' ? response.content[0].text.trim() : '[]'
-  let raw: { data_type_id: string; label_name: string; confidence: number; reasoning: string }[]
   try {
-    raw = JSON.parse(text)
-  } catch {
+    const raw = await callAgent<{ data_type_id: string; label_name: string; confidence: number; reasoning: string }[]>(
+      'classify',
+      { dataTypes, labels },
+    )
+
+    const labelMap = new Map(labels.map(l => [l.name.toLowerCase(), l.id]))
+
+    const suggestions: AISuggestion[] = raw.map(r => ({
+      org_data_type_id: r.data_type_id,
+      label_name:       r.label_name,
+      confidence:       Math.min(1, Math.max(0, r.confidence ?? 0.8)),
+      reasoning:        r.reasoning ?? '',
+      label_id:         labelMap.get(r.label_name.toLowerCase()),
+    })).filter(s => s.label_id)
+
+    return { suggestions }
+  } catch (e) {
+    if (e instanceof Error) return { error: e.message }
     return { error: 'AI returned unexpected format. Please try again.' }
   }
-
-  const labelMap = new Map(labels.map(l => [l.name.toLowerCase(), l.id]))
-
-  const suggestions: AISuggestion[] = raw.map(r => ({
-    org_data_type_id: r.data_type_id,
-    label_name:       r.label_name,
-    confidence:       Math.min(1, Math.max(0, r.confidence ?? 0.8)),
-    reasoning:        r.reasoning ?? '',
-    label_id:         labelMap.get(r.label_name.toLowerCase()),
-  })).filter(s => s.label_id)
-
-  return { suggestions }
 }
 
 export async function acceptAISuggestions(

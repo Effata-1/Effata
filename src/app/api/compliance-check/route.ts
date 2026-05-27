@@ -1,5 +1,4 @@
 import 'server-only'
-import { runComplianceCheck } from '@/lib/compliance/run-check'
 
 export const maxDuration = 300
 
@@ -11,8 +10,12 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await runComplianceCheck()
-    return Response.json({ status: 'completed', ...result })
+    const res = await fetch(`${process.env.RAILWAY_API_BASE_URL}/api/internal/compliance-check`, {
+      method:  'POST',
+      headers: { 'x-cron-key': process.env.CRON_API_KEY! },
+    })
+    const body = await res.json()
+    return Response.json(body, { status: res.status })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     return Response.json({ error: msg }, { status: 500 })
