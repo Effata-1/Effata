@@ -1,6 +1,6 @@
 'use server'
 
-import { callAgent } from '@/lib/api-client'
+import { callAgent } from '@/lib/api-client.server'
 import { logAiSearch, saveLearnedTemplate } from '@/lib/ai-log'
 
 const KNOWN_EXTS = new Set([

@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { logAuditEvent } from '@/lib/audit'
 import { logAiSearch } from '@/lib/ai-log'
-import { callAgent } from '@/lib/api-client'
+import { callAgent } from '@/lib/api-client.server'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

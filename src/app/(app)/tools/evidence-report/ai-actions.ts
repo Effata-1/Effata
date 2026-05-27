@@ -1,6 +1,6 @@
 'use server'
 
-import { callAgent } from '@/lib/api-client'
+import { callAgent } from '@/lib/api-client.server'
 import { createClient } from '@/lib/supabase/server'
 import { logAiSearch } from '@/lib/ai-log'
 import type {

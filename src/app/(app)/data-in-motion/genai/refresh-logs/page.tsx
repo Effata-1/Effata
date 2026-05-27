@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { createServiceClient } from '@/lib/supabase/service'
+import { callData } from '@/lib/api-client.server'
 import { cn } from '@/lib/utils'
 import { ArrowLeft, CheckCircle2, XCircle, Loader2, AlertTriangle, Clock, GitCompare } from 'lucide-react'
 
@@ -71,36 +71,7 @@ function FieldLabel({ field }: { field: string }) {
 }
 
 export default async function RefreshLogsPage() {
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <Link href="/data-in-motion/genai" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/80 hover:text-foreground/70 transition-colors mb-2">
-            <ArrowLeft className="w-3 h-3" />Back to GenAI Apps
-          </Link>
-          <h1 className="text-xl font-bold text-foreground">Research Run Logs</h1>
-        </div>
-        <div className="rounded-xl border border-border bg-card/50 py-16 text-center shadow-sm">
-          <Clock className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
-          <p className="text-sm text-foreground font-medium mb-1">Service key not configured</p>
-          <p className="text-xs text-muted-foreground/80 max-w-sm mx-auto">
-            Add <code className="text-foreground/70 bg-muted px-1 rounded">SUPABASE_SERVICE_ROLE_KEY</code> to your
-            Vercel environment variables and redeploy to enable research run logs.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  const supabase = createServiceClient()
-
-  const { data: runs } = await supabase
-    .from('genai_research_runs')
-    .select('*')
-    .order('started_at', { ascending: false })
-    .limit(50)
-
-  const allRuns = (runs as ResearchRun[] ?? [])
+  const allRuns: ResearchRun[] = await callData<ResearchRun[]>('/api/data/genai-research-runs').catch(() => [])
   const lastRun = allRuns[0] ?? null
   const totalRuns = allRuns.length
   const successCount = allRuns.filter(r => r.status === 'completed').length

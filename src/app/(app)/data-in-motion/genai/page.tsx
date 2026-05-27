@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { createServiceClient } from '@/lib/supabase/service'
+import { callData } from '@/lib/api-client.server'
 import { computeTrustScore, CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
 import { cn } from '@/lib/utils'
 import type { GenAIApp, GenAIAppProfile, CustomerClassification } from '@/lib/genai/types'
@@ -15,19 +15,12 @@ function RiskBadge({ score }: { score: number }) {
 export default async function GenAIAppsPage() {
   const supabase = await createClient()
 
-  // Optional: only available once SUPABASE_SERVICE_ROLE_KEY is configured
   let lastRun: { status: string; apps_updated: number; apps_added: number } | null = null
   try {
-    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      const serviceClient = createServiceClient()
-      const { data } = await serviceClient
-        .from('genai_research_runs')
-        .select('status, completed_at, apps_updated, apps_added')
-        .order('started_at', { ascending: false })
-        .limit(1)
-        .single()
-      lastRun = data
-    }
+    const runs = await callData<Array<{ status: string; apps_updated: number; apps_added: number }>>(
+      '/api/data/genai-research-runs',
+    )
+    lastRun = runs[0] ?? null
   } catch {
     // ignore — logs link just won't show a status
   }

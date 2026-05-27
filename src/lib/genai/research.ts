@@ -1,5 +1,5 @@
 import 'server-only'
-import { callAgent } from '@/lib/api-client'
+import { callAgent } from '@/lib/api-client.server'
 import type { AppFields, DLPActivities, BreachInfo } from './types'
 
 export interface ResearchedProfile {

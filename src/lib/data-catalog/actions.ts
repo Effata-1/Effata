@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
-import { callAgent } from '@/lib/api-client'
+import { callAgent } from '@/lib/api-client.server'
 import type { OrgClassificationLabel, OrgDataType, AISuggestion, SystemLevel, OrgDestinationTrustLabel, TrustTag } from './types'
 import { SYSTEM_TRUST_DEFAULTS } from './types'
 

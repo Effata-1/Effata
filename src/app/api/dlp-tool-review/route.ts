@@ -1,4 +1,4 @@
-import { callAgent } from '@/lib/api-client'
+import { callAgent } from '@/lib/api-client.server'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest } from 'next/server'
 

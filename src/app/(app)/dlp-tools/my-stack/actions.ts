@@ -2,6 +2,7 @@
 
 import { requireRole } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
+import { callData } from '@/lib/api-client.server'
 import { revalidatePath } from 'next/cache'
 import type { CoverageStatus } from '@/lib/channel-taxonomy'
 
@@ -66,18 +67,7 @@ export async function saveChannelAssessment(
 }
 
 export async function requestCoverageReview() {
-  const user = await requireRole('analyst')
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-
-  const res = await fetch(`${supabaseUrl}/functions/v1/review-dlp-coverage`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ orgId: user.orgId }),
-  })
-
-  if (!res.ok) throw new Error('Coverage review request failed')
+  await requireRole('analyst')
+  await callData('/api/data/coverage-review', { method: 'POST' })
   revalidatePath('/dlp-tools/my-stack')
 }

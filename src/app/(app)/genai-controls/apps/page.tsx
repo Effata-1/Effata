@@ -2,8 +2,8 @@
 export const maxDuration = 300
 
 import { createClient } from '@/lib/supabase/server'
-import { createServiceClient } from '@/lib/supabase/service'
 import { requireRole } from '@/lib/auth'
+import { callData } from '@/lib/api-client.server'
 import { computeTrustScore } from '@/lib/genai/scoring'
 import { AppCatalogClient } from './_components/app-catalog-client'
 import type { CatalogEntry } from './_components/app-catalog-client'
@@ -13,19 +13,14 @@ export default async function GenAIAppCatalogPage() {
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
-  // Last refresh run (requires service key)
+  // Last refresh run via Railway
   let lastRunInfo: { status: string; apps_updated: number; apps_added: number } | null = null
   try {
-    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      const { data } = await createServiceClient()
-        .from('genai_research_runs')
-        .select('status, apps_updated, apps_added')
-        .order('started_at', { ascending: false })
-        .limit(1)
-        .single()
-      lastRunInfo = data
-    }
-  } catch { /* ignore */ }
+    const runs = await callData<Array<{ status: string; apps_updated: number; apps_added: number }>>(
+      '/api/data/genai-research-runs',
+    )
+    lastRunInfo = runs[0] ?? null
+  } catch { /* ignore — non-critical */ }
 
   // All active apps
   const { data: allApps } = await supabase
