@@ -95,12 +95,13 @@ interface GovernanceInitial {
 }
 
 interface Props {
-  appId:   string
-  initial: GovernanceInitial
+  appId:         string
+  initial:       GovernanceInitial
+  initiallyOpen?: boolean
 }
 
-export function GovernanceRecord({ appId, initial }: Props) {
-  const [open, setOpen]   = useState(false)
+export function GovernanceRecord({ appId, initial, initiallyOpen = false }: Props) {
+  const [open, setOpen]   = useState(initiallyOpen)
   const [data, setData]   = useState<GovernanceInitial>(initial)
   const [, startTransition] = useTransition()
 

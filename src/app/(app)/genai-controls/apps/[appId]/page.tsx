@@ -1,44 +1,14 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, AlertTriangle } from 'lucide-react'
+import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { computeTrustScore, FIELD_LABELS, VALUE_DISPLAY, CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
+import { computeTrustScore, CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
 import { cn } from '@/lib/utils'
-import type { GenAIApp, GenAIAppProfile, AppFields, DLPActivities, BreachInfo, CustomerClass, CustomerClassification } from '@/lib/genai/types'
+import type { GenAIApp, GenAIAppProfile, AppFields, DLPActivities, BreachInfo, CustomerClass, CustomerClassification, ApprovalStatus } from '@/lib/genai/types'
 import { ClassificationSelector } from './_components/classification-selector'
 import type { GovernanceCategory } from './_components/classification-selector'
-
-// ── Value display helpers ──────────────────────────────────────
-function FieldBadge({ value }: { value: string }) {
-  const meta = VALUE_DISPLAY[value] ?? { label: value, color: 'muted' }
-  return (
-    <span className={cn(
-      'text-xs font-semibold',
-      meta.color === 'green'  ? 'text-green-400' :
-      meta.color === 'red'    ? 'text-red-400' :
-      meta.color === 'amber'  ? 'text-yellow-400' :
-      meta.color === 'blue'   ? 'text-blue-400' :
-      meta.color === 'muted'  ? 'text-muted-foreground/80 italic' :
-      'text-muted-foreground'
-    )}>
-      {meta.label}
-    </span>
-  )
-}
-
-function FieldRow({ label, value, isNegative }: { label: string; value: string; isNegative?: boolean }) {
-  return (
-    <div className="flex items-center justify-between py-2.5 border-b border-border/60 last:border-0 gap-4">
-      <span className="text-xs text-muted-foreground/80 flex-shrink-0">{label}</span>
-      <div className="flex items-center gap-2">
-        <FieldBadge value={value} />
-        {isNegative && (value === 'yes') && (
-          <AlertTriangle className="h-3 w-3 text-red-400 flex-shrink-0" />
-        )}
-      </div>
-    </div>
-  )
-}
+import { AppDetailTabs } from './_components/app-detail-tabs'
+import type { GovRecord } from './_components/app-detail-tabs'
 
 function SubScoreCard({ label, score, weight }: { label: string; score: number; weight: string }) {
   const color =
@@ -51,30 +21,6 @@ function SubScoreCard({ label, score, weight }: { label: string; score: number; 
       <p className="text-xs text-muted-foreground/60 mt-0.5">{weight} of total</p>
       <p className={cn('text-xl font-bold mt-1', color)}>{score}<span className="text-xs font-normal text-muted-foreground/60">/100</span></p>
     </div>
-  )
-}
-
-function DLPActivityRow({ label, value, weight }: { label: string; value: string; weight: string }) {
-  const meta = VALUE_DISPLAY[value] ?? { label: value, color: 'muted' }
-  const dot =
-    meta.color === 'green' ? 'bg-green-500' :
-    meta.color === 'amber' ? 'bg-yellow-500' :
-    meta.color === 'red' ? 'bg-red-500' : 'bg-accent'
-  return (
-    <tr className="border-b border-border/60">
-      <td className="py-2.5 text-xs text-foreground/70">{label}</td>
-      <td className="py-2.5">
-        <span className={cn('inline-flex items-center gap-1.5 text-xs font-semibold',
-          meta.color === 'green' ? 'text-green-400' :
-          meta.color === 'amber' ? 'text-yellow-400' :
-          meta.color === 'red' ? 'text-red-400' : 'text-muted-foreground/80 italic'
-        )}>
-          <span className={cn('w-1.5 h-1.5 rounded-full', dot)} />
-          {meta.label}
-        </span>
-      </td>
-      <td className="py-2.5 text-xs text-muted-foreground/60 text-right">{weight}</td>
-    </tr>
   )
 }
 
@@ -109,25 +55,32 @@ export default async function GenAIAppProfilePage({
 
   const categories = (categoryRows ?? []) as GovernanceCategory[]
 
-  const typedApp = app as GenAIApp
+  const typedApp            = app as GenAIApp
   const typedClassification = classification as CustomerClassification | null
-  const typedProfiles = (profiles ?? []) as GenAIAppProfile[]
-  const profile = typedProfiles[0] ?? null
+  const typedProfiles       = (profiles ?? []) as GenAIAppProfile[]
+  const profile             = typedProfiles[0] ?? null
 
-  const score = profile
-    ? computeTrustScore(profile.fields, profile.dlp, profile.breach_info)
-    : null
-
+  const score  = profile ? computeTrustScore(profile.fields, profile.dlp, profile.breach_info) : null
   const fields = profile?.fields as AppFields | undefined
-  const dlp = profile?.dlp as DLPActivities | undefined
+  const dlp    = profile?.dlp    as DLPActivities | undefined
   const breach = profile?.breach_info as BreachInfo | undefined
+
   const currentClassification = (typedClassification?.customer_classification ?? 'unknown') as CustomerClass
+
+  const govRecord: GovRecord = {
+    business_owner:   typedClassification?.business_owner   ?? null,
+    technical_owner:  typedClassification?.technical_owner  ?? null,
+    approval_status:  (typedClassification?.approval_status ?? null) as ApprovalStatus | null,
+    review_date:      typedClassification?.review_date      ?? null,
+    next_review_date: typedClassification?.next_review_date ?? null,
+    notes:            typedClassification?.notes            ?? null,
+  }
 
   const scoreColor = (s: number) =>
     s >= 85 ? 'text-green-400' : s >= 70 ? 'text-blue-400' : s >= 50 ? 'text-yellow-400' : 'text-red-400'
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-5">
       {/* Back */}
       <Link href="/genai-controls/apps" className="inline-flex items-center gap-1 text-xs text-muted-foreground/80 hover:text-foreground/70 transition-colors">
         <ChevronLeft className="h-3 w-3" /> App Catalog
@@ -148,11 +101,11 @@ export default async function GenAIAppProfilePage({
             <div className="flex flex-wrap gap-2 mt-2">
               <span className={cn(
                 'text-[11px] font-bold px-2 py-0.5 rounded border',
-                CLASSIFICATION_LABELS[currentClassification].color === 'green' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
-                CLASSIFICATION_LABELS[currentClassification].color === 'red' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
-                CLASSIFICATION_LABELS[currentClassification].color === 'amber' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' :
-                CLASSIFICATION_LABELS[currentClassification].color === 'blue' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                'bg-muted text-muted-foreground border-border-strong'
+                CLASSIFICATION_LABELS[currentClassification].color === 'green'  ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+                CLASSIFICATION_LABELS[currentClassification].color === 'red'    ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                CLASSIFICATION_LABELS[currentClassification].color === 'amber'  ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' :
+                CLASSIFICATION_LABELS[currentClassification].color === 'blue'   ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                'bg-muted text-muted-foreground border-border-strong',
               )}>
                 Your classification: {CLASSIFICATION_LABELS[currentClassification].label}
               </span>
@@ -175,16 +128,16 @@ export default async function GenAIAppProfilePage({
 
       {/* Sub-scores */}
       {score && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <SubScoreCard label="Data Governance" score={score.data_governance} weight="30%" />
-          <SubScoreCard label="DLP Activity Support" score={score.dlp_activity} weight="30%" />
-          <SubScoreCard label="Security & Compliance" score={score.security_compliance} weight="20%" />
-          <SubScoreCard label="GenAI-Specific Risk" score={score.genai_risk} weight="15%" />
-          <SubScoreCard label="Breach & Transparency" score={score.breach_transparency} weight="5%" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <SubScoreCard label="Data Governance"   score={score.data_governance}     weight="30%" />
+          <SubScoreCard label="DLP Activity"      score={score.dlp_activity}        weight="30%" />
+          <SubScoreCard label="Security"          score={score.security_compliance} weight="20%" />
+          <SubScoreCard label="GenAI Risk"        score={score.genai_risk}          weight="15%" />
+          <SubScoreCard label="Breach"            score={score.breach_transparency} weight="5%"  />
         </div>
       )}
 
-      {/* Customer classification */}
+      {/* Classification */}
       <div className="rounded-xl border border-border bg-card/50 p-5 shadow-sm">
         <h2 className="text-sm font-semibold text-foreground mb-1">Your Classification</h2>
         <p className="text-xs text-muted-foreground/80 mb-4">
@@ -198,107 +151,15 @@ export default async function GenAIAppProfilePage({
         />
       </div>
 
-      {/* Data Governance & Privacy */}
-      {fields && (
-        <div className="rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm">
-          <div className="px-5 py-3 border-b border-border bg-card flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Data Governance & Privacy</h2>
-            {score && <span className={cn('text-sm font-bold', scoreColor(score.data_governance))}>{score.data_governance}/100</span>}
-          </div>
-          <div className="px-5">
-            {(['dpa_available','customer_owns_data','trains_on_customer_data','opt_out_of_training','data_retention','data_deletion','data_residency','subprocessor_list','pii_sharing_third_parties','data_sharing_genai_vendor'] as const).map(key => (
-              <FieldRow key={key} label={FIELD_LABELS[key]} value={fields[key] as string}
-                isNegative={['trains_on_customer_data','pii_sharing_third_parties','data_sharing_genai_vendor'].includes(key)} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* DLP Activity Support */}
-      {dlp && (
-        <div className="rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm">
-          <div className="px-5 py-3 border-b border-border bg-card flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">DLP Activity Support</h2>
-            {score && <span className={cn('text-sm font-bold', scoreColor(score.dlp_activity))}>{score.dlp_activity}/100</span>}
-          </div>
-          <div className="px-5">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border/60">
-                  <th className="text-left text-[11px] text-muted-foreground/60 uppercase tracking-wide py-2.5">Activity</th>
-                  <th className="text-left text-[11px] text-muted-foreground/60 uppercase tracking-wide py-2.5">DLP Support</th>
-                  <th className="text-right text-[11px] text-muted-foreground/60 uppercase tracking-wide py-2.5">Weight</th>
-                </tr>
-              </thead>
-              <tbody>
-                <DLPActivityRow label="Post / Prompt inspection" value={dlp.post_prompt} weight="30%" />
-                <DLPActivityRow label="Upload inspection" value={dlp.upload} weight="30%" />
-                <DLPActivityRow label="Login / Instance Detection" value={dlp.login_instance} weight="15%" />
-                <DLPActivityRow label="Edit inspection" value={dlp.edit} weight="10%" />
-                <DLPActivityRow label="Response inspection" value={dlp.response} weight="5%" />
-                <DLPActivityRow label="Download inspection" value={dlp.download} weight="5%" />
-                <DLPActivityRow label="Attach inspection" value={dlp.attach} weight="5%" />
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Security & Compliance */}
-      {fields && (
-        <div className="rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm">
-          <div className="px-5 py-3 border-b border-border bg-card flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Security & Compliance</h2>
-            {score && <span className={cn('text-sm font-bold', scoreColor(score.security_compliance))}>{score.security_compliance}/100</span>}
-          </div>
-          <div className="px-5">
-            {(['soc2','iso27001','iso27018','fedramp','pci_dss','hipaa_baa','encryption_at_rest','encryption_in_transit','tenant_segregation'] as const).map(key => (
-              <FieldRow key={key} label={FIELD_LABELS[key]} value={fields[key] as string} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* GenAI-Specific Risk */}
-      {fields && (
-        <div className="rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm">
-          <div className="px-5 py-3 border-b border-border bg-card flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">GenAI-Specific Risk</h2>
-            {score && <span className={cn('text-sm font-bold', scoreColor(score.genai_risk))}>{score.genai_risk}/100</span>}
-          </div>
-          <div className="px-5">
-            {(['model_provider_clear','trains_on_customer_data','opt_out_of_training','prompt_retention_controls','connectors_agents_risk'] as const).map(key => (
-              <FieldRow key={key} label={FIELD_LABELS[key]} value={fields[key] as string}
-                isNegative={['trains_on_customer_data','connectors_agents_risk'].includes(key)} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Breach & Transparency */}
-      {breach && (
-        <div className="rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm">
-          <div className="px-5 py-3 border-b border-border bg-card flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Breach & Transparency</h2>
-            {score && <span className={cn('text-sm font-bold', scoreColor(score.breach_transparency))}>{score.breach_transparency}/100</span>}
-          </div>
-          <div className="px-5">
-            <FieldRow label="Recent breach (past 12 months)" value={breach.recent_breach as string} isNegative />
-            <FieldRow label="Older breach history" value={breach.older_breach as string} isNegative />
-            <FieldRow label="Breach impact clearly disclosed" value={breach.breach_disclosed as string} />
-            <FieldRow label="Public disclosure available" value={breach.source_disclosure as string} />
-            <FieldRow label="Remediation / closure evidence" value={breach.breach_remediated as string} />
-            {breach.breach_name && (
-              <div className="py-3 border-b border-border/60 last:border-0">
-                <p className="text-xs text-muted-foreground/80 mb-1">Breach record</p>
-                <p className="text-xs text-foreground font-medium">{breach.breach_name}</p>
-                {breach.breach_date && <p className="text-xs text-muted-foreground/80 mt-0.5">{breach.breach_date}</p>}
-                {breach.breach_description && <p className="text-xs text-muted-foreground mt-1">{breach.breach_description}</p>}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Tabbed detail view */}
+      <AppDetailTabs
+        fields={fields}
+        dlp={dlp}
+        breach={breach}
+        score={score}
+        appId={appId}
+        govRecord={govRecord}
+      />
     </div>
   )
 }
