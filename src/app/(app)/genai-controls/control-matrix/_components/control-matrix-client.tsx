@@ -24,7 +24,7 @@ export const ACTIONS: Record<ActionCode, { label: string; cell: string; text: st
   'not-set':    { label: '—',                     cell: 'bg-transparent border-border',            text: 'text-muted-foreground/30' },
 }
 
-// ── Defaults by system_level per governance category ──────────────────────────
+// ── Defaults ─────────────────────────────────────────────────────────────────
 
 type LevelMap = Partial<Record<SystemLevel, ActionCode>>
 
@@ -92,82 +92,6 @@ interface Props {
 
 type CellOverride = { action: ActionCode; coachingId: string | null }
 
-// ── Cell component ────────────────────────────────────────────────────────────
-
-function MatrixCell({
-  rowKey, cat, effectiveAction, effectiveCoaching, defaultAction, isOverride,
-  notifications, onAction, onCoaching, onReset,
-}: {
-  rowKey:           string
-  cat:              MatrixCategory
-  effectiveAction:  ActionCode
-  effectiveCoaching: string | null
-  defaultAction:    ActionCode | null
-  isOverride:       boolean
-  notifications:    { id: string; name: string; coach_label: string | null }[]
-  onAction:         (action: ActionCode) => void
-  onCoaching:       (id: string | null) => void
-  onReset:          () => void
-}) {
-  const meta = ACTIONS[effectiveAction]
-  const selectedNotif = notifications.find(n => n.id === effectiveCoaching)
-
-  return (
-    <td key={cat.id} className="px-2 py-2.5 align-top min-w-[160px]">
-      <div className="space-y-1.5">
-
-        {/* Action row */}
-        <div className="flex items-center gap-1">
-          <div className={cn('relative flex-1 rounded-md border px-2 py-1', meta.cell)}>
-            <select
-              value={effectiveAction}
-              onChange={e => onAction(e.target.value as ActionCode)}
-              className={cn('w-full appearance-none bg-transparent text-[11px] font-semibold focus:outline-none cursor-pointer', meta.text)}
-            >
-              {(Object.entries(ACTIONS) as [ActionCode, typeof ACTIONS[ActionCode]][])
-                .filter(([code]) => code !== 'not-set' || effectiveAction === 'not-set')
-                .map(([code, m]) => (
-                  <option key={code} value={code} className="bg-card text-foreground">{m.label}</option>
-                ))}
-            </select>
-          </div>
-          {isOverride && defaultAction && (
-            <button
-              onClick={onReset}
-              title={`Reset to default (${ACTIONS[defaultAction].label})`}
-              className="shrink-0 text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
-            >
-              <RotateCcw className="w-3 h-3" />
-            </button>
-          )}
-        </div>
-
-        {/* Coaching row — subtle, no box */}
-        <div className="flex items-center gap-1">
-          {selectedNotif?.coach_label && (
-            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 shrink-0">
-              {selectedNotif.coach_label}
-            </span>
-          )}
-          <select
-            value={effectiveCoaching ?? ''}
-            onChange={e => onCoaching(e.target.value || null)}
-            className="flex-1 min-w-0 appearance-none bg-transparent text-[9px] text-muted-foreground/40 hover:text-muted-foreground/70 focus:outline-none cursor-pointer transition-colors"
-          >
-            <option value="" className="bg-card text-foreground">— No coaching —</option>
-            {notifications.map(n => (
-              <option key={n.id} value={n.id} className="bg-card text-foreground">
-                {n.coach_label ? `${n.coach_label} — ${n.name}` : n.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-      </div>
-    </td>
-  )
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function ControlMatrixClient({ categories, overrides, labels, customerLabels, notifications }: Props) {
@@ -191,7 +115,10 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     ...categories.filter(c => !c.system_tag),
   ]
 
-  // ── Flat row list ───────────────────────────────────────────────────────────
+  const [selectedCatId, setSelectedCatId] = useState<string>(orderedCats[0]?.id ?? '')
+  const selectedCat = orderedCats.find(c => c.id === selectedCatId) ?? orderedCats[0]
+
+  // ── Flat row list ─────────────────────────────────────────────────────────
 
   type FlatItem =
     | { type: 'section'; sectionId: string; label: string; color: string }
@@ -229,7 +156,7 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     )
   }
 
-  // ── Helpers ─────────────────────────────────────────────────────────────────
+  // ── Helpers ──────────────────────────────────────────────────────────────
 
   function getDefault(sectionId: string, lbl: OrgClassificationLabel, catTag: string | null): ActionCode | null {
     if (!catTag || !lbl.system_level) return null
@@ -244,62 +171,143 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     return UL_DC_DEFAULTS[catTag]?.[clbl.system_level as SystemLevel] ?? null
   }
 
-  function resolveCell(rowKey: string, cat: MatrixCategory, defaultAction: ActionCode | null) {
-    const override = localOverrides[`${rowKey}::${cat.id}`] ?? null
-    return {
-      effectiveAction:   (override?.action ?? defaultAction ?? 'not-set') as ActionCode,
-      effectiveCoaching: override?.coachingId ?? null,
-      isOverride:        !!override,
-    }
+  function handleAction(rowKey: string, action: ActionCode) {
+    if (!selectedCat) return
+    const coachingId = localOverrides[`${rowKey}::${selectedCat.id}`]?.coachingId ?? null
+    setLocalOverrides(prev => ({ ...prev, [`${rowKey}::${selectedCat.id}`]: { action, coachingId } }))
+    startTransition(async () => { await upsertControlMatrixCell(rowKey, selectedCat.id, action, coachingId) })
   }
 
-  function handleAction(rowKey: string, cat: MatrixCategory, action: ActionCode) {
-    const coachingId = localOverrides[`${rowKey}::${cat.id}`]?.coachingId ?? null
-    setLocalOverrides(prev => ({ ...prev, [`${rowKey}::${cat.id}`]: { action, coachingId } }))
-    startTransition(async () => { await upsertControlMatrixCell(rowKey, cat.id, action, coachingId) })
+  function handleCoaching(rowKey: string, coachingId: string | null, effectiveAction: ActionCode) {
+    if (!selectedCat) return
+    setLocalOverrides(prev => ({ ...prev, [`${rowKey}::${selectedCat.id}`]: { action: effectiveAction, coachingId } }))
+    startTransition(async () => { await upsertControlMatrixCell(rowKey, selectedCat.id, effectiveAction, coachingId) })
   }
 
-  function handleCoaching(rowKey: string, cat: MatrixCategory, coachingId: string | null, effectiveAction: ActionCode) {
-    setLocalOverrides(prev => ({ ...prev, [`${rowKey}::${cat.id}`]: { action: effectiveAction, coachingId } }))
-    startTransition(async () => { await upsertControlMatrixCell(rowKey, cat.id, effectiveAction, coachingId) })
+  function handleReset(rowKey: string) {
+    if (!selectedCat) return
+    setLocalOverrides(prev => { const n = { ...prev }; delete n[`${rowKey}::${selectedCat.id}`]; return n })
+    startTransition(async () => { await deleteControlMatrixCell(rowKey, selectedCat.id) })
   }
 
-  function handleReset(rowKey: string, cat: MatrixCategory) {
-    setLocalOverrides(prev => { const n = { ...prev }; delete n[`${rowKey}::${cat.id}`]; return n })
-    startTransition(async () => { await deleteControlMatrixCell(rowKey, cat.id) })
+  function renderCell(rowKey: string, defaultAction: ActionCode | null) {
+    if (!selectedCat) return null
+    const override        = localOverrides[`${rowKey}::${selectedCat.id}`] ?? null
+    const effectiveAction = (override?.action ?? defaultAction ?? 'not-set') as ActionCode
+    const effectiveCoaching = override?.coachingId ?? null
+    const isOverride      = !!override
+    const meta            = ACTIONS[effectiveAction]
+    const selectedNotif   = notifications.find(n => n.id === effectiveCoaching)
+
+    return (
+      <td className="px-4 py-3 w-80">
+        <div className="space-y-2">
+
+          {/* Action dropdown */}
+          <div className={cn('rounded-md border px-3 py-1.5', meta.cell)}>
+            <select
+              value={effectiveAction}
+              onChange={e => handleAction(rowKey, e.target.value as ActionCode)}
+              className={cn('w-full appearance-none bg-transparent text-[12px] font-semibold focus:outline-none cursor-pointer', meta.text)}
+            >
+              {(Object.entries(ACTIONS) as [ActionCode, typeof ACTIONS[ActionCode]][])
+                .filter(([code]) => code !== 'not-set' || effectiveAction === 'not-set')
+                .map(([code, m]) => (
+                  <option key={code} value={code} className="bg-card text-foreground">{m.label}</option>
+                ))}
+            </select>
+          </div>
+
+          {/* Coaching row + reset icon */}
+          <div className="flex items-center gap-1.5">
+            {selectedNotif?.coach_label && (
+              <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                {selectedNotif.coach_label}
+              </span>
+            )}
+            <select
+              value={effectiveCoaching ?? ''}
+              onChange={e => handleCoaching(rowKey, e.target.value || null, effectiveAction)}
+              className="flex-1 min-w-0 appearance-none bg-transparent text-[10px] text-muted-foreground/40 hover:text-muted-foreground/70 focus:outline-none cursor-pointer transition-colors"
+            >
+              <option value="" className="bg-card text-foreground">— No coaching —</option>
+              {notifications.map(n => (
+                <option key={n.id} value={n.id} className="bg-card text-foreground">
+                  {n.coach_label ? `${n.coach_label} — ${n.name}` : n.name}
+                </option>
+              ))}
+            </select>
+            {isOverride && defaultAction && (
+              <button
+                onClick={() => handleReset(rowKey)}
+                title={`Reset to default (${ACTIONS[defaultAction].label})`}
+                className="shrink-0 text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
+              >
+                <RotateCcw className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+
+        </div>
+      </td>
+    )
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="rounded-xl border border-border overflow-hidden shadow-sm">
-      <div className="overflow-x-auto">
+    <div className="space-y-4">
+
+      {/* Category filter — single select */}
+      <div className="flex gap-2 flex-wrap">
+        {orderedCats.map(cat => {
+          const cc        = colorClasses(cat.color)
+          const isSelected = cat.id === selectedCat?.id
+          return (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCatId(cat.id)}
+              className={cn(
+                'px-4 py-1.5 rounded-lg border text-xs font-semibold transition-all',
+                isSelected
+                  ? cn(cc.bg, cc.text, cc.border, 'shadow-sm')
+                  : 'bg-transparent border-border/40 text-muted-foreground/50 hover:border-border hover:text-muted-foreground/80',
+              )}
+            >
+              {cat.name}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Matrix table */}
+      <div className="rounded-xl border border-border overflow-hidden shadow-sm">
         <table className="w-full">
           <thead>
             <tr className="border-b border-border bg-card/80">
-              <th className="text-left text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide px-5 py-3 w-48 sticky left-0 bg-card/80 z-10">
+              <th className="text-left text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide px-5 py-3 w-64">
                 Activity / Label
               </th>
-              {orderedCats.map(cat => {
-                const cc = colorClasses(cat.color)
-                return (
-                  <th key={cat.id} className="px-3 py-3 text-left min-w-[160px]">
-                    <p className={cn('text-xs font-bold', cc.text)}>{cat.name}</p>
-                    {!cat.system_tag && <p className="text-[9px] text-muted-foreground/40 font-normal mt-0.5">custom</p>}
-                  </th>
-                )
-              })}
+              <th className="px-4 py-3 text-left w-80">
+                {selectedCat && (
+                  <p className={cn('text-xs font-bold', colorClasses(selectedCat.color).text)}>
+                    {selectedCat.name}
+                    {!selectedCat.system_tag && (
+                      <span className="ml-1.5 text-[9px] text-muted-foreground/40 font-normal">custom</span>
+                    )}
+                  </p>
+                )}
+              </th>
             </tr>
           </thead>
 
           <tbody>
             {flatItems.map(item => {
 
-              // Section header
               if (item.type === 'section') {
                 return (
                   <tr key={`sec-${item.sectionId}`} className="bg-muted/25 border-y border-border/50">
-                    <td colSpan={orderedCats.length + 1} className="px-5 py-1.5 sticky left-0">
+                    <td colSpan={2} className="px-5 py-1.5">
                       <span className={cn('text-[10px] font-bold uppercase tracking-widest', item.color)}>
                         {item.label}
                       </span>
@@ -308,11 +316,10 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
                 )
               }
 
-              // No customer labels placeholder
               if (item.type === 'clabel-empty') {
                 return (
                   <tr key="clabel-empty">
-                    <td colSpan={orderedCats.length + 1} className="px-5 py-4">
+                    <td colSpan={2} className="px-5 py-4">
                       <div className="flex items-center gap-3 text-muted-foreground/40">
                         <Lock className="w-4 h-4 shrink-0" />
                         <div>
@@ -330,71 +337,43 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
                 )
               }
 
-              // Customer label row
+              const ri = 'ri' in item ? item.ri : 0
+              const rowBg = cn('border-b border-border/40 hover:bg-card/20 transition-colors', ri % 2 !== 0 && 'bg-card/10')
+
               if (item.type === 'clabel-row') {
-                const { rowKey, clabel, ri } = item
+                const { rowKey, clabel } = item
                 const cc = colorClasses(clabel.color)
                 return (
-                  <tr key={rowKey} className={cn('border-b border-border/40 hover:bg-card/20 transition-colors', ri % 2 !== 0 && 'bg-card/10')}>
-                    <td className="px-5 py-2.5 sticky left-0 bg-inherit">
+                  <tr key={rowKey} className={rowBg}>
+                    <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
                         <span className={cn('w-2 h-2 rounded-full shrink-0', cc.dot)} />
-                        <span className={cn('text-xs font-semibold', cc.text)}>{clabel.display_name}</span>
+                        <span className={cn('text-sm font-semibold', cc.text)}>{clabel.display_name}</span>
                       </div>
                     </td>
-                    {orderedCats.map(cat => {
-                      const defaultAction = getCustomerLabelDefault(clabel, cat.system_tag)
-                      const { effectiveAction, effectiveCoaching, isOverride } = resolveCell(rowKey, cat, defaultAction)
-                      return (
-                        <MatrixCell
-                          key={cat.id}
-                          rowKey={rowKey} cat={cat}
-                          effectiveAction={effectiveAction} effectiveCoaching={effectiveCoaching}
-                          defaultAction={defaultAction} isOverride={isOverride}
-                          notifications={notifications}
-                          onAction={a => handleAction(rowKey, cat, a)}
-                          onCoaching={id => handleCoaching(rowKey, cat, id, effectiveAction)}
-                          onReset={() => handleReset(rowKey, cat)}
-                        />
-                      )
-                    })}
+                    {renderCell(rowKey, getCustomerLabelDefault(clabel, selectedCat?.system_tag ?? null))}
                   </tr>
                 )
               }
 
-              // Effata system label row
-              const { rowKey, label: lbl, sectionId, ri } = item
+              const { rowKey, label: lbl, sectionId } = item
               const cc = colorClasses(lbl.color)
               return (
-                <tr key={rowKey} className={cn('border-b border-border/40 hover:bg-card/20 transition-colors', ri % 2 !== 0 && 'bg-card/10')}>
-                  <td className="px-5 py-2.5 sticky left-0 bg-inherit">
+                <tr key={rowKey} className={rowBg}>
+                  <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
                       <span className={cn('w-2 h-2 rounded-full shrink-0', cc.dot)} />
-                      <span className={cn('text-xs font-semibold', cc.text)}>{lbl.name}</span>
+                      <span className={cn('text-sm font-semibold', cc.text)}>{lbl.name}</span>
                     </div>
                   </td>
-                  {orderedCats.map(cat => {
-                    const defaultAction = getDefault(sectionId, lbl, cat.system_tag)
-                    const { effectiveAction, effectiveCoaching, isOverride } = resolveCell(rowKey, cat, defaultAction)
-                    return (
-                      <MatrixCell
-                        key={cat.id}
-                        rowKey={rowKey} cat={cat}
-                        effectiveAction={effectiveAction} effectiveCoaching={effectiveCoaching}
-                        defaultAction={defaultAction} isOverride={isOverride}
-                        notifications={notifications}
-                        onAction={a => handleAction(rowKey, cat, a)}
-                        onCoaching={id => handleCoaching(rowKey, cat, id, effectiveAction)}
-                        onReset={() => handleReset(rowKey, cat)}
-                      />
-                    )
-                  })}
+                  {renderCell(rowKey, getDefault(sectionId, lbl, selectedCat?.system_tag ?? null))}
                 </tr>
               )
             })}
           </tbody>
         </table>
       </div>
+
     </div>
   )
 }
