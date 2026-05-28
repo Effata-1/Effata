@@ -61,7 +61,7 @@ function LabelForm({ initial, onSave, onCancel }: LabelFormProps) {
   const [systemLevel,  setSystemLevel]  = useState(initial.system_level ?? '')
 
   function submit() {
-    if (!displayName.trim() || !labelKey.trim()) return
+    if (!displayName.trim()) return
     onSave({
       display_name: displayName.trim(),
       label_key:    labelKey.trim(),
@@ -154,7 +154,7 @@ function LabelForm({ initial, onSave, onCancel }: LabelFormProps) {
       <div className="flex items-center gap-2 pt-1">
         <button
           onClick={submit}
-          disabled={!displayName.trim() || !labelKey.trim()}
+          disabled={!displayName.trim()}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20 text-xs font-medium hover:bg-primary/20 transition-colors disabled:opacity-40"
         >
           <Check className="w-3.5 h-3.5" /> Save
