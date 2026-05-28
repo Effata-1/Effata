@@ -1,67 +1,85 @@
 import type { AppFields, DLPActivities, BreachInfo, TrustScores, FieldValue, DLPValue, CustomerClass } from './types'
 
-// ── Field value → score ─────────────────────────────────────────────────────
-// enterprise-only = 70: available but requires the right license/contract.
-// That is a dependency, not a failure.
-// na is excluded from scoring entirely — see scoreItems() below.
+// ── Field value → score contribution ─────────────────────────────────────────
+//
+// Scoring rule:
+//   field_contribution = field_weight × value_score
+//   section_score      = Σ field_contribution   (no normalisation)
+//
+// This means:
+//   • More verified positive evidence → higher score
+//   • Missing evidence (no-published) → 0 contribution (honest, not neutral)
+//   • Confirmed negative (no) → 0 for POS fields, or full weight for NEG fields
+//   • na → excluded entirely (weight dropped)
+//
+// Maximum section score = 100 when all applicable fields have "yes" / "no"
+// (fields sum to w=1.0 per section, score_multiplier max = 100).
 
 const POS: Record<string, number> = {
   'yes':             100,
   'configurable':     80,
-  'enterprise-only':  70,   // was 0 — available in enterprise tier is acceptable
+  'enterprise-only':  70,
   'tier-dependent':   60,
-  'partial':          60,
-  'no-published':     40,   // no public evidence found — not the same as "no"
+  'partial':          50,
+  'no-published':      0,  // not verified — no contribution
   'no':                0,
 }
 
 const NEG: Record<string, number> = {
-  'no':              100,
-  'configurable':     80,   // risk exists but is controllable
-  'enterprise-only':  70,   // risk exists but scoped to enterprise tier
+  'no':              100,  // confirmed no risk
+  'configurable':     80,  // risk exists but is controllable
+  'enterprise-only':  70,  // risk scoped to enterprise tier
   'tier-dependent':   60,
-  'partial':          60,
-  'no-published':     40,
-  'yes':               0,
+  'partial':          50,
+  'no-published':      0,  // not verified — no contribution
+  'yes':               0,  // confirmed risk, unmitigated
 }
 
 const DLP_SCORE: Record<string, number> = {
   'enforcement':   100,
   'monitoring':     65,
   'partial':        50,
-  'no-published':   30,
+  'no-published':    0,  // not verified
   'not-supported':   0,
 }
 
-// ── NA-aware weighted scoring ────────────────────────────────────────────────
-// na fields are excluded from the denominator so they don't unfairly penalise
-// apps where a standard doesn't apply (e.g. HIPAA BAA for a design tool).
+// ── Section result ───────────────────────────────────────────────────────────
 
-type Dir  = 'pos' | 'neg'
+type Dir = 'pos' | 'neg'
 type Item = { val: FieldValue; w: number; dir: Dir }
 
-function scoreItems(items: Item[]): number {
-  const applicable = items.filter(i => i.val !== 'na')
-  const totalW = applicable.reduce((s, i) => s + i.w, 0)
-  if (totalW === 0) return 50 // all fields NA — neutral
-  const sum = applicable.reduce((s, { val, w, dir }) => {
-    const score = dir === 'pos' ? (POS[val] ?? 40) : (NEG[val] ?? 40)
-    return s + score * w
-  }, 0)
-  return sum / totalW // normalise to 0-100 based on applicable weight
+interface SectionResult {
+  score:    number  // 0–100
+  verified: number  // fields with a known (non-no-published, non-na) value
+  total:    number  // applicable fields (excluding na)
 }
 
-function scoreDLPItems(items: Array<{ val: DLPValue; w: number }>): number {
-  const totalW = items.reduce((s, i) => s + i.w, 0)
-  if (totalW === 0) return 0
-  return items.reduce((s, { val, w }) => s + (DLP_SCORE[val] ?? 0) * w, 0) / totalW
+// A field is "verified" when the vendor has publicly confirmed the value —
+// i.e. it is NOT no-published (and NOT na which is excluded).
+const UNVERIFIED: ReadonlySet<string> = new Set(['no-published'])
+
+function scoreItems(items: Item[]): SectionResult {
+  const applicable = items.filter(i => i.val !== 'na')
+  if (applicable.length === 0) return { score: 50, verified: 0, total: 0 }
+
+  const verified = applicable.filter(i => !UNVERIFIED.has(i.val as string)).length
+  const score    = applicable.reduce((s, { val, w, dir }) => {
+    const v = dir === 'pos' ? (POS[val] ?? 0) : (NEG[val] ?? 0)
+    return s + v * w
+  }, 0)
+
+  return { score, verified, total: applicable.length }
+}
+
+function scoreDLPItems(items: Array<{ val: DLPValue; w: number }>): SectionResult {
+  const verified = items.filter(i => i.val !== 'no-published' && i.val !== 'not-supported').length
+  const score    = items.reduce((s, { val, w }) => s + (DLP_SCORE[val] ?? 0) * w, 0)
+  return { score, verified, total: items.length }
 }
 
 // ── Sub-score A: Data Governance & Privacy (30% of final) ───────────────────
 // trains_on_customer_data intentionally appears here AND in GenAI Risk (D).
-// It creates both a privacy exposure AND a model-learning risk — two distinct
-// harms that are scored in their respective categories.
-function scoreDataGovernance(f: AppFields): number {
+function scoreDataGovernance(f: AppFields): SectionResult {
   return scoreItems([
     { val: f.trains_on_customer_data,    w: 0.20, dir: 'neg' },
     { val: f.opt_out_of_training,        w: 0.15, dir: 'pos' },
@@ -77,12 +95,11 @@ function scoreDataGovernance(f: AppFields): number {
 }
 
 // ── Sub-score B: DLP Activity Support (30% of final) ────────────────────────
-// login_instance = tenant / instance identification (label updated in display)
-function scoreDLPActivity(dlp: DLPActivities): number {
+function scoreDLPActivity(dlp: DLPActivities): SectionResult {
   return scoreDLPItems([
     { val: dlp.post_prompt,    w: 0.30 },
     { val: dlp.upload,         w: 0.30 },
-    { val: dlp.login_instance, w: 0.15 }, // tenant / instance identification
+    { val: dlp.login_instance, w: 0.15 },
     { val: dlp.edit,           w: 0.10 },
     { val: dlp.response,       w: 0.05 },
     { val: dlp.download,       w: 0.05 },
@@ -91,23 +108,22 @@ function scoreDLPActivity(dlp: DLPActivities): number {
 }
 
 // ── Sub-score C: Security & Compliance (20% of final) ───────────────────────
-function scoreSecurityCompliance(f: AppFields): number {
+function scoreSecurityCompliance(f: AppFields): SectionResult {
   return scoreItems([
-    { val: f.soc2,                 w: 0.15, dir: 'pos' },
-    { val: f.iso27001,             w: 0.15, dir: 'pos' },
-    { val: f.iso27018,             w: 0.10, dir: 'pos' },
-    { val: f.fedramp,              w: 0.10, dir: 'pos' },
-    { val: f.pci_dss,              w: 0.10, dir: 'pos' },
-    { val: f.hipaa_baa,            w: 0.10, dir: 'pos' },
-    { val: f.encryption_at_rest,   w: 0.10, dir: 'pos' },
-    { val: f.encryption_in_transit,w: 0.10, dir: 'pos' },
-    { val: f.tenant_segregation,   w: 0.10, dir: 'pos' },
+    { val: f.soc2,                  w: 0.15, dir: 'pos' },
+    { val: f.iso27001,              w: 0.15, dir: 'pos' },
+    { val: f.iso27018,              w: 0.10, dir: 'pos' },
+    { val: f.fedramp,               w: 0.10, dir: 'pos' },
+    { val: f.pci_dss,               w: 0.10, dir: 'pos' },
+    { val: f.hipaa_baa,             w: 0.10, dir: 'pos' },
+    { val: f.encryption_at_rest,    w: 0.10, dir: 'pos' },
+    { val: f.encryption_in_transit, w: 0.10, dir: 'pos' },
+    { val: f.tenant_segregation,    w: 0.10, dir: 'pos' },
   ])
 }
 
 // ── Sub-score D: GenAI-Specific Risk (15% of final) ─────────────────────────
-// trains_on_customer_data also appears in A — see comment there.
-function scoreGenAIRisk(f: AppFields): number {
+function scoreGenAIRisk(f: AppFields): SectionResult {
   return scoreItems([
     { val: f.trains_on_customer_data,   w: 0.25, dir: 'neg' },
     { val: f.opt_out_of_training,       w: 0.25, dir: 'pos' },
@@ -118,7 +134,7 @@ function scoreGenAIRisk(f: AppFields): number {
 }
 
 // ── Sub-score E: Breach History & Transparency (5% of final) ────────────────
-function scoreBreachTransparency(b: BreachInfo): number {
+function scoreBreachTransparency(b: BreachInfo): SectionResult {
   return scoreItems([
     { val: b.recent_breach,    w: 0.40, dir: 'neg' },
     { val: b.older_breach,     w: 0.25, dir: 'neg' },
@@ -138,22 +154,18 @@ function applyHardCaps(
   let cap: string | null = null
   let max = 100
 
-  // Training on customer data with no opt-out — clear privacy risk
   if (f.trains_on_customer_data === 'yes' && f.opt_out_of_training === 'no') {
     if (max > 60) { max = 60; cap = 'Trains on customer data — no opt-out available' }
   }
 
-  // Training disclosure unclear — vendor has not confirmed either way
   if (f.trains_on_customer_data === 'no-published' && f.opt_out_of_training === 'no-published') {
     if (max > 70) { max = 70; cap = 'Training and opt-out status not publicly disclosed' }
   }
 
-  // DLP blind spot — prompt and upload both uninspectable
   if (dlp.post_prompt === 'not-supported' && dlp.upload === 'not-supported') {
     if (max > 65) { max = 65; cap = 'Prompt and upload inspection both not supported' }
   }
 
-  // Recent breach — unconfirmed remediation is more severe
   if (b.recent_breach === 'yes') {
     if (b.breach_remediated === 'no' || b.breach_remediated === 'no-published') {
       if (max > 70) { max = 70; cap = 'Recent breach — remediation not confirmed' }
@@ -162,21 +174,12 @@ function applyHardCaps(
     }
   }
 
-  // No DPA + unclear data ownership — foundational privacy gap
   if (f.dpa_available === 'no' && (f.customer_owns_data === 'no' || f.customer_owns_data === 'no-published')) {
     if (max > 70) { max = 70; cap = 'No DPA and data ownership unclear' }
   }
 
-  // Cannot identify tenant / instance — DLP cannot separate personal vs corporate
   if (dlp.login_instance === 'not-supported') {
     if (max > 80) { max = 80; cap = 'Tenant / instance identification not supported by DLP' }
-  }
-
-  // Insufficient public information overall
-  const allFields = Object.values(f)
-  const noPublishedCount = allFields.filter(v => v === 'no-published').length
-  if (noPublishedCount > allFields.length * 0.6) {
-    if (max > 55) { max = 55; cap = 'Insufficient public information — verify with vendor' }
   }
 
   return { score: Math.min(score, max), cap }
@@ -189,7 +192,7 @@ function countDLPSupported(dlp: DLPActivities): number {
   ).length
 }
 
-// ── System suggested classification ─────────────────────────────────────────
+// ── Suggested classification ─────────────────────────────────────────────────
 function suggestClassification(score: number): CustomerClass {
   if (score >= 85) return 'enterprise-approved'
   if (score >= 70) return 'approved-with-conditions'
@@ -210,22 +213,30 @@ export function computeTrustScore(
   const gr = scoreGenAIRisk(fields)
   const bt = scoreBreachTransparency(breach)
 
-  const raw = Math.round(dg * 0.30 + da * 0.30 + sc * 0.20 + gr * 0.15 + bt * 0.05)
+  const raw = Math.round(dg.score * 0.30 + da.score * 0.30 + sc.score * 0.20 + gr.score * 0.15 + bt.score * 0.05)
   const { score: capped, cap } = applyHardCaps(raw, fields, dlp, breach)
   const final = Math.min(capped, 95) // never 100
 
   return {
-    data_governance:           Math.round(dg),
-    dlp_activity:              Math.round(da),
-    security_compliance:       Math.round(sc),
-    genai_risk:                Math.round(gr),
-    breach_transparency:       Math.round(bt),
-    raw_score:                 raw,
-    applied_cap:               cap,
-    final_score:               final,
-    suggested_classification:  suggestClassification(final),
-    dlp_activities_supported:  countDLPSupported(dlp),
-    dlp_activities_total:      7,
+    data_governance:              Math.round(dg.score),
+    data_governance_verified:     dg.verified,
+    data_governance_total:        dg.total,
+    dlp_activity:                 Math.round(da.score),
+    security_compliance:          Math.round(sc.score),
+    security_compliance_verified: sc.verified,
+    security_compliance_total:    sc.total,
+    genai_risk:                   Math.round(gr.score),
+    genai_risk_verified:          gr.verified,
+    genai_risk_total:             gr.total,
+    breach_transparency:          Math.round(bt.score),
+    breach_transparency_verified: bt.verified,
+    breach_transparency_total:    bt.total,
+    raw_score:                    raw,
+    applied_cap:                  cap,
+    final_score:                  final,
+    suggested_classification:     suggestClassification(final),
+    dlp_activities_supported:     countDLPSupported(dlp),
+    dlp_activities_total:         7,
   }
 }
 
@@ -261,7 +272,7 @@ export const FIELD_LABELS: Record<string, string> = {
 export const DLP_ACTIVITY_LABELS: Record<string, string> = {
   post_prompt:    'Post / Prompt inspection',
   upload:         'Upload inspection',
-  login_instance: 'Tenant / Instance Identification', // renamed from Login / Instance Detection
+  login_instance: 'Tenant / Instance Identification',
   edit:           'Edit inspection',
   response:       'Response inspection',
   download:       'Download inspection',
@@ -269,19 +280,20 @@ export const DLP_ACTIVITY_LABELS: Record<string, string> = {
 }
 
 export const VALUE_DISPLAY: Record<string, { label: string; color: string; note?: string }> = {
-  'yes':             { label: 'Yes',                     color: 'green'  },
-  'no':              { label: 'No',                      color: 'red'    },
-  'partial':         { label: 'Partial',                 color: 'amber'  },
-  'enterprise-only': { label: 'Enterprise only',         color: 'blue',
+  'yes':             { label: 'Yes',                      color: 'green'  },
+  'no':              { label: 'No',                       color: 'red'    },
+  'partial':         { label: 'Partial',                  color: 'amber'  },
+  'enterprise-only': { label: 'Enterprise only',          color: 'blue',
     note: 'Available — requires enterprise license or contract' },
-  'tier-dependent':  { label: 'Tier-dependent',          color: 'amber'  },
-  'configurable':    { label: 'Configurable',            color: 'blue'   },
-  'no-published':    { label: 'No public evidence found', color: 'muted' },
-  'na':              { label: 'Not applicable',          color: 'muted',
+  'tier-dependent':  { label: 'Tier-dependent',           color: 'amber'  },
+  'configurable':    { label: 'Configurable',             color: 'blue'   },
+  'no-published':    { label: 'Not publicly verified',    color: 'muted',
+    note: 'No public evidence found — does not contribute to score' },
+  'na':              { label: 'Not applicable',           color: 'muted',
     note: 'Excluded from scoring — not relevant to this app\'s context' },
-  'enforcement':     { label: 'Supported — enforcement', color: 'green'  },
-  'monitoring':      { label: 'Supported — monitoring',  color: 'amber'  },
-  'not-supported':   { label: 'Not supported',           color: 'red'    },
+  'enforcement':     { label: 'Supported — enforcement',  color: 'green'  },
+  'monitoring':      { label: 'Supported — monitoring',   color: 'amber'  },
+  'not-supported':   { label: 'Not supported',            color: 'red'    },
 }
 
 export const CLASSIFICATION_LABELS: Record<string, { label: string; color: string }> = {

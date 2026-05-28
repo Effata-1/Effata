@@ -61,12 +61,14 @@ function FieldRow({ label, value, isNegative }: { label: string; value: string; 
 }
 
 function SectionCard({
-  id, title, score, scoreWeight, children,
+  id, title, score, scoreWeight, verified, total, children,
 }: {
   id: string
   title: string
   score: number | null
   scoreWeight: string
+  verified?: number
+  total?: number
   children: React.ReactNode
 }) {
   return (
@@ -77,9 +79,16 @@ function SectionCard({
       <div className="px-5 py-3 border-b border-border bg-card/80 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-foreground">{title}</h2>
         {score !== null && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground/50">{scoreWeight} of score</span>
-            <span className={cn('text-sm font-bold', scoreColor(score))}>{score}/100</span>
+          <div className="flex flex-col items-end gap-0.5">
+            {verified !== undefined && total !== undefined && (
+              <span className="text-[11px] text-muted-foreground/50">
+                {verified}/{total} fields publicly verified
+              </span>
+            )}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground/50">{scoreWeight} of score</span>
+              <span className={cn('text-sm font-bold', scoreColor(score))}>{score}/100</span>
+            </div>
           </div>
         )}
       </div>
@@ -115,7 +124,7 @@ export function AppDetailTabs({ fields, dlp, breach, score, appId, govRecord }: 
       {/* ── Data Governance & Privacy ──────────────────────────────────────── */}
       <div>
         {fields ? (
-          <SectionCard id="data-governance" title="Data Governance & Privacy" score={score?.data_governance ?? null} scoreWeight="30%">
+          <SectionCard id="data-governance" title="Publicly Verified Data Governance" score={score?.data_governance ?? null} scoreWeight="30%" verified={score?.data_governance_verified} total={score?.data_governance_total}>
             {(['trains_on_customer_data','opt_out_of_training','dpa_available','customer_owns_data','data_retention','data_deletion','data_residency','subprocessor_list','pii_sharing_third_parties','data_sharing_genai_vendor'] as const).map(key => (
               <FieldRow
                 key={key}
@@ -138,9 +147,14 @@ export function AppDetailTabs({ fields, dlp, breach, score, appId, govRecord }: 
             <div className="px-5 py-3 border-b border-border bg-card/80 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-foreground">DLP Activity Support</h2>
               {score && (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground/50">30% of score</span>
-                  <span className={cn('text-sm font-bold', scoreColor(score.dlp_activity))}>{score.dlp_activity}/100</span>
+                <div className="flex flex-col items-end gap-0.5">
+                  <span className="text-[11px] text-muted-foreground/50">
+                    {score.dlp_activities_supported}/{score.dlp_activities_total} activities supported
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground/50">30% of score</span>
+                    <span className={cn('text-sm font-bold', scoreColor(score.dlp_activity))}>{score.dlp_activity}/100</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -193,7 +207,7 @@ export function AppDetailTabs({ fields, dlp, breach, score, appId, govRecord }: 
       {/* ── Security & Compliance ──────────────────────────────────────────── */}
       <div>
         {fields ? (
-          <SectionCard id="security" title="Security & Compliance" score={score?.security_compliance ?? null} scoreWeight="20%">
+          <SectionCard id="security" title="Publicly Verified Security & Compliance" score={score?.security_compliance ?? null} scoreWeight="20%" verified={score?.security_compliance_verified} total={score?.security_compliance_total}>
             {(['soc2','iso27001','iso27018','fedramp','pci_dss','hipaa_baa','encryption_at_rest','encryption_in_transit','tenant_segregation'] as const).map(key => (
               <FieldRow key={key} label={FIELD_LABELS[key]} value={fields[key]} />
             ))}
@@ -204,7 +218,7 @@ export function AppDetailTabs({ fields, dlp, breach, score, appId, govRecord }: 
       {/* ── GenAI-Specific Risk ────────────────────────────────────────────── */}
       <div>
         {fields ? (
-          <SectionCard id="genai-risk" title="GenAI-Specific Risk" score={score?.genai_risk ?? null} scoreWeight="15%">
+          <SectionCard id="genai-risk" title="Publicly Verified GenAI Risk" score={score?.genai_risk ?? null} scoreWeight="15%" verified={score?.genai_risk_verified} total={score?.genai_risk_total}>
             {(['trains_on_customer_data','opt_out_of_training','prompt_retention_controls','model_provider_clear','connectors_agents_risk'] as const).map(key => (
               <FieldRow
                 key={key}
@@ -220,7 +234,7 @@ export function AppDetailTabs({ fields, dlp, breach, score, appId, govRecord }: 
       {/* ── Breach & Transparency ─────────────────────────────────────────── */}
       <div>
         {breach ? (
-          <SectionCard id="breach" title="Breach & Transparency" score={score?.breach_transparency ?? null} scoreWeight="5%">
+          <SectionCard id="breach" title="Breach History & Transparency" score={score?.breach_transparency ?? null} scoreWeight="5%" verified={score?.breach_transparency_verified} total={score?.breach_transparency_total}>
             <FieldRow label="Recent breach (past 12 months)"  value={breach.recent_breach}    isNegative />
             <FieldRow label="Older breach history"            value={breach.older_breach}     isNegative />
             <FieldRow label="Breach impact clearly disclosed" value={breach.breach_disclosed} />

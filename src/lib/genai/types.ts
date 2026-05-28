@@ -201,15 +201,23 @@ export interface CoachingNotification {
 }
 
 export interface TrustScores {
-  data_governance: number
-  dlp_activity: number
-  security_compliance: number
-  genai_risk: number
-  breach_transparency: number
-  raw_score: number
-  applied_cap: string | null
-  final_score: number
-  suggested_classification: CustomerClass
-  dlp_activities_supported: number
-  dlp_activities_total: number
+  data_governance:              number
+  data_governance_verified:     number
+  data_governance_total:        number
+  dlp_activity:                 number
+  security_compliance:          number
+  security_compliance_verified: number
+  security_compliance_total:    number
+  genai_risk:                   number
+  genai_risk_verified:          number
+  genai_risk_total:             number
+  breach_transparency:          number
+  breach_transparency_verified: number
+  breach_transparency_total:    number
+  raw_score:                    number
+  applied_cap:                  string | null
+  final_score:                  number
+  suggested_classification:     CustomerClass
+  dlp_activities_supported:     number
+  dlp_activities_total:         number
 }
