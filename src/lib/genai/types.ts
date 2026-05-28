@@ -92,6 +92,11 @@ export interface GenAIApp {
   status: string
   last_updated: string | null
   app_group: AppGroup | null
+  description: string | null
+  headquarters: string | null
+  founded_year: number | null
+  employee_count: string | null
+  primary_use_cases: string[] | null
 }
 
 export interface GenAIAppProfile {

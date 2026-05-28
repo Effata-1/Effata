@@ -1,6 +1,5 @@
 'use client'
 
-import { useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { FIELD_LABELS, VALUE_DISPLAY, DLP_ACTIVITY_LABELS } from '@/lib/genai/scoring'
 import { GovernanceRecord } from './governance-record'
@@ -99,36 +98,6 @@ function SectionCard({
   )
 }
 
-// ── Nav pill ──────────────────────────────────────────────────────────────────
-
-function scoreDot(s: number) {
-  return s >= 80 ? 'bg-green-500' : s >= 60 ? 'bg-blue-500' : s >= 40 ? 'bg-yellow-500' : 'bg-red-500'
-}
-
-function NavPill({
-  label, score, onClick,
-}: { label: string; score: number | null; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-muted/40 transition-colors group shrink-0"
-    >
-      {score !== null && (
-        <span className={cn('w-2 h-2 rounded-full shrink-0', scoreDot(score))} />
-      )}
-      <span className="text-xs font-medium text-foreground/70 group-hover:text-foreground transition-colors whitespace-nowrap">
-        {label}
-      </span>
-      {score !== null && (
-        <span className={cn('text-[11px] font-bold tabular-nums', scoreColor(score))}>
-          {score}
-        </span>
-      )}
-    </button>
-  )
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 
 interface Props {
@@ -141,42 +110,10 @@ interface Props {
 }
 
 export function AppDetailTabs({ fields, dlp, breach, score, appId, govRecord }: Props) {
-  const refs = {
-    'data-governance':    useRef<HTMLDivElement>(null),
-    'dlp-activity':       useRef<HTMLDivElement>(null),
-    'security':           useRef<HTMLDivElement>(null),
-    'genai-risk':         useRef<HTMLDivElement>(null),
-    'breach':             useRef<HTMLDivElement>(null),
-    'notes':              useRef<HTMLDivElement>(null),
-  }
-
-  function scrollTo(id: keyof typeof refs) {
-    refs[id].current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
-
-  const NAV = [
-    { id: 'data-governance' as const, label: 'Data Governance', score: score?.data_governance ?? null },
-    { id: 'dlp-activity'    as const, label: 'DLP Activity',    score: score?.dlp_activity    ?? null },
-    { id: 'security'        as const, label: 'Security',        score: score?.security_compliance ?? null },
-    { id: 'genai-risk'      as const, label: 'GenAI Risk',      score: score?.genai_risk      ?? null },
-    { id: 'breach'          as const, label: 'Breach',          score: score?.breach_transparency ?? null },
-    { id: 'notes'           as const, label: 'Notes',           score: null },
-  ]
-
   return (
     <div className="space-y-4">
-      {/* Section navigation */}
-      <div className="flex items-center gap-1 px-2 py-1.5 rounded-xl border border-border/50 bg-card/40 overflow-x-auto scrollbar-none">
-        {NAV.map((n, i) => (
-          <div key={n.id} className="flex items-center">
-            {i > 0 && <span className="w-px h-3.5 bg-border/60 mx-0.5 shrink-0" />}
-            <NavPill label={n.label} score={n.score} onClick={() => scrollTo(n.id)} />
-          </div>
-        ))}
-      </div>
-
       {/* ── Data Governance & Privacy ──────────────────────────────────────── */}
-      <div ref={refs['data-governance']}>
+      <div>
         {fields ? (
           <SectionCard id="data-governance" title="Data Governance & Privacy" score={score?.data_governance ?? null} scoreWeight="30%">
             {(['trains_on_customer_data','opt_out_of_training','dpa_available','customer_owns_data','data_retention','data_deletion','data_residency','subprocessor_list','pii_sharing_third_parties','data_sharing_genai_vendor'] as const).map(key => (
@@ -192,7 +129,7 @@ export function AppDetailTabs({ fields, dlp, breach, score, appId, govRecord }: 
       </div>
 
       {/* ── DLP Activity Support ───────────────────────────────────────────── */}
-      <div ref={refs['dlp-activity']}>
+      <div>
         {dlp ? (
           <div id="dlp-activity" className={cn(
             'rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm border-t-2',
@@ -254,7 +191,7 @@ export function AppDetailTabs({ fields, dlp, breach, score, appId, govRecord }: 
       </div>
 
       {/* ── Security & Compliance ──────────────────────────────────────────── */}
-      <div ref={refs['security']}>
+      <div>
         {fields ? (
           <SectionCard id="security" title="Security & Compliance" score={score?.security_compliance ?? null} scoreWeight="20%">
             {(['soc2','iso27001','iso27018','fedramp','pci_dss','hipaa_baa','encryption_at_rest','encryption_in_transit','tenant_segregation'] as const).map(key => (
@@ -265,7 +202,7 @@ export function AppDetailTabs({ fields, dlp, breach, score, appId, govRecord }: 
       </div>
 
       {/* ── GenAI-Specific Risk ────────────────────────────────────────────── */}
-      <div ref={refs['genai-risk']}>
+      <div>
         {fields ? (
           <SectionCard id="genai-risk" title="GenAI-Specific Risk" score={score?.genai_risk ?? null} scoreWeight="15%">
             {(['trains_on_customer_data','opt_out_of_training','prompt_retention_controls','model_provider_clear','connectors_agents_risk'] as const).map(key => (
@@ -281,7 +218,7 @@ export function AppDetailTabs({ fields, dlp, breach, score, appId, govRecord }: 
       </div>
 
       {/* ── Breach & Transparency ─────────────────────────────────────────── */}
-      <div ref={refs['breach']}>
+      <div>
         {breach ? (
           <SectionCard id="breach" title="Breach & Transparency" score={score?.breach_transparency ?? null} scoreWeight="5%">
             <FieldRow label="Recent breach (past 12 months)"  value={breach.recent_breach}    isNegative />
@@ -306,7 +243,7 @@ export function AppDetailTabs({ fields, dlp, breach, score, appId, govRecord }: 
       </div>
 
       {/* ── Notes / Governance Record ─────────────────────────────────────── */}
-      <div ref={refs['notes']}>
+      <div>
         <GovernanceRecord appId={appId} initial={govRecord} initiallyOpen />
       </div>
     </div>

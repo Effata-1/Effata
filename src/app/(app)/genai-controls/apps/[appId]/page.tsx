@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, Globe, Building2, Calendar, Users, Tag } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { computeTrustScore, CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
+import { computeTrustScore, CLASSIFICATION_LABELS, VALUE_DISPLAY, DLP_ACTIVITY_LABELS } from '@/lib/genai/scoring'
 import { cn } from '@/lib/utils'
 import type { GenAIApp, GenAIAppProfile, AppFields, DLPActivities, BreachInfo, CustomerClass, CustomerClassification, ApprovalStatus } from '@/lib/genai/types'
 import { ClassificationSelector } from './_components/classification-selector'
@@ -132,6 +132,130 @@ export default async function GenAIAppProfilePage({
           <SubScoreCard label="Breach"            score={score.breach_transparency} weight="5%"  />
         </div>
       )}
+
+      {/* App Info */}
+      <div className="rounded-xl border border-border bg-card/50 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-border bg-card/80">
+          <h2 className="text-sm font-semibold text-foreground">About this App</h2>
+        </div>
+        <div className="p-5 space-y-4">
+          {/* Description */}
+          {typedApp.description ? (
+            <p className="text-sm text-foreground/80 leading-relaxed">{typedApp.description}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground/50 italic">No description available yet.</p>
+          )}
+
+          {/* Meta row */}
+          <div className="flex flex-wrap gap-3">
+            <a
+              href={`https://${typedApp.domain}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/30 border border-border/50 text-xs text-foreground/70 hover:text-foreground transition-colors"
+            >
+              <Globe className="h-3 w-3 flex-shrink-0" />
+              {typedApp.domain}
+            </a>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/30 border border-border/50 text-xs text-foreground/70">
+              <Tag className="h-3 w-3 flex-shrink-0" />
+              {typedApp.app_type}
+            </span>
+            {typedApp.app_group && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/30 border border-border/50 text-xs text-foreground/70">
+                {typedApp.app_group}
+              </span>
+            )}
+            {typedApp.headquarters && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/30 border border-border/50 text-xs text-foreground/70">
+                <Building2 className="h-3 w-3 flex-shrink-0" />
+                {typedApp.headquarters}
+              </span>
+            )}
+            {typedApp.founded_year && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/30 border border-border/50 text-xs text-foreground/70">
+                <Calendar className="h-3 w-3 flex-shrink-0" />
+                Founded {typedApp.founded_year}
+              </span>
+            )}
+            {typedApp.employee_count && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/30 border border-border/50 text-xs text-foreground/70">
+                <Users className="h-3 w-3 flex-shrink-0" />
+                {typedApp.employee_count} employees
+              </span>
+            )}
+          </div>
+
+          {/* Primary use cases */}
+          {typedApp.primary_use_cases && typedApp.primary_use_cases.length > 0 && (
+            <div>
+              <p className="text-[11px] text-muted-foreground/50 uppercase tracking-wide mb-2">Primary Use Cases</p>
+              <div className="flex flex-wrap gap-1.5">
+                {typedApp.primary_use_cases.map((uc, i) => (
+                  <span key={i} className="px-2 py-0.5 rounded-md bg-muted/20 border border-border/40 text-xs text-foreground/70">
+                    {uc}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* DLP Quick Facts */}
+          {(fields || dlp) && (
+            <div>
+              <p className="text-[11px] text-muted-foreground/50 uppercase tracking-wide mb-2">DLP Quick Facts</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                {fields && ([
+                  { label: 'Trains on user data',  value: fields.trains_on_customer_data, negative: true  },
+                  { label: 'Can opt out of training', value: fields.opt_out_of_training, negative: false },
+                  { label: 'DPA available',         value: fields.dpa_available,          negative: false },
+                  { label: 'Customer owns data',    value: fields.customer_owns_data,     negative: false },
+                  { label: 'SOC 2',                 value: fields.soc2,                   negative: false },
+                  { label: 'Encryption in transit', value: fields.encryption_in_transit,  negative: false },
+                ] as const).map(({ label, value, negative }) => {
+                  const meta = VALUE_DISPLAY[value] ?? { label: value, color: 'muted' }
+                  const isWarning = negative && value === 'yes'
+                  return (
+                    <div key={label} className="rounded-lg bg-muted/20 border border-border/40 px-3 py-2">
+                      <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wide mb-0.5">{label}</p>
+                      <p className={cn('text-xs font-semibold',
+                        isWarning ? 'text-red-400' :
+                        meta.color === 'green' ? 'text-green-400' :
+                        meta.color === 'red'   ? 'text-red-400'   :
+                        meta.color === 'amber' ? 'text-yellow-400' :
+                        meta.color === 'blue'  ? 'text-blue-400'  :
+                        'text-muted-foreground/70 italic',
+                      )}>
+                        {meta.label}
+                      </p>
+                    </div>
+                  )
+                })}
+                {dlp && ([
+                  { key: 'post_prompt' as const, label: DLP_ACTIVITY_LABELS.post_prompt },
+                  { key: 'upload'      as const, label: DLP_ACTIVITY_LABELS.upload      },
+                ] as const).map(({ key, label }) => {
+                  const val  = dlp[key]
+                  const meta = VALUE_DISPLAY[val] ?? { label: val, color: 'muted' }
+                  return (
+                    <div key={key} className="rounded-lg bg-muted/20 border border-border/40 px-3 py-2">
+                      <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wide mb-0.5">DLP: {label}</p>
+                      <p className={cn('text-xs font-semibold',
+                        meta.color === 'green' ? 'text-green-400' :
+                        meta.color === 'amber' ? 'text-yellow-400' :
+                        meta.color === 'red'   ? 'text-red-400'   :
+                        'text-muted-foreground/70 italic',
+                      )}>
+                        {meta.label}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Classification */}
       <div className="rounded-xl border border-border bg-card/50 p-5 shadow-sm">
