@@ -10,34 +10,64 @@ interface Props {
   domain: string
   letter: string
   bg:     string
-  size:   number   // px
-  radius?: string  // tailwind class e.g. 'rounded-xl'
+  size:   number
+  radius?: string
+}
+
+// Source cascade:
+// 1. logo.clearbit.com  — proper brand logo (free tier, works for most major companies)
+// 2. Google favicon S2  — always available, smaller but recognisable icon
+// 3. Letter avatar       — guaranteed fallback
+
+const SOURCES = (domain: string) => {
+  const root = rootDomain(domain)
+  return [
+    `https://logo.clearbit.com/${root}`,
+    `https://www.google.com/s2/favicons?domain_url=https://${root}&sz=128`,
+  ]
 }
 
 export function AppLogo({ domain, letter, bg, size, radius = 'rounded-xl' }: Props) {
-  const [failed, setFailed] = useState(false)
+  const sources = SOURCES(domain)
+  const [srcIndex, setSrcIndex] = useState(0)
+  const [allFailed, setAllFailed] = useState(false)
 
-  const style: React.CSSProperties = {
-    width:  size,
-    height: size,
-    flexShrink: 0,
-    backgroundColor: failed ? bg : '#ffffff',
-    overflow: 'hidden',
-    display: 'flex',
-    alignItems: 'center',
+  function handleError() {
+    if (srcIndex + 1 < sources.length) {
+      setSrcIndex(i => i + 1)
+    } else {
+      setAllFailed(true)
+    }
+  }
+
+  const containerStyle: React.CSSProperties = {
+    width:       size,
+    height:      size,
+    flexShrink:  0,
+    overflow:    'hidden',
+    display:     'flex',
+    alignItems:  'center',
     justifyContent: 'center',
+    backgroundColor: allFailed ? bg : '#ffffff',
   }
 
   return (
-    <div className={radius} style={style}>
-      {failed ? (
-        <span style={{ fontWeight: 700, fontSize: size * 0.38, color: 'white' }}>{letter}</span>
+    <div className={radius} style={containerStyle}>
+      {allFailed ? (
+        <span style={{ fontWeight: 700, fontSize: size * 0.38, color: 'white', userSelect: 'none' }}>
+          {letter}
+        </span>
       ) : (
         <img
-          src={`https://logo.clearbit.com/${rootDomain(domain)}`}
+          key={srcIndex}
+          src={sources[srcIndex]}
           alt=""
-          onError={() => setFailed(true)}
-          style={{ width: '78%', height: '78%', objectFit: 'contain' }}
+          onError={handleError}
+          style={{
+            width:      srcIndex === 0 ? '82%' : '68%',
+            height:     srcIndex === 0 ? '82%' : '68%',
+            objectFit:  'contain',
+          }}
         />
       )}
     </div>
