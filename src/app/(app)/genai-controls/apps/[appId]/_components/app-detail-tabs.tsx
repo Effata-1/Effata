@@ -101,6 +101,10 @@ function SectionCard({
 
 // ── Nav pill ──────────────────────────────────────────────────────────────────
 
+function scoreDot(s: number) {
+  return s >= 80 ? 'bg-green-500' : s >= 60 ? 'bg-blue-500' : s >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+}
+
 function NavPill({
   label, score, onClick,
 }: { label: string; score: number | null; onClick: () => void }) {
@@ -108,16 +112,18 @@ function NavPill({
     <button
       type="button"
       onClick={onClick}
-      className={cn(
-        'flex flex-col items-center px-3 py-2 rounded-lg border border-border bg-card/50 hover:bg-card hover:border-border-strong transition-all text-xs font-medium text-foreground/70 hover:text-foreground shrink-0',
-      )}
+      className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-muted/40 transition-colors group shrink-0"
     >
       {score !== null && (
-        <div className={cn('w-full h-0.5 rounded-full mb-1.5', scoreColor(score).replace('text-', 'bg-'))} />
+        <span className={cn('w-2 h-2 rounded-full shrink-0', scoreDot(score))} />
       )}
-      {label}
+      <span className="text-xs font-medium text-foreground/70 group-hover:text-foreground transition-colors whitespace-nowrap">
+        {label}
+      </span>
       {score !== null && (
-        <span className={cn('text-[10px] font-bold mt-0.5', scoreColor(score))}>{score}</span>
+        <span className={cn('text-[11px] font-bold tabular-nums', scoreColor(score))}>
+          {score}
+        </span>
       )}
     </button>
   )
@@ -160,9 +166,12 @@ export function AppDetailTabs({ fields, dlp, breach, score, appId, govRecord }: 
   return (
     <div className="space-y-4">
       {/* Section navigation */}
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-        {NAV.map(n => (
-          <NavPill key={n.id} label={n.label} score={n.score} onClick={() => scrollTo(n.id)} />
+      <div className="flex items-center gap-1 px-2 py-1.5 rounded-xl border border-border/50 bg-card/40 overflow-x-auto scrollbar-none">
+        {NAV.map((n, i) => (
+          <div key={n.id} className="flex items-center">
+            {i > 0 && <span className="w-px h-3.5 bg-border/60 mx-0.5 shrink-0" />}
+            <NavPill label={n.label} score={n.score} onClick={() => scrollTo(n.id)} />
+          </div>
         ))}
       </div>
 
