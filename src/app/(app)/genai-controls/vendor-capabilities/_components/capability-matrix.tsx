@@ -2,14 +2,17 @@
 
 import { useState, useMemo } from 'react'
 import { FilterSelect } from '@/components/ui/filter-select'
+import { AppLogo } from '../../apps/_components/app-logo'
 import type { AppFields, DLPActivities, AppGroup } from '@/lib/genai/types'
 
 interface AppRow {
   app_id:      string
   app_name:    string
   vendor:      string
+  domain:      string
   logo_letter: string
   logo_bg:     string
+  logo_url:    string | null
   app_group:   AppGroup | null
   profile:     { fields: AppFields; dlp: DLPActivities } | null
 }
@@ -220,12 +223,7 @@ export function CapabilityMatrix({ rows }: { rows: AppRow[] }) {
                 {/* App name — sticky left */}
                 <td className="sticky left-0 z-10 w-56 px-4 py-3 bg-inherit">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <span
-                      className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white"
-                      style={{ backgroundColor: row.logo_bg }}
-                    >
-                      {row.logo_letter}
-                    </span>
+                    <AppLogo domain={row.domain} letter={row.logo_letter} bg={row.logo_bg} logoUrl={row.logo_url} size={28} radius="rounded-full" />
                     <div className="min-w-0">
                       <div className="font-medium text-foreground truncate text-xs">{row.app_name}</div>
                       <div className="text-[10px] text-muted-foreground/50 truncate">{row.vendor}</div>

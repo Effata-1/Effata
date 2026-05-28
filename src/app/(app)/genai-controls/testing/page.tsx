@@ -21,7 +21,7 @@ export default async function TestingLabPage() {
       : Promise.resolve({ data: [] as GenAIPolicy[] }),
     supabase
       .from('genai_apps')
-      .select('app_id, app_name, vendor, logo_letter, logo_bg')
+      .select('app_id, app_name, vendor, domain, logo_letter, logo_bg, logo_url')
       .order('app_name'),
     orgId
       ? supabase

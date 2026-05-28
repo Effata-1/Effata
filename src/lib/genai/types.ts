@@ -57,20 +57,20 @@ export interface BreachInfo {
 
 export const APP_GROUPS = [
   'AI Chatbots',
-  'Productivity Copilots',
-  'Coding Assistants',
-  'Document AI',
-  'Data Analysis AI',
-  'Search & Knowledge AI',
-  'Customer Support AI',
-  'Sales & CRM AI',
-  'Workflow & Automation AI',
-  'Creative & Design AI',
-  'Meeting & Transcription AI',
-  'Browser AI Extensions',
+  'AI Productivity Copilots',
+  'AI Coding Assistants',
+  'AI Document Tools',
+  'AI Data Analysis',
+  'AI Search & Knowledge',
+  'AI Customer Support',
+  'AI Sales & CRM',
+  'AI Workflow & Automation',
+  'AI Creative & Design',
+  'AI Meeting & Transcription',
+  'AI Browser Extensions',
   'AI Agents',
-  'Model Platforms & AI APIs',
-  'AI Code Execution & Notebook Tools',
+  'AI Model Platforms & APIs',
+  'AI Code Execution & Notebooks',
 ] as const
 
 export type AppGroup = typeof APP_GROUPS[number]
@@ -89,6 +89,7 @@ export interface GenAIApp {
   app_type: string
   logo_letter: string
   logo_bg: string
+  logo_url: string | null
   status: string
   last_updated: string | null
   app_group: AppGroup | null

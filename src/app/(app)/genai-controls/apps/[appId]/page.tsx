@@ -90,7 +90,7 @@ export default async function GenAIAppProfilePage({
       {/* App header */}
       <div className="rounded-xl border border-border bg-card/50 p-5 shadow-sm">
         <div className="flex items-start gap-4">
-          <AppLogo domain={typedApp.domain} letter={typedApp.logo_letter} bg={typedApp.logo_bg} size={48} />
+          <AppLogo domain={typedApp.domain} letter={typedApp.logo_letter} bg={typedApp.logo_bg} logoUrl={typedApp.logo_url} size={48} />
           <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold text-foreground">{typedApp.app_name}</h1>
             <p className="text-sm text-muted-foreground/80">{typedApp.vendor} · {typedApp.domain} · {typedApp.app_type}</p>

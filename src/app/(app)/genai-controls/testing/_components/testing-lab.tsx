@@ -218,7 +218,7 @@ export function TestingLab({
   notifications,
 }: {
   policies:      GenAIPolicy[]
-  apps:          Array<{ app_id: string; app_name: string; vendor: string; logo_letter: string; logo_bg: string }>
+  apps:          Array<{ app_id: string; app_name: string; vendor: string; domain: string; logo_letter: string; logo_bg: string; logo_url: string | null }>
   notifications: CoachingNotification[]
 }) {
   const [appId,    setAppId]    = useState('')

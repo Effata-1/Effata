@@ -7,67 +7,43 @@ function rootDomain(domain: string): string {
 }
 
 interface Props {
-  domain: string
-  letter: string
-  bg:     string
-  size:   number
-  radius?: string
+  domain:   string
+  letter:   string
+  bg:       string
+  size:     number
+  radius?:  string
+  logoUrl?: string | null   // pre-resolved URL stored in DB — use directly when present
 }
 
-// Source cascade:
-// 1. logo.clearbit.com  — proper brand logo (free tier, works for most major companies)
-// 2. Google favicon S2  — always available, smaller but recognisable icon
-// 3. Letter avatar       — guaranteed fallback
+export function AppLogo({ domain, letter, bg, size, radius = 'rounded-xl', logoUrl }: Props) {
+  const [failed, setFailed] = useState(false)
 
-const SOURCES = (domain: string) => {
-  const root = rootDomain(domain)
-  return [
-    `https://logo.clearbit.com/${root}`,
-    `https://www.google.com/s2/favicons?domain_url=https://${root}&sz=128`,
-  ]
-}
-
-export function AppLogo({ domain, letter, bg, size, radius = 'rounded-xl' }: Props) {
-  const sources = SOURCES(domain)
-  const [srcIndex, setSrcIndex] = useState(0)
-  const [allFailed, setAllFailed] = useState(false)
-
-  function handleError() {
-    if (srcIndex + 1 < sources.length) {
-      setSrcIndex(i => i + 1)
-    } else {
-      setAllFailed(true)
-    }
-  }
+  // Use the stored URL first; fall back to Google Favicon API when not stored yet.
+  const src = logoUrl ?? `https://www.google.com/s2/favicons?domain_url=https://${rootDomain(domain)}&sz=128`
 
   const containerStyle: React.CSSProperties = {
-    width:       size,
-    height:      size,
-    flexShrink:  0,
-    overflow:    'hidden',
-    display:     'flex',
-    alignItems:  'center',
+    width:          size,
+    height:         size,
+    flexShrink:     0,
+    overflow:       'hidden',
+    display:        'flex',
+    alignItems:     'center',
     justifyContent: 'center',
-    backgroundColor: allFailed ? bg : '#ffffff',
+    backgroundColor: failed ? bg : '#ffffff',
   }
 
   return (
     <div className={radius} style={containerStyle}>
-      {allFailed ? (
+      {failed ? (
         <span style={{ fontWeight: 700, fontSize: size * 0.38, color: 'white', userSelect: 'none' }}>
           {letter}
         </span>
       ) : (
         <img
-          key={srcIndex}
-          src={sources[srcIndex]}
+          src={src}
           alt=""
-          onError={handleError}
-          style={{
-            width:      srcIndex === 0 ? '82%' : '68%',
-            height:     srcIndex === 0 ? '82%' : '68%',
-            objectFit:  'contain',
-          }}
+          onError={() => setFailed(true)}
+          style={{ width: '72%', height: '72%', objectFit: 'contain' }}
         />
       )}
     </div>

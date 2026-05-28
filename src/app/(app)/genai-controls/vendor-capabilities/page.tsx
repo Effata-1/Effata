@@ -6,8 +6,10 @@ interface AppRow {
   app_id:      string
   app_name:    string
   vendor:      string
+  domain:      string
   logo_letter: string
   logo_bg:     string
+  logo_url:    string | null
   app_group:   AppGroup | null
   profile:     { fields: AppFields; dlp: DLPActivities } | null
 }
@@ -18,7 +20,7 @@ export default async function VendorCapabilitiesPage() {
   const [appsResult, profilesResult] = await Promise.all([
     supabase
       .from('genai_apps')
-      .select('app_id, app_name, vendor, logo_letter, logo_bg, app_group')
+      .select('app_id, app_name, vendor, domain, logo_letter, logo_bg, logo_url, app_group')
       .eq('status', 'active')
       .order('app_name'),
     supabase
@@ -35,8 +37,10 @@ export default async function VendorCapabilitiesPage() {
     app_id:      a.app_id,
     app_name:    a.app_name,
     vendor:      a.vendor,
+    domain:      a.domain,
     logo_letter: a.logo_letter,
     logo_bg:     a.logo_bg,
+    logo_url:    (a.logo_url as string | null) ?? null,
     app_group:   (a.app_group as AppGroup | null) ?? null,
     profile:     profileMap.get(a.app_id) ?? null,
   }))

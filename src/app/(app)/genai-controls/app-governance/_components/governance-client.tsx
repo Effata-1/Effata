@@ -10,6 +10,7 @@ import { computeTrustScore } from '@/lib/genai/scoring'
 import { deleteGenAICategory, setAppGovernanceClassification } from '../actions'
 import { EditCategoryModal } from './edit-category-modal'
 import { ProhibitedCatalog } from './prohibited-catalog'
+import { AppLogo } from '../../apps/_components/app-logo'
 import type { GenAIGovernanceCategory } from '../actions'
 import type { GenAIApp, GenAIAppProfile, CustomerClassification, CustomerClass, DLPActivities } from '@/lib/genai/types'
 
@@ -169,12 +170,7 @@ function AppRow({
           onClick={() => setExpanded(v => !v)}
           className="flex items-center gap-3 flex-1 min-w-0 text-left group"
         >
-          <div
-            className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center text-foreground font-bold text-sm"
-            style={{ backgroundColor: app.logo_bg }}
-          >
-            {app.logo_letter}
-          </div>
+          <AppLogo domain={app.domain} letter={app.logo_letter} bg={app.logo_bg} logoUrl={app.logo_url} size={36} radius="rounded-xl" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-semibold text-foreground group-hover:text-blue-300 transition-colors">{app.app_name}</span>
