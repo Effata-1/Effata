@@ -1,125 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef } from 'react'
 import { cn } from '@/lib/utils'
-import { FIELD_LABELS, VALUE_DISPLAY } from '@/lib/genai/scoring'
+import { FIELD_LABELS, VALUE_DISPLAY, DLP_ACTIVITY_LABELS } from '@/lib/genai/scoring'
 import { GovernanceRecord } from './governance-record'
+import { AlertTriangle } from 'lucide-react'
 import type { AppFields, DLPActivities, BreachInfo, TrustScores, ApprovalStatus } from '@/lib/genai/types'
-
-type Dir = 'pos' | 'neg'
-
-// ── Section definitions ───────────────────────────────────────────────────────
-
-const ATTRIBUTE_SECTIONS = [
-  {
-    id:          'data-governance',
-    label:       'Data Governance & Privacy',
-    scoreKey:    'data_governance'    as keyof TrustScores,
-    scoreWeight: '30%',
-    fields:      ['dpa_available','customer_owns_data','trains_on_customer_data','opt_out_of_training','data_retention','data_deletion','data_residency','subprocessor_list','pii_sharing_third_parties','data_sharing_genai_vendor'],
-    dirs: {
-      dpa_available:'pos', customer_owns_data:'pos', trains_on_customer_data:'neg',
-      opt_out_of_training:'pos', data_retention:'pos', data_deletion:'pos',
-      data_residency:'pos', subprocessor_list:'pos',
-      pii_sharing_third_parties:'neg', data_sharing_genai_vendor:'neg',
-    } as Record<string, Dir>,
-  },
-  {
-    id:          'security',
-    label:       'Security & Compliance',
-    scoreKey:    'security_compliance' as keyof TrustScores,
-    scoreWeight: '20%',
-    fields:      ['soc2','iso27001','iso27018','fedramp','pci_dss','hipaa_baa','encryption_at_rest','encryption_in_transit','tenant_segregation'],
-    dirs: {
-      soc2:'pos', iso27001:'pos', iso27018:'pos', fedramp:'pos', pci_dss:'pos',
-      hipaa_baa:'pos', encryption_at_rest:'pos', encryption_in_transit:'pos', tenant_segregation:'pos',
-    } as Record<string, Dir>,
-  },
-  {
-    id:          'genai-risk',
-    label:       'GenAI Risk',
-    scoreKey:    'genai_risk' as keyof TrustScores,
-    scoreWeight: '15%',
-    fields:      ['model_provider_clear','prompt_retention_controls','connectors_agents_risk'],
-    dirs: {
-      model_provider_clear:'pos', prompt_retention_controls:'pos', connectors_agents_risk:'neg',
-    } as Record<string, Dir>,
-  },
-]
-
-const DLP_ROWS = [
-  { key: 'post_prompt',    label: 'Post / Prompt inspection',       weight: '30%' },
-  { key: 'upload',         label: 'Upload inspection',               weight: '30%' },
-  { key: 'login_instance', label: 'Tenant / Instance Identification', weight: '15%' },
-  { key: 'edit',           label: 'Edit inspection',                 weight: '10%' },
-  { key: 'response',       label: 'Response inspection',             weight: '5%'  },
-  { key: 'download',       label: 'Download inspection',             weight: '5%'  },
-  { key: 'attach',         label: 'Attachment inspection',           weight: '5%'  },
-]
-
-const BREACH_ROWS: { key: keyof BreachInfo; label: string; dir: Dir }[] = [
-  { key: 'recent_breach',    label: 'Recent breach (past 12 months)',  dir: 'neg' },
-  { key: 'older_breach',     label: 'Older breach history',            dir: 'neg' },
-  { key: 'breach_disclosed', label: 'Breach impact clearly disclosed', dir: 'pos' },
-  { key: 'source_disclosure',label: 'Public disclosure available',     dir: 'pos' },
-  { key: 'breach_remediated',label: 'Remediation / closure evidence',  dir: 'pos' },
-]
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function isRisky(value: string, dir: Dir): boolean {
-  return dir === 'pos' ? value === 'no' : value === 'yes'
-}
-function isWarning(value: string, dir: Dir): boolean {
-  if (dir === 'pos') return ['no-published', 'partial', 'tier-dependent'].includes(value)
-  return ['partial', 'no-published'].includes(value)
-}
-
-function scoreColor(s: number) {
-  return s >= 80 ? 'text-green-400' : s >= 60 ? 'text-blue-400' : s >= 40 ? 'text-yellow-400' : 'text-red-400'
-}
-
-function ValueBadge({ value, dir }: { value: string; dir?: Dir }) {
-  const meta = VALUE_DISPLAY[value] ?? { label: value, color: 'muted' }
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className={cn(
-        'text-xs font-semibold',
-        meta.color === 'green' ? 'text-green-400' :
-        meta.color === 'red'   ? 'text-red-400'   :
-        meta.color === 'amber' ? 'text-yellow-400' :
-        meta.color === 'blue'  ? 'text-blue-400'  :
-        'text-muted-foreground/80 italic',
-      )}>
-        {meta.label}
-      </span>
-      {meta.note && (
-        <span className="text-[11px] text-muted-foreground/50 leading-relaxed">{meta.note}</span>
-      )}
-    </div>
-  )
-}
-
-function AttributeRow({ label, value, dir }: { label: string; value: string; dir: Dir }) {
-  const risky   = isRisky(value, dir)
-  const warning = isWarning(value, dir)
-  return (
-    <tr className="border-b border-border/40 last:border-0 hover:bg-muted/10 transition-colors">
-      <td className="py-2.5 pr-6 text-xs text-foreground/70 w-[45%] align-top">
-        <div className="flex items-start gap-1.5 pt-0.5">
-          {(risky || warning) && (
-            <span className={cn('w-1.5 h-1.5 rounded-full shrink-0 mt-0.5', risky ? 'bg-red-400' : 'bg-yellow-400')} />
-          )}
-          {!risky && !warning && <span className="w-1.5 h-1.5 shrink-0" />}
-          {label}
-        </div>
-      </td>
-      <td className="py-2.5 align-top">
-        <ValueBadge value={value} dir={dir} />
-      </td>
-    </tr>
-  )
-}
 
 // ── Governance record shape (passed from server) ──────────────────────────────
 
@@ -130,6 +16,111 @@ export interface GovRecord {
   review_date:      string | null
   next_review_date: string | null
   notes:            string | null
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function scoreColor(s: number) {
+  return s >= 80 ? 'text-green-400' : s >= 60 ? 'text-blue-400' : s >= 40 ? 'text-yellow-400' : 'text-red-400'
+}
+
+function scoreBorderColor(s: number) {
+  return s >= 80 ? 'border-t-green-500' : s >= 60 ? 'border-t-blue-500' : s >= 40 ? 'border-t-yellow-500' : 'border-t-red-500'
+}
+
+function FieldRow({ label, value, isNegative }: { label: string; value: string; isNegative?: boolean }) {
+  const meta = VALUE_DISPLAY[value] ?? { label: value, color: 'muted' }
+  return (
+    <tr className="border-b border-border/40 last:border-0 hover:bg-muted/10 transition-colors">
+      <td className="py-2.5 pr-6 text-xs text-foreground/70 w-[45%] align-top">
+        {label}
+      </td>
+      <td className="py-2.5 align-top">
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-1.5">
+            <span className={cn(
+              'text-xs font-semibold',
+              meta.color === 'green' ? 'text-green-400' :
+              meta.color === 'red'   ? 'text-red-400'   :
+              meta.color === 'amber' ? 'text-yellow-400' :
+              meta.color === 'blue'  ? 'text-blue-400'  :
+              'text-muted-foreground/80 italic',
+            )}>
+              {meta.label}
+            </span>
+            {isNegative && value === 'yes' && (
+              <AlertTriangle className="h-3 w-3 text-red-400 flex-shrink-0" />
+            )}
+          </div>
+          {meta.note && (
+            <span className="text-[11px] text-muted-foreground/50 leading-relaxed">{meta.note}</span>
+          )}
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+function SectionCard({
+  id, title, score, scoreWeight, children,
+}: {
+  id: string
+  title: string
+  score: number | null
+  scoreWeight: string
+  children: React.ReactNode
+}) {
+  return (
+    <div id={id} className={cn(
+      'rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm border-t-2',
+      score !== null ? scoreBorderColor(score) : 'border-t-border',
+    )}>
+      <div className="px-5 py-3 border-b border-border bg-card/80 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        {score !== null && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground/50">{scoreWeight} of score</span>
+            <span className={cn('text-sm font-bold', scoreColor(score))}>{score}/100</span>
+          </div>
+        )}
+      </div>
+      <div className="px-5 py-1">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-border/50">
+              <th className="text-left text-[11px] text-muted-foreground/50 uppercase tracking-wide py-2 w-[45%]">Attribute</th>
+              <th className="text-left text-[11px] text-muted-foreground/50 uppercase tracking-wide py-2">Value</th>
+            </tr>
+          </thead>
+          <tbody>{children}</tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// ── Nav pill ──────────────────────────────────────────────────────────────────
+
+function NavPill({
+  label, score, onClick,
+}: { label: string; score: number | null; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex flex-col items-center px-3 py-2 rounded-lg border border-border bg-card/50 hover:bg-card hover:border-border-strong transition-all text-xs font-medium text-foreground/70 hover:text-foreground shrink-0',
+      )}
+    >
+      {score !== null && (
+        <div className={cn('w-full h-0.5 rounded-full mb-1.5', scoreColor(score).replace('text-', 'bg-'))} />
+      )}
+      {label}
+      {score !== null && (
+        <span className={cn('text-[10px] font-bold mt-0.5', scoreColor(score))}>{score}</span>
+      )}
+    </button>
+  )
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -144,170 +135,94 @@ interface Props {
 }
 
 export function AppDetailTabs({ fields, dlp, breach, score, appId, govRecord }: Props) {
-  const [tab,           setTab]           = useState<'attributes' | 'usage-risk' | 'notes'>('attributes')
-  const [activeSection, setActiveSection] = useState(ATTRIBUTE_SECTIONS[0].id)
-  const [riskyOnly,     setRiskyOnly]     = useState(false)
+  const refs = {
+    'data-governance':    useRef<HTMLDivElement>(null),
+    'dlp-activity':       useRef<HTMLDivElement>(null),
+    'security':           useRef<HTMLDivElement>(null),
+    'genai-risk':         useRef<HTMLDivElement>(null),
+    'breach':             useRef<HTMLDivElement>(null),
+    'notes':              useRef<HTMLDivElement>(null),
+  }
 
-  const currentSection = ATTRIBUTE_SECTIONS.find(s => s.id === activeSection) ?? ATTRIBUTE_SECTIONS[0]
+  function scrollTo(id: keyof typeof refs) {
+    refs[id].current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
-  // ── Tab bar ─────────────────────────────────────────────────────────────────
+  const NAV = [
+    { id: 'data-governance' as const, label: 'Data Governance', score: score?.data_governance ?? null },
+    { id: 'dlp-activity'    as const, label: 'DLP Activity',    score: score?.dlp_activity    ?? null },
+    { id: 'security'        as const, label: 'Security',        score: score?.security_compliance ?? null },
+    { id: 'genai-risk'      as const, label: 'GenAI Risk',      score: score?.genai_risk      ?? null },
+    { id: 'breach'          as const, label: 'Breach',          score: score?.breach_transparency ?? null },
+    { id: 'notes'           as const, label: 'Notes',           score: null },
+  ]
+
   return (
-    <div className="rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm">
-      <div className="flex items-center border-b border-border px-4">
-        {([
-          { id: 'attributes', label: 'Attributes' },
-          { id: 'usage-risk', label: 'Usage & Risk' },
-          { id: 'notes',      label: 'Notes' },
-        ] as const).map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={cn(
-              'px-4 py-3 text-xs font-semibold uppercase tracking-wide transition-colors border-b-2 -mb-px',
-              tab === t.id
-                ? 'border-blue-500 text-blue-400'
-                : 'border-transparent text-muted-foreground/60 hover:text-foreground/70',
-            )}
-          >
-            {t.label}
-          </button>
+    <div className="space-y-4">
+      {/* Section navigation */}
+      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+        {NAV.map(n => (
+          <NavPill key={n.id} label={n.label} score={n.score} onClick={() => scrollTo(n.id)} />
         ))}
       </div>
 
-      {/* ── ATTRIBUTES ──────────────────────────────────────────────────────── */}
-      {tab === 'attributes' && (
-        <>
-          {/* Toolbar */}
-          <div className="flex items-center px-4 py-2 border-b border-border/50 bg-card/30">
-            <button
-              type="button"
-              onClick={() => setRiskyOnly(v => !v)}
-              className="flex items-center gap-2 select-none"
-            >
-              <div className={cn(
-                'w-8 h-4 rounded-full transition-colors relative shrink-0',
-                riskyOnly ? 'bg-amber-500' : 'bg-muted',
-              )}>
-                <div className={cn(
-                  'absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform',
-                  riskyOnly ? 'translate-x-4' : 'translate-x-0.5',
-                )} />
-              </div>
-              <span className="text-xs text-muted-foreground/60">Show risky attributes only</span>
-            </button>
-          </div>
+      {/* ── Data Governance & Privacy ──────────────────────────────────────── */}
+      <div ref={refs['data-governance']}>
+        {fields ? (
+          <SectionCard id="data-governance" title="Data Governance & Privacy" score={score?.data_governance ?? null} scoreWeight="30%">
+            {(['trains_on_customer_data','opt_out_of_training','dpa_available','customer_owns_data','data_retention','data_deletion','data_residency','subprocessor_list','pii_sharing_third_parties','data_sharing_genai_vendor'] as const).map(key => (
+              <FieldRow
+                key={key}
+                label={FIELD_LABELS[key]}
+                value={fields[key]}
+                isNegative={['trains_on_customer_data','pii_sharing_third_parties','data_sharing_genai_vendor'].includes(key)}
+              />
+            ))}
+          </SectionCard>
+        ) : null}
+      </div>
 
-          {fields ? (
-            <div className="flex min-h-[320px]">
-              {/* Left nav */}
-              <div className="w-52 border-r border-border shrink-0 py-1">
-                {ATTRIBUTE_SECTIONS.map(section => {
-                  const s = score ? (score[section.scoreKey] as number) : null
-                  const active = activeSection === section.id
-                  return (
-                    <button
-                      key={section.id}
-                      onClick={() => setActiveSection(section.id)}
-                      className={cn(
-                        'w-full text-left px-4 py-2.5 text-xs transition-colors',
-                        active
-                          ? 'bg-blue-500/10 text-foreground font-semibold'
-                          : 'text-muted-foreground/70 hover:text-foreground/70 hover:bg-muted/30',
-                      )}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate">{section.label}</span>
-                        {s !== null && (
-                          <span className={cn('text-[11px] font-bold shrink-0', scoreColor(s))}>{s}</span>
-                        )}
-                      </div>
-                      {active && s !== null && (
-                        <p className="text-[10px] text-muted-foreground/50 mt-0.5">{section.scoreWeight} of trust score</p>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-
-              {/* Attribute table */}
-              <div className="flex-1 px-6 py-4 overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border/50">
-                      <th className="text-left text-[11px] text-muted-foreground/50 uppercase tracking-wide pb-2 w-[45%]">Attribute</th>
-                      <th className="text-left text-[11px] text-muted-foreground/50 uppercase tracking-wide pb-2">Value</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {currentSection.fields
-                      .filter(key => {
-                        if (!riskyOnly) return true
-                        const val = fields[key as keyof AppFields] as string
-                        const dir = currentSection.dirs[key]
-                        return isRisky(val, dir) || isWarning(val, dir)
-                      })
-                      .map(key => (
-                        <AttributeRow
-                          key={key}
-                          label={FIELD_LABELS[key] ?? key}
-                          value={fields[key as keyof AppFields] as string}
-                          dir={currentSection.dirs[key]}
-                        />
-                      ))}
-                    {riskyOnly && currentSection.fields.every(key => {
-                      const val = fields[key as keyof AppFields] as string
-                      const dir = currentSection.dirs[key]
-                      return !isRisky(val, dir) && !isWarning(val, dir)
-                    }) && (
-                      <tr>
-                        <td colSpan={2} className="py-6 text-center text-xs text-muted-foreground/50">
-                          No risky attributes in this section.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : (
-            <div className="py-12 text-center text-sm text-muted-foreground/50">
-              No attribute data available for this app yet.
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ── USAGE & RISK ────────────────────────────────────────────────────── */}
-      {tab === 'usage-risk' && (
-        <div className="divide-y divide-border/60">
-          {/* DLP Activity Support */}
-          <div className="px-6 py-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-foreground">DLP Activity Support</h3>
+      {/* ── DLP Activity Support ───────────────────────────────────────────── */}
+      <div ref={refs['dlp-activity']}>
+        {dlp ? (
+          <div id="dlp-activity" className={cn(
+            'rounded-xl border border-border bg-card/50 overflow-hidden shadow-sm border-t-2',
+            score ? scoreBorderColor(score.dlp_activity) : 'border-t-border',
+          )}>
+            <div className="px-5 py-3 border-b border-border bg-card/80 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-foreground">DLP Activity Support</h2>
               {score && (
-                <span className={cn('text-sm font-bold', scoreColor(score.dlp_activity))}>
-                  {score.dlp_activity}/100
-                  <span className="text-xs font-normal text-muted-foreground/60 ml-1.5">· 30% of score</span>
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground/50">30% of score</span>
+                  <span className={cn('text-sm font-bold', scoreColor(score.dlp_activity))}>{score.dlp_activity}/100</span>
+                </div>
               )}
             </div>
-            {dlp ? (
+            <div className="px-5 py-1">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-border/60">
-                    <th className="text-left text-[11px] text-muted-foreground/50 uppercase tracking-wide pb-2">Activity</th>
-                    <th className="text-left text-[11px] text-muted-foreground/50 uppercase tracking-wide pb-2">DLP Support</th>
-                    <th className="text-right text-[11px] text-muted-foreground/50 uppercase tracking-wide pb-2">Weight</th>
+                  <tr className="border-b border-border/50">
+                    <th className="text-left text-[11px] text-muted-foreground/50 uppercase tracking-wide py-2 w-[45%]">Activity</th>
+                    <th className="text-left text-[11px] text-muted-foreground/50 uppercase tracking-wide py-2">DLP Support</th>
+                    <th className="text-right text-[11px] text-muted-foreground/50 uppercase tracking-wide py-2">Weight</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {DLP_ROWS.map(({ key, label, weight }) => {
-                    const val  = dlp[key as keyof DLPActivities]
+                  {([
+                    { key: 'post_prompt',    weight: '30%' },
+                    { key: 'upload',         weight: '30%' },
+                    { key: 'login_instance', weight: '15%' },
+                    { key: 'edit',           weight: '10%' },
+                    { key: 'response',       weight: '5%'  },
+                    { key: 'download',       weight: '5%'  },
+                    { key: 'attach',         weight: '5%'  },
+                  ] as const).map(({ key, weight }) => {
+                    const val  = dlp[key]
                     const meta = VALUE_DISPLAY[val] ?? { label: val, color: 'muted' }
                     const dot  = meta.color === 'green' ? 'bg-green-500' : meta.color === 'amber' ? 'bg-yellow-500' : meta.color === 'red' ? 'bg-red-500' : 'bg-muted'
                     return (
-                      <tr key={key} className="border-b border-border/40 last:border-0">
-                        <td className="py-2.5 text-xs text-foreground/70">{label}</td>
+                      <tr key={key} className="border-b border-border/40 last:border-0 hover:bg-muted/10 transition-colors">
+                        <td className="py-2.5 text-xs text-foreground/70">{DLP_ACTIVITY_LABELS[key]}</td>
                         <td className="py-2.5">
                           <span className={cn('inline-flex items-center gap-1.5 text-xs font-semibold',
                             meta.color === 'green' ? 'text-green-400' :
@@ -324,59 +239,67 @@ export function AppDetailTabs({ fields, dlp, breach, score, appId, govRecord }: 
                   })}
                 </tbody>
               </table>
-            ) : (
-              <p className="text-xs text-muted-foreground/50 py-4">No DLP activity data available.</p>
-            )}
-          </div>
-
-          {/* Breach & Transparency */}
-          <div className="px-6 py-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-foreground">Breach & Transparency</h3>
-              {score && (
-                <span className={cn('text-sm font-bold', scoreColor(score.breach_transparency))}>
-                  {score.breach_transparency}/100
-                  <span className="text-xs font-normal text-muted-foreground/60 ml-1.5">· 5% of score</span>
-                </span>
-              )}
             </div>
-            {breach ? (
-              <>
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border/60">
-                      <th className="text-left text-[11px] text-muted-foreground/50 uppercase tracking-wide pb-2 w-[45%]">Factor</th>
-                      <th className="text-left text-[11px] text-muted-foreground/50 uppercase tracking-wide pb-2">Value</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {BREACH_ROWS.map(({ key, label, dir }) => (
-                      <AttributeRow key={key} label={label} value={breach[key] as string} dir={dir} />
-                    ))}
-                  </tbody>
-                </table>
-                {breach.breach_name && (
-                  <div className="mt-4 p-3 rounded-lg bg-red-500/5 border border-red-500/20">
+          </div>
+        ) : null}
+      </div>
+
+      {/* ── Security & Compliance ──────────────────────────────────────────── */}
+      <div ref={refs['security']}>
+        {fields ? (
+          <SectionCard id="security" title="Security & Compliance" score={score?.security_compliance ?? null} scoreWeight="20%">
+            {(['soc2','iso27001','iso27018','fedramp','pci_dss','hipaa_baa','encryption_at_rest','encryption_in_transit','tenant_segregation'] as const).map(key => (
+              <FieldRow key={key} label={FIELD_LABELS[key]} value={fields[key]} />
+            ))}
+          </SectionCard>
+        ) : null}
+      </div>
+
+      {/* ── GenAI-Specific Risk ────────────────────────────────────────────── */}
+      <div ref={refs['genai-risk']}>
+        {fields ? (
+          <SectionCard id="genai-risk" title="GenAI-Specific Risk" score={score?.genai_risk ?? null} scoreWeight="15%">
+            {(['trains_on_customer_data','opt_out_of_training','prompt_retention_controls','model_provider_clear','connectors_agents_risk'] as const).map(key => (
+              <FieldRow
+                key={key}
+                label={FIELD_LABELS[key]}
+                value={fields[key]}
+                isNegative={['trains_on_customer_data','connectors_agents_risk'].includes(key)}
+              />
+            ))}
+          </SectionCard>
+        ) : null}
+      </div>
+
+      {/* ── Breach & Transparency ─────────────────────────────────────────── */}
+      <div ref={refs['breach']}>
+        {breach ? (
+          <SectionCard id="breach" title="Breach & Transparency" score={score?.breach_transparency ?? null} scoreWeight="5%">
+            <FieldRow label="Recent breach (past 12 months)"  value={breach.recent_breach}    isNegative />
+            <FieldRow label="Older breach history"            value={breach.older_breach}     isNegative />
+            <FieldRow label="Breach impact clearly disclosed" value={breach.breach_disclosed} />
+            <FieldRow label="Public disclosure available"     value={breach.source_disclosure} />
+            <FieldRow label="Remediation / closure evidence"  value={breach.breach_remediated} />
+            {breach.breach_name && (
+              <tr>
+                <td colSpan={2} className="py-3">
+                  <div className="rounded-lg bg-red-500/5 border border-red-500/20 p-3">
                     <p className="text-xs font-semibold text-red-400 mb-1">Breach Record</p>
                     <p className="text-xs text-foreground">{breach.breach_name}</p>
                     {breach.breach_date && <p className="text-xs text-muted-foreground/70 mt-0.5">{breach.breach_date}</p>}
                     {breach.breach_description && <p className="text-xs text-muted-foreground mt-1">{breach.breach_description}</p>}
                   </div>
-                )}
-              </>
-            ) : (
-              <p className="text-xs text-muted-foreground/50 py-4">No breach data available.</p>
+                </td>
+              </tr>
             )}
-          </div>
-        </div>
-      )}
+          </SectionCard>
+        ) : null}
+      </div>
 
-      {/* ── NOTES ───────────────────────────────────────────────────────────── */}
-      {tab === 'notes' && (
-        <div className="px-6 py-5">
-          <GovernanceRecord appId={appId} initial={govRecord} initiallyOpen />
-        </div>
-      )}
+      {/* ── Notes / Governance Record ─────────────────────────────────────── */}
+      <div ref={refs['notes']}>
+        <GovernanceRecord appId={appId} initial={govRecord} initiallyOpen />
+      </div>
     </div>
   )
 }
