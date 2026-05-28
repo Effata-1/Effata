@@ -24,7 +24,7 @@ export const ACTIONS: Record<ActionCode, { label: string; cell: string; text: st
   'not-set':    { label: '—',                     cell: 'bg-transparent border-border',            text: 'text-muted-foreground/30' },
 }
 
-// ── Default actions by system_level per governance category ───────────────────
+// ── Defaults by system_level per governance category ──────────────────────────
 
 type LevelMap = Partial<Record<SystemLevel, ActionCode>>
 
@@ -50,8 +50,6 @@ const UL_FN_DEFAULTS: Record<string, LevelMap> = {
 }
 
 const FILENAME_LEVELS: SystemLevel[] = ['highly_confidential', 'secret']
-
-// ── System tag order ──────────────────────────────────────────────────────────
 
 export const SYSTEM_TAG_ORDER = [
   'enterprise-approved',
@@ -94,9 +92,85 @@ interface Props {
 
 type CellOverride = { action: ActionCode; coachingId: string | null }
 
-// ── Main client component ─────────────────────────────────────────────────────
+// ── Cell component ────────────────────────────────────────────────────────────
 
-export function ControlMatrixClient({ categories, overrides, labels, customerLabels }: Props) {
+function MatrixCell({
+  rowKey, cat, effectiveAction, effectiveCoaching, defaultAction, isOverride,
+  notifications, onAction, onCoaching, onReset,
+}: {
+  rowKey:           string
+  cat:              MatrixCategory
+  effectiveAction:  ActionCode
+  effectiveCoaching: string | null
+  defaultAction:    ActionCode | null
+  isOverride:       boolean
+  notifications:    { id: string; name: string; coach_label: string | null }[]
+  onAction:         (action: ActionCode) => void
+  onCoaching:       (id: string | null) => void
+  onReset:          () => void
+}) {
+  const meta = ACTIONS[effectiveAction]
+  const selectedNotif = notifications.find(n => n.id === effectiveCoaching)
+
+  return (
+    <td key={cat.id} className="px-2 py-2.5 align-top min-w-[160px]">
+      <div className="space-y-1.5">
+
+        {/* Action row */}
+        <div className="flex items-center gap-1">
+          <div className={cn('relative flex-1 rounded-md border px-2 py-1', meta.cell)}>
+            <select
+              value={effectiveAction}
+              onChange={e => onAction(e.target.value as ActionCode)}
+              className={cn('w-full appearance-none bg-transparent text-[11px] font-semibold focus:outline-none cursor-pointer', meta.text)}
+            >
+              {(Object.entries(ACTIONS) as [ActionCode, typeof ACTIONS[ActionCode]][])
+                .filter(([code]) => code !== 'not-set' || effectiveAction === 'not-set')
+                .map(([code, m]) => (
+                  <option key={code} value={code} className="bg-card text-foreground">{m.label}</option>
+                ))}
+            </select>
+          </div>
+          {isOverride && defaultAction && (
+            <button
+              onClick={onReset}
+              title={`Reset to default (${ACTIONS[defaultAction].label})`}
+              className="shrink-0 text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
+            >
+              <RotateCcw className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+
+        {/* Coaching row — subtle, no box */}
+        <div className="flex items-center gap-1">
+          {selectedNotif?.coach_label && (
+            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 shrink-0">
+              {selectedNotif.coach_label}
+            </span>
+          )}
+          <select
+            value={effectiveCoaching ?? ''}
+            onChange={e => onCoaching(e.target.value || null)}
+            className="flex-1 min-w-0 appearance-none bg-transparent text-[9px] text-muted-foreground/40 hover:text-muted-foreground/70 focus:outline-none cursor-pointer transition-colors"
+          >
+            <option value="" className="bg-card text-foreground">— No coaching —</option>
+            {notifications.map(n => (
+              <option key={n.id} value={n.id} className="bg-card text-foreground">
+                {n.coach_label ? `${n.coach_label} — ${n.name}` : n.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+      </div>
+    </td>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+export function ControlMatrixClient({ categories, overrides, labels, customerLabels, notifications }: Props) {
   const [localLabels] = useState<OrgClassificationLabel[]>(
     [...labels].sort((a, b) => a.priority - b.priority),
   )
@@ -117,9 +191,6 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     ...categories.filter(c => !c.system_tag),
   ]
 
-  const [selectedCatId, setSelectedCatId] = useState<string>(orderedCats[0]?.id ?? '')
-  const selectedCat = orderedCats.find(c => c.id === selectedCatId) ?? orderedCats[0]
-
   // ── Flat row list ───────────────────────────────────────────────────────────
 
   type FlatItem =
@@ -132,9 +203,9 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
   let rowIndex = 0
 
   flatItems.push({ type: 'section', sectionId: 'pp', label: 'Prompt / Upload (Content Detection)', color: 'text-orange-400' })
-  localLabels.forEach(lbl => {
+  localLabels.forEach(lbl =>
     flatItems.push({ type: 'row', rowKey: `pp|${lbl.id}`, label: lbl, sectionId: 'pp', ri: rowIndex++ })
-  })
+  )
 
   const hasCustomerLabels = customerLabels.length > 0
   flatItems.push({
@@ -143,9 +214,9 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     color: hasCustomerLabels ? 'text-orange-400' : 'text-muted-foreground/40',
   })
   if (hasCustomerLabels) {
-    customerLabels.forEach(clbl => {
+    customerLabels.forEach(clbl =>
       flatItems.push({ type: 'clabel-row', rowKey: `ul|dc|clabel:${clbl.id}`, clabel: clbl, sectionId: 'ul_dc', ri: rowIndex++ })
-    })
+    )
   } else {
     flatItems.push({ type: 'clabel-empty', sectionId: 'ul_dc' })
   }
@@ -153,9 +224,9 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
   const filenameLabels = localLabels.filter(lbl => lbl.system_level && FILENAME_LEVELS.includes(lbl.system_level as SystemLevel))
   if (filenameLabels.length > 0) {
     flatItems.push({ type: 'section', sectionId: 'ul_fn', label: 'Upload — Filename Detection', color: 'text-muted-foreground/60' })
-    filenameLabels.forEach(lbl => {
+    filenameLabels.forEach(lbl =>
       flatItems.push({ type: 'row', rowKey: `ul|fn|${lbl.id}`, label: lbl, sectionId: 'ul_fn', ri: rowIndex++ })
-    })
+    )
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -173,10 +244,24 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     return UL_DC_DEFAULTS[catTag]?.[clbl.system_level as SystemLevel] ?? null
   }
 
-  function handleChange(rowKey: string, cat: MatrixCategory, action: ActionCode) {
+  function resolveCell(rowKey: string, cat: MatrixCategory, defaultAction: ActionCode | null) {
+    const override = localOverrides[`${rowKey}::${cat.id}`] ?? null
+    return {
+      effectiveAction:   (override?.action ?? defaultAction ?? 'not-set') as ActionCode,
+      effectiveCoaching: override?.coachingId ?? null,
+      isOverride:        !!override,
+    }
+  }
+
+  function handleAction(rowKey: string, cat: MatrixCategory, action: ActionCode) {
     const coachingId = localOverrides[`${rowKey}::${cat.id}`]?.coachingId ?? null
     setLocalOverrides(prev => ({ ...prev, [`${rowKey}::${cat.id}`]: { action, coachingId } }))
     startTransition(async () => { await upsertControlMatrixCell(rowKey, cat.id, action, coachingId) })
+  }
+
+  function handleCoaching(rowKey: string, cat: MatrixCategory, coachingId: string | null, effectiveAction: ActionCode) {
+    setLocalOverrides(prev => ({ ...prev, [`${rowKey}::${cat.id}`]: { action: effectiveAction, coachingId } }))
+    startTransition(async () => { await upsertControlMatrixCell(rowKey, cat.id, effectiveAction, coachingId) })
   }
 
   function handleReset(rowKey: string, cat: MatrixCategory) {
@@ -187,59 +272,34 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-4">
-
-      {/* ── Category filter tabs ─────────────────────────────────────────────── */}
-      <div className="flex gap-2 flex-wrap">
-        {orderedCats.map(cat => {
-          const cc        = colorClasses(cat.color)
-          const isSelected = cat.id === selectedCat?.id
-          return (
-            <button
-              key={cat.id}
-              onClick={() => setSelectedCatId(cat.id)}
-              className={cn(
-                'px-3.5 py-1.5 rounded-lg border text-xs font-semibold transition-all',
-                isSelected
-                  ? cn(cc.bg, cc.text, cc.border, 'shadow-sm')
-                  : 'bg-transparent border-border/40 text-muted-foreground/50 hover:border-border hover:text-muted-foreground/80',
-              )}
-            >
-              {cat.name}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* ── Matrix table ─────────────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-border overflow-hidden shadow-sm">
+    <div className="rounded-xl border border-border overflow-hidden shadow-sm">
+      <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b border-border bg-card/80">
-              <th className="text-left text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide px-5 py-3 w-64">
+              <th className="text-left text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide px-5 py-3 w-48 sticky left-0 bg-card/80 z-10">
                 Activity / Label
               </th>
-              <th className="px-5 py-3 text-left">
-                {selectedCat && (
-                  <div>
-                    <p className={cn('text-xs font-bold', colorClasses(selectedCat.color).text)}>{selectedCat.name}</p>
-                    {!selectedCat.system_tag && (
-                      <p className="text-[9px] text-muted-foreground/40 font-normal mt-0.5">custom category</p>
-                    )}
-                  </div>
-                )}
-              </th>
+              {orderedCats.map(cat => {
+                const cc = colorClasses(cat.color)
+                return (
+                  <th key={cat.id} className="px-3 py-3 text-left min-w-[160px]">
+                    <p className={cn('text-xs font-bold', cc.text)}>{cat.name}</p>
+                    {!cat.system_tag && <p className="text-[9px] text-muted-foreground/40 font-normal mt-0.5">custom</p>}
+                  </th>
+                )
+              })}
             </tr>
           </thead>
 
           <tbody>
             {flatItems.map(item => {
 
-              // ── Section header ───────────────────────────────────────────────
+              // Section header
               if (item.type === 'section') {
                 return (
                   <tr key={`sec-${item.sectionId}`} className="bg-muted/25 border-y border-border/50">
-                    <td colSpan={2} className="px-5 py-1.5">
+                    <td colSpan={orderedCats.length + 1} className="px-5 py-1.5 sticky left-0">
                       <span className={cn('text-[10px] font-bold uppercase tracking-widest', item.color)}>
                         {item.label}
                       </span>
@@ -248,21 +308,18 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
                 )
               }
 
-              // ── No customer labels placeholder ───────────────────────────────
+              // No customer labels placeholder
               if (item.type === 'clabel-empty') {
                 return (
                   <tr key="clabel-empty">
-                    <td colSpan={2} className="px-5 py-5">
+                    <td colSpan={orderedCats.length + 1} className="px-5 py-4">
                       <div className="flex items-center gap-3 text-muted-foreground/40">
                         <Lock className="w-4 h-4 shrink-0" />
                         <div>
                           <p className="text-xs font-medium">Label detection disabled — no sensitivity labels configured</p>
                           <p className="text-[11px] mt-0.5">
                             Add your MIP or custom sensitivity labels to enable this control.{' '}
-                            <a
-                              href="/genai-controls/sensitivity-labels"
-                              className="text-primary/60 hover:text-primary transition-colors inline-flex items-center gap-0.5"
-                            >
+                            <a href="/genai-controls/sensitivity-labels" className="text-primary/60 hover:text-primary transition-colors inline-flex items-center gap-0.5">
                               Manage Sensitivity Labels <ArrowRight className="w-3 h-3" />
                             </a>
                           </p>
@@ -273,115 +330,65 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
                 )
               }
 
-              if (!selectedCat) return null
-
-              // ── Customer label row ───────────────────────────────────────────
+              // Customer label row
               if (item.type === 'clabel-row') {
                 const { rowKey, clabel, ri } = item
-                const cc             = colorClasses(clabel.color)
-                const override       = localOverrides[`${rowKey}::${selectedCat.id}`] ?? null
-                const defaultAction  = getCustomerLabelDefault(clabel, selectedCat.system_tag)
-                const effectiveAction = (override?.action ?? defaultAction ?? 'not-set') as ActionCode
-                const isOverride     = !!override
-                const meta           = ACTIONS[effectiveAction]
-
+                const cc = colorClasses(clabel.color)
                 return (
-                  <tr
-                    key={rowKey}
-                    className={cn('border-b border-border/40 hover:bg-card/30 transition-colors', ri % 2 !== 0 && 'bg-card/10')}
-                  >
-                    <td className="px-5 py-3">
+                  <tr key={rowKey} className={cn('border-b border-border/40 hover:bg-card/20 transition-colors', ri % 2 !== 0 && 'bg-card/10')}>
+                    <td className="px-5 py-2.5 sticky left-0 bg-inherit">
                       <div className="flex items-center gap-2">
                         <span className={cn('w-2 h-2 rounded-full shrink-0', cc.dot)} />
                         <span className={cn('text-xs font-semibold', cc.text)}>{clabel.display_name}</span>
                       </div>
                     </td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className={cn('relative rounded-md border px-2.5 py-1.5 min-w-[150px]', meta.cell)}>
-                          <select
-                            value={effectiveAction}
-                            onChange={e => handleChange(rowKey, selectedCat, e.target.value as ActionCode)}
-                            className={cn('w-full appearance-none bg-transparent text-[11px] font-semibold focus:outline-none cursor-pointer', meta.text)}
-                          >
-                            {(Object.entries(ACTIONS) as [ActionCode, typeof ACTIONS[ActionCode]][])
-                              .filter(([code]) => code !== 'not-set' || effectiveAction === 'not-set')
-                              .map(([code, m]) => (
-                                <option key={code} value={code} className="bg-card text-foreground">{m.label}</option>
-                              ))}
-                          </select>
-                        </div>
-                        {isOverride && defaultAction ? (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[9px] text-muted-foreground/40">Default: {ACTIONS[defaultAction].label}</span>
-                            <button
-                              onClick={() => handleReset(rowKey, selectedCat)}
-                              title="Reset to default"
-                              className="text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
-                            >
-                              <RotateCcw className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ) : effectiveAction !== 'not-set' && (
-                          <span className="text-[9px] text-muted-foreground/30 italic">recommended</span>
-                        )}
-                      </div>
-                    </td>
+                    {orderedCats.map(cat => {
+                      const defaultAction = getCustomerLabelDefault(clabel, cat.system_tag)
+                      const { effectiveAction, effectiveCoaching, isOverride } = resolveCell(rowKey, cat, defaultAction)
+                      return (
+                        <MatrixCell
+                          key={cat.id}
+                          rowKey={rowKey} cat={cat}
+                          effectiveAction={effectiveAction} effectiveCoaching={effectiveCoaching}
+                          defaultAction={defaultAction} isOverride={isOverride}
+                          notifications={notifications}
+                          onAction={a => handleAction(rowKey, cat, a)}
+                          onCoaching={id => handleCoaching(rowKey, cat, id, effectiveAction)}
+                          onReset={() => handleReset(rowKey, cat)}
+                        />
+                      )
+                    })}
                   </tr>
                 )
               }
 
-              // ── Effata system label row ──────────────────────────────────────
+              // Effata system label row
               const { rowKey, label: lbl, sectionId, ri } = item
-              const cc             = colorClasses(lbl.color)
-              const override       = localOverrides[`${rowKey}::${selectedCat.id}`] ?? null
-              const defaultAction  = getDefault(sectionId, lbl, selectedCat.system_tag)
-              const effectiveAction = (override?.action ?? defaultAction ?? 'not-set') as ActionCode
-              const isOverride     = !!override
-              const meta           = ACTIONS[effectiveAction]
-
+              const cc = colorClasses(lbl.color)
               return (
-                <tr
-                  key={rowKey}
-                  className={cn('border-b border-border/40 hover:bg-card/30 transition-colors', ri % 2 !== 0 && 'bg-card/10')}
-                >
-                  <td className="px-5 py-3">
+                <tr key={rowKey} className={cn('border-b border-border/40 hover:bg-card/20 transition-colors', ri % 2 !== 0 && 'bg-card/10')}>
+                  <td className="px-5 py-2.5 sticky left-0 bg-inherit">
                     <div className="flex items-center gap-2">
                       <span className={cn('w-2 h-2 rounded-full shrink-0', cc.dot)} />
                       <span className={cn('text-xs font-semibold', cc.text)}>{lbl.name}</span>
                     </div>
                   </td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className={cn('relative rounded-md border px-2.5 py-1.5 min-w-[150px]', meta.cell)}>
-                        <select
-                          value={effectiveAction}
-                          onChange={e => handleChange(rowKey, selectedCat, e.target.value as ActionCode)}
-                          className={cn('w-full appearance-none bg-transparent text-[11px] font-semibold focus:outline-none cursor-pointer', meta.text)}
-                        >
-                          {(Object.entries(ACTIONS) as [ActionCode, typeof ACTIONS[ActionCode]][])
-                            .filter(([code]) => code !== 'not-set' || effectiveAction === 'not-set')
-                            .map(([code, m]) => (
-                              <option key={code} value={code} className="bg-card text-foreground">{m.label}</option>
-                            ))}
-                        </select>
-                      </div>
-                      {isOverride && defaultAction ? (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[9px] text-muted-foreground/40">Default: {ACTIONS[defaultAction].label}</span>
-                          <button
-                            onClick={() => handleReset(rowKey, selectedCat)}
-                            title="Reset to default"
-                            className="text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
-                          >
-                            <RotateCcw className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ) : effectiveAction !== 'not-set' && (
-                        <span className="text-[9px] text-muted-foreground/30 italic">recommended</span>
-                      )}
-                    </div>
-                  </td>
+                  {orderedCats.map(cat => {
+                    const defaultAction = getDefault(sectionId, lbl, cat.system_tag)
+                    const { effectiveAction, effectiveCoaching, isOverride } = resolveCell(rowKey, cat, defaultAction)
+                    return (
+                      <MatrixCell
+                        key={cat.id}
+                        rowKey={rowKey} cat={cat}
+                        effectiveAction={effectiveAction} effectiveCoaching={effectiveCoaching}
+                        defaultAction={defaultAction} isOverride={isOverride}
+                        notifications={notifications}
+                        onAction={a => handleAction(rowKey, cat, a)}
+                        onCoaching={id => handleCoaching(rowKey, cat, id, effectiveAction)}
+                        onReset={() => handleReset(rowKey, cat)}
+                      />
+                    )
+                  })}
                 </tr>
               )
             })}
