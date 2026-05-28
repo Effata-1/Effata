@@ -3,20 +3,22 @@
 -- Run AFTER 003_genai_apps.sql migration
 -- ============================================================
 
-INSERT INTO genai_apps (app_id, app_name, vendor, domain, app_type, logo_letter, logo_bg, status, last_updated) VALUES
-  ('chatgpt',          'ChatGPT',                     'OpenAI',        'chat.openai.com',          'General Purpose AI Assistant',   'C', '#10a37f', 'active', '2026-05-01'),
-  ('gemini',           'Google Gemini',               'Google',        'gemini.google.com',         'General Purpose AI Assistant',   'G', '#4285f4', 'active', '2026-05-01'),
-  ('copilot-m365',     'Microsoft Copilot (M365)',    'Microsoft',     'copilot.microsoft.com',     'Enterprise AI Assistant',        'M', '#0078d4', 'active', '2026-05-01'),
-  ('claude',           'Claude',                      'Anthropic',     'claude.ai',                 'General Purpose AI Assistant',   'A', '#d97706', 'active', '2026-05-01'),
-  ('perplexity',       'Perplexity AI',               'Perplexity',    'perplexity.ai',             'AI Search & Research Assistant', 'P', '#7c3aed', 'active', '2026-05-01'),
-  ('github-copilot',   'GitHub Copilot',              'Microsoft',     'github.com/copilot',        'AI Code Assistant',              'G', '#24292f', 'active', '2026-05-01'),
-  ('notion-ai',        'Notion AI',                   'Notion Labs',   'notion.so',                 'AI Productivity Assistant',      'N', '#000000', 'active', '2026-05-01'),
-  ('grammarly',        'Grammarly Business',          'Grammarly',     'grammarly.com',             'AI Writing & Communication',     'G', '#15c39a', 'active', '2026-05-01'),
-  ('midjourney',       'Midjourney',                  'Midjourney',    'midjourney.com',            'AI Image Generation',            'M', '#f97316', 'active', '2026-05-01'),
-  ('salesforce-einstein', 'Salesforce Einstein AI',  'Salesforce',    'salesforce.com',            'Enterprise CRM AI',              'S', '#00a1e0', 'active', '2026-05-01'),
-  ('slack-ai',         'Slack AI',                    'Salesforce',    'slack.com',                 'AI Collaboration Assistant',     'S', '#4a154b', 'active', '2026-05-01'),
-  ('zoom-ai',          'Zoom AI Companion',           'Zoom',          'zoom.us',                   'AI Meeting & Collaboration',     'Z', '#2d8cff', 'active', '2026-05-01')
-ON CONFLICT (app_id) DO NOTHING;
+INSERT INTO genai_apps (app_id, app_name, vendor, domain, app_type, logo_letter, logo_bg, status, app_group, last_updated) VALUES
+  ('chatgpt',             'ChatGPT',               'OpenAI',        'chat.openai.com',          'AI Assistant',     'C', '#10a37f', 'active', 'AI Chatbots',               '2026-05-01'),
+  ('gemini',              'Google Gemini',          'Google',        'gemini.google.com',        'AI Assistant',     'G', '#4285f4', 'active', 'AI Chatbots',               '2026-05-01'),
+  ('copilot-m365',        'Microsoft Copilot M365', 'Microsoft',     'copilot.microsoft.com',    'AI Assistant',     'M', '#0078d4', 'active', 'Productivity Copilots',     '2026-05-01'),
+  ('claude',              'Claude',                 'Anthropic',     'claude.ai',                'AI Assistant',     'A', '#d97706', 'active', 'AI Chatbots',               '2026-05-01'),
+  ('perplexity',          'Perplexity AI',          'Perplexity',    'perplexity.ai',            'AI Search',        'P', '#7c3aed', 'active', 'Search & Knowledge AI',     '2026-05-01'),
+  ('github-copilot',      'GitHub Copilot',         'Microsoft',     'github.com/copilot',       'Code Assistant',   'G', '#24292f', 'active', 'Coding Assistants',         '2026-05-01'),
+  ('notion-ai',           'Notion AI',              'Notion Labs',   'notion.so',                'AI Productivity',  'N', '#000000', 'active', 'Productivity Copilots',     '2026-05-01'),
+  ('grammarly',           'Grammarly Business',     'Grammarly',     'grammarly.com',            'AI Writing',       'G', '#15c39a', 'active', 'Document AI',               '2026-05-01'),
+  ('midjourney',          'Midjourney',             'Midjourney',    'midjourney.com',           'Image Generator',  'M', '#f97316', 'active', 'Creative & Design AI',      '2026-05-01'),
+  ('salesforce-einstein', 'Salesforce Einstein AI', 'Salesforce',    'salesforce.com',           'AI Analytics',     'S', '#00a1e0', 'active', 'Sales & CRM AI',            '2026-05-01'),
+  ('slack-ai',            'Slack AI',               'Salesforce',    'slack.com',                'AI Productivity',  'S', '#4a154b', 'active', 'Productivity Copilots',     '2026-05-01'),
+  ('zoom-ai',             'Zoom AI Companion',      'Zoom',          'zoom.us',                  'AI Communication', 'Z', '#2d8cff', 'active', 'Meeting & Transcription AI', '2026-05-01')
+ON CONFLICT (app_id) DO UPDATE SET
+  app_type  = EXCLUDED.app_type,
+  app_group = EXCLUDED.app_group;
 
 -- ============================================================
 -- ChatGPT — Enterprise Mode

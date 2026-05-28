@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition, useRef, useEffect, useMemo } from 'react'
+import { useState, useTransition, useRef, useEffect, useMemo, useCallback } from 'react'
 import Link from 'next/link'
-import { Search, X, Loader2, Sparkles, LayoutList, LayoutGrid, ChevronUp, ChevronDown, ChevronsUpDown, ChevronRight } from 'lucide-react'
+import { Search, X, Loader2, Sparkles, LayoutList, LayoutGrid, ChevronUp, ChevronDown, ChevronsUpDown, ChevronRight, Settings2, ChevronLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { evaluateApp } from '../actions'
 import type { EvaluatedAppCard } from '../actions'
@@ -21,6 +21,8 @@ interface Props {
   lastRunInfo: { status: string; apps_updated: number; apps_added: number } | null
   totalInDb: number
 }
+
+const PAGE_SIZE = 20
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -45,18 +47,30 @@ function riskColors(s: number) {
 
 function RiskBadge({ score }: { score: number }) {
   return (
-    <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full border', riskColors(score))}>
+    <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap', riskColors(score))}>
       {riskLabel(score)}
     </span>
   )
 }
 
 const CLS_CHIP: Record<string, string> = {
-  approved:             'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  'under-review':       'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  draft:                'bg-muted/60 text-muted-foreground border-border',
-  rejected:             'bg-red-500/10 text-red-400 border-red-500/20',
-  expired:              'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  approved:       'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  'under-review': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  draft:          'bg-muted/60 text-muted-foreground border-border',
+  rejected:       'bg-red-500/10 text-red-400 border-red-500/20',
+  expired:        'bg-amber-500/10 text-amber-400 border-amber-500/20',
+}
+
+// ── Column definitions ────────────────────────────────────────────────────────
+
+const ALL_COLUMNS = ['score', 'dlp', 'risk', 'category', 'classification'] as const
+type ColKey = typeof ALL_COLUMNS[number]
+const COL_LABELS: Record<ColKey, string> = {
+  score:          'Trust Score',
+  dlp:            'DLP',
+  risk:           'Risk',
+  category:       'Category',
+  classification: 'Classification',
 }
 
 // ── Sorting ───────────────────────────────────────────────────────────────────
@@ -73,16 +87,28 @@ function SortIcon({ col, sort }: { col: SortKey; sort: { key: SortKey; dir: Sort
 
 // ── Table row ─────────────────────────────────────────────────────────────────
 
-function TableRow({ app, score, classification }: CatalogEntry) {
+function TableRow({ app, score, classification, visibleCols }: CatalogEntry & { visibleCols: Set<ColKey> }) {
   const cls     = classification?.customer_classification ?? 'unknown'
   const clsMeta = CLASSIFICATION_LABELS[cls]
   const approval = classification?.approval_status ?? null
   const s = score?.final_score ?? 0
 
+  // Build grid template based on visible columns
+  const colTemplate = [
+    'minmax(0,2fr)',
+    visibleCols.has('score')          ? '100px' : null,
+    visibleCols.has('dlp')            ? '56px'  : null,
+    visibleCols.has('risk')           ? '108px' : null,
+    visibleCols.has('category')       ? 'minmax(0,1fr)' : null,
+    visibleCols.has('classification') ? 'minmax(0,1fr)' : null,
+    '24px',
+  ].filter(Boolean).join(' ')
+
   return (
     <Link
       href={`/genai-controls/apps/${app.app_id}`}
-      className="group grid grid-cols-[minmax(0,2fr)_100px_60px_110px_minmax(0,1fr)_minmax(0,1fr)_28px] items-center gap-3 px-4 py-3 border-b border-border/40 hover:bg-muted/10 transition-colors"
+      className="group grid items-center gap-3 px-4 py-3 border-b border-border/40 hover:bg-muted/10 transition-colors"
+      style={{ gridTemplateColumns: colTemplate }}
     >
       {/* App */}
       <div className="flex items-center gap-3 min-w-0">
@@ -93,61 +119,109 @@ function TableRow({ app, score, classification }: CatalogEntry) {
         </div>
       </div>
 
-      {/* Trust Score */}
-      <div>
-        <div className="flex items-baseline gap-0.5 mb-1">
-          <span className={cn('text-sm font-bold tabular-nums', scoreColor(s))}>{s}</span>
-          <span className="text-[10px] text-muted-foreground/50">/100</span>
+      {visibleCols.has('score') && (
+        <div>
+          <div className="flex items-baseline gap-0.5 mb-1">
+            <span className={cn('text-sm font-bold tabular-nums', scoreColor(s))}>{s}</span>
+            <span className="text-[10px] text-muted-foreground/50">/100</span>
+          </div>
+          <div className="h-1 bg-muted/50 rounded-full overflow-hidden">
+            <div className={cn('h-full rounded-full', scoreBarColor(s))} style={{ width: `${s}%` }} />
+          </div>
         </div>
-        <div className="h-1 bg-muted/50 rounded-full overflow-hidden">
-          <div className={cn('h-full rounded-full', scoreBarColor(s))} style={{ width: `${s}%` }} />
-        </div>
-      </div>
+      )}
 
-      {/* DLP */}
-      <div className="text-center">
-        <span className={cn('text-sm font-semibold tabular-nums', (score?.dlp_activities_supported ?? 0) >= 5 ? 'text-green-400' : (score?.dlp_activities_supported ?? 0) >= 3 ? 'text-yellow-400' : 'text-red-400')}>
-          {score?.dlp_activities_supported ?? '—'}/{score?.dlp_activities_total ?? 7}
-        </span>
-      </div>
-
-      {/* Risk */}
-      <div><RiskBadge score={s} /></div>
-
-      {/* Category */}
-      <div className="min-w-0">
-        <p className="text-xs text-foreground/70 truncate">{app.app_group ?? app.app_type}</p>
-      </div>
-
-      {/* Your Classification */}
-      <div className="min-w-0 flex items-center gap-1.5 flex-wrap">
-        {approval && (
-          <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded border', CLS_CHIP[approval] ?? CLS_CHIP.draft)}>
-            {approval.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+      {visibleCols.has('dlp') && (
+        <div className="text-center">
+          <span className={cn('text-sm font-semibold tabular-nums',
+            (score?.dlp_activities_supported ?? 0) >= 5 ? 'text-green-400' :
+            (score?.dlp_activities_supported ?? 0) >= 3 ? 'text-yellow-400' : 'text-red-400',
+          )}>
+            {score?.dlp_activities_supported ?? '—'}/{score?.dlp_activities_total ?? 7}
           </span>
-        )}
-        {cls !== 'unknown' ? (
-          <span className={cn(
-            'text-[10px] font-semibold px-1.5 py-0.5 rounded',
-            clsMeta.color === 'green'  ? 'bg-green-500/10 text-green-400' :
-            clsMeta.color === 'red'    ? 'bg-red-500/10 text-red-400' :
-            clsMeta.color === 'amber'  ? 'bg-yellow-500/10 text-yellow-400' :
-            clsMeta.color === 'blue'   ? 'bg-blue-500/10 text-blue-400' :
-            clsMeta.color === 'purple' ? 'bg-purple-500/10 text-purple-400' :
-            'bg-muted/40 text-muted-foreground',
-          )}>{clsMeta.label}</span>
-        ) : (
-          <span className="text-[10px] text-muted-foreground/40 italic">Not set</span>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Arrow */}
+      {visibleCols.has('risk') && <div><RiskBadge score={s} /></div>}
+
+      {visibleCols.has('category') && (
+        <div className="min-w-0">
+          <p className="text-xs text-foreground/70 truncate">{app.app_group ?? app.app_type}</p>
+        </div>
+      )}
+
+      {visibleCols.has('classification') && (
+        <div className="min-w-0 flex items-center gap-1.5 flex-wrap">
+          {approval && (
+            <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded border', CLS_CHIP[approval] ?? CLS_CHIP.draft)}>
+              {approval.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+            </span>
+          )}
+          {cls !== 'unknown' ? (
+            <span className={cn(
+              'text-[10px] font-semibold px-1.5 py-0.5 rounded',
+              clsMeta.color === 'green'  ? 'bg-green-500/10 text-green-400' :
+              clsMeta.color === 'red'    ? 'bg-red-500/10 text-red-400' :
+              clsMeta.color === 'amber'  ? 'bg-yellow-500/10 text-yellow-400' :
+              clsMeta.color === 'blue'   ? 'bg-blue-500/10 text-blue-400' :
+              clsMeta.color === 'purple' ? 'bg-purple-500/10 text-purple-400' :
+              'bg-muted/40 text-muted-foreground',
+            )}>{clsMeta.label}</span>
+          ) : (
+            <span className="text-[10px] text-muted-foreground/40 italic">Not set</span>
+          )}
+        </div>
+      )}
+
       <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground/70 transition-colors shrink-0" />
     </Link>
   )
 }
 
-// ── Card view (kept as alternative) ──────────────────────────────────────────
+// ── Table header ──────────────────────────────────────────────────────────────
+
+function TableHeader({ sort, onSort, visibleCols }: {
+  sort: { key: SortKey; dir: SortDir }
+  onSort: (k: SortKey) => void
+  visibleCols: Set<ColKey>
+}) {
+  const colTemplate = [
+    'minmax(0,2fr)',
+    visibleCols.has('score')          ? '100px' : null,
+    visibleCols.has('dlp')            ? '56px'  : null,
+    visibleCols.has('risk')           ? '108px' : null,
+    visibleCols.has('category')       ? 'minmax(0,1fr)' : null,
+    visibleCols.has('classification') ? 'minmax(0,1fr)' : null,
+    '24px',
+  ].filter(Boolean).join(' ')
+
+  return (
+    <div
+      className="grid gap-3 px-4 py-2.5 bg-card/80 border-b border-border text-[11px] text-muted-foreground/50 uppercase tracking-wide"
+      style={{ gridTemplateColumns: colTemplate }}
+    >
+      <button className="flex items-center gap-1 hover:text-foreground/70 transition-colors text-left" onClick={() => onSort('name')}>
+        App <SortIcon col="name" sort={sort} />
+      </button>
+      {visibleCols.has('score') && (
+        <button className="flex items-center gap-1 hover:text-foreground/70 transition-colors" onClick={() => onSort('score')}>
+          Score <SortIcon col="score" sort={sort} />
+        </button>
+      )}
+      {visibleCols.has('dlp') && (
+        <button className="flex items-center gap-1 hover:text-foreground/70 transition-colors" onClick={() => onSort('dlp')}>
+          DLP <SortIcon col="dlp" sort={sort} />
+        </button>
+      )}
+      {visibleCols.has('risk')           && <span>Risk</span>}
+      {visibleCols.has('category')       && <span>Category</span>}
+      {visibleCols.has('classification') && <span>Classification</span>}
+      <span />
+    </div>
+  )
+}
+
+// ── Card view ─────────────────────────────────────────────────────────────────
 
 function AppCard({ app, score, classification }: CatalogEntry) {
   const cls = classification?.customer_classification ?? 'unknown'
@@ -170,9 +244,7 @@ function AppCard({ app, score, classification }: CatalogEntry) {
       </div>
       <div className="flex flex-wrap gap-1.5 mb-3">
         {app.app_group && (
-          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground/70 border border-border">
-            {app.app_group}
-          </span>
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground/70 border border-border">{app.app_group}</span>
         )}
         {approval && (
           <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded border', CLS_CHIP[approval] ?? CLS_CHIP.draft)}>
@@ -196,10 +268,9 @@ function AppCard({ app, score, classification }: CatalogEntry) {
         <div className={cn('h-full rounded-full', scoreBarColor(s))} style={{ width: `${s}%` }} />
       </div>
       <div className="flex items-center gap-1.5">
-        <span className="text-[10px] text-muted-foreground/60">Your classification:</span>
+        <span className="text-[10px] text-muted-foreground/60">Classification:</span>
         {cls !== 'unknown' ? (
-          <span className={cn(
-            'text-[10px] font-bold px-1.5 py-0.5 rounded',
+          <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded',
             clsMeta.color === 'green'  ? 'bg-green-500/15 text-green-400' :
             clsMeta.color === 'red'    ? 'bg-red-500/15 text-red-400' :
             clsMeta.color === 'amber'  ? 'bg-yellow-500/15 text-yellow-400' :
@@ -263,6 +334,141 @@ function FilterSelect({ label, value, options, onChange }: {
   )
 }
 
+// ── Column picker (gear) ──────────────────────────────────────────────────────
+
+function ColumnPicker({ visibleCols, onChange }: {
+  visibleCols: Set<ColKey>
+  onChange: (cols: Set<ColKey>) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  function toggle(col: ColKey) {
+    const next = new Set(visibleCols)
+    if (next.has(col)) {
+      if (next.size > 1) next.delete(col)
+    } else {
+      next.add(col)
+    }
+    onChange(next)
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={cn(
+          'p-1.5 rounded-lg border transition-colors',
+          open ? 'border-border-strong bg-muted text-foreground' : 'border-border bg-card/50 text-muted-foreground/60 hover:text-foreground hover:border-border-strong',
+        )}
+        title="Customize columns"
+      >
+        <Settings2 className="w-3.5 h-3.5" />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 z-50 w-44 rounded-xl border border-border bg-card shadow-lg p-2 space-y-0.5">
+          <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wide px-2 pb-1.5">Columns</p>
+          {ALL_COLUMNS.map(col => (
+            <button
+              key={col}
+              onClick={() => toggle(col)}
+              className="flex items-center gap-2.5 w-full px-2 py-1.5 rounded-lg hover:bg-muted/40 transition-colors text-left"
+            >
+              <div className={cn(
+                'w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors',
+                visibleCols.has(col) ? 'border-blue-500 bg-blue-500' : 'border-border',
+              )}>
+                {visibleCols.has(col) && (
+                  <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
+                    <path d="M1 3L3 5L7 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </div>
+              <span className="text-xs text-foreground/80">{COL_LABELS[col]}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Pagination ────────────────────────────────────────────────────────────────
+
+function Pagination({ page, total, perPage, onChange }: {
+  page: number
+  total: number
+  perPage: number
+  onChange: (p: number) => void
+}) {
+  const totalPages = Math.ceil(total / perPage)
+  if (totalPages <= 1) return null
+
+  const start = (page - 1) * perPage + 1
+  const end   = Math.min(page * perPage, total)
+
+  // Build page numbers to show: always show first, last, current ±1
+  const pages: (number | '...')[] = []
+  for (let i = 1; i <= totalPages; i++) {
+    if (i === 1 || i === totalPages || (i >= page - 1 && i <= page + 1)) {
+      pages.push(i)
+    } else if (pages[pages.length - 1] !== '...') {
+      pages.push('...')
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between px-1 py-3">
+      <p className="text-xs text-muted-foreground/60">
+        {start}–{end} of {total} apps
+      </p>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onChange(page - 1)}
+          disabled={page === 1}
+          className="p-1.5 rounded-lg border border-border text-muted-foreground/60 hover:text-foreground hover:border-border-strong disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronLeft className="w-3.5 h-3.5" />
+        </button>
+        {pages.map((p, i) =>
+          p === '...' ? (
+            <span key={`ellipsis-${i}`} className="px-1.5 text-xs text-muted-foreground/40">…</span>
+          ) : (
+            <button
+              key={p}
+              onClick={() => onChange(p as number)}
+              className={cn(
+                'min-w-[28px] h-7 px-1.5 rounded-lg text-xs font-medium transition-colors',
+                p === page
+                  ? 'bg-blue-600 text-white border border-blue-600'
+                  : 'border border-border text-muted-foreground/70 hover:text-foreground hover:border-border-strong',
+              )}
+            >
+              {p}
+            </button>
+          ),
+        )}
+        <button
+          onClick={() => onChange(page + 1)}
+          disabled={page === totalPages}
+          className="p-1.5 rounded-lg border border-border text-muted-foreground/60 hover:text-foreground hover:border-border-strong disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
@@ -271,8 +477,9 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
   const [sort,         setSort]         = useState<{ key: SortKey; dir: SortDir }>({ key: 'score', dir: 'asc' })
   const [filterRisk,   setFilterRisk]   = useState('all')
   const [filterCls,    setFilterCls]    = useState('all')
-  const [filterType,   setFilterType]   = useState('all')
   const [filterGroup,  setFilterGroup]  = useState('all')
+  const [page,         setPage]         = useState(1)
+  const [visibleCols,  setVisibleCols]  = useState<Set<ColKey>>(new Set(ALL_COLUMNS))
   const [isPending,    startTransition] = useTransition()
   const [evaluatedApp, setEvaluatedApp] = useState<EvaluatedAppCard | null>(null)
   const [evalError,    setEvalError]    = useState<string | null>(null)
@@ -280,13 +487,7 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
 
   const trimmed = search.trim()
 
-  // Derive filter options from data
-  const typeOptions = useMemo(() => {
-    const seen = new Set<string>()
-    for (const { app } of entries) if (app.app_type) seen.add(app.app_type)
-    return [...seen].sort().map(v => ({ value: v, label: v }))
-  }, [entries])
-
+  // Canonical app_group options derived from data
   const groupOptions = useMemo(() => {
     const seen = new Set<string>()
     for (const { app } of entries) if (app.app_group) seen.add(app.app_group)
@@ -296,32 +497,26 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
   // Filter
   const filtered = useMemo(() => {
     return entries.filter(({ app, score, classification }) => {
-      const s = score?.final_score ?? 0
+      const s   = score?.final_score ?? 0
       const cls = classification?.customer_classification ?? 'unknown'
-
       if (trimmed.length > 0) {
         const q = trimmed.toLowerCase()
-        if (
-          !app.app_name.toLowerCase().includes(q) &&
-          !app.vendor.toLowerCase().includes(q) &&
-          !app.domain.toLowerCase().includes(q)
-        ) return false
+        if (!app.app_name.toLowerCase().includes(q) && !app.vendor.toLowerCase().includes(q) && !app.domain.toLowerCase().includes(q)) return false
       }
       if (filterRisk !== 'all') {
-        if (filterRisk === 'low'    && s < 85)          return false
+        if (filterRisk === 'low'      && s < 85)              return false
         if (filterRisk === 'moderate' && (s < 70 || s >= 85)) return false
-        if (filterRisk === 'medium' && (s < 50 || s >= 70)) return false
-        if (filterRisk === 'high'   && s >= 50)          return false
+        if (filterRisk === 'medium'   && (s < 50 || s >= 70)) return false
+        if (filterRisk === 'high'     && s >= 50)             return false
       }
       if (filterCls !== 'all') {
         if (filterCls === 'not-set' && cls !== 'unknown') return false
         if (filterCls !== 'not-set' && cls !== filterCls) return false
       }
-      if (filterType  !== 'all' && app.app_type  !== filterType)  return false
       if (filterGroup !== 'all' && app.app_group !== filterGroup) return false
       return true
     })
-  }, [entries, trimmed, filterRisk, filterCls, filterType, filterGroup])
+  }, [entries, trimmed, filterRisk, filterCls, filterGroup])
 
   // Sort
   const sorted = useMemo(() => {
@@ -334,14 +529,20 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
     })
   }, [filtered, sort])
 
-  const activeFilters = [filterRisk, filterCls, filterType, filterGroup].filter(f => f !== 'all').length
+  const totalPages   = Math.ceil(sorted.length / PAGE_SIZE)
+  const pagedEntries = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  const activeFilters = [filterRisk, filterCls, filterGroup].filter(f => f !== 'all').length
 
   function toggleSort(key: SortKey) {
+    setPage(1)
     setSort(prev => prev.key === key
       ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
-      : { key, dir: key === 'score' || key === 'dlp' ? 'desc' : 'asc' },
+      : { key, dir: key === 'name' ? 'asc' : 'desc' },
     )
   }
+
+  const resetPage = useCallback(() => setPage(1), [])
 
   function handleEvaluate() {
     setEvalError(null)
@@ -363,25 +564,24 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
   function clearAllFilters() {
     setFilterRisk('all')
     setFilterCls('all')
-    setFilterType('all')
     setFilterGroup('all')
+    setPage(1)
   }
 
-  useEffect(() => {
-    if (evaluatedApp) setSearch('')
-  }, [evaluatedApp])
+  useEffect(() => { if (evaluatedApp) setSearch('') }, [evaluatedApp])
+  useEffect(() => { setPage(1) }, [filterRisk, filterCls, filterGroup, trimmed])
 
-  const scoredCount   = entries.length
-  const pendingCount  = totalInDb - scoredCount
-  const showNotFound  = trimmed.length > 2 && filtered.length === 0 && !isPending && !evaluatedApp
+  const scoredCount  = entries.length
+  const pendingCount = totalInDb - scoredCount
+  const showNotFound = trimmed.length > 2 && filtered.length === 0 && !isPending && !evaluatedApp
 
   const clsFilterOptions = [
-    { value: 'not-set',                label: 'Not Set' },
-    { value: 'enterprise-approved',    label: 'Approved' },
-    { value: 'approved-with-conditions', label: 'Approved with Conditions' },
+    { value: 'not-set',                  label: 'Not Set' },
+    { value: 'enterprise-approved',      label: 'Approved' },
+    { value: 'approved-with-conditions', label: 'Approved w/ Conditions' },
     { value: 'permitted-with-restriction', label: 'Restricted' },
-    { value: 'personal',               label: 'Personal Only' },
-    { value: 'prohibited',             label: 'Prohibited' },
+    { value: 'personal',                 label: 'Personal Only' },
+    { value: 'prohibited',               label: 'Prohibited' },
   ]
 
   return (
@@ -391,7 +591,8 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
         <div>
           <h1 className="text-xl font-bold text-foreground">App Catalog</h1>
           <p className="text-sm text-muted-foreground/80 mt-0.5">
-            {scoredCount} fully evaluated GenAI applications{pendingCount > 0 && <span className="text-muted-foreground/50"> · {pendingCount} pending</span>}
+            {scoredCount} fully evaluated GenAI applications
+            {pendingCount > 0 && <span className="text-muted-foreground/50"> · {pendingCount} pending</span>}
           </p>
         </div>
         <div className="flex flex-col items-end gap-1.5 shrink-0 text-xs text-muted-foreground/60">
@@ -406,7 +607,7 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
               <>
                 <span className={cn('w-1.5 h-1.5 rounded-full',
                   lastRunInfo.status === 'completed' ? 'bg-green-500' :
-                  lastRunInfo.status === 'failed'    ? 'bg-red-500'   : 'bg-yellow-500 animate-pulse',
+                  lastRunInfo.status === 'failed'    ? 'bg-red-500' : 'bg-yellow-500 animate-pulse',
                 )} />
                 <span>Last refresh: {lastRunInfo.apps_updated} updated · {lastRunInfo.apps_added} added</span>
               </>
@@ -418,9 +619,10 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
         </div>
       </div>
 
-      {/* Toolbar: search + view toggle */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-md">
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {/* Search */}
+        <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
           <input
             ref={inputRef}
@@ -438,21 +640,17 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
         </div>
 
         {/* Filters */}
-        <FilterSelect label="Risk"     value={filterRisk}  options={[
-          { value: 'low',      label: 'Low Risk (≥85)'  },
+        <FilterSelect label="Risk" value={filterRisk} options={[
+          { value: 'low',      label: 'Low Risk (≥85)'   },
           { value: 'moderate', label: 'Moderate (70–84)' },
           { value: 'medium',   label: 'Medium (50–69)'   },
           { value: 'high',     label: 'High Risk (<50)'  },
-        ]} onChange={setFilterRisk} />
+        ]} onChange={v => { setFilterRisk(v); resetPage() }} />
 
-        <FilterSelect label="Classification" value={filterCls} options={clsFilterOptions} onChange={setFilterCls} />
-
-        {typeOptions.length > 1 && (
-          <FilterSelect label="Type" value={filterType} options={typeOptions} onChange={setFilterType} />
-        )}
+        <FilterSelect label="Classification" value={filterCls} options={clsFilterOptions} onChange={v => { setFilterCls(v); resetPage() }} />
 
         {groupOptions.length > 1 && (
-          <FilterSelect label="Category" value={filterGroup} options={groupOptions} onChange={setFilterGroup} />
+          <FilterSelect label="Category" value={filterGroup} options={groupOptions} onChange={v => { setFilterGroup(v); resetPage() }} />
         )}
 
         {activeFilters > 0 && (
@@ -465,32 +663,41 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
           </button>
         )}
 
-        <div className="ml-auto flex items-center gap-1 rounded-lg border border-border bg-card/50 p-1">
-          <button
-            onClick={() => setView('table')}
-            className={cn('p-1.5 rounded-md transition-colors', view === 'table' ? 'bg-muted text-foreground' : 'text-muted-foreground/50 hover:text-foreground/70')}
-            title="Table view"
-          >
-            <LayoutList className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => setView('grid')}
-            className={cn('p-1.5 rounded-md transition-colors', view === 'grid' ? 'bg-muted text-foreground' : 'text-muted-foreground/50 hover:text-foreground/70')}
-            title="Grid view"
-          >
-            <LayoutGrid className="w-3.5 h-3.5" />
-          </button>
+        {/* Spacer */}
+        <div className="ml-auto flex items-center gap-1.5">
+          {/* Column picker (table only) */}
+          {view === 'table' && (
+            <ColumnPicker visibleCols={visibleCols} onChange={setVisibleCols} />
+          )}
+
+          {/* View toggle */}
+          <div className="flex items-center gap-0.5 rounded-lg border border-border bg-card/50 p-1">
+            <button
+              onClick={() => setView('table')}
+              className={cn('p-1.5 rounded-md transition-colors', view === 'table' ? 'bg-muted text-foreground' : 'text-muted-foreground/50 hover:text-foreground/70')}
+              title="Table view"
+            >
+              <LayoutList className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setView('grid')}
+              className={cn('p-1.5 rounded-md transition-colors', view === 'grid' ? 'bg-muted text-foreground' : 'text-muted-foreground/50 hover:text-foreground/70')}
+              title="Grid view"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Result count */}
-      {(activeFilters > 0 || trimmed.length > 0) && (
+      {/* Result count when filtered */}
+      {(activeFilters > 0 || trimmed.length > 0) && !showNotFound && (
         <p className="text-xs text-muted-foreground/60">
           Showing {sorted.length} of {scoredCount} apps
         </p>
       )}
 
-      {/* Evaluating indicator */}
+      {/* Evaluating */}
       {isPending && view === 'table' && (
         <div className="rounded-xl border border-border overflow-hidden">
           <EvaluatingRow name={trimmed} />
@@ -507,7 +714,7 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
         </div>
       )}
 
-      {/* Newly evaluated result */}
+      {/* New evaluation result */}
       {evaluatedApp && !isPending && (
         <div>
           <p className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wide mb-2">Evaluation Result</p>
@@ -536,10 +743,7 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
           <p className="text-xs text-muted-foreground/70 max-w-md mx-auto">
             Run an AI evaluation to assess this application's enterprise security posture, DLP activity support, and data governance controls.
           </p>
-          <button
-            onClick={handleEvaluate}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors"
-          >
+          <button onClick={handleEvaluate} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors">
             <Sparkles className="w-4 h-4" />
             Evaluate "{trimmed}"
           </button>
@@ -550,39 +754,28 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
       {/* ── Table view ── */}
       {!isPending && view === 'table' && sorted.length > 0 && (
         <div className="rounded-xl border border-border overflow-hidden">
-          {/* Table header */}
-          <div className="grid grid-cols-[minmax(0,2fr)_100px_60px_110px_minmax(0,1fr)_minmax(0,1fr)_28px] gap-3 px-4 py-2.5 bg-card/80 border-b border-border text-[11px] text-muted-foreground/50 uppercase tracking-wide">
-            <button className="flex items-center gap-1 hover:text-foreground/70 transition-colors text-left" onClick={() => toggleSort('name')}>
-              App <SortIcon col="name" sort={sort} />
-            </button>
-            <button className="flex items-center gap-1 hover:text-foreground/70 transition-colors" onClick={() => toggleSort('score')}>
-              Trust Score <SortIcon col="score" sort={sort} />
-            </button>
-            <button className="flex items-center gap-1 hover:text-foreground/70 transition-colors" onClick={() => toggleSort('dlp')}>
-              DLP <SortIcon col="dlp" sort={sort} />
-            </button>
-            <span>Risk</span>
-            <span>Category</span>
-            <span>Classification</span>
-            <span />
-          </div>
-
-          {/* Table rows */}
+          <TableHeader sort={sort} onSort={toggleSort} visibleCols={visibleCols} />
           <div>
-            {sorted.map(entry => (
-              <TableRow key={entry.app.app_id} {...entry} />
+            {pagedEntries.map(entry => (
+              <TableRow key={entry.app.app_id} {...entry} visibleCols={visibleCols} />
             ))}
+          </div>
+          <div className="px-4 border-t border-border/60 bg-card/40">
+            <Pagination page={page} total={sorted.length} perPage={PAGE_SIZE} onChange={setPage} />
           </div>
         </div>
       )}
 
       {/* ── Grid view ── */}
       {!isPending && view === 'grid' && sorted.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {sorted.map(entry => (
-            <AppCard key={entry.app.app_id} {...entry} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {pagedEntries.map(entry => (
+              <AppCard key={entry.app.app_id} {...entry} />
+            ))}
+          </div>
+          <Pagination page={page} total={sorted.length} perPage={PAGE_SIZE} onChange={setPage} />
+        </>
       )}
 
       {/* Empty states */}
