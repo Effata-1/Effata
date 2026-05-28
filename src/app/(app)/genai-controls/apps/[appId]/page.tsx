@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, Globe, Building2, Calendar, Users, Tag } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { computeTrustScore, CLASSIFICATION_LABELS, VALUE_DISPLAY, DLP_ACTIVITY_LABELS } from '@/lib/genai/scoring'
+import { computeTrustScore, CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
 import { cn } from '@/lib/utils'
 import type { GenAIApp, GenAIAppProfile, AppFields, DLPActivities, BreachInfo, CustomerClass, CustomerClassification, ApprovalStatus } from '@/lib/genai/types'
 import { ClassificationSelector } from './_components/classification-selector'
@@ -200,60 +200,6 @@ export default async function GenAIAppProfilePage({
             </div>
           )}
 
-          {/* DLP Quick Facts */}
-          {(fields || dlp) && (
-            <div>
-              <p className="text-[11px] text-muted-foreground/50 uppercase tracking-wide mb-2">DLP Quick Facts</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                {fields && ([
-                  { label: 'Trains on user data',  value: fields.trains_on_customer_data, negative: true  },
-                  { label: 'Can opt out of training', value: fields.opt_out_of_training, negative: false },
-                  { label: 'DPA available',         value: fields.dpa_available,          negative: false },
-                  { label: 'Customer owns data',    value: fields.customer_owns_data,     negative: false },
-                  { label: 'SOC 2',                 value: fields.soc2,                   negative: false },
-                  { label: 'Encryption in transit', value: fields.encryption_in_transit,  negative: false },
-                ] as const).map(({ label, value, negative }) => {
-                  const meta = VALUE_DISPLAY[value] ?? { label: value, color: 'muted' }
-                  const isWarning = negative && value === 'yes'
-                  return (
-                    <div key={label} className="rounded-lg bg-muted/20 border border-border/40 px-3 py-2">
-                      <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wide mb-0.5">{label}</p>
-                      <p className={cn('text-xs font-semibold',
-                        isWarning ? 'text-red-400' :
-                        meta.color === 'green' ? 'text-green-400' :
-                        meta.color === 'red'   ? 'text-red-400'   :
-                        meta.color === 'amber' ? 'text-yellow-400' :
-                        meta.color === 'blue'  ? 'text-blue-400'  :
-                        'text-muted-foreground/70 italic',
-                      )}>
-                        {meta.label}
-                      </p>
-                    </div>
-                  )
-                })}
-                {dlp && ([
-                  { key: 'post_prompt' as const, label: DLP_ACTIVITY_LABELS.post_prompt },
-                  { key: 'upload'      as const, label: DLP_ACTIVITY_LABELS.upload      },
-                ] as const).map(({ key, label }) => {
-                  const val  = dlp[key]
-                  const meta = VALUE_DISPLAY[val] ?? { label: val, color: 'muted' }
-                  return (
-                    <div key={key} className="rounded-lg bg-muted/20 border border-border/40 px-3 py-2">
-                      <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wide mb-0.5">DLP: {label}</p>
-                      <p className={cn('text-xs font-semibold',
-                        meta.color === 'green' ? 'text-green-400' :
-                        meta.color === 'amber' ? 'text-yellow-400' :
-                        meta.color === 'red'   ? 'text-red-400'   :
-                        'text-muted-foreground/70 italic',
-                      )}>
-                        {meta.label}
-                      </p>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
