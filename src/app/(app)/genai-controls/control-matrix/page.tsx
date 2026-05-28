@@ -46,6 +46,17 @@ export default async function ControlMatrixPage() {
 
   const labels: OrgClassificationLabel[] = await ensureClassificationLabels()
 
+  const { data: customerLabelRows } = await supabase
+    .from('org_customer_sensitivity_labels')
+    .select('id, display_name, color, system_level, priority')
+    .eq('org_id', user.orgId)
+    .eq('active', true)
+    .order('priority')
+
+  const customerLabels = (customerLabelRows ?? []) as {
+    id: string; display_name: string; color: string; system_level: string | null; priority: number
+  }[]
+
   const { data: notifRows } = await supabase
     .from('org_coaching_notifications')
     .select('id, name, coach_label')
@@ -75,6 +86,7 @@ export default async function ControlMatrixPage() {
         categories={categories}
         overrides={overrides}
         labels={labels}
+        customerLabels={customerLabels}
         notifications={notifications}
       />
 

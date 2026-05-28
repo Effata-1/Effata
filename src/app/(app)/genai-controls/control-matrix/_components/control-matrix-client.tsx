@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { cn } from '@/lib/utils'
 import { colorClasses, COLOR_OPTIONS } from '@/lib/data-catalog/types'
 import type { OrgClassificationLabel, SystemLevel } from '@/lib/data-catalog/types'
-import { RotateCcw, Pencil, Plus, Check, X } from 'lucide-react'
+import { RotateCcw, Pencil, Plus, Check, X, Lock, ArrowRight } from 'lucide-react'
 import { upsertControlMatrixCell, deleteControlMatrixCell, upsertMatrixLabel, deleteMatrixLabel } from '../actions'
 
 // ── Action registry ───────────────────────────────────────────────────────────
@@ -91,11 +91,20 @@ interface CoachingOption {
   coach_label: string | null
 }
 
+export interface CustomerLabel {
+  id:           string
+  display_name: string
+  color:        string
+  system_level: string | null
+  priority:     number
+}
+
 interface Props {
-  categories:    MatrixCategory[]
-  overrides:     MatrixOverride[]
-  labels:        OrgClassificationLabel[]
-  notifications: CoachingOption[]
+  categories:     MatrixCategory[]
+  overrides:      MatrixOverride[]
+  labels:         OrgClassificationLabel[]
+  customerLabels: CustomerLabel[]
+  notifications:  CoachingOption[]
 }
 
 type CellOverride = { action: ActionCode; coachingId: string | null }
@@ -173,7 +182,7 @@ function LabelRow({ label, onSave, onDelete }: {
 
 // ── Main client component ─────────────────────────────────────────────────────
 
-export function ControlMatrixClient({ categories, overrides, labels, notifications }: Props) {
+export function ControlMatrixClient({ categories, overrides, labels, customerLabels, notifications }: Props) {
   const [localLabels, setLocalLabels] = useState<OrgClassificationLabel[]>(
     [...labels].sort((a, b) => a.priority - b.priority),
   )
@@ -200,25 +209,37 @@ export function ControlMatrixClient({ categories, overrides, labels, notificatio
 
   // Build flat list of table rows (section headers + data rows)
   type FlatItem =
-    | { type: 'section'; sectionId: string; label: string; color: string }
+    | { type: 'section'; sectionId: string; label: string; color: string; disabled?: boolean }
     | { type: 'row'; rowKey: string; label: OrgClassificationLabel; sectionId: string; ri: number }
+    | { type: 'clabel-row'; rowKey: string; clabel: CustomerLabel; sectionId: string; ri: number }
+    | { type: 'clabel-empty'; sectionId: string }
 
   const flatItems: FlatItem[] = []
   let rowIndex = 0
 
-  // Prompt/Upload — all labels
-  flatItems.push({ type: 'section', sectionId: 'pp', label: 'Prompt / Upload', color: 'text-orange-400' })
+  // Prompt/Upload — Effata system labels (content detection)
+  flatItems.push({ type: 'section', sectionId: 'pp', label: 'Prompt / Upload (Content Detection)', color: 'text-orange-400' })
   localLabels.forEach(lbl => {
     flatItems.push({ type: 'row', rowKey: `pp|${lbl.id}`, label: lbl, sectionId: 'pp', ri: rowIndex++ })
   })
 
-  // Upload — Data Classification Labels — all labels
-  flatItems.push({ type: 'section', sectionId: 'ul_dc', label: 'Upload — Data Classification Labels', color: 'text-orange-400' })
-  localLabels.forEach(lbl => {
-    flatItems.push({ type: 'row', rowKey: `ul|dc|${lbl.id}`, label: lbl, sectionId: 'ul_dc', ri: rowIndex++ })
+  // Upload — Data Classification Labels — customer labels only (metadata/label detection)
+  const hasCustomerLabels = customerLabels.length > 0
+  flatItems.push({
+    type: 'section', sectionId: 'ul_dc',
+    label: 'Upload — Data Classification Labels (Label Detection)',
+    color: hasCustomerLabels ? 'text-orange-400' : 'text-muted-foreground/40',
+    disabled: !hasCustomerLabels,
   })
+  if (hasCustomerLabels) {
+    customerLabels.forEach(clbl => {
+      flatItems.push({ type: 'clabel-row', rowKey: `ul|dc|clabel:${clbl.id}`, clabel: clbl, sectionId: 'ul_dc', ri: rowIndex++ })
+    })
+  } else {
+    flatItems.push({ type: 'clabel-empty', sectionId: 'ul_dc' })
+  }
 
-  // Upload — Filename Detection — only high-risk labels
+  // Upload — Filename Detection — only high-risk Effata labels
   const filenameLabels = localLabels.filter(lbl => lbl.system_level && FILENAME_LEVELS.includes(lbl.system_level as SystemLevel))
   if (filenameLabels.length > 0) {
     flatItems.push({ type: 'section', sectionId: 'ul_fn', label: 'Upload — Filename Detection', color: 'text-muted-foreground/60' })
@@ -231,9 +252,13 @@ export function ControlMatrixClient({ categories, overrides, labels, notificatio
     if (!catTag || !lbl.system_level) return null
     const level = lbl.system_level as SystemLevel
     if (sectionId === 'pp')    return PP_DEFAULTS[catTag]?.[level]    ?? null
-    if (sectionId === 'ul_dc') return UL_DC_DEFAULTS[catTag]?.[level] ?? null
     if (sectionId === 'ul_fn') return UL_FN_DEFAULTS[catTag]?.[level] ?? null
     return null
+  }
+
+  function getCustomerLabelDefault(clbl: CustomerLabel, catTag: string | null): ActionCode | null {
+    if (!catTag || !clbl.system_level) return null
+    return UL_DC_DEFAULTS[catTag]?.[clbl.system_level as SystemLevel] ?? null
   }
 
   function getCell(rowKey: string, sectionId: string, lbl: OrgClassificationLabel, cat: MatrixCategory) {
@@ -419,6 +444,106 @@ export function ControlMatrixClient({ categories, overrides, labels, notificatio
                   )
                 }
 
+                // Customer label — disabled / no labels state
+                if (item.type === 'clabel-empty') {
+                  return (
+                    <tr key="clabel-empty">
+                      <td colSpan={orderedCats.length + 1} className="px-5 py-5">
+                        <div className="flex items-center gap-3 text-muted-foreground/40">
+                          <Lock className="w-4 h-4 shrink-0" />
+                          <div>
+                            <p className="text-xs font-medium">Label detection disabled — no sensitivity labels configured</p>
+                            <p className="text-[11px] mt-0.5">
+                              Add your MIP or custom sensitivity labels to enable this control.{' '}
+                              <a href="/genai-controls/sensitivity-labels" className="text-primary/60 hover:text-primary transition-colors inline-flex items-center gap-0.5">
+                                Manage Sensitivity Labels <ArrowRight className="w-3 h-3" />
+                              </a>
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                }
+
+                // Customer label row (label detection)
+                if (item.type === 'clabel-row') {
+                  const { rowKey, clabel, sectionId, ri } = item
+                  const cc = colorClasses(clabel.color)
+                  return (
+                    <tr
+                      key={rowKey}
+                      className={cn('border-b border-border/40 hover:bg-card/30 transition-colors', ri % 2 === 0 ? '' : 'bg-card/10')}
+                    >
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className={cn('w-2 h-2 rounded-full shrink-0', cc.dot)} />
+                          <span className={cn('text-xs font-semibold', cc.text)}>{clabel.display_name}</span>
+                        </div>
+                      </td>
+                      {orderedCats.map(cat => {
+                        const override      = localOverrides[`${rowKey}::${cat.id}`] ?? null
+                        const defaultAction = getCustomerLabelDefault(clabel, cat.system_tag)
+                        const effectiveAction = (override?.action ?? defaultAction ?? 'not-set') as ActionCode
+                        const effectiveCoaching = override?.coachingId ?? null
+                        const isOverride = !!override
+                        const meta          = ACTIONS[effectiveAction]
+                        const selectedNotif = notifications.find(n => n.id === effectiveCoaching)
+                        return (
+                          <td key={cat.id} className="px-3 py-2.5 align-top">
+                            <div className="space-y-1">
+                              <div className={cn('relative rounded-md border px-2 py-1', meta.cell)}>
+                                <select
+                                  value={effectiveAction}
+                                  onChange={e => handleChange(rowKey, cat, e.target.value as ActionCode)}
+                                  className={cn('w-full appearance-none bg-transparent text-[11px] font-semibold focus:outline-none cursor-pointer', meta.text)}
+                                >
+                                  {(Object.entries(ACTIONS) as [ActionCode, (typeof ACTIONS)[ActionCode]][])
+                                    .filter(([code]) => code !== 'not-set' || effectiveAction === 'not-set')
+                                    .map(([code, m]) => (
+                                      <option key={code} value={code} className="bg-card text-foreground">{m.label}</option>
+                                    ))}
+                                </select>
+                              </div>
+                              <div className="relative rounded border border-border/40 bg-muted/10 px-1.5 py-0.5">
+                                <select
+                                  value={effectiveCoaching ?? ''}
+                                  onChange={e => handleCoachingChange(rowKey, cat, e.target.value || null, effectiveAction)}
+                                  className="w-full appearance-none bg-transparent text-[10px] text-muted-foreground/60 focus:outline-none cursor-pointer"
+                                >
+                                  <option value="" className="bg-card text-foreground">— No coaching —</option>
+                                  {notifications.map(n => (
+                                    <option key={n.id} value={n.id} className="bg-card text-foreground">
+                                      {n.coach_label ? `${n.coach_label} — ${n.name}` : n.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              {selectedNotif?.coach_label && (
+                                <span className="inline-flex text-[9px] font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                                  {selectedNotif.coach_label}
+                                </span>
+                              )}
+                              {isOverride && defaultAction && (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[9px] text-muted-foreground/40">Default: {ACTIONS[defaultAction].label}</span>
+                                  <button onClick={() => handleReset(rowKey, cat)} title="Reset to default" className="text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors">
+                                    <RotateCcw className="w-2.5 h-2.5" />
+                                  </button>
+                                </div>
+                              )}
+                              {!isOverride && effectiveAction !== 'not-set' && (
+                                <span className="text-[9px] text-muted-foreground/30 italic">recommended</span>
+                              )}
+                            </div>
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  )
+                }
+
+                // Effata system label row
                 const { rowKey, label: lbl, sectionId, ri } = item
                 const cc = colorClasses(lbl.color)
 

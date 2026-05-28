@@ -123,6 +123,18 @@ export async function getPolicyPackJobStatus(jobId: string): Promise<{
   }
 }
 
+// Action restrictiveness ranking — higher = more restrictive
+const ACTION_RANK: Record<ActionCode, number> = {
+  'not-set':    0,
+  'allow':      1,
+  'monitor':    2,
+  'alert':      3,
+  'coach':      4,
+  'coach-ack':  4,
+  'coach-just': 4,
+  'block':      5,
+}
+
 export async function generatePoliciesFromGovernance(): Promise<{ error?: string; count?: number }> {
   const user = await requireRole('analyst')
   const supabase = await createClient()
@@ -164,9 +176,42 @@ export async function generatePoliciesFromGovernance(): Promise<{ error?: string
   const catId = (tag: string): string | null =>
     categories?.find(c => c.system_tag === tag)?.id ?? null
 
-  const now = new Date().toISOString()
+  // Fetch customer sensitivity labels and control matrix overrides in parallel
+  const [{ data: customerLabels }, { data: matrixOverrides }] = await Promise.all([
+    supabase
+      .from('org_customer_sensitivity_labels')
+      .select('id, display_name, system_level')
+      .eq('org_id', user.orgId)
+      .eq('active', true),
+    supabase
+      .from('org_control_matrix_overrides')
+      .select('data_type, category_id, action_code')
+      .eq('org_id', user.orgId),
+  ])
 
-  const policies = [
+  // Most restrictive action for a customer label across all governance categories
+  function getLabelUploadAction(labelId: string, fallback: ActionCode): ActionCode {
+    const overrides = (matrixOverrides ?? []).filter(o => o.data_type === `ul|dc|clabel:${labelId}`)
+    if (overrides.length === 0) return fallback
+    return overrides.reduce<ActionCode>((best, o) => {
+      const code = o.action_code as ActionCode
+      return (ACTION_RANK[code] ?? 0) > ACTION_RANK[best] ? code : best
+    }, 'not-set')
+  }
+
+  const now = new Date().toISOString()
+  const draftDefaults = {
+    approval_status:            'draft',
+    is_active:                  false,
+    generated_from:             'governance-matrix',
+    vendor_translation_status:  'pending',
+    required_dependencies:      [],
+    test_status:                'untested',
+    updated_at:                 now,
+  }
+
+  // ── Base policies (content detection + governance) ────────────────────────
+  const policies: object[] = [
     {
       org_id: user.orgId,
       priority: 1,
@@ -177,16 +222,10 @@ export async function generatePoliciesFromGovernance(): Promise<{ error?: string
       scope_all_apps: true,
       scope_app_ids: [],
       rules: [],
-      approval_status: 'draft',
-      is_active: false,
       policy_family: 'GenAI Governance',
-      generated_from: 'governance-matrix',
       data_classification_label: 'all',
       primary_action: 'coach',
-      vendor_translation_status: 'pending',
-      required_dependencies: [],
-      test_status: 'untested',
-      updated_at: now,
+      ...draftDefaults,
     },
     {
       org_id: user.orgId,
@@ -198,17 +237,12 @@ export async function generatePoliciesFromGovernance(): Promise<{ error?: string
       scope_all_apps: prohibited.length === 0,
       scope_app_ids: prohibited,
       rules: [],
-      approval_status: 'draft',
-      is_active: false,
       policy_family: 'GenAI Access Control',
-      generated_from: 'governance-matrix',
       data_classification_label: 'all',
       primary_action: 'block',
-      vendor_translation_status: 'pending',
-      required_dependencies: [],
-      test_status: 'untested',
-      updated_at: now,
+      ...draftDefaults,
     },
+    // ── Content detection policies (policies 3–5) ─────────────────────────
     {
       org_id: user.orgId,
       priority: 3,
@@ -219,16 +253,10 @@ export async function generatePoliciesFromGovernance(): Promise<{ error?: string
       scope_all_apps: true,
       scope_app_ids: [],
       rules: [],
-      approval_status: 'draft',
-      is_active: false,
-      policy_family: 'GenAI Data Protection',
-      generated_from: 'governance-matrix',
+      policy_family: 'GenAI Content Detection',
       data_classification_label: 'secret',
       primary_action: 'block',
-      vendor_translation_status: 'pending',
-      required_dependencies: [],
-      test_status: 'untested',
-      updated_at: now,
+      ...draftDefaults,
     },
     {
       org_id: user.orgId,
@@ -240,16 +268,10 @@ export async function generatePoliciesFromGovernance(): Promise<{ error?: string
       scope_all_apps: true,
       scope_app_ids: [],
       rules: [],
-      approval_status: 'draft',
-      is_active: false,
-      policy_family: 'GenAI Data Classification Protection',
-      generated_from: 'governance-matrix',
+      policy_family: 'GenAI Content Detection',
       data_classification_label: 'secret',
       primary_action: 'block',
-      vendor_translation_status: 'pending',
-      required_dependencies: [],
-      test_status: 'untested',
-      updated_at: now,
+      ...draftDefaults,
     },
     {
       org_id: user.orgId,
@@ -261,16 +283,10 @@ export async function generatePoliciesFromGovernance(): Promise<{ error?: string
       scope_all_apps: nonApproved.length === 0,
       scope_app_ids: nonApproved,
       rules: [],
-      approval_status: 'draft',
-      is_active: false,
-      policy_family: 'GenAI Data Classification Protection',
-      generated_from: 'governance-matrix',
+      policy_family: 'GenAI Content Detection',
       data_classification_label: 'highly-confidential',
       primary_action: 'block',
-      vendor_translation_status: 'pending',
-      required_dependencies: [],
-      test_status: 'untested',
-      updated_at: now,
+      ...draftDefaults,
     },
     {
       org_id: user.orgId,
@@ -282,16 +298,10 @@ export async function generatePoliciesFromGovernance(): Promise<{ error?: string
       scope_all_apps: enterpriseApproved.length === 0,
       scope_app_ids: enterpriseApproved,
       rules: [],
-      approval_status: 'draft',
-      is_active: false,
       policy_family: 'GenAI Approved Usage',
-      generated_from: 'governance-matrix',
       data_classification_label: 'all',
       primary_action: 'allow',
-      vendor_translation_status: 'pending',
-      required_dependencies: [],
-      test_status: 'untested',
-      updated_at: now,
+      ...draftDefaults,
     },
     {
       org_id: user.orgId,
@@ -303,16 +313,10 @@ export async function generatePoliciesFromGovernance(): Promise<{ error?: string
       scope_all_apps: approvedWithConditions.length === 0,
       scope_app_ids: approvedWithConditions,
       rules: [],
-      approval_status: 'draft',
-      is_active: false,
       policy_family: 'GenAI Conditional Usage',
-      generated_from: 'governance-matrix',
       data_classification_label: 'confidential',
       primary_action: 'coach',
-      vendor_translation_status: 'pending',
-      required_dependencies: [],
-      test_status: 'untested',
-      updated_at: now,
+      ...draftDefaults,
     },
     {
       org_id: user.orgId,
@@ -324,16 +328,10 @@ export async function generatePoliciesFromGovernance(): Promise<{ error?: string
       scope_all_apps: restricted.length === 0,
       scope_app_ids: restricted,
       rules: [],
-      approval_status: 'draft',
-      is_active: false,
       policy_family: 'GenAI Restricted Usage',
-      generated_from: 'governance-matrix',
       data_classification_label: 'confidential',
       primary_action: 'block',
-      vendor_translation_status: 'pending',
-      required_dependencies: [],
-      test_status: 'untested',
-      updated_at: now,
+      ...draftDefaults,
     },
     {
       org_id: user.orgId,
@@ -345,16 +343,10 @@ export async function generatePoliciesFromGovernance(): Promise<{ error?: string
       scope_all_apps: personal.length === 0,
       scope_app_ids: personal,
       rules: [],
-      approval_status: 'draft',
-      is_active: false,
       policy_family: 'GenAI Instance / Account Control',
-      generated_from: 'governance-matrix',
       data_classification_label: 'highly-confidential',
       primary_action: 'block',
-      vendor_translation_status: 'pending',
-      required_dependencies: [],
-      test_status: 'untested',
-      updated_at: now,
+      ...draftDefaults,
     },
     {
       org_id: user.orgId,
@@ -366,18 +358,73 @@ export async function generatePoliciesFromGovernance(): Promise<{ error?: string
       scope_all_apps: true,
       scope_app_ids: [],
       rules: [],
-      approval_status: 'draft',
-      is_active: false,
       policy_family: 'GenAI Monitoring',
-      generated_from: 'governance-matrix',
       data_classification_label: 'all',
       primary_action: 'monitor',
-      vendor_translation_status: 'pending',
-      required_dependencies: [],
-      test_status: 'untested',
-      updated_at: now,
+      ...draftDefaults,
     },
   ]
+
+  // ── Label-detection policies (only when customer labels exist) ────────────
+  // Groups: HC+Secret → one high-risk policy; Confidential → one policy.
+  // post_prompt is always 'not-set' — label detection applies to uploads only.
+  // Scope: scope_all_apps=true with the most restrictive action across all categories (V1).
+  if ((customerLabels ?? []).length > 0) {
+    const highRiskLabels = (customerLabels ?? []).filter(
+      l => l.system_level === 'highly_confidential' || l.system_level === 'secret'
+    )
+    const confLabels = (customerLabels ?? []).filter(l => l.system_level === 'confidential')
+
+    let nextPriority = policies.length + 1
+
+    if (highRiskLabels.length > 0) {
+      policies.push({
+        org_id:      user.orgId,
+        priority:    nextPriority++,
+        name:        'GenAI — Sensitivity Label Detection — High Risk — Upload Control',
+        description: `Block uploads of documents labelled: ${highRiskLabels.map(l => l.display_name).join(', ')}.`,
+        policy_type: 'data-handling',
+        category_id: null,
+        scope_all_apps: true,
+        scope_app_ids: [],
+        rules: highRiskLabels.map(l => ({
+          data_type:   `clabel:${l.id}`,
+          post_prompt: 'not-set',
+          upload:      getLabelUploadAction(l.id, 'block'),
+          download:    'monitor',
+          response:    'not-set',
+        })),
+        policy_family:             'GenAI Label Detection',
+        data_classification_label: 'highly-confidential',
+        primary_action:            'block',
+        ...draftDefaults,
+      })
+    }
+
+    if (confLabels.length > 0) {
+      policies.push({
+        org_id:      user.orgId,
+        priority:    nextPriority++,
+        name:        'GenAI — Sensitivity Label Detection — Confidential — Upload Control',
+        description: `Coach on uploads of documents labelled: ${confLabels.map(l => l.display_name).join(', ')}.`,
+        policy_type: 'data-handling',
+        category_id: null,
+        scope_all_apps: true,
+        scope_app_ids: [],
+        rules: confLabels.map(l => ({
+          data_type:   `clabel:${l.id}`,
+          post_prompt: 'not-set',
+          upload:      getLabelUploadAction(l.id, 'coach'),
+          download:    'monitor',
+          response:    'not-set',
+        })),
+        policy_family:             'GenAI Label Detection',
+        data_classification_label: 'confidential',
+        primary_action:            'coach',
+        ...draftDefaults,
+      })
+    }
+  }
 
   const { error } = await supabase.from('org_genai_policies').insert(policies)
   if (error) return { error: error.message }

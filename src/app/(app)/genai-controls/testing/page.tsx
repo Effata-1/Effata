@@ -18,6 +18,7 @@ export default async function TestingLabPage() {
     orgTypesResult,
     catalogTypesResult,
     orgTypeMappingsResult,
+    customerLabelsResult,
   ] = await Promise.all([
     orgId
       ? supabase.from('org_genai_policies').select('*').eq('org_id', orgId).eq('is_active', true).order('priority')
@@ -36,14 +37,18 @@ export default async function TestingLabPage() {
     orgId
       ? supabase.from('org_data_type_classifications').select('org_data_type_id, org_classification_label_id').eq('org_id', orgId)
       : Promise.resolve({ data: [] }),
+    orgId
+      ? supabase.from('org_customer_sensitivity_labels').select('id, display_name').eq('org_id', orgId).eq('active', true).order('priority')
+      : Promise.resolve({ data: [] }),
   ])
 
-  const policies      = (policiesResult.data      ?? []) as GenAIPolicy[]
-  const apps          = appsResult.data            ?? []
-  const notifications = (notificationsResult.data  ?? []) as CoachingNotification[]
-  const labels        = (labelsResult.data         ?? []) as Array<{ id: string; name: string; system_level: string | null; priority: number }>
-  const orgTypes      = (orgTypesResult.data       ?? []) as Array<{ id: string; name: string; catalog_data_type_id: string | null }>
-  const catalogTypes  = (catalogTypesResult.data   ?? []) as Array<{ id: string; name: string; system_level: string | null }>
+  const policies       = (policiesResult.data       ?? []) as GenAIPolicy[]
+  const apps           = appsResult.data             ?? []
+  const notifications  = (notificationsResult.data   ?? []) as CoachingNotification[]
+  const labels         = (labelsResult.data          ?? []) as Array<{ id: string; name: string; system_level: string | null; priority: number }>
+  const orgTypes       = (orgTypesResult.data        ?? []) as Array<{ id: string; name: string; catalog_data_type_id: string | null }>
+  const catalogTypes   = (catalogTypesResult.data    ?? []) as Array<{ id: string; name: string; system_level: string | null }>
+  const customerLabels = (customerLabelsResult.data  ?? []) as Array<{ id: string; display_name: string }>
 
   const coveredCatalogIds = new Set(orgTypes.map(t => t.catalog_data_type_id).filter(Boolean))
 
@@ -66,6 +71,11 @@ export default async function TestingLabPage() {
         label: c.name,
         group: 'Catalog Types',
       })),
+    ...customerLabels.map(l => ({
+      key:   `clabel:${l.id}`,
+      label: l.display_name,
+      group: 'Sensitivity Labels',
+    })),
   ]
 
   return (
