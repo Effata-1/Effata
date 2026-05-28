@@ -40,7 +40,7 @@ export default async function GenAIAppCatalogPage() {
     .select('*')
     .eq('org_id', user.orgId)
 
-  // One profile per app — first profile wins
+  // One profile per app — first found wins (DB has UNIQUE(app_id, mode))
   const profileMap = new Map<string, GenAIAppProfile>()
   for (const p of (profiles as GenAIAppProfile[] ?? [])) {
     if (!profileMap.has(p.app_id)) profileMap.set(p.app_id, p)
@@ -49,14 +49,20 @@ export default async function GenAIAppCatalogPage() {
 
   const totalInDb = (allApps ?? []).length
 
-  // One entry per app (only apps with an evaluated profile)
-  const entries: CatalogEntry[] = []
+  // Build entries — deduplicate by app_name (case-insensitive), keeping the higher score
+  const byName = new Map<string, CatalogEntry>()
   for (const app of (allApps as GenAIApp[] ?? [])) {
     const profile = profileMap.get(app.app_id)
     if (!profile) continue
     const score = computeTrustScore(profile.fields, profile.dlp, profile.breach_info)
-    entries.push({ app, score, classification: classMap.get(app.app_id) ?? null })
+    const entry: CatalogEntry = { app, score, classification: classMap.get(app.app_id) ?? null }
+    const nameKey = app.app_name.toLowerCase().trim()
+    const existing = byName.get(nameKey)
+    if (!existing || score.final_score > (existing.score?.final_score ?? 0)) {
+      byName.set(nameKey, entry)
+    }
   }
+  const entries = Array.from(byName.values()).sort((a, b) => a.app.app_name.localeCompare(b.app.app_name))
 
   return (
     <AppCatalogClient
