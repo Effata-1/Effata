@@ -474,7 +474,7 @@ function Pagination({ page, total, perPage, onChange }: {
 export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
   const [search,       setSearch]       = useState('')
   const [view,         setView]         = useState<'table' | 'grid'>('table')
-  const [sort,         setSort]         = useState<{ key: SortKey; dir: SortDir }>({ key: 'score', dir: 'asc' })
+  const [sort,         setSort]         = useState<{ key: SortKey; dir: SortDir }>({ key: 'name', dir: 'asc' })
   const [filterRisk,   setFilterRisk]   = useState('all')
   const [filterCls,    setFilterCls]    = useState('all')
   const [filterGroup,  setFilterGroup]  = useState('all')
