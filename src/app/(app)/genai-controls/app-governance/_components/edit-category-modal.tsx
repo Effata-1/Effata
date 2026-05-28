@@ -69,7 +69,7 @@ export function EditCategoryModal({ category, categories, onClose }: Props) {
             <input
               value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              placeholder="e.g. Approved & Supported GenAI"
+              placeholder="e.g. Approved & Supported"
               className="w-full bg-muted border border-border-strong rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-blue-500"
             />
           </div>

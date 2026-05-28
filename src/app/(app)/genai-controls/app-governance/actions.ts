@@ -20,7 +20,7 @@ export interface GenAIGovernanceCategory {
 const SYSTEM_DEFAULTS: Omit<GenAIGovernanceCategory, 'id' | 'org_id' | 'created_at'>[] = [
   {
     system_tag: 'enterprise-approved',
-    name: 'Approved & Supported GenAI',
+    name: 'Approved & Supported',
     description: 'Enterprise-approved AI tools with full admin controls, DLP support, and BAA/DPA in place.',
     color: 'emerald',
     priority: 1,
@@ -38,7 +38,7 @@ const SYSTEM_DEFAULTS: Omit<GenAIGovernanceCategory, 'id' | 'org_id' | 'created_
   },
   {
     system_tag: 'permitted-with-restriction',
-    name: 'Restricted / Unassessed GenAI',
+    name: 'Restricted / Unassessed',
     description: 'Limited usage allowed with coaching and monitoring. Includes unassessed tools.',
     color: 'amber',
     priority: 3,
@@ -47,7 +47,7 @@ const SYSTEM_DEFAULTS: Omit<GenAIGovernanceCategory, 'id' | 'org_id' | 'created_
   },
   {
     system_tag: 'prohibited',
-    name: 'Prohibited GenAI',
+    name: 'Prohibited',
     description: 'Blocked for all users and data types. No exceptions without explicit approval.',
     color: 'red',
     priority: 4,

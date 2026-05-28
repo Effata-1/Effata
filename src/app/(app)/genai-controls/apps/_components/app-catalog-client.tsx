@@ -416,12 +416,12 @@ function TableHeader({
 // ── Bulk action bar ───────────────────────────────────────────────────────────
 
 const BULK_CLS_OPTIONS: { value: CustomerClass; label: string }[] = [
-  { value: 'enterprise-approved',        label: 'Approved & Supported GenAI'    },
-  { value: 'approved-with-conditions',   label: 'Approved with Conditions'      },
-  { value: 'permitted-with-restriction', label: 'Restricted / Unassessed GenAI' },
-  { value: 'personal',                   label: 'Personal'                      },
-  { value: 'unknown',                    label: 'Unknown'                       },
-  { value: 'prohibited',                 label: 'Prohibited GenAI'              },
+  { value: 'enterprise-approved',        label: 'Approved & Supported'    },
+  { value: 'approved-with-conditions',   label: 'Approved with Conditions' },
+  { value: 'permitted-with-restriction', label: 'Restricted / Unassessed'  },
+  { value: 'personal',                   label: 'Personal'                 },
+  { value: 'unknown',                    label: 'Unknown'                  },
+  { value: 'prohibited',                 label: 'Prohibited'               },
 ]
 
 function BulkActionBar({ count, onClear, onApply, isPending }: {

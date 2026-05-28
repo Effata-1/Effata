@@ -100,10 +100,10 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
           <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/50 mb-4">GenAI App Governance</h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { label: 'Enterprise Approved',    value: snapshot.app_counts.enterprise_approved,        color: 'text-emerald-400' },
+              { label: 'Approved & Supported',    value: snapshot.app_counts.enterprise_approved,        color: 'text-emerald-400' },
               { label: 'Approved w/ Conditions', value: snapshot.app_counts.approved_with_conditions,   color: 'text-blue-400' },
-              { label: 'Restricted',             value: snapshot.app_counts.permitted_with_restriction, color: 'text-amber-400' },
-              { label: 'Prohibited',             value: snapshot.app_counts.prohibited,                 color: 'text-red-400' },
+              { label: 'Restricted / Unassessed', value: snapshot.app_counts.permitted_with_restriction, color: 'text-amber-400' },
+              { label: 'Prohibited',              value: snapshot.app_counts.prohibited,                 color: 'text-red-400' },
             ].map(({ label, value, color }) => (
               <div key={label} className="rounded-lg border border-border bg-muted/20 px-4 py-3">
                 <p className={cn('text-xl font-bold', color)}>{value}</p>

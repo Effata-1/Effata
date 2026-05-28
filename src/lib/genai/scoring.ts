@@ -297,10 +297,10 @@ export const VALUE_DISPLAY: Record<string, { label: string; color: string; note?
 }
 
 export const CLASSIFICATION_LABELS: Record<string, { label: string; color: string }> = {
-  'enterprise-approved':        { label: 'Approved & Supported GenAI',    color: 'green'  },
-  'approved-with-conditions':   { label: 'Approved with Conditions',      color: 'blue'   },
-  'permitted-with-restriction': { label: 'Restricted / Unassessed GenAI', color: 'amber'  },
-  'personal':                   { label: 'Personal',                      color: 'purple' },
-  'unknown':                    { label: 'Unknown',                       color: 'zinc'   },
-  'prohibited':                 { label: 'Prohibited GenAI',              color: 'red'    },
+  'enterprise-approved':        { label: 'Approved & Supported',    color: 'green'  },
+  'approved-with-conditions':   { label: 'Approved with Conditions', color: 'blue'   },
+  'permitted-with-restriction': { label: 'Restricted / Unassessed',  color: 'amber'  },
+  'personal':                   { label: 'Personal',                  color: 'purple' },
+  'unknown':                    { label: 'Unknown',                   color: 'zinc'   },
+  'prohibited':                 { label: 'Prohibited',                color: 'red'    },
 }

@@ -116,9 +116,9 @@ export default async function PresentationPage() {
           <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/50 mb-4">GenAI App Governance</h3>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { label: 'Enterprise Approved',     value: appCounts.enterpriseApproved,       color: 'text-emerald-400' },
-              { label: 'Approved w/ Conditions',  value: appCounts.approvedWithConditions,   color: 'text-blue-400' },
-              { label: 'Restricted',              value: appCounts.permittedWithRestriction, color: 'text-amber-400' },
+              { label: 'Approved & Supported',    value: appCounts.enterpriseApproved,       color: 'text-emerald-400' },
+              { label: 'Approved w/ Conditions', value: appCounts.approvedWithConditions,   color: 'text-blue-400' },
+              { label: 'Restricted / Unassessed', value: appCounts.permittedWithRestriction, color: 'text-amber-400' },
               { label: 'Prohibited',              value: appCounts.prohibited,               color: 'text-red-400' },
             ].map(({ label, value, color }) => (
               <div key={label} className="rounded-lg border border-border bg-muted/20 px-4 py-3">
