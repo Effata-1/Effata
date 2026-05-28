@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition, useRef, useEffect } from 'react'
+import { useState, useTransition, useRef, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { Search, X, Loader2, Sparkles } from 'lucide-react'
+import { Search, X, Loader2, Sparkles, LayoutList, LayoutGrid, ChevronUp, ChevronDown, ChevronsUpDown, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { evaluateApp } from '../actions'
 import type { EvaluatedAppCard } from '../actions'
@@ -22,30 +22,142 @@ interface Props {
   totalInDb: number
 }
 
+// ── Shared helpers ────────────────────────────────────────────────────────────
+
+function scoreColor(s: number) {
+  return s >= 85 ? 'text-green-400' : s >= 70 ? 'text-blue-400' : s >= 50 ? 'text-yellow-400' : 'text-red-400'
+}
+function scoreBarColor(s: number) {
+  return s >= 85 ? 'bg-green-500' : s >= 70 ? 'bg-blue-500' : s >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+}
+function riskLabel(s: number) {
+  return s >= 85 ? 'Low Risk' : s >= 70 ? 'Moderate' : s >= 50 ? 'Medium Risk' : 'High Risk'
+}
+function riskColors(s: number) {
+  return s >= 85
+    ? 'bg-green-500/10 text-green-400 border-green-500/20'
+    : s >= 70
+    ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+    : s >= 50
+    ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+    : 'bg-red-500/10 text-red-400 border-red-500/20'
+}
+
 function RiskBadge({ score }: { score: number }) {
-  if (score >= 85) return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/20">Low Risk</span>
-  if (score >= 70) return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/20">Moderate</span>
-  if (score >= 50) return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/20">Medium Risk</span>
-  return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/20">High Risk</span>
+  return (
+    <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full border', riskColors(score))}>
+      {riskLabel(score)}
+    </span>
+  )
 }
 
-const APPROVAL_CHIP: Record<string, string> = {
-  approved:       'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  'under-review': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  draft:          'bg-muted/60 text-muted-foreground border-border',
-  rejected:       'bg-red-500/10 text-red-400 border-red-500/20',
-  expired:        'bg-amber-500/10 text-amber-400 border-amber-500/20',
+const CLS_CHIP: Record<string, string> = {
+  approved:             'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  'under-review':       'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  draft:                'bg-muted/60 text-muted-foreground border-border',
+  rejected:             'bg-red-500/10 text-red-400 border-red-500/20',
+  expired:              'bg-amber-500/10 text-amber-400 border-amber-500/20',
 }
 
-function AppCard({ app, score, classification, href }: { app: GenAIApp; score: TrustScores | null; classification: CustomerClassification | null; href: string }) {
-  const cls = classification?.customer_classification ?? 'unknown'
+// ── Sorting ───────────────────────────────────────────────────────────────────
+
+type SortKey = 'name' | 'score' | 'dlp'
+type SortDir = 'asc' | 'desc'
+
+function SortIcon({ col, sort }: { col: SortKey; sort: { key: SortKey; dir: SortDir } }) {
+  if (sort.key !== col) return <ChevronsUpDown className="w-3 h-3 text-muted-foreground/30" />
+  return sort.dir === 'asc'
+    ? <ChevronUp   className="w-3 h-3 text-foreground/70" />
+    : <ChevronDown className="w-3 h-3 text-foreground/70" />
+}
+
+// ── Table row ─────────────────────────────────────────────────────────────────
+
+function TableRow({ app, score, classification }: CatalogEntry) {
+  const cls     = classification?.customer_classification ?? 'unknown'
   const clsMeta = CLASSIFICATION_LABELS[cls]
-  const suggested = score?.suggested_classification ?? null
-  const approvalStatus = classification?.approval_status ?? null
+  const approval = classification?.approval_status ?? null
+  const s = score?.final_score ?? 0
 
   return (
     <Link
-      href={href}
+      href={`/genai-controls/apps/${app.app_id}`}
+      className="group grid grid-cols-[minmax(0,2fr)_100px_60px_110px_minmax(0,1fr)_minmax(0,1fr)_28px] items-center gap-3 px-4 py-3 border-b border-border/40 hover:bg-muted/10 transition-colors"
+    >
+      {/* App */}
+      <div className="flex items-center gap-3 min-w-0">
+        <AppLogo domain={app.domain} letter={app.logo_letter} bg={app.logo_bg} size={32} radius="rounded-lg" />
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-foreground group-hover:text-blue-300 transition-colors truncate">{app.app_name}</p>
+          <p className="text-xs text-muted-foreground/60 truncate">{app.vendor}</p>
+        </div>
+      </div>
+
+      {/* Trust Score */}
+      <div>
+        <div className="flex items-baseline gap-0.5 mb-1">
+          <span className={cn('text-sm font-bold tabular-nums', scoreColor(s))}>{s}</span>
+          <span className="text-[10px] text-muted-foreground/50">/100</span>
+        </div>
+        <div className="h-1 bg-muted/50 rounded-full overflow-hidden">
+          <div className={cn('h-full rounded-full', scoreBarColor(s))} style={{ width: `${s}%` }} />
+        </div>
+      </div>
+
+      {/* DLP */}
+      <div className="text-center">
+        <span className={cn('text-sm font-semibold tabular-nums', (score?.dlp_activities_supported ?? 0) >= 5 ? 'text-green-400' : (score?.dlp_activities_supported ?? 0) >= 3 ? 'text-yellow-400' : 'text-red-400')}>
+          {score?.dlp_activities_supported ?? '—'}/{score?.dlp_activities_total ?? 7}
+        </span>
+      </div>
+
+      {/* Risk */}
+      <div><RiskBadge score={s} /></div>
+
+      {/* Category */}
+      <div className="min-w-0">
+        <p className="text-xs text-foreground/70 truncate">{app.app_group ?? app.app_type}</p>
+      </div>
+
+      {/* Your Classification */}
+      <div className="min-w-0 flex items-center gap-1.5 flex-wrap">
+        {approval && (
+          <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded border', CLS_CHIP[approval] ?? CLS_CHIP.draft)}>
+            {approval.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+          </span>
+        )}
+        {cls !== 'unknown' ? (
+          <span className={cn(
+            'text-[10px] font-semibold px-1.5 py-0.5 rounded',
+            clsMeta.color === 'green'  ? 'bg-green-500/10 text-green-400' :
+            clsMeta.color === 'red'    ? 'bg-red-500/10 text-red-400' :
+            clsMeta.color === 'amber'  ? 'bg-yellow-500/10 text-yellow-400' :
+            clsMeta.color === 'blue'   ? 'bg-blue-500/10 text-blue-400' :
+            clsMeta.color === 'purple' ? 'bg-purple-500/10 text-purple-400' :
+            'bg-muted/40 text-muted-foreground',
+          )}>{clsMeta.label}</span>
+        ) : (
+          <span className="text-[10px] text-muted-foreground/40 italic">Not set</span>
+        )}
+      </div>
+
+      {/* Arrow */}
+      <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground/70 transition-colors shrink-0" />
+    </Link>
+  )
+}
+
+// ── Card view (kept as alternative) ──────────────────────────────────────────
+
+function AppCard({ app, score, classification }: CatalogEntry) {
+  const cls = classification?.customer_classification ?? 'unknown'
+  const clsMeta = CLASSIFICATION_LABELS[cls]
+  const approval = classification?.approval_status ?? null
+  const s = score?.final_score ?? 0
+
+  return (
+    <Link
+      href={`/genai-controls/apps/${app.app_id}`}
       className="group block rounded-xl border border-border bg-card/50 p-4 hover:border-border-strong hover:bg-card transition-all shadow-sm"
     >
       <div className="flex items-start gap-3 mb-3">
@@ -54,7 +166,7 @@ function AppCard({ app, score, classification, href }: { app: GenAIApp; score: T
           <p className="text-sm font-semibold text-foreground group-hover:text-blue-300 transition-colors truncate">{app.app_name}</p>
           <p className="text-xs text-muted-foreground/80 truncate">{app.vendor} · {app.app_type}</p>
         </div>
-        {score && <RiskBadge score={score.final_score} />}
+        <RiskBadge score={s} />
       </div>
       <div className="flex flex-wrap gap-1.5 mb-3">
         {app.app_group && (
@@ -62,178 +174,174 @@ function AppCard({ app, score, classification, href }: { app: GenAIApp; score: T
             {app.app_group}
           </span>
         )}
-        {approvalStatus && (
-          <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded border', APPROVAL_CHIP[approvalStatus] ?? APPROVAL_CHIP.draft)}>
-            {approvalStatus.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+        {approval && (
+          <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded border', CLS_CHIP[approval] ?? CLS_CHIP.draft)}>
+            {approval.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}
           </span>
         )}
       </div>
-
       <div className="flex items-center justify-between mb-3">
         <div>
           <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wide mb-0.5">Trust Score</p>
-          <div className={cn(
-            'text-2xl font-bold tabular-nums',
-            score!.final_score >= 85 ? 'text-green-400' :
-            score!.final_score >= 70 ? 'text-blue-400' :
-            score!.final_score >= 50 ? 'text-yellow-400' : 'text-red-400',
-          )}>
-            {score!.final_score}
-            <span className="text-xs font-normal text-muted-foreground/80">/100</span>
+          <div className={cn('text-2xl font-bold tabular-nums', scoreColor(s))}>
+            {s}<span className="text-xs font-normal text-muted-foreground/80">/100</span>
           </div>
         </div>
         <div className="text-right">
           <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wide mb-0.5">DLP Activities</p>
-          <p className="text-sm font-semibold text-foreground">
-            {score!.dlp_activities_supported}/{score!.dlp_activities_total}
-          </p>
+          <p className="text-sm font-semibold text-foreground">{score?.dlp_activities_supported ?? '—'}/{score?.dlp_activities_total ?? 7}</p>
         </div>
       </div>
-
       <div className="h-1 bg-muted rounded-full mb-3 overflow-hidden">
-        <div
-          className={cn('h-full rounded-full',
-            score!.final_score >= 85 ? 'bg-green-500' :
-            score!.final_score >= 70 ? 'bg-blue-500' :
-            score!.final_score >= 50 ? 'bg-yellow-500' : 'bg-red-500',
-          )}
-          style={{ width: `${score!.final_score}%` }}
-        />
+        <div className={cn('h-full rounded-full', scoreBarColor(s))} style={{ width: `${s}%` }} />
       </div>
-
-      <div className="space-y-1">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-muted-foreground/60">System suggests:</span>
-          <span className="text-[10px] text-muted-foreground font-medium">
-            {suggested ? (CLASSIFICATION_LABELS[suggested]?.label ?? '—') : '—'}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-muted-foreground/60">Your classification:</span>
-          {cls !== 'unknown' ? (
-            <span className={cn(
-              'text-[10px] font-bold px-1.5 py-0.5 rounded',
-              clsMeta.color === 'green'  ? 'bg-green-500/15 text-green-400' :
-              clsMeta.color === 'red'    ? 'bg-red-500/15 text-red-400' :
-              clsMeta.color === 'amber'  ? 'bg-yellow-500/15 text-yellow-400' :
-              clsMeta.color === 'blue'   ? 'bg-blue-500/15 text-blue-400' :
-              clsMeta.color === 'purple' ? 'bg-purple-500/15 text-purple-400' :
-              'bg-accent/50 text-muted-foreground',
-            )}>{clsMeta.label}</span>
-          ) : (
-            <span className="text-[10px] text-muted-foreground/60 italic">Not set</span>
-          )}
-        </div>
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-muted-foreground/60">Your classification:</span>
+        {cls !== 'unknown' ? (
+          <span className={cn(
+            'text-[10px] font-bold px-1.5 py-0.5 rounded',
+            clsMeta.color === 'green'  ? 'bg-green-500/15 text-green-400' :
+            clsMeta.color === 'red'    ? 'bg-red-500/15 text-red-400' :
+            clsMeta.color === 'amber'  ? 'bg-yellow-500/15 text-yellow-400' :
+            clsMeta.color === 'blue'   ? 'bg-blue-500/15 text-blue-400' :
+            clsMeta.color === 'purple' ? 'bg-purple-500/15 text-purple-400' :
+            'bg-accent/50 text-muted-foreground',
+          )}>{clsMeta.label}</span>
+        ) : (
+          <span className="text-[10px] text-muted-foreground/60 italic">Not set</span>
+        )}
       </div>
     </Link>
   )
 }
 
-function EvaluatingCard({ name }: { name: string }) {
+// ── Evaluate states ───────────────────────────────────────────────────────────
+
+function EvaluatingRow({ name }: { name: string }) {
   return (
-    <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4 shadow-sm animate-pulse">
-      <div className="flex items-start gap-3 mb-4">
-        <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center shrink-0">
-          <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
+    <div className="flex items-center gap-3 px-4 py-3 border-b border-blue-500/20 bg-blue-500/5 animate-pulse">
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center shrink-0">
+          <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-foreground truncate">{name}</p>
-          <p className="text-xs text-muted-foreground/60">Evaluating…</p>
+        <div>
+          <p className="text-sm font-medium text-foreground">{name}</p>
+          <p className="text-xs text-blue-400/80">Running AI security evaluation — usually 15–30 seconds…</p>
         </div>
       </div>
-      <p className="text-xs text-blue-400/80 leading-relaxed">
-        Running AI security evaluation — analysing enterprise posture, DLP activities, and compliance certifications. This usually takes 15–30 seconds.
-      </p>
     </div>
   )
 }
 
-function NewlyEvaluatedCard({ data }: { data: EvaluatedAppCard }) {
+// ── Filter select ─────────────────────────────────────────────────────────────
+
+function FilterSelect({ label, value, options, onChange }: {
+  label: string
+  value: string
+  options: { value: string; label: string }[]
+  onChange: (v: string) => void
+}) {
   return (
-    <Link
-      href={`/genai-controls/apps/${data.app_id}`}
-      className="group block rounded-xl border border-blue-500/40 bg-card/50 p-4 hover:border-blue-500/60 hover:bg-card transition-all shadow-sm relative"
-    >
-      <div className="absolute top-2 right-2">
-        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/20">
-          <Sparkles className="w-2.5 h-2.5" />
-          Just evaluated
-        </span>
-      </div>
-
-      <div className="flex items-start gap-3 mb-4">
-        <AppLogo domain={data.domain} letter={data.logo_letter} bg={data.logo_bg} size={40} />
-        <div className="flex-1 min-w-0 pr-24">
-          <p className="text-sm font-semibold text-foreground group-hover:text-blue-300 transition-colors truncate">{data.app_name}</p>
-          <p className="text-xs text-muted-foreground/80 truncate">{data.vendor} · {data.app_type}</p>
-        </div>
-        <RiskBadge score={data.trustScore} />
-      </div>
-
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wide mb-0.5">Trust Score</p>
-          <div className={cn(
-            'text-2xl font-bold tabular-nums',
-            data.trustScore >= 85 ? 'text-green-400' :
-            data.trustScore >= 70 ? 'text-blue-400' :
-            data.trustScore >= 50 ? 'text-yellow-400' : 'text-red-400',
-          )}>
-            {data.trustScore}
-            <span className="text-xs font-normal text-muted-foreground/80">/100</span>
-          </div>
-        </div>
-        <div className="text-right">
-          <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wide mb-0.5">DLP Activities</p>
-          <p className="text-sm font-semibold text-foreground">
-            {data.dlpActivitiesSupported}/{data.dlpActivitiesTotal}
-          </p>
-        </div>
-      </div>
-
-      <div className="h-1 bg-muted rounded-full mb-3 overflow-hidden">
-        <div
-          className={cn('h-full rounded-full',
-            data.trustScore >= 85 ? 'bg-green-500' :
-            data.trustScore >= 70 ? 'bg-blue-500' :
-            data.trustScore >= 50 ? 'bg-yellow-500' : 'bg-red-500',
-          )}
-          style={{ width: `${data.trustScore}%` }}
-        />
-      </div>
-
-      <div className="space-y-1">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-muted-foreground/60">System suggests:</span>
-          <span className="text-[10px] text-muted-foreground font-medium">{data.suggestedClassification}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-muted-foreground/60">Your classification:</span>
-          <span className="text-[10px] text-muted-foreground/60 italic">Not set</span>
-        </div>
-      </div>
-    </Link>
+    <div className="relative">
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className={cn(
+          'appearance-none pl-2.5 pr-6 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer focus:outline-none',
+          value !== 'all'
+            ? 'border-blue-500/40 bg-blue-500/10 text-blue-300'
+            : 'border-border bg-card/50 text-foreground/70 hover:border-border-strong hover:text-foreground',
+        )}
+      >
+        <option value="all">{label}: All</option>
+        {options.map(o => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/50" />
+    </div>
   )
 }
 
+// ── Main component ────────────────────────────────────────────────────────────
+
 export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
-  const [search, setSearch] = useState('')
-  const [isPending, startTransition] = useTransition()
+  const [search,       setSearch]       = useState('')
+  const [view,         setView]         = useState<'table' | 'grid'>('table')
+  const [sort,         setSort]         = useState<{ key: SortKey; dir: SortDir }>({ key: 'score', dir: 'asc' })
+  const [filterRisk,   setFilterRisk]   = useState('all')
+  const [filterCls,    setFilterCls]    = useState('all')
+  const [filterType,   setFilterType]   = useState('all')
+  const [filterGroup,  setFilterGroup]  = useState('all')
+  const [isPending,    startTransition] = useTransition()
   const [evaluatedApp, setEvaluatedApp] = useState<EvaluatedAppCard | null>(null)
-  const [evalError, setEvalError] = useState<string | null>(null)
+  const [evalError,    setEvalError]    = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const trimmed = search.trim()
 
-  const filtered = trimmed.length === 0
-    ? entries
-    : entries.filter(e =>
-        e.app.app_name.toLowerCase().includes(trimmed.toLowerCase()) ||
-        e.app.vendor.toLowerCase().includes(trimmed.toLowerCase()) ||
-        e.app.domain.toLowerCase().includes(trimmed.toLowerCase()),
-      )
+  // Derive filter options from data
+  const typeOptions = useMemo(() => {
+    const seen = new Set<string>()
+    for (const { app } of entries) if (app.app_type) seen.add(app.app_type)
+    return [...seen].sort().map(v => ({ value: v, label: v }))
+  }, [entries])
 
-  const showNotFound = trimmed.length > 2 && filtered.length === 0 && !isPending && !evaluatedApp
+  const groupOptions = useMemo(() => {
+    const seen = new Set<string>()
+    for (const { app } of entries) if (app.app_group) seen.add(app.app_group)
+    return [...seen].sort().map(v => ({ value: v, label: v }))
+  }, [entries])
+
+  // Filter
+  const filtered = useMemo(() => {
+    return entries.filter(({ app, score, classification }) => {
+      const s = score?.final_score ?? 0
+      const cls = classification?.customer_classification ?? 'unknown'
+
+      if (trimmed.length > 0) {
+        const q = trimmed.toLowerCase()
+        if (
+          !app.app_name.toLowerCase().includes(q) &&
+          !app.vendor.toLowerCase().includes(q) &&
+          !app.domain.toLowerCase().includes(q)
+        ) return false
+      }
+      if (filterRisk !== 'all') {
+        if (filterRisk === 'low'    && s < 85)          return false
+        if (filterRisk === 'moderate' && (s < 70 || s >= 85)) return false
+        if (filterRisk === 'medium' && (s < 50 || s >= 70)) return false
+        if (filterRisk === 'high'   && s >= 50)          return false
+      }
+      if (filterCls !== 'all') {
+        if (filterCls === 'not-set' && cls !== 'unknown') return false
+        if (filterCls !== 'not-set' && cls !== filterCls) return false
+      }
+      if (filterType  !== 'all' && app.app_type  !== filterType)  return false
+      if (filterGroup !== 'all' && app.app_group !== filterGroup) return false
+      return true
+    })
+  }, [entries, trimmed, filterRisk, filterCls, filterType, filterGroup])
+
+  // Sort
+  const sorted = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      let diff = 0
+      if (sort.key === 'name')  diff = a.app.app_name.localeCompare(b.app.app_name)
+      if (sort.key === 'score') diff = (a.score?.final_score ?? 0) - (b.score?.final_score ?? 0)
+      if (sort.key === 'dlp')   diff = (a.score?.dlp_activities_supported ?? 0) - (b.score?.dlp_activities_supported ?? 0)
+      return sort.dir === 'asc' ? diff : -diff
+    })
+  }, [filtered, sort])
+
+  const activeFilters = [filterRisk, filterCls, filterType, filterGroup].filter(f => f !== 'all').length
+
+  function toggleSort(key: SortKey) {
+    setSort(prev => prev.key === key
+      ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+      : { key, dir: key === 'score' || key === 'dlp' ? 'desc' : 'asc' },
+    )
+  }
 
   function handleEvaluate() {
     setEvalError(null)
@@ -252,108 +360,182 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
     inputRef.current?.focus()
   }
 
-  // When a new evaluation result appears, clear the search so the card shows in main grid
+  function clearAllFilters() {
+    setFilterRisk('all')
+    setFilterCls('all')
+    setFilterType('all')
+    setFilterGroup('all')
+  }
+
   useEffect(() => {
     if (evaluatedApp) setSearch('')
   }, [evaluatedApp])
 
-  const scoredCount = entries.length
-  const pendingCount = totalInDb - scoredCount
+  const scoredCount   = entries.length
+  const pendingCount  = totalInDb - scoredCount
+  const showNotFound  = trimmed.length > 2 && filtered.length === 0 && !isPending && !evaluatedApp
+
+  const clsFilterOptions = [
+    { value: 'not-set',                label: 'Not Set' },
+    { value: 'enterprise-approved',    label: 'Approved' },
+    { value: 'approved-with-conditions', label: 'Approved with Conditions' },
+    { value: 'permitted-with-restriction', label: 'Restricted' },
+    { value: 'personal',               label: 'Personal Only' },
+    { value: 'prohibited',             label: 'Prohibited' },
+  ]
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-foreground">App Catalog</h1>
-          <p className="text-sm text-muted-foreground/80 mt-1">
-            {scoredCount} fully evaluated GenAI applications.
-            {pendingCount > 0 && (
-              <span className="text-muted-foreground/50"> · {pendingCount} pending evaluation</span>
-            )}
+          <p className="text-sm text-muted-foreground/80 mt-0.5">
+            {scoredCount} fully evaluated GenAI applications{pendingCount > 0 && <span className="text-muted-foreground/50"> · {pendingCount} pending</span>}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-2 shrink-0">
-          <div className="flex items-center gap-3 text-xs text-muted-foreground/60">
+        <div className="flex flex-col items-end gap-1.5 shrink-0 text-xs text-muted-foreground/60">
+          <div className="flex items-center gap-3">
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" />Low Risk</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500" />Moderate</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500" />Medium</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" />High</span>
           </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground/60">
+          <div className="flex items-center gap-2">
             {lastRunInfo ? (
               <>
-                <span className={cn(
-                  'w-1.5 h-1.5 rounded-full',
+                <span className={cn('w-1.5 h-1.5 rounded-full',
                   lastRunInfo.status === 'completed' ? 'bg-green-500' :
                   lastRunInfo.status === 'failed'    ? 'bg-red-500'   : 'bg-yellow-500 animate-pulse',
                 )} />
                 <span>Last refresh: {lastRunInfo.apps_updated} updated · {lastRunInfo.apps_added} added</span>
               </>
             ) : (
-              <>
-                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-                <span>No refresh runs yet</span>
-              </>
+              <><span className="w-1.5 h-1.5 rounded-full bg-accent" /><span>No refresh runs yet</span></>
             )}
-            <Link href="/genai-controls/refresh-logs" className="underline hover:text-muted-foreground/80 transition-colors ml-1">
-              View logs →
-            </Link>
+            <Link href="/genai-controls/refresh-logs" className="underline hover:text-muted-foreground/80 ml-1">View logs →</Link>
           </div>
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
-        <input
-          ref={inputRef}
-          type="text"
-          value={search}
-          onChange={e => {
-            setSearch(e.target.value)
-            setEvaluatedApp(null)
-            setEvalError(null)
-          }}
-          placeholder="Search apps by name, vendor, or domain…"
-          className="w-full pl-9 pr-9 py-2.5 rounded-lg border border-border bg-card/50 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-border-strong focus:bg-card transition-all"
-        />
-        {trimmed.length > 0 && (
+      {/* Toolbar: search + view toggle */}
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={search}
+            onChange={e => { setSearch(e.target.value); setEvaluatedApp(null); setEvalError(null) }}
+            placeholder="Search by name, vendor, or domain…"
+            className="w-full pl-9 pr-9 py-2 rounded-lg border border-border bg-card/50 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-border-strong focus:bg-card transition-all"
+          />
+          {trimmed.length > 0 && (
+            <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-muted-foreground/70">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Filters */}
+        <FilterSelect label="Risk"     value={filterRisk}  options={[
+          { value: 'low',      label: 'Low Risk (≥85)'  },
+          { value: 'moderate', label: 'Moderate (70–84)' },
+          { value: 'medium',   label: 'Medium (50–69)'   },
+          { value: 'high',     label: 'High Risk (<50)'  },
+        ]} onChange={setFilterRisk} />
+
+        <FilterSelect label="Classification" value={filterCls} options={clsFilterOptions} onChange={setFilterCls} />
+
+        {typeOptions.length > 1 && (
+          <FilterSelect label="Type" value={filterType} options={typeOptions} onChange={setFilterType} />
+        )}
+
+        {groupOptions.length > 1 && (
+          <FilterSelect label="Category" value={filterGroup} options={groupOptions} onChange={setFilterGroup} />
+        )}
+
+        {activeFilters > 0 && (
           <button
-            onClick={clearSearch}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
+            onClick={clearAllFilters}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground/70 hover:text-foreground border border-border hover:border-border-strong transition-colors"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-3 h-3" />
+            Clear ({activeFilters})
           </button>
         )}
+
+        <div className="ml-auto flex items-center gap-1 rounded-lg border border-border bg-card/50 p-1">
+          <button
+            onClick={() => setView('table')}
+            className={cn('p-1.5 rounded-md transition-colors', view === 'table' ? 'bg-muted text-foreground' : 'text-muted-foreground/50 hover:text-foreground/70')}
+            title="Table view"
+          >
+            <LayoutList className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => setView('grid')}
+            className={cn('p-1.5 rounded-md transition-colors', view === 'grid' ? 'bg-muted text-foreground' : 'text-muted-foreground/50 hover:text-foreground/70')}
+            title="Grid view"
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
-      {/* Evaluating card */}
-      {isPending && (
+      {/* Result count */}
+      {(activeFilters > 0 || trimmed.length > 0) && (
+        <p className="text-xs text-muted-foreground/60">
+          Showing {sorted.length} of {scoredCount} apps
+        </p>
+      )}
+
+      {/* Evaluating indicator */}
+      {isPending && view === 'table' && (
+        <div className="rounded-xl border border-border overflow-hidden">
+          <EvaluatingRow name={trimmed} />
+        </div>
+      )}
+      {isPending && view === 'grid' && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          <EvaluatingCard name={trimmed} />
+          <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4 animate-pulse">
+            <div className="flex items-center gap-3">
+              <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
+              <div><p className="text-sm font-semibold text-foreground">{trimmed}</p><p className="text-xs text-blue-400/80">Evaluating…</p></div>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Newly evaluated result (shown above the grid) */}
+      {/* Newly evaluated result */}
       {evaluatedApp && !isPending && (
         <div>
           <p className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wide mb-2">Evaluation Result</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            <NewlyEvaluatedCard data={evaluatedApp} />
-          </div>
+          <Link
+            href={`/genai-controls/apps/${evaluatedApp.app_id}`}
+            className="group flex items-center gap-3 px-4 py-3 rounded-xl border border-blue-500/40 bg-card/50 hover:bg-card transition-all"
+          >
+            <AppLogo domain={evaluatedApp.domain} letter={evaluatedApp.logo_letter} bg={evaluatedApp.logo_bg} size={32} radius="rounded-lg" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground group-hover:text-blue-300 transition-colors">{evaluatedApp.app_name}</p>
+              <p className="text-xs text-muted-foreground/60">{evaluatedApp.vendor} · {evaluatedApp.app_type}</p>
+            </div>
+            <span className={cn('text-sm font-bold tabular-nums', scoreColor(evaluatedApp.trustScore))}>{evaluatedApp.trustScore}/100</span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-blue-500/10 text-blue-400 border-blue-500/20 flex items-center gap-1">
+              <Sparkles className="w-2.5 h-2.5" />Just evaluated
+            </span>
+            <ChevronRight className="w-4 h-4 text-muted-foreground/40" />
+          </Link>
         </div>
       )}
 
-      {/* Not found + evaluate CTA */}
+      {/* Not found CTA */}
       {showNotFound && (
         <div className="rounded-xl border border-border bg-card/30 px-6 py-8 text-center space-y-4">
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-foreground">"{trimmed}" is not in the catalog yet</p>
-            <p className="text-xs text-muted-foreground/70">
-              Run an AI evaluation to assess this application's enterprise security posture, DLP activity support, and data governance controls.
-            </p>
-          </div>
+          <p className="text-sm font-semibold text-foreground">"{trimmed}" is not in the catalog yet</p>
+          <p className="text-xs text-muted-foreground/70 max-w-md mx-auto">
+            Run an AI evaluation to assess this application's enterprise security posture, DLP activity support, and data governance controls.
+          </p>
           <button
             onClick={handleEvaluate}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors"
@@ -361,33 +543,55 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
             <Sparkles className="w-4 h-4" />
             Evaluate "{trimmed}"
           </button>
-          {evalError && (
-            <p className="text-xs text-red-400 mt-2">{evalError}</p>
-          )}
+          {evalError && <p className="text-xs text-red-400">{evalError}</p>}
         </div>
       )}
 
-      {/* App grid */}
-      {!isPending && (
+      {/* ── Table view ── */}
+      {!isPending && view === 'table' && sorted.length > 0 && (
+        <div className="rounded-xl border border-border overflow-hidden">
+          {/* Table header */}
+          <div className="grid grid-cols-[minmax(0,2fr)_100px_60px_110px_minmax(0,1fr)_minmax(0,1fr)_28px] gap-3 px-4 py-2.5 bg-card/80 border-b border-border text-[11px] text-muted-foreground/50 uppercase tracking-wide">
+            <button className="flex items-center gap-1 hover:text-foreground/70 transition-colors text-left" onClick={() => toggleSort('name')}>
+              App <SortIcon col="name" sort={sort} />
+            </button>
+            <button className="flex items-center gap-1 hover:text-foreground/70 transition-colors" onClick={() => toggleSort('score')}>
+              Trust Score <SortIcon col="score" sort={sort} />
+            </button>
+            <button className="flex items-center gap-1 hover:text-foreground/70 transition-colors" onClick={() => toggleSort('dlp')}>
+              DLP <SortIcon col="dlp" sort={sort} />
+            </button>
+            <span>Risk</span>
+            <span>Category</span>
+            <span>Classification</span>
+            <span />
+          </div>
+
+          {/* Table rows */}
+          <div>
+            {sorted.map(entry => (
+              <TableRow key={entry.app.app_id} {...entry} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Grid view ── */}
+      {!isPending && view === 'grid' && sorted.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map(({ app, score, classification }) => (
-            <AppCard
-              key={app.app_id}
-              app={app}
-              score={score}
-              classification={classification}
-              href={`/genai-controls/apps/${app.app_id}`}
-            />
+          {sorted.map(entry => (
+            <AppCard key={entry.app.app_id} {...entry} />
           ))}
         </div>
       )}
 
-      {filtered.length === 0 && !isPending && !showNotFound && trimmed.length > 0 && (
-        <p className="text-sm text-muted-foreground/60 text-center py-8">
-          No results for "{trimmed}"
-        </p>
+      {/* Empty states */}
+      {!isPending && !showNotFound && sorted.length === 0 && entries.length > 0 && (
+        <div className="text-center py-12 text-muted-foreground/60">
+          <p className="text-sm">No apps match the current filters.</p>
+          <button onClick={clearAllFilters} className="text-xs text-blue-400 hover:text-blue-300 mt-2 underline">Clear all filters</button>
+        </div>
       )}
-
       {entries.length === 0 && trimmed.length === 0 && !isPending && (
         <div className="text-center py-16 text-muted-foreground/60">
           <p className="text-sm">No evaluated apps yet. Use the search above to evaluate your first app.</p>
