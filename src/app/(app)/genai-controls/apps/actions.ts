@@ -7,6 +7,7 @@ export interface EvaluatedAppCard {
   app_id:                  string
   app_name:                string
   vendor:                  string
+  domain:                  string
   app_type:                string
   logo_letter:             string
   logo_bg:                 string

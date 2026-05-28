@@ -6,6 +6,7 @@ import { computeTrustScore, CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
 import { cn } from '@/lib/utils'
 import type { GenAIApp, GenAIAppProfile, AppFields, DLPActivities, BreachInfo, CustomerClass, CustomerClassification, ApprovalStatus } from '@/lib/genai/types'
 import { ClassificationSelector } from './_components/classification-selector'
+import { AppLogo } from '../_components/app-logo'
 import type { GovernanceCategory } from './_components/classification-selector'
 import { AppDetailTabs } from './_components/app-detail-tabs'
 import type { GovRecord } from './_components/app-detail-tabs'
@@ -89,12 +90,7 @@ export default async function GenAIAppProfilePage({
       {/* App header */}
       <div className="rounded-xl border border-border bg-card/50 p-5 shadow-sm">
         <div className="flex items-start gap-4">
-          <div
-            className="w-12 h-12 rounded-xl flex items-center justify-center text-foreground font-bold text-lg flex-shrink-0"
-            style={{ backgroundColor: typedApp.logo_bg }}
-          >
-            {typedApp.logo_letter}
-          </div>
+          <AppLogo domain={typedApp.domain} letter={typedApp.logo_letter} bg={typedApp.logo_bg} size={48} />
           <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold text-foreground">{typedApp.app_name}</h1>
             <p className="text-sm text-muted-foreground/80">{typedApp.vendor} · {typedApp.domain} · {typedApp.app_type}</p>

@@ -6,6 +6,7 @@ import { Search, X, Loader2, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { evaluateApp } from '../actions'
 import type { EvaluatedAppCard } from '../actions'
+import { AppLogo } from './app-logo'
 import { CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
 import type { GenAIApp, CustomerClassification, TrustScores } from '@/lib/genai/types'
 
@@ -48,12 +49,7 @@ function AppCard({ app, score, classification, href }: { app: GenAIApp; score: T
       className="group block rounded-xl border border-border bg-card/50 p-4 hover:border-border-strong hover:bg-card transition-all shadow-sm"
     >
       <div className="flex items-start gap-3 mb-3">
-        <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center text-foreground font-bold text-sm flex-shrink-0"
-          style={{ backgroundColor: app.logo_bg }}
-        >
-          {app.logo_letter}
-        </div>
+        <AppLogo domain={app.domain} letter={app.logo_letter} bg={app.logo_bg} size={40} />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-foreground group-hover:text-blue-300 transition-colors truncate">{app.app_name}</p>
           <p className="text-xs text-muted-foreground/80 truncate">{app.vendor} · {app.app_type}</p>
@@ -166,12 +162,7 @@ function NewlyEvaluatedCard({ data }: { data: EvaluatedAppCard }) {
       </div>
 
       <div className="flex items-start gap-3 mb-4">
-        <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center text-foreground font-bold text-sm flex-shrink-0"
-          style={{ backgroundColor: data.logo_bg }}
-        >
-          {data.logo_letter}
-        </div>
+        <AppLogo domain={data.domain} letter={data.logo_letter} bg={data.logo_bg} size={40} />
         <div className="flex-1 min-w-0 pr-24">
           <p className="text-sm font-semibold text-foreground group-hover:text-blue-300 transition-colors truncate">{data.app_name}</p>
           <p className="text-xs text-muted-foreground/80 truncate">{data.vendor} · {data.app_type}</p>
