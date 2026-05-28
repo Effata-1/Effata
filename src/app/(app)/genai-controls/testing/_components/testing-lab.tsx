@@ -1,23 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import { cn } from '@/lib/utils'
 import { FilterSelect } from '@/components/ui/filter-select'
 import type { GenAIPolicy, CoachingNotification, ActionCode, CoachingTone } from '@/lib/genai/types'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const DATA_TYPES = [
-  { key: 'public',              label: 'Public' },
-  { key: 'internal',            label: 'Internal' },
-  { key: 'confidential',        label: 'Confidential' },
-  { key: 'highly-confidential', label: 'Highly Confidential' },
-  { key: 'secret',              label: 'Secret' },
-  { key: 'credentials',         label: 'Credentials / Secrets' },
-  { key: 'pci',                 label: 'PCI Data' },
-  { key: 'pii-low',             label: 'Low-volume PII' },
-  { key: 'pii-bulk',            label: 'Bulk PII' },
-  { key: 'source-code',         label: 'Source Code' },
-]
 
 const ACTIVITIES = [
   { key: 'post_prompt', label: 'Post / Prompt' },
@@ -116,14 +104,14 @@ function simulate(
   dataType: string,
   activity: Activity,
 ): SimResult {
-  const inScope    = policies.filter(p => p.scope_all_apps || p.scope_app_ids.includes(appId))
-  const outOfScope = policies.filter(p => !p.scope_all_apps && !p.scope_app_ids.includes(appId))
+  const inScope    = policies.filter(p => p.scope_all_apps || (p.scope_app_ids ?? []).includes(appId))
+  const outOfScope = policies.filter(p => !p.scope_all_apps && !(p.scope_app_ids ?? []).includes(appId))
 
   const matchingPolicies: SimMatch[] = []
   const noRule: GenAIPolicy[] = []
 
   for (const p of inScope) {
-    const rule   = p.rules.find(r => r.data_type === dataType)
+    const rule   = (p.rules ?? []).find(r => r.data_type === dataType)
     const action = (rule?.[activity] ?? 'not-set') as ActionCode
     if (action !== 'not-set') {
       matchingPolicies.push({ policy: p, action })
@@ -216,10 +204,12 @@ export function TestingLab({
   policies,
   apps,
   notifications,
+  dataTypeOptions,
 }: {
-  policies:      GenAIPolicy[]
-  apps:          Array<{ app_id: string; app_name: string; vendor: string; domain: string; logo_letter: string; logo_bg: string; logo_url: string | null }>
-  notifications: CoachingNotification[]
+  policies:         GenAIPolicy[]
+  apps:             Array<{ app_id: string; app_name: string; vendor: string; domain: string; logo_letter: string; logo_bg: string; logo_url: string | null }>
+  notifications:    CoachingNotification[]
+  dataTypeOptions:  Array<{ key: string; label: string; group: string }>
 }) {
   const [appId,    setAppId]    = useState('')
   const [dataType, setDataType] = useState('')
@@ -231,11 +221,16 @@ export function TestingLab({
   const ready = !!appId && !!dataType && !!activity
   const selectedApp = apps.find(a => a.app_id === appId)
 
-  const result: SimResult | null = ready
-    ? simulate(policies, notifications, appId, dataType, activity as Activity)
-    : null
+  const result = useMemo<SimResult | null>(() => {
+    if (!ready) return null
+    try {
+      return simulate(policies, notifications, appId, dataType, activity as Activity)
+    } catch {
+      return null
+    }
+  }, [ready, policies, notifications, appId, dataType, activity])
 
-  const dataTypeLabel = DATA_TYPES.find(d => d.key === dataType)?.label ?? dataType
+  const dataTypeLabel = dataTypeOptions.find(d => d.key === dataType)?.label ?? dataType
   const activityLabel = ACTIVITIES.find(a => a.key === activity)?.label ?? activity
 
   const varValues = {
@@ -246,7 +241,7 @@ export function TestingLab({
   }
 
   const appOptions = apps.map(a => ({ value: a.app_id, label: `${a.app_name} — ${a.vendor}` }))
-  const dtOptions  = DATA_TYPES.map(d => ({ value: d.key, label: d.label }))
+  const dtOptions  = dataTypeOptions.map(d => ({ value: d.key, label: d.label }))
   const actOptions = ACTIVITIES.map(a => ({ value: a.key, label: a.label }))
 
   return (
@@ -387,7 +382,7 @@ export function TestingLab({
                         <td className="px-5 py-3 text-xs text-muted-foreground/50">
                           {policy.scope_all_apps
                             ? 'All apps'
-                            : `${policy.scope_app_ids.length} app${policy.scope_app_ids.length === 1 ? '' : 's'}`}
+                            : `${(policy.scope_app_ids ?? []).length} app${(policy.scope_app_ids ?? []).length === 1 ? '' : 's'}`}
                         </td>
                       </tr>
                     ))}
@@ -451,7 +446,7 @@ export function TestingLab({
                     {result!.outOfScope.map(p => (
                       <li key={p.id} className="px-5 py-2.5 text-xs text-muted-foreground/50">
                         {p.name}
-                        <span className="ml-2 text-muted-foreground/30">— scoped to {p.scope_app_ids.length} specific app{p.scope_app_ids.length === 1 ? '' : 's'}</span>
+                        <span className="ml-2 text-muted-foreground/30">— scoped to {(p.scope_app_ids ?? []).length} specific app{(p.scope_app_ids ?? []).length === 1 ? '' : 's'}</span>
                       </li>
                     ))}
                   </ul>
