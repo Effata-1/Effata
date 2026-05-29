@@ -200,7 +200,17 @@ function DestCell({ policy, apps }: { policy: GenAIPolicy; apps: App[] }) {
   )
 }
 
+function isAppAccessPolicy(policy: GenAIPolicy): boolean {
+  const npj = (policy as unknown as Record<string, unknown>).neutral_policy_json
+  if (!npj || typeof npj !== 'object') return false
+  const conditions = ((npj as Record<string, unknown>).content as Record<string, unknown> | undefined)?.conditions
+  return Array.isArray(conditions) && conditions.some((c: unknown) => (c as Record<string, unknown>)?.type === 'govern_app_access')
+}
+
 function DataTypeCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: RuleItem[] }) {
+  if (isAppAccessPolicy(policy)) {
+    return <span className="text-[11px] text-muted-foreground/40 italic">No content detection</span>
+  }
   const { selectedDataKeys } = deriveFromRules(policy.rules ?? [], ruleItems)
   const names = ruleItems.filter(i => selectedDataKeys.has(i.key)).map(i => i.name)
   if (names.length === 0 && policy.data_classification_label) {
@@ -219,6 +229,9 @@ function DataTypeCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: R
 }
 
 function ActivitiesCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: RuleItem[] }) {
+  if (isAppAccessPolicy(policy)) {
+    return <span className="text-[11px] text-muted-foreground/40 italic">—</span>
+  }
   const { selectedActivities } = deriveFromRules(policy.rules ?? [], ruleItems)
   const acts = ACTIVITIES.filter(a => selectedActivities.has(a.key)).map(a => a.label)
   if (acts.length === 0) return <span className="text-[11px] text-muted-foreground/40 italic">—</span>
