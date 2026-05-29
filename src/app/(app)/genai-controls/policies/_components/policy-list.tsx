@@ -755,6 +755,7 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
               <thead>
                 <tr className="border-b border-border bg-card/80">
                   <th className="w-10 px-3 py-2.5" />
+                  <th className="w-8 px-2 py-2.5 text-[10px] font-semibold text-muted-foreground/30 text-right">#</th>
                   <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">
                     Name
                     <span className="ml-2 text-[10px] font-normal text-muted-foreground/30 normal-case tracking-normal">{visible.length} {visible.length === 1 ? 'policy' : 'policies'}</span>
@@ -773,7 +774,7 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
               </thead>
 
               <tbody>
-                {visible.map(policy => (
+                {visible.map((policy, idx) => (
                   <tr key={policy.id}
                     className={cn('border-b border-border/40 last:border-0 hover:bg-card/40 transition-colors', !policy.is_active && 'opacity-50')}
                   >
@@ -785,6 +786,10 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                       >
                         <span className={cn('absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all', policy.is_active ? 'left-3.5' : 'left-0.5')} />
                       </button>
+                    </td>
+
+                    <td className="px-2 py-2.5 align-middle text-right w-8">
+                      <span className="text-[10px] text-muted-foreground/30 tabular-nums">{idx + 1}</span>
                     </td>
 
                     <td className="px-3 py-2.5 align-middle max-w-[220px]">
