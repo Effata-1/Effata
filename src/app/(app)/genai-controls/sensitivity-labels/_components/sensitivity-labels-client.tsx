@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { colorClasses, COLOR_OPTIONS, SYSTEM_LEVEL_META } from '@/lib/data-catalog/types'
 import type { SystemLevel } from '@/lib/data-catalog/types'
@@ -48,8 +48,8 @@ interface LabelFormProps {
     display_name: string; label_key: string; label_value: string
     label_source: string; color: string; system_level: string | null
   }
-  onSave:   (fields: Omit<LabelFormProps['initial'], never>) => void
-  onCancel: () => void
+  onSave:        (fields: Omit<LabelFormProps['initial'], never>) => Promise<string | undefined>
+  onCancel:      () => void
 }
 
 function LabelForm({ initial, onSave, onCancel }: LabelFormProps) {
@@ -59,10 +59,13 @@ function LabelForm({ initial, onSave, onCancel }: LabelFormProps) {
   const [labelSource,  setLabelSource]  = useState(initial.label_source)
   const [color,        setColor]        = useState(initial.color)
   const [systemLevel,  setSystemLevel]  = useState(initial.system_level ?? '')
+  const [formError,    setFormError]    = useState<string | null>(null)
 
-  function submit() {
-    if (!displayName.trim()) return
-    onSave({
+  async function submit() {
+    if (!displayName.trim()) { setFormError('Display name is required.'); return }
+    if (!labelKey.trim())    { setFormError('Metadata Key is required — this is the file property your DLP tool reads (e.g. MSIP_Label_xxx_Enabled).'); return }
+    setFormError(null)
+    const serverError = await onSave({
       display_name: displayName.trim(),
       label_key:    labelKey.trim(),
       label_value:  labelValue.trim() || 'True',
@@ -70,6 +73,7 @@ function LabelForm({ initial, onSave, onCancel }: LabelFormProps) {
       color,
       system_level: systemLevel || null,
     })
+    if (serverError) setFormError(serverError)
   }
 
   return (
@@ -151,6 +155,10 @@ function LabelForm({ initial, onSave, onCancel }: LabelFormProps) {
         </div>
       </div>
 
+      {formError && (
+        <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{formError}</p>
+      )}
+
       <div className="flex items-center gap-2 pt-1">
         <button
           onClick={submit}
@@ -224,27 +232,29 @@ function LabelRow({ label, onEdit, onDeactivate }: {
 export function SensitivityLabelsClient({ initialLabels }: { initialLabels: CustomerSensitivityLabel[] }) {
   const [labels,    setLabels]    = useState<CustomerSensitivityLabel[]>(initialLabels)
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
-  const [, startTransition]       = useTransition()
 
-  function handleSave(id: string | null, fields: Omit<CustomerSensitivityLabel, 'id' | 'priority'>) {
-    startTransition(async () => {
-      const priority = id ? (labels.find(l => l.id === id)?.priority ?? labels.length + 1) : labels.length + 1
-      const result = await upsertCustomerLabel(id, { ...fields, priority })
-      if (!result.error) {
-        if (id) {
-          setLabels(prev => prev.map(l => l.id === id ? { ...l, ...fields } : l))
-        } else {
-          // Optimistic: add with a temp id; server revalidates
-          setLabels(prev => [...prev, { id: crypto.randomUUID(), ...fields, priority }])
-        }
-        setEditingId(null)
-      }
-    })
+  async function handleSave(id: string | null, fields: Omit<CustomerSensitivityLabel, 'id' | 'priority'>): Promise<string | undefined> {
+    const priority = id ? (labels.find(l => l.id === id)?.priority ?? labels.length + 1) : labels.length + 1
+    const result = await upsertCustomerLabel(id, { ...fields, priority })
+    if (result.error) {
+      // Surface duplicate key constraint as a readable message
+      const msg = result.error.includes('unique') || result.error.includes('duplicate')
+        ? `A label with Metadata Key "${fields.label_key}" already exists. Each label must have a unique key.`
+        : result.error
+      return msg
+    }
+    if (id) {
+      setLabels(prev => prev.map(l => l.id === id ? { ...l, ...fields } : l))
+    } else {
+      setLabels(prev => [...prev, { id: crypto.randomUUID(), ...fields, priority }])
+    }
+    setEditingId(null)
+    return undefined
   }
 
   function handleDeactivate(id: string) {
     setLabels(prev => prev.filter(l => l.id !== id))
-    startTransition(async () => { await deactivateCustomerLabel(id) })
+    void deactivateCustomerLabel(id)
   }
 
   return (
@@ -327,7 +337,9 @@ export function SensitivityLabelsClient({ initialLabels }: { initialLabels: Cust
           <strong className="text-foreground/60">Metadata Key</strong> is the file property your DLP tool reads (e.g. <code className="font-mono text-[11px] bg-muted/30 px-1 rounded">MSIP_Label_xxxxxxxx_Enabled</code> for MIP). <strong className="text-foreground/60">Metadata Value</strong> is the value to match — usually <code className="font-mono text-[11px] bg-muted/30 px-1 rounded">True</code> or <code className="font-mono text-[11px] bg-muted/30 px-1 rounded">1</code>. Check with your Microsoft Purview or classification tool admin for the exact format your DLP solution reads.
         </p>
         <p className="text-xs text-muted-foreground/50">
-          <strong className="text-foreground/50">Effata Level mapping</strong> links this label to an Effata sensitivity tier. Used to derive default Control Matrix actions and group label-detection policies at generation time.
+          <strong className="text-foreground/50">Effata Level mapping</strong> links this label to an Effata sensitivity tier. This determines which Control Matrix defaults apply and how strictly the label is treated during policy generation.
+          Sensitivity order (highest → lowest): <span className="font-mono text-[10px]">Secret → Highly Confidential → Confidential → Internal → Public</span>.
+          Labels mapped to higher tiers get stricter default actions (block/coach vs monitor/allow).
         </p>
       </div>
     </div>
