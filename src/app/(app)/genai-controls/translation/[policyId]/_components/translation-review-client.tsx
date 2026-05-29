@@ -470,10 +470,8 @@ function VendorTabContent({ vendorId, translation, policyId }: VendorTabProps) {
                 <span className="text-muted-foreground/50 text-xs">{isExpanded ? '▲' : '▼'}</span>
               </button>
               {isExpanded && (
-                <div className="border-t border-border bg-muted/20 p-4">
-                  <pre className="text-xs text-muted-foreground overflow-x-auto whitespace-pre-wrap break-words font-mono">
-                    {JSON.stringify(np, null, 2)}
-                  </pre>
+                <div className="border-t border-border">
+                  <NativePolicyCard policy={npRecord} />
                 </div>
               )}
             </div>
@@ -521,6 +519,306 @@ function VendorTabContent({ vendorId, translation, policyId }: VendorTabProps) {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Native Policy Card ─────────────────────────────────────────────────────────
+
+const ACTION_CHIP_MAP: Record<string, string> = {
+  'Block':  'bg-red-500/10 text-red-400 border-red-500/20',
+  'Alert':  'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  'Coach':  'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  'Allow':  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  'Monitor':'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  'UserNotification': 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  'GenerateIncidentReport': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+}
+
+const SEVERITY_CHIP_MAP: Record<string, string> = {
+  'Critical': 'bg-red-500/10 text-red-400 border-red-500/20',
+  'High':     'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  'Medium':   'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  'Low':      'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+}
+
+// Fields rendered in the structured header — skip them in the generic table
+const HEADER_FIELDS = new Set([
+  'name', 'policy_name', 'status', 'action', 'severity',
+  'source', 'destination', 'activities', 'dlp_profile',
+  'alert', 'save_evidence', 'notification_template',
+  'policy_type', 'policy_family',
+  // Skyhigh / Purview
+  'mode', 'location', 'scope', 'rule_groups', 'content_conditions',
+  // Forcepoint
+  'source_resources', 'destination_resources', 'classifiers',
+])
+
+function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[140px_1fr] gap-3 py-2.5 border-b border-border/40 last:border-0 items-start">
+      <span className="text-xs text-muted-foreground/60 pt-0.5 uppercase tracking-wide font-medium">{label}</span>
+      <div>{children}</div>
+    </div>
+  )
+}
+
+function StringChips({ values, colorClass }: { values: string[]; colorClass?: string }) {
+  const cls = colorClass ?? 'bg-muted/50 text-foreground/70 border-border/50'
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {values.map((v, i) => (
+        <span key={i} className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium', cls)}>
+          {v}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function renderValue(key: string, value: unknown): React.ReactNode {
+  if (value === null || value === undefined) {
+    return <span className="text-xs text-muted-foreground/40 italic">Not configured</span>
+  }
+  if (typeof value === 'boolean') {
+    return (
+      <span className={cn(
+        'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
+        value ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-muted/50 text-muted-foreground/60 border-border/50',
+      )}>
+        {value ? 'Yes' : 'No'}
+      </span>
+    )
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <span className="text-xs text-muted-foreground/40 italic">None</span>
+    return <StringChips values={value.map(v => String(v))} />
+  }
+  if (typeof value === 'object') {
+    // Render object as nested key-value rows
+    const entries = Object.entries(value as Record<string, unknown>)
+    if (entries.length === 0) return <span className="text-xs text-muted-foreground/40 italic">—</span>
+    return (
+      <div className="space-y-1">
+        {entries.map(([k, v]) => (
+          <div key={k} className="flex items-start gap-2">
+            <span className="text-xs text-muted-foreground/50 min-w-[80px]">{k}:</span>
+            <div className="text-xs">{renderValue(k, v)}</div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+  // For action/severity use color chips
+  if (key === 'action') {
+    return (
+      <span className={cn(
+        'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
+        ACTION_CHIP_MAP[String(value)] ?? 'bg-muted/50 text-foreground/70 border-border/50',
+      )}>
+        {String(value)}
+      </span>
+    )
+  }
+  if (key === 'severity') {
+    return (
+      <span className={cn(
+        'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
+        SEVERITY_CHIP_MAP[String(value)] ?? 'bg-muted/50 text-foreground/70 border-border/50',
+      )}>
+        {String(value)}
+      </span>
+    )
+  }
+  return <span className="text-xs text-foreground/80">{String(value)}</span>
+}
+
+function NativePolicyCard({ policy }: { policy: Record<string, unknown> }) {
+  const [showRaw, setShowRaw] = useState(false)
+
+  const action      = policy.action as string | undefined
+  const severity    = policy.severity as string | undefined
+  const status      = policy.status as string | undefined
+  const activities  = policy.activities as string[] | undefined
+  const source      = policy.source as Record<string, unknown> | undefined
+  const destination = policy.destination as Record<string, unknown> | undefined
+  const dlpProfile  = 'dlp_profile' in policy ? policy.dlp_profile : undefined
+  const alert       = policy.alert as boolean | undefined
+  const saveEvidence= policy.save_evidence as boolean | undefined
+  const notification= policy.notification_template as string | null | undefined
+
+  // Fields specific to other vendors
+  const location         = policy.location as string | undefined
+  const scope            = policy.scope as Record<string, unknown> | undefined
+  const ruleGroups       = policy.rule_groups as unknown[] | undefined
+  const contentConditions= policy.content_conditions as string[] | undefined
+  const sourceResources  = policy.source_resources as string[] | undefined
+  const destResources    = policy.destination_resources as string[] | undefined
+  const classifiers      = policy.classifiers as string[] | undefined
+  const mode             = policy.mode as string | undefined
+
+  // Remaining fields not in HEADER_FIELDS
+  const extraEntries = Object.entries(policy).filter(([k]) => !HEADER_FIELDS.has(k) && k !== 'name' && k !== 'policy_name')
+
+  return (
+    <div className="p-4 space-y-1">
+      {/* Action + Severity + Status row */}
+      <div className="flex flex-wrap items-center gap-2 pb-3 border-b border-border/40">
+        {status && (
+          <span className={cn(
+            'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
+            status === 'enabled' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-muted/50 text-muted-foreground border-border',
+          )}>
+            {status}
+          </span>
+        )}
+        {action && (
+          <span className={cn(
+            'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
+            ACTION_CHIP_MAP[action] ?? 'bg-muted/50 text-foreground/70 border-border/50',
+          )}>
+            {action}
+          </span>
+        )}
+        {severity && (
+          <span className={cn(
+            'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
+            SEVERITY_CHIP_MAP[severity] ?? 'bg-muted/50 text-foreground/70 border-border/50',
+          )}>
+            {severity}
+          </span>
+        )}
+        {mode && (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium bg-blue-500/10 text-blue-400 border-blue-500/20">
+            {mode}
+          </span>
+        )}
+      </div>
+
+      {/* Structured fields */}
+      <div>
+        {source && (
+          <FieldRow label="Source">
+            {renderValue('source', source)}
+          </FieldRow>
+        )}
+        {sourceResources && (
+          <FieldRow label="Source Resources">
+            <StringChips values={sourceResources} />
+          </FieldRow>
+        )}
+        {destination && (
+          <FieldRow label="Destination">
+            {renderValue('destination', destination)}
+          </FieldRow>
+        )}
+        {destResources && (
+          <FieldRow label="Destination">
+            <StringChips values={destResources} />
+          </FieldRow>
+        )}
+        {location && (
+          <FieldRow label="Location">
+            <span className="text-xs text-foreground/80">{location}</span>
+          </FieldRow>
+        )}
+        {activities && (
+          <FieldRow label="Activities">
+            <StringChips values={activities} colorClass="bg-blue-500/10 text-blue-400 border-blue-500/20" />
+          </FieldRow>
+        )}
+        {scope && (
+          <FieldRow label="Scope">
+            {renderValue('scope', scope)}
+          </FieldRow>
+        )}
+        {'dlp_profile' in policy && (
+          <FieldRow label="DLP Profile">
+            {dlpProfile
+              ? <span className="text-xs font-mono text-foreground/80 bg-muted/50 px-2 py-0.5 rounded border border-border">{String(dlpProfile)}</span>
+              : <span className="text-xs text-amber-400/80 italic">None — policy matches all content (no content inspection)</span>
+            }
+          </FieldRow>
+        )}
+        {classifiers && (
+          <FieldRow label="Classifiers">
+            <StringChips values={classifiers} colorClass="bg-purple-500/10 text-purple-400 border-purple-500/20" />
+          </FieldRow>
+        )}
+        {contentConditions && (
+          <FieldRow label="Content Conditions">
+            <StringChips values={contentConditions} colorClass="bg-purple-500/10 text-purple-400 border-purple-500/20" />
+          </FieldRow>
+        )}
+        {ruleGroups && ruleGroups.length > 0 && (
+          <FieldRow label="Rule Groups">
+            <div className="space-y-2">
+              {ruleGroups.map((rg, i) => (
+                <div key={i} className="rounded-lg border border-border/50 bg-muted/20 p-2.5 text-xs space-y-1">
+                  {Object.entries(rg as Record<string, unknown>).map(([k, v]) => (
+                    <div key={k} className="flex items-start gap-2">
+                      <span className="text-muted-foreground/50 min-w-[80px]">{k}:</span>
+                      <div>{renderValue(k, v)}</div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </FieldRow>
+        )}
+        {(alert !== undefined || saveEvidence !== undefined || notification !== undefined) && (
+          <FieldRow label="Options">
+            <div className="flex flex-wrap gap-3">
+              {alert !== undefined && (
+                <span className="text-xs text-muted-foreground/70">
+                  Alert: {renderValue('alert', alert)}
+                </span>
+              )}
+              {saveEvidence !== undefined && (
+                <span className="text-xs text-muted-foreground/70">
+                  Save evidence: {renderValue('save_evidence', saveEvidence)}
+                </span>
+              )}
+              {notification !== undefined && (
+                <span className="text-xs text-muted-foreground/70">
+                  Notification: {notification
+                    ? <span className="font-mono text-foreground/80">{notification}</span>
+                    : <span className="text-muted-foreground/40 italic">None</span>
+                  }
+                </span>
+              )}
+            </div>
+          </FieldRow>
+        )}
+        {extraEntries.length > 0 && extraEntries.map(([k, v]) => (
+          <FieldRow key={k} label={k.replace(/_/g, ' ')}>
+            {renderValue(k, v)}
+          </FieldRow>
+        ))}
+        {!!(policy.policy_type || policy.policy_family) && (
+          <FieldRow label="Type / Family">
+            <span className="text-xs text-muted-foreground/60">
+              {[policy.policy_type as string | undefined, policy.policy_family as string | undefined].filter(Boolean).join(' · ')}
+            </span>
+          </FieldRow>
+        )}
+      </div>
+
+      {/* Raw JSON toggle */}
+      <div className="pt-2">
+        <button
+          type="button"
+          onClick={() => setShowRaw(r => !r)}
+          className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+        >
+          {showRaw ? '▲ Hide raw JSON' : '▼ View raw JSON'}
+        </button>
+        {showRaw && (
+          <pre className="mt-2 text-xs text-muted-foreground/70 bg-muted/30 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-words font-mono border border-border/40">
+            {JSON.stringify(policy, null, 2)}
+          </pre>
+        )}
+      </div>
     </div>
   )
 }
