@@ -587,7 +587,7 @@ const SEVERITY_CHIP_MAP: Record<string, string> = {
 
 // Fields rendered explicitly — excluded from the generic extra-entries table
 const HEADER_FIELDS = new Set([
-  'name', 'policy_name', 'status', 'action', 'severity',
+  'name', 'policy_name', 'description', 'status', 'action', 'severity',
   'source', 'destination', 'activities', 'dlp_profile',
   'alert', 'save_evidence', 'notification_template',
   'policy_type', 'policy_family',
@@ -710,6 +710,7 @@ function NetskopeCard({ policy }: { policy: Record<string, unknown> }) {
   const trafficAction = policy.traffic_action as string | undefined
   const group         = policy.group as string | undefined
   const status        = policy.status as string | undefined
+  const description   = policy.description as string | undefined
 
   const activities    = (destination?.activities ?? []) as string[]
   const usersOrGroups = source?.users_or_groups ?? ['All Users']
@@ -814,7 +815,7 @@ function NetskopeCard({ policy }: { policy: Record<string, unknown> }) {
         </div>
       </div>
 
-      {/* Policy Name + Group */}
+      {/* Policy Name + Group + Description */}
       <div className="grid grid-cols-[160px_1fr] gap-4 px-5 py-3.5 items-start">
         <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide pt-0.5">Policy Name</span>
         <div className="space-y-1.5">
@@ -824,6 +825,11 @@ function NetskopeCard({ policy }: { policy: Record<string, unknown> }) {
               <span className="text-xs text-muted-foreground/50">Group =</span>
               <span className="text-xs text-muted-foreground/70">{group}</span>
             </div>
+          )}
+          {description && (
+            <p className="text-xs text-muted-foreground/60 leading-relaxed pt-0.5 border-t border-border/30 mt-1">
+              {description}
+            </p>
           )}
         </div>
       </div>
