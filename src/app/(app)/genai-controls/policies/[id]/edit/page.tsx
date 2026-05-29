@@ -4,6 +4,7 @@ import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import { PolicyBuilder } from '../../new/_components/policy-builder'
+import { PolicyIntentEditor } from './_components/policy-intent-editor'
 import { getIdentityPageData } from '@/app/(app)/policies/identity/actions'
 import { ensureClassificationLabels } from '@/lib/data-catalog/actions'
 import type { RuleItem } from '../../new/_components/policy-builder'
@@ -44,6 +45,7 @@ export default async function EditPolicyPage({ params }: { params: Promise<{ id:
     catalogTypesResult,
     coachingTemplatesResult,
     allPoliciesResult,
+    translationsResult,
   ] = await Promise.all([
     supabase.from('org_genai_policies').select('*').eq('id', id).eq('org_id', user.orgId).single(),
     supabase.from('genai_apps').select('app_id, app_name, vendor, app_type, logo_letter, logo_bg').order('app_name'),
@@ -56,6 +58,7 @@ export default async function EditPolicyPage({ params }: { params: Promise<{ id:
     supabase.from('catalog_data_types').select('id, name, system_level, subcategory').eq('active', true).order('priority').order('name'),
     supabase.from('org_coaching_notifications').select('id, name, coach_label').eq('org_id', user.orgId).order('name'),
     supabase.from('org_genai_policies').select('id, name').eq('org_id', user.orgId).order('priority'),
+    supabase.from('org_vendor_translations').select('id, vendor_id, status, neutral_policy_hash').eq('policy_id', id).eq('org_id', user.orgId),
   ])
 
   if (!policyResult.data) notFound()
@@ -69,6 +72,50 @@ export default async function EditPolicyPage({ params }: { params: Promise<{ id:
   const catalogTypes      = catalogTypesResult.data      ?? []
   const coachingTemplates = coachingTemplatesResult.data ?? []
   const allPolicies       = allPoliciesResult.data       ?? []
+  const translations      = translationsResult.data      ?? []
+
+  // ── Governance-matrix policies → PolicyIntentEditor ─────────────────────────
+  if (policy.generated_from === 'governance-matrix') {
+    return (
+      <PolicyIntentEditor
+        policy={{
+          id:                        policy.id,
+          name:                      policy.name,
+          description:               policy.description,
+          is_active:                 policy.is_active,
+          approval_status:           policy.approval_status,
+          category_id:               policy.category_id,
+          scope_app_ids:             policy.scope_app_ids ?? [],
+          identity_context:          policy.identity_context,
+          policy_family:             policy.policy_family ?? null,
+          generated_from:            policy.generated_from ?? null,
+          data_classification_label: policy.data_classification_label ?? null,
+          fallback_action:           policy.fallback_action ?? null,
+          coaching_template_id:      policy.coaching_template_id ?? null,
+          vendor_translation_status: policy.vendor_translation_status ?? 'pending',
+          required_dependencies:     policy.required_dependencies ?? [],
+          test_status:               policy.test_status ?? 'untested',
+          neutral_policy_json:       (policy.neutral_policy_json as Record<string, unknown>) ?? {},
+          policy_key:                (policy as Record<string, unknown>).policy_key as string | null ?? null,
+          neutral_policy_hash:       (policy as Record<string, unknown>).neutral_policy_hash as string | null ?? null,
+          updated_at:                policy.updated_at,
+        }}
+        apps={apps}
+        categories={categories}
+        classificationLabels={classificationLabels.map(l => ({
+          id:           l.id,
+          system_level: l.system_level,
+          name:         l.name,
+          color:        l.color,
+        }))}
+        coachingTemplates={coachingTemplates}
+        allPolicies={allPolicies}
+        translations={translations}
+      />
+    )
+  }
+
+  // ── Other policies (manual / policy-pack-agent / legacy) → PolicyBuilder ────
 
   const orgTypeLabelMap = new Map(
     orgTypeMappings.map(m => [m.org_data_type_id as string, m.org_classification_label_id as string]),

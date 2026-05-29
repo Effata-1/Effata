@@ -32,7 +32,7 @@ export interface PolicyFields {
   primary_action?:            ActionCode | null
   fallback_action?:           ActionCode | null
   coaching_template_id?:      string | null
-  vendor_translation_status?: 'pending' | 'translated' | 'verified' | 'not-applicable'
+  vendor_translation_status?: 'pending' | 'translated' | 'verified' | 'not-applicable' | 'deferred'
   required_dependencies?:     string[]
   test_status?:               'untested' | 'in-progress' | 'passed' | 'failed'
 }
@@ -135,6 +135,33 @@ export async function generatePoliciesFromGovernance(): Promise<{ error?: string
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Failed to start policy generation job.' }
   }
+}
+
+export async function logPolicyChangeEvent(params: {
+  policyId:       string
+  changeType:     string
+  sourceLayer:    string
+  proposedChange: Record<string, unknown>
+  affectedCells:  string[]
+  oldHash:        string | null
+  compileJobId:   string | null
+}): Promise<void> {
+  const user = await requireRole('analyst')
+  void logAuditEvent({
+    action:      'policy.change_applied',
+    entity_type: 'org_genai_policies',
+    entity_id:   params.policyId,
+    details: {
+      change_type:     params.changeType,
+      source_layer:    params.sourceLayer,
+      proposed_change: params.proposedChange,
+      affected_cells:  params.affectedCells,
+      compile_job_id:  params.compileJobId,
+      old_policy_hash: params.oldHash,
+    },
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
 }
 
 const ALLOWED_DIFF_KEYS: Set<keyof PolicyFields> = new Set([

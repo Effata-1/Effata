@@ -1,0 +1,1443 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import {
+  ChevronLeft, AlertTriangle, CheckCircle2, RefreshCw, Loader2,
+  Lock, ExternalLink, Copy, Check, ChevronDown, ChevronRight, Info,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { colorClasses, SYSTEM_LEVEL_META } from '@/lib/data-catalog/types'
+import {
+  upsertPolicy,
+  generatePoliciesFromGovernance,
+  getPolicyPackJobStatus,
+  logPolicyChangeEvent,
+} from '../../../actions'
+import { upsertControlMatrixCell } from '@/app/(app)/genai-controls/control-matrix/actions'
+import type { ApprovalStatus, ActionCode } from '@/lib/genai/types'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface NpjCondition {
+  type:             string
+  sensitivity?:     string
+  name?:            string
+  confidence?:      string
+  label_name?:      string
+  label_source?:    string
+  metadata_key?:    string | null
+  metadata_value?:  string
+  pattern?:         string
+}
+
+interface NpjDecision {
+  mode:                    string
+  severity:                string
+  require_acknowledgement: boolean
+  require_justification:   boolean
+  preserve_evidence:       boolean
+  create_incident:         boolean
+}
+
+interface NpjException {
+  effect: string
+  reason: string
+}
+
+interface NeutralPolicyJson {
+  schema_version?: string
+  intent?:         string
+  policy_family?:  string
+  policy_key?:     string
+  scope?: {
+    activities?:     string[]
+    channels?:       string[]
+    app_categories?: Array<{ id: string; system_tag: string | null; name: string }>
+  }
+  content?: {
+    operator?:   string
+    conditions?: NpjCondition[]
+  }
+  decision?:   NpjDecision
+  exceptions?: NpjException[]
+  provenance?: {
+    generated_from?:    string
+    source_cells?:      string[]
+    compiler_version?:  string
+    generated_at?:      string
+    warnings?:          string[]
+  }
+}
+
+export interface TranslationRow {
+  id:                   string
+  vendor_id:            string
+  status:               string
+  neutral_policy_hash:  string | null
+}
+
+export interface AppRow {
+  app_id:      string
+  app_name:    string
+  vendor:      string
+  app_type:    string
+  logo_letter: string
+  logo_bg:     string
+}
+
+export interface CategoryRow {
+  id:         string
+  system_tag: string | null
+  name:       string
+  color:      string
+}
+
+export interface CoachingTemplateRow {
+  id:          string
+  name:        string
+  coach_label: string | null
+}
+
+export interface PolicyBrief {
+  id:   string
+  name: string
+}
+
+export interface ClassificationLabelRow {
+  id:           string
+  system_level: string | null
+  name:         string
+  color:        string
+}
+
+export interface PolicyIntentEditorProps {
+  policy: {
+    id:                        string
+    name:                      string
+    description:               string | null
+    is_active:                 boolean
+    approval_status:           string
+    category_id:               string | null
+    scope_app_ids:             string[]
+    identity_context:          string[] | null
+    policy_family:             string | null
+    generated_from:            string | null
+    data_classification_label: string | null
+    fallback_action:           string | null
+    coaching_template_id:      string | null
+    vendor_translation_status: string
+    required_dependencies:     string[]
+    test_status:               string
+    neutral_policy_json:       Record<string, unknown>
+    policy_key:                string | null
+    neutral_policy_hash:       string | null
+    updated_at:                string
+  }
+  apps:                  AppRow[]
+  categories:            CategoryRow[]
+  classificationLabels:  ClassificationLabelRow[]
+  coachingTemplates:     CoachingTemplateRow[]
+  allPolicies:           PolicyBrief[]
+  translations:          TranslationRow[]
+}
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const ACTION_CHIP: Record<string, string> = {
+  allow:      'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  monitor:    'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  alert:      'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  coach:      'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  'coach-ack':  'bg-orange-500/15 text-orange-300 border-orange-500/30',
+  'coach-just': 'bg-amber-600/15 text-amber-300 border-amber-600/25',
+  block:      'bg-red-500/10 text-red-400 border-red-500/20',
+}
+
+const ACTION_RANK: Record<string, number> = {
+  allow: 0, monitor: 1, alert: 2, coach: 3, 'coach-ack': 4, 'coach-just': 5, block: 6,
+}
+
+const INTENT_CHIP: Record<string, string> = {
+  prevent_data_exfiltration: 'bg-red-500/10 text-red-400 border-red-500/20',
+  govern_app_access:         'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  allow_approved_use:        'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  monitor_and_alert:         'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  coach_user_behavior:       'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  detect_classification_label: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+}
+
+const TRANSLATION_CHIP: Record<string, string> = {
+  pending:     'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  translated:  'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  verified:    'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  deferred:    'bg-muted/60 text-muted-foreground/60 border-border/50',
+  'not-applicable': 'bg-muted/40 text-muted-foreground/50 border-border/40',
+}
+
+const NPJ_STATUS_CHIP: Record<string, string> = {
+  current:  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  outdated: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  legacy:   'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  invalid:  'bg-red-500/10 text-red-400 border-red-500/20',
+}
+
+const APPROVAL_OPTIONS: ApprovalStatus[] = ['draft', 'under-review', 'approved', 'rejected', 'expired']
+const TEST_STATUS_OPTIONS = ['untested', 'in-progress', 'passed', 'failed'] as const
+
+type ChangeType = 'action' | 'activities' | 'add-data-types' | 'add-customer-label' | 'change-app-scope' | 'add-exception' | 'change-evidence-incident'
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function isValidNpj(npj: unknown): npj is NeutralPolicyJson {
+  if (!npj || typeof npj !== 'object') return false
+  const n = npj as Record<string, unknown>
+  return n.schema_version === '1.0' && typeof n.intent === 'string' && typeof n.decision === 'object'
+}
+
+function npjStatus(npj: unknown, updatedAt: string): 'current' | 'outdated' | 'legacy' | 'invalid' {
+  if (!npj || (typeof npj === 'object' && Object.keys(npj as object).length === 0)) return 'legacy'
+  if (!isValidNpj(npj)) return 'invalid'
+  const generatedAt = (npj as NeutralPolicyJson).provenance?.generated_at
+  if (generatedAt && generatedAt < updatedAt) return 'outdated'
+  return 'current'
+}
+
+function riskLabel(fromMode: string, toMode: string): { level: string; text: string } {
+  const from = ACTION_RANK[fromMode] ?? 0
+  const to   = ACTION_RANK[toMode]   ?? 0
+  const delta = to - from
+  if (to === 0) return { level: 'high', text: 'Removes DLP protection — all access allowed' }
+  if (from === ACTION_RANK.block && delta < 0) return { level: 'high', text: 'Softens a blocking policy — users may now bypass enforcement' }
+  if (to === ACTION_RANK.block)  return { level: 'high', text: 'Hardens to blocking — may disrupt user workflows' }
+  if (Math.abs(delta) <= 1)      return { level: 'low',  text: 'Minor change — notification level only' }
+  return { level: 'medium', text: 'Changes DLP enforcement behaviour for all users' }
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function NpjRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[140px_1fr] gap-3 px-4 py-2.5 items-start">
+      <span className="text-xs text-muted-foreground/55 pt-0.5 font-medium">{label}</span>
+      <div>{children}</div>
+    </div>
+  )
+}
+
+function SectionCard({ title, children, tooltip, readOnly }: {
+  title:    string
+  children: React.ReactNode
+  tooltip?: string
+  readOnly?: boolean
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/20">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-foreground">{title}</span>
+          {readOnly && <Lock className="h-3 w-3 text-muted-foreground/40" />}
+          {tooltip && (
+            <span title={tooltip} className="cursor-help">
+              <Info className="h-3 w-3 text-muted-foreground/40" />
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="px-4 py-4">{children}</div>
+    </div>
+  )
+}
+
+function StatusChip({ label, chipClass }: { label: string; chipClass: string }) {
+  return (
+    <span className={cn('inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-medium', chipClass)}>
+      {label}
+    </span>
+  )
+}
+
+function Chip({ label, color = 'zinc' }: { label: string; color?: string }) {
+  const c = colorClasses(color)
+  return (
+    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium', c.text, c.bg, c.border)}>
+      {label}
+    </span>
+  )
+}
+
+function ReadOnlyTooltip({ children, tip }: { children: React.ReactNode; tip: string }) {
+  return (
+    <div className="relative group inline-flex items-center gap-1" title={tip}>
+      {children}
+      <Lock className="h-3 w-3 text-muted-foreground/30 group-hover:text-muted-foreground/60 cursor-help transition-colors" />
+    </div>
+  )
+}
+
+// ── Main Component ────────────────────────────────────────────────────────────
+
+export function PolicyIntentEditor({
+  policy,
+  apps,
+  categories,
+  classificationLabels,
+  coachingTemplates,
+  allPolicies,
+  translations,
+}: PolicyIntentEditorProps) {
+  const router   = useRouter()
+  const npj      = isValidNpj(policy.neutral_policy_json) ? (policy.neutral_policy_json as NeutralPolicyJson) : null
+  const rawNpj   = policy.neutral_policy_json
+  const status   = npjStatus(rawNpj, policy.updated_at)
+  const isGovMatrix = policy.generated_from === 'governance-matrix'
+
+  // ── form state (safe-field edits) ──────────────────────────────────────────
+  const [formName,             setFormName]             = useState(policy.name)
+  const [formDesc,             setFormDesc]             = useState(policy.description ?? '')
+  const [formActive,           setFormActive]           = useState(policy.is_active)
+  const [formApproval,         setFormApproval]         = useState<ApprovalStatus>(policy.approval_status as ApprovalStatus)
+  const [formTestStatus,       setFormTestStatus]       = useState(policy.test_status)
+  const [formCoachTemplate,    setFormCoachTemplate]    = useState(policy.coaching_template_id ?? '')
+  const [formRelatedPolicies,  setFormRelatedPolicies]  = useState<string[]>(policy.required_dependencies)
+  const [formAppIds,           setFormAppIds]           = useState<string[]>(policy.scope_app_ids)
+  const [translationStatus,    setTranslationStatus]    = useState(policy.vendor_translation_status)
+  const [saving,               setSaving]               = useState(false)
+  const [saveError,            setSaveError]            = useState('')
+  const [saveSuccess,          setSaveSuccess]          = useState(false)
+
+  // ── compile state ──────────────────────────────────────────────────────────
+  const [compiling,      setCompiling]      = useState(false)
+  const [compileJobId,   setCompileJobId]   = useState<string | null>(null)
+  const [compileError,   setCompileError]   = useState('')
+  const [compileSuccess, setCompileSuccess] = useState(false)
+
+  // ── change assistant state ─────────────────────────────────────────────────
+  const [changeType,    setChangeType]    = useState<ChangeType | ''>('')
+  const [proposedAction, setProposedAction] = useState<string>('')
+  const [applying,      setApplying]      = useState(false)
+  const [applyError,    setApplyError]    = useState('')
+  const [applySuccess,  setApplySuccess]  = useState(false)
+
+  // ── collapsible panels ─────────────────────────────────────────────────────
+  const [sourceOpen,    setSourceOpen]    = useState(false)
+  const [npjOpen,       setNpjOpen]       = useState(false)
+  const [npjJsonOpen,   setNpjJsonOpen]   = useState(false)
+  const [advancedOpen,  setAdvancedOpen]  = useState(false)
+  const [jsonCopied,    setJsonCopied]    = useState(false)
+
+  // ── poll compile job ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!compileJobId || !compiling) return
+    const interval = setInterval(async () => {
+      try {
+        const s = await getPolicyPackJobStatus(compileJobId)
+        if (s.status === 'completed') {
+          clearInterval(interval)
+          setCompiling(false)
+          setCompileSuccess(true)
+          setCompileJobId(null)
+          router.refresh()
+        } else if (s.status === 'failed') {
+          clearInterval(interval)
+          setCompiling(false)
+          setCompileError(s.error ?? 'Compile job failed.')
+        }
+      } catch {
+        // auth error (analyst can't poll admin-only endpoint) — stop polling, suggest refresh
+        clearInterval(interval)
+        setCompiling(false)
+        setCompileSuccess(true)
+        setCompileJobId(null)
+      }
+    }, 2500)
+    return () => clearInterval(interval)
+  }, [compileJobId, compiling, router])
+
+  // ── handlers ──────────────────────────────────────────────────────────────
+
+  async function handleSave() {
+    setSaving(true)
+    setSaveError('')
+    setSaveSuccess(false)
+    const fields: Parameters<typeof upsertPolicy>[1] = {
+      name:                 formName.trim() || policy.name,
+      description:          formDesc.trim() || undefined,
+      is_active:            formActive,
+      approval_status:      formApproval,
+      test_status:          formTestStatus as 'untested' | 'in-progress' | 'passed' | 'failed',
+      coaching_template_id: formCoachTemplate || null,
+      required_dependencies: formRelatedPolicies,
+      scope_app_ids:        formAppIds,
+    }
+    // Auto-mark translation pending when user-visible fields change
+    if (translationStatus !== 'not-applicable') {
+      const nameChanged  = formName.trim() !== policy.name
+      const descChanged  = (formDesc.trim() || null) !== policy.description
+      const scopeChanged = JSON.stringify([...formAppIds].sort()) !== JSON.stringify([...policy.scope_app_ids].sort())
+      if (nameChanged || descChanged || scopeChanged) {
+        fields.vendor_translation_status = 'pending'
+        setTranslationStatus('pending')
+      }
+    }
+    const res = await upsertPolicy(policy.id, fields)
+    setSaving(false)
+    if (res.error) { setSaveError(res.error); return }
+    setSaveSuccess(true)
+    setTimeout(() => setSaveSuccess(false), 3000)
+  }
+
+  async function handleCompile() {
+    setCompiling(true)
+    setCompileError('')
+    setCompileSuccess(false)
+    const res = await generatePoliciesFromGovernance()
+    if (res.error) {
+      setCompileError(res.error)
+      setCompiling(false)
+      return
+    }
+    if (res.jobId) {
+      setCompileJobId(res.jobId)
+    } else {
+      setCompiling(false)
+      setCompileSuccess(true)
+      router.refresh()
+    }
+  }
+
+  async function handleApplyActionChange() {
+    if (!proposedAction) return
+    setApplying(true)
+    setApplyError('')
+
+    const sourceCells = npj?.provenance?.source_cells ?? []
+    const ppCells = sourceCells.filter(c => c.startsWith('pp|'))
+
+    for (const cell of ppCells) {
+      const parts     = cell.split('|')
+      const sysLevel  = parts[1]
+      const catTagOrId = parts[2]
+      const labelId   = classificationLabels.find(l => l.system_level === sysLevel)?.id
+      const categoryId = categories.find(c => c.system_tag === catTagOrId || c.id === catTagOrId)?.id
+      if (!labelId || !categoryId) continue
+      const res = await upsertControlMatrixCell(`pp|${labelId}`, categoryId, proposedAction)
+      if (res.error) {
+        setApplyError(res.error)
+        setApplying(false)
+        return
+      }
+    }
+
+    // Audit log via server action
+    await logPolicyChangeEvent({
+      policyId:       policy.id,
+      changeType:     'action',
+      sourceLayer:    'control_matrix',
+      proposedChange: { from: npj?.decision?.mode ?? null, to: proposedAction },
+      affectedCells:  ppCells,
+      oldHash:        policy.neutral_policy_hash,
+      compileJobId:   null,
+    })
+
+    setApplying(false)
+    setApplySuccess(true)
+    setChangeType('')
+    setProposedAction('')
+
+    // Trigger compile
+    const compileRes = await generatePoliciesFromGovernance()
+    if (compileRes.error) {
+      setCompileError(compileRes.error)
+      return
+    }
+    if (compileRes.jobId) {
+      setCompileJobId(compileRes.jobId)
+      setCompiling(true)
+    }
+  }
+
+  async function handleTranslationAction(action: 'verified' | 'deferred' | 'not-applicable') {
+    if (action === 'not-applicable') {
+      if (!window.confirm('Are you sure this policy does not need vendor translation?')) return
+    }
+    const res = await upsertPolicy(policy.id, { vendor_translation_status: action })
+    if (!res.error) setTranslationStatus(action)
+  }
+
+  // ── computed ──────────────────────────────────────────────────────────────
+  const sourceCells = npj?.provenance?.source_cells ?? []
+  const ppCells     = sourceCells.filter(c => c.startsWith('pp|'))
+  const verifiedTranslations = translations.filter(t => t.status === 'verified').length
+  const risk = proposedAction && npj?.decision?.mode
+    ? riskLabel(npj.decision.mode, proposedAction)
+    : null
+
+  function toggleAppId(appId: string) {
+    setFormAppIds(ids =>
+      ids.includes(appId) ? ids.filter(i => i !== appId) : [...ids, appId]
+    )
+  }
+
+  function toggleRelatedPolicy(id: string) {
+    setFormRelatedPolicies(ids =>
+      ids.includes(id) ? ids.filter(i => i !== id) : [...ids, id]
+    )
+  }
+
+  // ── logic warnings ────────────────────────────────────────────────────────
+  const warnings: string[] = []
+  if (npj) {
+    const acts  = npj.scope?.activities ?? []
+    const conds = npj.content?.conditions ?? []
+    if ((acts.includes('download') || acts.includes('response')) &&
+      /pii|phi|secret|upload|prompt|credential/i.test(policy.name)) {
+      warnings.push('Activities include Download or Response on a submission-prevention policy. Confirm this is intentional — these target AI output, not user input.')
+    }
+    if (conds.some(c => c.type === 'classification_label') &&
+      (acts.includes('post') || acts.includes('prompt_submit'))) {
+      warnings.push('Label detection applies to file metadata only. Prompt/Post is not recommended for label detection policies.')
+    }
+    if (npj.intent === 'allow_approved_use' &&
+      !formAppIds.length && !(npj.scope?.app_categories?.length)) {
+      warnings.push('Allow policy is not scoped to a specific app or user group. Tightly scope allow policies before enabling.')
+    }
+  } else if (status === 'legacy' || status === 'invalid') {
+    warnings.push('No neutral policy data — vendor translation will use legacy fields only. Regenerate to compile structured neutral policy.')
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="space-y-5">
+
+      {/* ── 1. Header ────────────────────────────────────────────────────── */}
+      <div>
+        <Link
+          href="/genai-controls/policies"
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground/80 hover:text-foreground/70 transition-colors mb-3"
+        >
+          <ChevronLeft className="h-3 w-3" /> Policy Library
+        </Link>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-foreground truncate">{policy.name}</h1>
+            {policy.description && (
+              <p className="text-sm text-muted-foreground/70 mt-0.5 line-clamp-2">{policy.description}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+            <StatusChip
+              label={policy.approval_status}
+              chipClass={
+                policy.approval_status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                policy.approval_status === 'draft' ? 'bg-muted/60 text-muted-foreground/70 border-border/60' :
+                'bg-amber-500/10 text-amber-400 border-amber-500/20'
+              }
+            />
+            <StatusChip
+              label={translationStatus}
+              chipClass={TRANSLATION_CHIP[translationStatus] ?? 'bg-muted/60 text-muted-foreground/70 border-border/60'}
+            />
+            <StatusChip
+              label={policy.test_status}
+              chipClass={
+                policy.test_status === 'passed' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                policy.test_status === 'failed' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                'bg-muted/60 text-muted-foreground/70 border-border/60'
+              }
+            />
+            <StatusChip
+              label={`NPJ ${status}`}
+              chipClass={NPJ_STATUS_CHIP[status] ?? 'bg-muted/60 text-muted-foreground/70 border-border/60'}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Logic Warnings ───────────────────────────────────────────────── */}
+      {warnings.length > 0 && (
+        <div className="space-y-2">
+          {warnings.map((w, i) => (
+            <div key={i} className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/8 px-4 py-2.5 text-xs text-amber-400">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              <span>{w}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── 2. Intent Summary Card ───────────────────────────────────────── */}
+      {(status === 'legacy' || status === 'invalid') && (
+        <div className="flex items-center justify-between rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
+          <div className="flex items-center gap-2 text-xs text-amber-400">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>Legacy fields only — regenerate to compile structured neutral policy.</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleCompile}
+            disabled={compiling}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs font-medium text-amber-400 hover:bg-amber-500/15 transition-colors disabled:opacity-50"
+          >
+            {compiling ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+            Regenerate
+          </button>
+        </div>
+      )}
+
+      {npj && (
+        <div className="rounded-xl border border-border bg-card">
+          <div className="px-4 py-3 border-b border-border bg-muted/20">
+            <span className="text-sm font-semibold text-foreground">Intent</span>
+          </div>
+          <div className="divide-y divide-border/40">
+            <NpjRow label="Intent">
+              <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium', INTENT_CHIP[npj.intent ?? ''] ?? 'bg-muted/50 text-muted-foreground border-border')}>
+                {npj.intent ?? '—'}
+              </span>
+            </NpjRow>
+            <NpjRow label="Policy Family">
+              <span className="text-xs text-foreground/80">{npj.policy_family ?? policy.policy_family ?? '—'}</span>
+            </NpjRow>
+            <NpjRow label="Activities">
+              <ReadOnlyTooltip tip="Activities are set by the compiler based on policy family. Use Policy Change Assistant to change.">
+                <div className="flex flex-wrap gap-1.5">
+                  {(npj.scope?.activities ?? []).map((a, i) => (
+                    <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md border border-blue-500/25 bg-blue-500/10 text-xs text-blue-400">{a}</span>
+                  ))}
+                  {!npj.scope?.activities?.length && <span className="text-xs text-muted-foreground/40 italic">—</span>}
+                </div>
+              </ReadOnlyTooltip>
+            </NpjRow>
+            <NpjRow label="Decision">
+              {npj.decision ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium', ACTION_CHIP[npj.decision.mode] ?? 'bg-muted/50 text-muted-foreground border-border')}>
+                    {npj.decision.mode}
+                  </span>
+                  <span className="text-xs text-muted-foreground/60">severity: <span className="text-foreground/70">{npj.decision.severity}</span></span>
+                  <span className="text-xs text-muted-foreground/60">evidence: <span className={npj.decision.preserve_evidence ? 'text-emerald-400' : 'text-muted-foreground/50'}>{npj.decision.preserve_evidence ? 'yes' : 'no'}</span></span>
+                  <span className="text-xs text-muted-foreground/60">incident: <span className={npj.decision.create_incident ? 'text-blue-400' : 'text-muted-foreground/50'}>{npj.decision.create_incident ? 'yes' : 'no'}</span></span>
+                  {npj.decision.require_acknowledgement && <span className="inline-flex items-center px-1.5 py-0.5 rounded border border-orange-500/30 bg-orange-500/10 text-[10px] text-orange-400">ack required</span>}
+                  {npj.decision.require_justification && <span className="inline-flex items-center px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-[10px] text-amber-400">justification required</span>}
+                </div>
+              ) : <span className="text-xs text-muted-foreground/40 italic">—</span>}
+            </NpjRow>
+            <NpjRow label="Detection">
+              <div className="flex flex-wrap gap-1.5">
+                {(npj.content?.conditions ?? []).map((c, i) => {
+                  if (c.type === 'data_type' && c.sensitivity) {
+                    const meta = SYSTEM_LEVEL_META[c.sensitivity as keyof typeof SYSTEM_LEVEL_META]
+                    return <Chip key={i} label={meta?.label ?? c.sensitivity} color={meta?.color ?? 'zinc'} />
+                  }
+                  if (c.type === 'classification_label') return <Chip key={i} label={c.label_name ?? 'label'} color="amber" />
+                  if (c.type === 'filename') return <Chip key={i} label="filename pattern" color="blue" />
+                  return null
+                })}
+                {!npj.content?.conditions?.length && <span className="text-xs text-muted-foreground/40 italic">App-level access control</span>}
+              </div>
+            </NpjRow>
+            <NpjRow label="Generated From">
+              <span className="text-xs text-muted-foreground/70">{npj.provenance?.generated_from ?? policy.generated_from ?? '—'}</span>
+            </NpjRow>
+          </div>
+        </div>
+      )}
+
+      {!npj && (
+        <div className="rounded-xl border border-border bg-card divide-y divide-border/40">
+          <NpjRow label="Policy Family"><span className="text-xs text-foreground/80">{policy.policy_family ?? '—'}</span></NpjRow>
+          <NpjRow label="Decision">
+            {policy.data_classification_label && (
+              <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium', ACTION_CHIP[policy.fallback_action ?? ''] ?? 'bg-muted/50 text-muted-foreground border-border')}>
+                {policy.fallback_action ?? 'not-set'}
+              </span>
+            )}
+          </NpjRow>
+          <NpjRow label="Generated From"><span className="text-xs text-muted-foreground/70">{policy.generated_from ?? '—'}</span></NpjRow>
+        </div>
+      )}
+
+      {/* ── 3. Source of Truth Panel ─────────────────────────────────────── */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setSourceOpen(o => !o)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/30 transition-colors text-left"
+        >
+          <span className="flex items-center gap-2">
+            <span className="text-muted-foreground/60 text-xs">{sourceOpen ? '▼' : '▶'}</span>
+            Source of Truth
+          </span>
+        </button>
+        {sourceOpen && (
+          <div className="border-t border-border divide-y divide-border/40">
+            <NpjRow label="Generated From">
+              <span className="text-xs text-foreground/80">{isGovMatrix ? 'Governance Matrix' : policy.generated_from ?? '—'}</span>
+            </NpjRow>
+            {isGovMatrix && (
+              <>
+                <NpjRow label="Decision Source"><span className="text-xs text-foreground/80">Control Matrix</span></NpjRow>
+                <NpjRow label="Detection Source"><span className="text-xs text-foreground/80">Data Catalog</span></NpjRow>
+                <NpjRow label="App Categories"><span className="text-xs text-foreground/80">App Governance</span></NpjRow>
+                <NpjRow label="Label Detection"><span className="text-xs text-foreground/80">Customer Sensitivity Labels</span></NpjRow>
+              </>
+            )}
+            {!isGovMatrix && (
+              <NpjRow label="Note">
+                <span className="text-xs text-muted-foreground/60">Direct edits allowed — this policy is not governed by the Control Matrix.</span>
+              </NpjRow>
+            )}
+            {npj?.provenance?.compiler_version && (
+              <NpjRow label="Compiler">
+                <span className="text-xs text-muted-foreground/60 font-mono">v{npj.provenance.compiler_version} · compiled {npj.provenance.generated_at ? new Date(npj.provenance.generated_at).toLocaleString() : '—'}</span>
+              </NpjRow>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── 4. Scope Section ─────────────────────────────────────────────── */}
+      <SectionCard
+        title="Scope"
+        tooltip={isGovMatrix ? 'App categories, channels, and activities are compiler-owned. Use Policy Change Assistant to change.' : undefined}
+      >
+        <div className="space-y-4">
+          {npj?.scope?.app_categories && npj.scope.app_categories.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground/60 mb-2 flex items-center gap-1">
+                App Categories <Lock className="h-2.5 w-2.5 text-muted-foreground/30" />
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {npj.scope.app_categories.map((cat, i) => (
+                  <Chip key={i} label={cat.name} color="zinc" />
+                ))}
+              </div>
+            </div>
+          )}
+          {npj?.scope?.channels && npj.scope.channels.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground/60 mb-2 flex items-center gap-1">
+                Channels <Lock className="h-2.5 w-2.5 text-muted-foreground/30" />
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {npj.scope.channels.map((c, i) => (
+                  <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md border border-border bg-muted/40 text-xs text-muted-foreground/70">{c}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {npj?.scope?.activities && npj.scope.activities.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground/60 mb-2 flex items-center gap-1">
+                Activities <Lock className="h-2.5 w-2.5 text-muted-foreground/30" />
+                <span title="Activities are set by the compiler based on policy family. To change activities, use Policy Change Assistant below." className="cursor-help">
+                  <Info className="h-3 w-3 text-muted-foreground/30 ml-0.5" />
+                </span>
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {npj.scope.activities.map((a, i) => (
+                  <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md border border-blue-500/25 bg-blue-500/10 text-xs text-blue-400">{a}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          <div>
+            <p className="text-xs font-medium text-muted-foreground/60 mb-2">Specific Apps (optional override)</p>
+            <div className="flex flex-wrap gap-1.5">
+              {formAppIds.map(id => {
+                const app = apps.find(a => a.app_id === id)
+                if (!app) return null
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => toggleAppId(id)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-blue-500/30 bg-blue-500/10 text-xs text-blue-400 hover:bg-blue-500/15 transition-colors"
+                  >
+                    {app.app_name} <span className="text-blue-400/60 hover:text-blue-400">×</span>
+                  </button>
+                )
+              })}
+              {formAppIds.length === 0 && <span className="text-xs text-muted-foreground/40 italic">All apps in category</span>}
+            </div>
+            {apps.length > 0 && (
+              <details className="mt-2">
+                <summary className="text-xs text-muted-foreground/60 cursor-pointer hover:text-muted-foreground/80 transition-colors select-none">
+                  + Add specific app
+                </summary>
+                <div className="mt-2 grid grid-cols-2 gap-1 max-h-40 overflow-y-auto border border-border rounded-lg p-2">
+                  {apps.map(app => (
+                    <label key={app.app_id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/30 cursor-pointer text-xs text-foreground/80 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={formAppIds.includes(app.app_id)}
+                        onChange={() => toggleAppId(app.app_id)}
+                        className="accent-blue-500 w-3 h-3"
+                      />
+                      {app.app_name}
+                    </label>
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+          {(policy.identity_context ?? []).length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground/60 mb-2 flex items-center gap-1">
+                Identity Context <Lock className="h-2.5 w-2.5 text-muted-foreground/30" />
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {(policy.identity_context ?? []).map((c, i) => (
+                  <Chip key={i} label={c} color="zinc" />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </SectionCard>
+
+      {/* ── 5. Detection Section ─────────────────────────────────────────── */}
+      <SectionCard
+        title="Detection"
+        readOnly={isGovMatrix}
+        tooltip={isGovMatrix ? 'Detection conditions are generated from your Data Catalog and Customer Labels. Use Policy Change Assistant to change.' : undefined}
+      >
+        {npj?.content?.conditions && npj.content.conditions.length > 0 ? (
+          <div className="space-y-2">
+            {npj.content.conditions.map((cond, i) => (
+              <div key={i} className="rounded-lg border border-border bg-muted/20 px-3 py-2.5">
+                {cond.type === 'data_type' && (
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] font-mono text-muted-foreground/50 uppercase">data type</span>
+                        {cond.sensitivity && (() => {
+                          const meta = SYSTEM_LEVEL_META[cond.sensitivity as keyof typeof SYSTEM_LEVEL_META]
+                          return <Chip label={meta?.label ?? cond.sensitivity} color={meta?.color ?? 'zinc'} />
+                        })()}
+                        {cond.confidence && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-muted/30 text-muted-foreground/60 uppercase">{cond.confidence}</span>
+                        )}
+                      </div>
+                      {cond.name && <p className="text-xs text-foreground/70">{cond.name}</p>}
+                    </div>
+                  </div>
+                )}
+                {cond.type === 'classification_label' && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] font-mono text-muted-foreground/50 uppercase">label</span>
+                      <span className="text-xs font-medium text-foreground/80">{cond.label_name}</span>
+                      {cond.label_source && <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-muted/30 text-muted-foreground/60">{cond.label_source}</span>}
+                    </div>
+                    <p className="text-xs text-muted-foreground/60">
+                      {cond.metadata_key
+                        ? <span className="font-mono">{cond.metadata_key} = {cond.metadata_value}</span>
+                        : <span className="italic">No key configured</span>
+                      }
+                    </p>
+                    <p className="text-[10px] text-muted-foreground/40 mt-1">Upload only</p>
+                  </div>
+                )}
+                {cond.type === 'filename' && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] font-mono text-muted-foreground/50 uppercase">filename</span>
+                    </div>
+                    <p className="text-xs font-mono text-foreground/70">{cond.pattern}</p>
+                    <p className="text-[10px] text-muted-foreground/40 mt-1">Upload only</p>
+                  </div>
+                )}
+                {cond.type === 'govern_app_access' && (
+                  <span className="text-xs text-muted-foreground/60 italic">No content inspection — app-level access control policy</span>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : npj?.content?.conditions?.length === 0 ? (
+          <p className="text-xs text-muted-foreground/60 italic">No content conditions — app-level access control policy.</p>
+        ) : (
+          <div className="space-y-1">
+            {policy.data_classification_label && (
+              <div className="flex items-center gap-2">
+                {(() => {
+                  const meta = SYSTEM_LEVEL_META[policy.data_classification_label as keyof typeof SYSTEM_LEVEL_META]
+                  return meta ? <Chip label={meta.label} color={meta.color} /> : <span className="text-xs text-foreground/70">{policy.data_classification_label}</span>
+                })()}
+                <span className="text-xs text-amber-400/70">(legacy field — regenerate for full conditions)</span>
+              </div>
+            )}
+            {!policy.data_classification_label && <p className="text-xs text-muted-foreground/40 italic">No detection data — regenerate policies.</p>}
+          </div>
+        )}
+      </SectionCard>
+
+      {/* ── 6. Decision Section ──────────────────────────────────────────── */}
+      <SectionCard
+        title="Decision"
+        readOnly={isGovMatrix}
+        tooltip={isGovMatrix ? 'Decision is governed by the Control Matrix. Use Policy Change Assistant below to propose a change.' : undefined}
+      >
+        <div className="space-y-4">
+          {npj?.decision ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={cn('inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-semibold', ACTION_CHIP[npj.decision.mode] ?? 'bg-muted/50 text-muted-foreground border-border')}>
+                {npj.decision.mode}
+              </span>
+              <span className="text-xs text-muted-foreground/60">severity: <span className="text-foreground/70">{npj.decision.severity}</span></span>
+              <span className="text-xs text-muted-foreground/60">evidence: <span className={npj.decision.preserve_evidence ? 'text-emerald-400' : 'text-muted-foreground/50'}>{npj.decision.preserve_evidence ? 'yes' : 'no'}</span></span>
+              <span className="text-xs text-muted-foreground/60">incident: <span className={npj.decision.create_incident ? 'text-blue-400' : 'text-muted-foreground/50'}>{npj.decision.create_incident ? 'yes' : 'no'}</span></span>
+              {npj.decision.require_acknowledgement && <span className="inline-flex items-center px-1.5 py-0.5 rounded border border-orange-500/30 bg-orange-500/10 text-[10px] text-orange-400">ack required</span>}
+              {npj.decision.require_justification && <span className="inline-flex items-center px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-[10px] text-amber-400">justification required</span>}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className={cn('inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-semibold', ACTION_CHIP[policy.fallback_action ?? ''] ?? 'bg-muted/50 text-muted-foreground border-border')}>
+                {policy.fallback_action ?? 'not-set'}
+              </span>
+              <span className="text-[10px] text-amber-400/70">(legacy field)</span>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground/60">Coaching Template</label>
+            <select
+              value={formCoachTemplate}
+              onChange={e => setFormCoachTemplate(e.target.value)}
+              className="block w-full max-w-xs rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong"
+            >
+              <option value="">None</option>
+              {coachingTemplates.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </SectionCard>
+
+      {/* ── 7. Exceptions Section ────────────────────────────────────────── */}
+      <SectionCard
+        title="Exceptions"
+        readOnly={isGovMatrix}
+        tooltip={isGovMatrix ? 'Exceptions are compiler-managed. Use Policy Change Assistant to propose an exception.' : undefined}
+      >
+        {npj?.exceptions && npj.exceptions.length > 0 ? (
+          <div className="space-y-2">
+            {npj.exceptions.map((ex, i) => (
+              <div key={i} className="flex items-start gap-2 rounded-lg border border-border bg-muted/20 px-3 py-2">
+                <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-medium shrink-0', ACTION_CHIP[ex.effect] ?? 'bg-muted/50 text-muted-foreground border-border')}>
+                  {ex.effect}
+                </span>
+                <span className="text-xs text-foreground/75">{ex.reason}</span>
+              </div>
+            ))}
+            {isGovMatrix && <p className="text-[10px] text-muted-foreground/50 mt-2">Exceptions are compiler-managed. Use Policy Change Assistant to propose an exception.</p>}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground/40 italic">None — no exceptions configured.</p>
+        )}
+      </SectionCard>
+
+      {/* ── 8. Policy Change Assistant ──────────────────────────────────── */}
+      {isGovMatrix && (
+        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 overflow-hidden">
+          <div className="px-4 py-3 border-b border-blue-500/15 bg-blue-500/8">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-foreground">Policy Change Assistant</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-md border border-blue-500/30 bg-blue-500/10 text-blue-400">Governance Matrix</span>
+            </div>
+            <p className="text-xs text-muted-foreground/60 mt-0.5">Changes route to the correct source layer. The compiler regenerates this policy automatically.</p>
+          </div>
+          <div className="px-4 py-4 space-y-4">
+            {applySuccess && (
+              <div className="flex items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/8 px-3 py-2 text-xs text-emerald-400">
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                Change applied — compiler is regenerating this policy.
+              </div>
+            )}
+            {compileSuccess && !compiling && (
+              <div className="flex items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/8 px-3 py-2 text-xs text-emerald-400">
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                Policies regenerated. Refresh to see updated results.
+              </div>
+            )}
+            {compiling && (
+              <div className="flex items-center gap-2 rounded-lg border border-blue-500/25 bg-blue-500/8 px-3 py-2 text-xs text-blue-400">
+                <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                Compiling policies… this may take a few seconds.
+              </div>
+            )}
+            {compileError && (
+              <div className="flex items-center gap-2 rounded-lg border border-red-500/25 bg-red-500/8 px-3 py-2 text-xs text-red-400">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                {compileError}
+              </div>
+            )}
+
+            {/* Change type selector */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground/60 block mb-1.5">What do you want to change?</label>
+              <select
+                value={changeType}
+                onChange={e => { setChangeType(e.target.value as ChangeType | ''); setProposedAction(''); setApplyError(''); setApplySuccess(false) }}
+                className="block w-full max-w-sm rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong"
+              >
+                <option value="">— Select a change type —</option>
+                <option value="action">Change action / decision mode</option>
+                <option value="activities">Change activities (scope of enforcement)</option>
+                <option value="add-data-types">Add or remove data types</option>
+                <option value="add-customer-label">Add or remove customer sensitivity label</option>
+                <option value="change-app-scope">Change app category scope</option>
+                <option value="add-exception">Add an exception</option>
+                <option value="change-evidence-incident">Change evidence / incident behaviour</option>
+              </select>
+            </div>
+
+            {/* Change type: action (inline) */}
+            {changeType === 'action' && (
+              <div className="space-y-3 rounded-lg border border-border bg-card/60 p-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground/60 block mb-1.5">New action</label>
+                  <select
+                    value={proposedAction}
+                    onChange={e => setProposedAction(e.target.value)}
+                    className="block w-full max-w-xs rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong"
+                  >
+                    <option value="">— Select new action —</option>
+                    {(['allow', 'monitor', 'alert', 'coach', 'coach-ack', 'coach-just', 'block'] as ActionCode[]).map(a => (
+                      <option key={a} value={a}>{a}</option>
+                    ))}
+                  </select>
+                </div>
+                {proposedAction && (
+                  <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-foreground/80">Impact Preview</p>
+                    <div className="space-y-1 text-xs text-muted-foreground/70">
+                      {ppCells.length > 0 ? (
+                        <p>✦ {ppCells.length} Control Matrix {ppCells.length === 1 ? 'cell' : 'cells'} will be updated</p>
+                      ) : (
+                        <p className="text-amber-400/70">No source cells found in npj — regenerate policies first to enable matrix-level change.</p>
+                      )}
+                      <p>✦ {translations.length} vendor {translations.length === 1 ? 'translation' : 'translations'} will be marked outdated</p>
+                      {verifiedTranslations > 0 && (
+                        <p className="text-amber-400">⚠ {verifiedTranslations} verified {verifiedTranslations === 1 ? 'translation' : 'translations'} will require re-verification</p>
+                      )}
+                      {risk && (
+                        <p className={risk.level === 'high' ? 'text-red-400' : risk.level === 'medium' ? 'text-amber-400' : 'text-muted-foreground/70'}>
+                          ⚠ Risk: {risk.level.charAt(0).toUpperCase() + risk.level.slice(1)} — {risk.text}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {applyError && (
+                  <p className="text-xs text-red-400">{applyError}</p>
+                )}
+                {ppCells.length > 0 && proposedAction && (
+                  <button
+                    type="button"
+                    onClick={handleApplyActionChange}
+                    disabled={applying || compiling}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-foreground text-background text-xs font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                  >
+                    {applying ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                    Approve & Apply
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Navigate-type changes */}
+            {changeType === 'activities' && (
+              <div className="rounded-lg border border-border bg-card/60 p-3 space-y-2">
+                <p className="text-xs text-foreground/80">Activities are determined by policy family in the compiler. To change the scope of enforcement (e.g. prompt-only → upload-only), the policy family must be changed.</p>
+                <p className="text-xs text-muted-foreground/60">This change type is currently managed via the Control Matrix. Contact your Effata admin to adjust the policy family, then regenerate.</p>
+              </div>
+            )}
+            {changeType === 'add-data-types' && (
+              <div className="rounded-lg border border-border bg-card/60 p-3 space-y-3">
+                <p className="text-xs text-foreground/80">Data types are managed in the Data Catalog. Adding or removing in-scope data types will cause this policy to be recompiled with updated detection conditions.</p>
+                <Link
+                  href="/genai-controls/data-catalog"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted/40 transition-colors"
+                >
+                  <ExternalLink className="h-3 w-3" /> Go to Data Catalog
+                </Link>
+              </div>
+            )}
+            {changeType === 'add-customer-label' && (
+              <div className="rounded-lg border border-border bg-card/60 p-3 space-y-3">
+                <p className="text-xs text-foreground/80">Customer sensitivity labels (MIP, TITUS, etc.) are managed in Sensitivity Labels. Adding a new label will generate a dedicated label-detection policy in the next compile.</p>
+                <Link
+                  href="/genai-controls/sensitivity-labels"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted/40 transition-colors"
+                >
+                  <ExternalLink className="h-3 w-3" /> Go to Sensitivity Labels
+                </Link>
+              </div>
+            )}
+            {changeType === 'change-app-scope' && (
+              <div className="rounded-lg border border-border bg-card/60 p-3 space-y-3">
+                <p className="text-xs text-foreground/80">App category scope is managed in App Governance. Moving an app between categories (e.g. Approved → Restricted) changes which compiled policies apply to it.</p>
+                <Link
+                  href="/genai-controls/governance"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted/40 transition-colors"
+                >
+                  <ExternalLink className="h-3 w-3" /> Go to App Governance
+                </Link>
+              </div>
+            )}
+            {changeType === 'add-exception' && (
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-400/80 space-y-1">
+                <p className="font-medium">Exception support is planned.</p>
+                <p>Compiler-managed exceptions are on the roadmap. Contact support to discuss workarounds.</p>
+              </div>
+            )}
+            {changeType === 'change-evidence-incident' && (
+              <div className="rounded-lg border border-border bg-card/60 p-3 text-xs text-muted-foreground/70 space-y-1">
+                <p>Evidence and incident flags are currently set by the compiler based on action severity.</p>
+                <p>Support for explicit evidence/incident overrides is planned for a future compiler update. Regenerate policies after any source layer change to apply updated defaults.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── 9. Neutral Policy Preview ────────────────────────────────────── */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setNpjOpen(o => !o)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/30 transition-colors text-left"
+        >
+          <span className="flex items-center gap-2">
+            <span className="text-muted-foreground/60 text-xs">{npjOpen ? '▼' : '▶'}</span>
+            Neutral Policy
+            {!isValidNpj(rawNpj) && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-amber-500/30 bg-amber-500/10 text-[10px] text-amber-400">Legacy fields only</span>
+            )}
+          </span>
+          {isValidNpj(rawNpj) && (
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); setNpjJsonOpen(s => !s) }}
+              className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors shrink-0"
+            >
+              {npjJsonOpen ? 'Hide JSON' : 'View JSON'}
+            </button>
+          )}
+        </button>
+        {npjOpen && (
+          <div className="border-t border-border">
+            {!isValidNpj(rawNpj) ? (
+              <div className="px-4 py-3 text-xs text-amber-400/80 space-y-1">
+                <p className="font-medium">Legacy fields only — regenerate policies for full accuracy.</p>
+                <p className="text-muted-foreground/60">Click &quot;Regenerate&quot; in the banner above to compile structured neutral policy data.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border/40">
+                <NpjRow label="Intent">
+                  <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium', INTENT_CHIP[npj!.intent ?? ''] ?? 'bg-muted/50 text-muted-foreground border-border')}>
+                    {npj!.intent}
+                  </span>
+                </NpjRow>
+                <NpjRow label="Family"><span className="text-xs text-foreground/80">{npj!.policy_family ?? '—'}</span></NpjRow>
+                {npj!.scope?.activities && (
+                  <NpjRow label="Activities">
+                    <div className="flex flex-wrap gap-1.5">
+                      {npj!.scope.activities.map((a, i) => (
+                        <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md border border-blue-500/25 bg-blue-500/10 text-xs text-blue-400">{a}</span>
+                      ))}
+                    </div>
+                  </NpjRow>
+                )}
+                {npj!.scope?.channels && (
+                  <NpjRow label="Channels">
+                    <div className="flex flex-wrap gap-1.5">
+                      {npj!.scope.channels.map((c, i) => (
+                        <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md border border-border bg-muted/40 text-xs text-muted-foreground/70">{c}</span>
+                      ))}
+                    </div>
+                  </NpjRow>
+                )}
+                {npj!.decision && (
+                  <NpjRow label="Decision">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium', ACTION_CHIP[npj!.decision.mode] ?? 'bg-muted/50 text-muted-foreground border-border')}>
+                        {npj!.decision.mode}
+                      </span>
+                      <span className="text-xs text-muted-foreground/60">severity: <span className="text-foreground/70">{npj!.decision.severity}</span></span>
+                      {npj!.decision.require_acknowledgement && <span className="inline-flex items-center px-1.5 py-0.5 rounded border border-orange-500/30 bg-orange-500/10 text-[10px] text-orange-400">ack</span>}
+                      {npj!.decision.require_justification && <span className="inline-flex items-center px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-[10px] text-amber-400">justification</span>}
+                    </div>
+                  </NpjRow>
+                )}
+                <NpjRow label="Exceptions">
+                  {npj!.exceptions && npj!.exceptions.length > 0 ? (
+                    <div className="space-y-1">
+                      {npj!.exceptions.map((ex, i) => (
+                        <div key={i} className="text-xs text-foreground/75"><span className="text-muted-foreground/50">{ex.effect}:</span> {ex.reason}</div>
+                      ))}
+                    </div>
+                  ) : <span className="text-xs text-muted-foreground/40 italic">—</span>}
+                </NpjRow>
+                <NpjRow label="Generated From">
+                  <span className="text-xs text-muted-foreground/70">{npj!.provenance?.generated_from ?? '—'}</span>
+                </NpjRow>
+                {npj!.provenance?.warnings && npj!.provenance.warnings.length > 0 && (
+                  <NpjRow label="Warnings">
+                    <div className="space-y-1">
+                      {npj!.provenance.warnings.map((w, i) => <p key={i} className="text-xs text-amber-400/80">{w}</p>)}
+                    </div>
+                  </NpjRow>
+                )}
+              </div>
+            )}
+            {isValidNpj(rawNpj) && npjJsonOpen && (
+              <div className="border-t border-border/40 px-4 py-3">
+                <pre className="text-xs text-muted-foreground/70 bg-muted/30 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-words font-mono border border-border/40">
+                  {JSON.stringify(rawNpj, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── 10. Lifecycle & Metadata ─────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        {/* Policy Metadata (read-only) */}
+        <SectionCard title="Policy Metadata">
+          <div className="space-y-2 divide-y divide-border/40">
+            <NpjRow label="Policy Key">
+              <span className="text-xs font-mono text-foreground/70">{policy.policy_key ?? '—'}</span>
+            </NpjRow>
+            <NpjRow label="Family">
+              <span className="text-xs text-foreground/80">{policy.policy_family ?? '—'}</span>
+            </NpjRow>
+            <NpjRow label="Generated From">
+              <span className="text-xs text-foreground/80">{policy.generated_from ?? '—'}</span>
+            </NpjRow>
+            {npj?.provenance?.generated_at && (
+              <NpjRow label="Generated At">
+                <span className="text-xs text-muted-foreground/70">{new Date(npj.provenance.generated_at).toLocaleString()}</span>
+              </NpjRow>
+            )}
+            {npj?.provenance?.compiler_version && (
+              <NpjRow label="Compiler Version">
+                <span className="text-xs font-mono text-muted-foreground/70">{npj.provenance.compiler_version}</span>
+              </NpjRow>
+            )}
+          </div>
+        </SectionCard>
+
+        {/* Translation Status (state machine) */}
+        <SectionCard title="Translation Status">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <StatusChip label={translationStatus} chipClass={TRANSLATION_CHIP[translationStatus] ?? 'bg-muted/60 text-muted-foreground/70 border-border/60'} />
+              <span className="text-xs text-muted-foreground/50">
+                {translations.length} vendor {translations.length === 1 ? 'translation' : 'translations'}
+                {verifiedTranslations > 0 && ` · ${verifiedTranslations} verified`}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {(translationStatus === 'translated' || translationStatus === 'deferred') && (
+                <button type="button" onClick={() => handleTranslationAction('verified')}
+                  className="px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-xs font-medium text-emerald-400 hover:bg-emerald-500/15 transition-colors">
+                  Mark Verified
+                </button>
+              )}
+              {(translationStatus === 'translated' || translationStatus === 'verified') && (
+                <button type="button" onClick={() => handleTranslationAction('deferred')}
+                  className="px-3 py-1.5 rounded-lg border border-border bg-muted/40 text-xs font-medium text-muted-foreground/70 hover:bg-muted/60 transition-colors">
+                  Defer
+                </button>
+              )}
+              {translationStatus !== 'not-applicable' && (
+                <button type="button" onClick={() => handleTranslationAction('not-applicable')}
+                  className="px-3 py-1.5 rounded-lg border border-border bg-muted/20 text-xs font-medium text-muted-foreground/60 hover:bg-muted/40 transition-colors">
+                  Not Applicable
+                </button>
+              )}
+              {translationStatus === 'not-applicable' && (
+                <button type="button" onClick={() => handleTranslationAction('verified')}
+                  className="px-3 py-1.5 rounded-lg border border-border bg-muted/20 text-xs font-medium text-muted-foreground/60 hover:bg-muted/40 transition-colors">
+                  Mark Verified
+                </button>
+              )}
+              {(translationStatus === 'pending' || translationStatus === 'translated') && (
+                <Link
+                  href={`/genai-controls/translation/${policy.id}`}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 text-xs font-medium text-blue-400 hover:bg-blue-500/15 transition-colors"
+                >
+                  <ExternalLink className="h-3 w-3" /> Review Translations
+                </Link>
+              )}
+            </div>
+            {translationStatus === 'pending' && (
+              <p className="text-[10px] text-muted-foreground/50">Set by system after compile or policy edit.</p>
+            )}
+          </div>
+        </SectionCard>
+      </div>
+
+      {/* Lifecycle (approval, test status) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <SectionCard title="Lifecycle">
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground/60 block mb-1.5">Approval Status</label>
+              <select
+                value={formApproval}
+                onChange={e => setFormApproval(e.target.value as ApprovalStatus)}
+                className="block w-full rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong"
+              >
+                {APPROVAL_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground/60 block mb-1.5">Test Status</label>
+              <select
+                value={formTestStatus}
+                onChange={e => setFormTestStatus(e.target.value)}
+                className="block w-full rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong"
+              >
+                {TEST_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* Related Policies */}
+        <SectionCard title="Related Policies">
+          <div className="space-y-2">
+            <p className="text-[10px] text-muted-foreground/50">Recommended to enable together</p>
+            <div className="flex flex-wrap gap-1.5">
+              {formRelatedPolicies.map(id => {
+                const pol = allPolicies.find(p => p.id === id)
+                if (!pol) return null
+                return (
+                  <button key={id} type="button" onClick={() => toggleRelatedPolicy(id)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-border bg-muted/40 text-xs text-foreground/70 hover:bg-muted/60 transition-colors">
+                    {pol.name} <span className="text-muted-foreground/50">×</span>
+                  </button>
+                )
+              })}
+              {formRelatedPolicies.length === 0 && <span className="text-xs text-muted-foreground/40 italic">None</span>}
+            </div>
+            <details className="mt-1">
+              <summary className="text-xs text-muted-foreground/60 cursor-pointer hover:text-muted-foreground/80 transition-colors select-none">+ Add related policy</summary>
+              <div className="mt-2 max-h-32 overflow-y-auto border border-border rounded-lg p-2 space-y-1">
+                {allPolicies.filter(p => p.id !== policy.id).map(p => (
+                  <label key={p.id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/30 cursor-pointer text-xs text-foreground/80 transition-colors">
+                    <input type="checkbox" checked={formRelatedPolicies.includes(p.id)} onChange={() => toggleRelatedPolicy(p.id)} className="accent-blue-500 w-3 h-3" />
+                    {p.name}
+                  </label>
+                ))}
+              </div>
+            </details>
+          </div>
+        </SectionCard>
+      </div>
+
+      {/* Basic Details */}
+      <SectionCard title="Basic Details">
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground/60 block mb-1.5">Policy Name</label>
+              <input
+                type="text"
+                value={formName}
+                onChange={e => setFormName(e.target.value)}
+                className="block w-full rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground/60 block mb-1.5">Active</label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={formActive} onChange={e => setFormActive(e.target.checked)} className="accent-blue-500 w-4 h-4" />
+                <span className="text-xs text-foreground/80">{formActive ? 'Enabled' : 'Disabled'}</span>
+              </label>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground/60 block mb-1.5">Description</label>
+            <textarea
+              value={formDesc}
+              onChange={e => setFormDesc(e.target.value)}
+              rows={2}
+              className="block w-full rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong resize-none"
+            />
+          </div>
+        </div>
+      </SectionCard>
+
+      {/* ── Save Section ─────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card px-4 py-3">
+        <div>
+          <p className="text-xs font-medium text-foreground">Save Changes</p>
+          <p className="text-[10px] text-muted-foreground/50 mt-0.5">Saves name, description, active toggle, approval status, test status, coaching template, scope apps, and related policies. Decision changes use the Change Assistant above.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {saveError && <p className="text-xs text-red-400">{saveError}</p>}
+          {saveSuccess && (
+            <span className="flex items-center gap-1 text-xs text-emerald-400">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Saved
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-foreground text-background text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+            Save
+          </button>
+        </div>
+      </div>
+
+      {/* ── 11. Advanced JSON ────────────────────────────────────────────── */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setAdvancedOpen(o => !o)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/30 transition-colors text-left"
+        >
+          <span className="flex items-center gap-2">
+            <span className="text-muted-foreground/60 text-xs">{advancedOpen ? '▼' : '▶'}</span>
+            Advanced
+          </span>
+        </button>
+        {advancedOpen && (
+          <div className="border-t border-border px-4 py-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] text-muted-foreground/50">Read-only — managed by the Effata compiler. Regenerate policies to update.</p>
+              <button
+                type="button"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(JSON.stringify(rawNpj, null, 2))
+                  setJsonCopied(true)
+                  setTimeout(() => setJsonCopied(false), 2000)
+                }}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-md border border-border bg-muted/30 text-xs text-muted-foreground/70 hover:text-foreground/80 transition-colors"
+              >
+                {jsonCopied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                {jsonCopied ? 'Copied' : 'Copy JSON'}
+              </button>
+            </div>
+            <pre className="text-xs text-muted-foreground/60 bg-muted/20 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-words font-mono border border-border/40 max-h-96">
+              {JSON.stringify(rawNpj, null, 2)}
+            </pre>
+          </div>
+        )}
+      </div>
+
+    </div>
+  )
+}
