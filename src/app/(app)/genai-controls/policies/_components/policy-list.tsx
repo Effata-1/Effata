@@ -101,6 +101,31 @@ const VENDOR_LABELS: Record<string, string> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+const CAT_COLOR_CHIP: Record<string, string> = {
+  emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  green:   'bg-green-500/10 text-green-400 border-green-500/20',
+  blue:    'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  sky:     'bg-sky-500/10 text-sky-400 border-sky-500/20',
+  amber:   'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  orange:  'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  red:     'bg-red-500/10 text-red-400 border-red-500/20',
+  violet:  'bg-violet-500/10 text-violet-400 border-violet-500/20',
+  purple:  'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  zinc:    'bg-zinc-500/10 text-zinc-400 border-zinc-500/20',
+}
+
+function getPolicyCategories(policy: GenAIPolicy, categories: Category[]): Category[] {
+  const npj = (policy as unknown as Record<string, unknown>).neutral_policy_json
+  if (!npj || typeof npj !== 'object') return []
+  const scope = (npj as Record<string, unknown>).scope
+  if (!scope || typeof scope !== 'object') return []
+  const tags = (scope as Record<string, unknown>).app_categories
+  if (!Array.isArray(tags)) return []
+  return (tags as unknown[])
+    .map(tag => categories.find(c => c.system_tag === tag))
+    .filter((c): c is Category => Boolean(c))
+}
+
 function deriveFromRules(rules: PolicyRule[], ruleItems: RuleItem[]) {
   const validKeys = new Set(ruleItems.map(i => i.key))
   const selectedDataKeys = new Set(
@@ -293,7 +318,6 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
   const [chatPolicyId, setChatPolicyId]       = useState<string | undefined>(undefined)
   const [deleteTarget, setDeleteTarget]       = useState<{ id: string; name: string } | null>(null)
 
-  void categories
   void classifications
   void ACTION_CODES
 
@@ -592,11 +616,27 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                       </button>
                     </td>
 
-                    <td className="px-3 py-2.5 align-middle max-w-[200px]">
+                    <td className="px-3 py-2.5 align-middle max-w-[220px]">
                       <p className="font-semibold text-foreground/90 leading-tight truncate">{policy.name}</p>
                       {policy.description && (
                         <p className="text-muted-foreground/50 mt-0.5 truncate text-[10px]">{policy.description}</p>
                       )}
+                      {(() => {
+                        const cats = getPolicyCategories(policy, categories)
+                        if (cats.length === 0) return null
+                        return (
+                          <div className="flex gap-1 flex-wrap mt-1">
+                            {cats.map(cat => (
+                              <span
+                                key={cat.id}
+                                className={cn('text-[9px] px-1.5 py-0.5 rounded border font-medium', CAT_COLOR_CHIP[cat.color] ?? CAT_COLOR_CHIP.zinc)}
+                              >
+                                {cat.name}
+                              </span>
+                            ))}
+                          </div>
+                        )
+                      })()}
                     </td>
 
                     <td className="px-3 py-2.5 align-middle hidden md:table-cell">
