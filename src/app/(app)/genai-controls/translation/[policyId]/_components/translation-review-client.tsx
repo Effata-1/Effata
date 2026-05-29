@@ -658,21 +658,18 @@ function NetskopeCard({ policy }: { policy: Record<string, unknown> }) {
   const group         = policy.group as string | undefined
   const status        = policy.status as string | undefined
 
-  const destTarget    = destination?.category
-    ? `Category = ${String(destination.category)}`
-    : destination?.specific_apps
-      ? `Apps = ${(destination.specific_apps as string[]).join(', ')}`
-      : '—'
   const activities    = (destination?.activities ?? []) as string[]
   const usersOrGroups = source?.users_or_groups ?? ['All Users']
+  const dlpProfiles   = profileAction?.map(pa => String(pa.dlp_profile ?? '—')) ?? []
 
   return (
     <div className="divide-y divide-border/40">
+
       {/* Source */}
       <div className="grid grid-cols-[160px_1fr] gap-4 px-5 py-3.5 items-start">
         <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide pt-0.5">Source</span>
-        <div className="space-y-1.5">
-          <p className="text-xs text-muted-foreground/50">User =</p>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground/50">User =</span>
           <StringChips values={usersOrGroups} />
         </div>
       </div>
@@ -681,12 +678,19 @@ function NetskopeCard({ policy }: { policy: Record<string, unknown> }) {
       <div className="grid grid-cols-[160px_1fr] gap-4 px-5 py-3.5 items-start">
         <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide pt-0.5">Destination</span>
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground/50">Category =</span>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-border bg-muted/40 text-xs text-foreground/80">
-              {destination?.category as string ?? destination?.specific_apps ? (destination?.specific_apps as string[]).join(', ') : '—'}
-            </span>
-          </div>
+          {destination?.category ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground/50">Category =</span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-border bg-muted/40 text-xs text-foreground/80">
+                {String(destination.category)}
+              </span>
+            </div>
+          ) : destination?.specific_apps ? (
+            <div className="flex items-start gap-2">
+              <span className="text-xs text-muted-foreground/50 pt-0.5 shrink-0">Apps =</span>
+              <StringChips values={destination.specific_apps as string[]} />
+            </div>
+          ) : null}
           {activities.length > 0 && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground/50">Activities =</span>
@@ -699,41 +703,56 @@ function NetskopeCard({ policy }: { policy: Record<string, unknown> }) {
       {/* Profile & Action */}
       <div className="grid grid-cols-[160px_1fr] gap-4 px-5 py-3.5 items-start">
         <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide pt-0.5">Profile &amp; Action</span>
-        <div className="space-y-2">
-          {profileAction && profileAction.length > 0 ? (
-            <>
-              <div className="rounded-lg border border-border overflow-hidden">
-                <div className="grid grid-cols-[1fr_auto] bg-muted/30 px-3 py-2 border-b border-border">
-                  <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider">DLP Profile</span>
-                  <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider">Action</span>
-                </div>
-                {profileAction.map((pa, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_auto] items-center px-3 py-2.5 border-b border-border/40 last:border-0 gap-4">
-                    <span className="text-xs font-mono text-foreground/80 bg-muted/30 px-2 py-0.5 rounded border border-border/50 w-fit">
-                      {String(pa.dlp_profile ?? '—')}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <ActionChip action={String(pa.action)} />
-                      {!!pa.notification_template && (
-                        <span className="text-[10px] text-muted-foreground/60 font-mono">{String(pa.notification_template)}</span>
-                      )}
-                    </div>
-                  </div>
+        <div className="space-y-3">
+
+          {/* DLP Profile chips row — mirrors Netskope "DLP Profile =" row above the table */}
+          {dlpProfiles.length > 0 && (
+            <div className="flex items-start gap-2 flex-wrap">
+              <span className="text-xs text-muted-foreground/50 shrink-0 pt-0.5">DLP Profile =</span>
+              <div className="flex flex-wrap gap-1.5">
+                {dlpProfiles.map((name, i) => (
+                  <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md border border-border bg-muted/40 text-xs font-mono text-foreground/80">
+                    {name}
+                  </span>
                 ))}
               </div>
-              {fallbackAction && (
-                <div className="rounded-lg border border-border/40 bg-muted/20 px-3 py-2.5 flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground/60">If none of the profiles match</span>
-                  <ActionChip action={fallbackAction} />
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="rounded-lg border border-border/40 bg-muted/20 px-3 py-2.5 flex items-center justify-between">
-              <span className="text-xs text-muted-foreground/60 italic">No DLP profile — action applies to all content</span>
-              {fallbackAction && <ActionChip action={fallbackAction} />}
             </div>
           )}
+
+          {/* PROFILE ACTION table */}
+          {profileAction && profileAction.length > 0 ? (
+            <div className="rounded-lg border border-border overflow-hidden">
+              <div className="grid grid-cols-[1fr_1fr] bg-muted/40 px-3 py-2 border-b border-border">
+                <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider">Profile Action</span>
+                <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider">Action</span>
+              </div>
+              {profileAction.map((pa, i) => {
+                const actionStr = String(pa.action ?? '—')
+                const template  = pa.notification_template ? String(pa.notification_template) : null
+                const combined  = template ? `${actionStr} : ${template}` : actionStr
+                return (
+                  <div key={i} className="grid grid-cols-[1fr_1fr] items-center px-3 py-2.5 border-b border-border/40 last:border-0 gap-4">
+                    <span className="text-xs text-foreground/80">{String(pa.dlp_profile ?? '—')}</span>
+                    <span className="text-xs text-foreground/80">{combined}</span>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground/50 italic">No DLP profile — action applies to all content</p>
+          )}
+
+          {/* Fallback: "If none of the specified profiles matches" */}
+          {fallbackAction && (
+            <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-3 py-2.5 space-y-1.5">
+              <p className="text-[10px] text-muted-foreground/50">If none of the specified profiles matches</p>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground/60">Action:</span>
+                <ActionChip action={fallbackAction} />
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
 
@@ -781,6 +800,7 @@ function NetskopeCard({ policy }: { policy: Record<string, unknown> }) {
           </pre>
         )}
       </div>
+
     </div>
   )
 }
