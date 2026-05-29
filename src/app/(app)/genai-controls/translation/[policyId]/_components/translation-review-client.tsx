@@ -21,6 +21,53 @@ interface PolicyRule {
   response:    string
 }
 
+interface NpjCondition {
+  type:        string
+  name?:       string
+  sensitivity?: string
+  confidence?: string
+  label_name?: string
+  label_source?: string
+  pattern?:    string
+}
+
+interface NpjDecision {
+  mode:                    string
+  severity:                string
+  require_acknowledgement: boolean
+  require_justification:   boolean
+  preserve_evidence:       boolean
+  create_incident:         boolean
+}
+
+interface NpjException {
+  effect:  string
+  reason:  string
+}
+
+interface NeutralPolicyJson {
+  schema_version?: string
+  intent?:         string
+  policy_family?:  string
+  scope?: {
+    activities?: string[]
+    channels?:   string[]
+    app_categories?: Array<{ id: string; system_tag: string | null; name: string }>
+  }
+  content?: {
+    operator?:   string
+    conditions?: NpjCondition[]
+  }
+  decision?:   NpjDecision
+  exceptions?: NpjException[]
+  provenance?: {
+    generated_from?: string
+    compiler_version?: string
+    generated_at?: string
+    warnings?: string[]
+  }
+}
+
 interface Policy {
   id:                        string
   name:                      string
@@ -35,6 +82,7 @@ interface Policy {
   scope_app_ids:             string[]
   rules:                     PolicyRule[]
   data_classification_label: string | null
+  neutral_policy_json?:      NeutralPolicyJson | null
 }
 
 interface MappingReport {
@@ -191,6 +239,9 @@ export function TranslationReviewClient({ policy, translations, vendorTools }: P
           )}
         </div>
       </div>
+
+      {/* Neutral policy structured preview */}
+      <NeutralPolicyPreview npj={policy.neutral_policy_json} />
 
       {uniqueVendors.length === 0 && (
         <div className="rounded-xl border border-border bg-card/50 p-6 text-center">
@@ -970,6 +1021,223 @@ function NativePolicyCard({ policy }: { policy: Record<string, unknown> }) {
           </pre>
         )}
       </div>
+    </div>
+  )
+}
+
+// ── Neutral Policy Preview ─────────────────────────────────────────────────────
+
+const INTENT_CHIP: Record<string, string> = {
+  'prevent_exfiltration': 'bg-red-500/10 text-red-400 border-red-500/20',
+  'detect_only':          'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  'coach_user':           'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  'allow_approved_use':   'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  'govern_app_access':    'bg-purple-500/10 text-purple-400 border-purple-500/20',
+}
+
+function isValidNpj(npj: NeutralPolicyJson | null | undefined): npj is NeutralPolicyJson {
+  return !!(npj && npj.schema_version === '1.0' && npj.intent && npj.decision)
+}
+
+function NeutralPolicyPreview({ npj }: { npj: NeutralPolicyJson | null | undefined }) {
+  const [expanded, setExpanded]    = useState(false)
+  const [showJson, setShowJson]     = useState(false)
+  const valid = isValidNpj(npj)
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setExpanded(e => !e)}
+        className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/30 transition-colors text-left"
+      >
+        <span className="flex items-center gap-2">
+          <span className="text-muted-foreground/60 text-xs">{expanded ? '▼' : '▶'}</span>
+          Neutral Policy
+          {!valid && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-amber-500/30 bg-amber-500/10 text-[10px] text-amber-400">
+              Legacy fields only
+            </span>
+          )}
+        </span>
+        {valid && (
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); setShowJson(s => !s) }}
+            className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors shrink-0"
+          >
+            {showJson ? 'Hide JSON' : 'View JSON'}
+          </button>
+        )}
+      </button>
+
+      {expanded && (
+        <div className="border-t border-border">
+          {!valid ? (
+            <div className="px-4 py-3 text-xs text-amber-400/80 space-y-1">
+              <p className="font-medium">Legacy fields only — re-generate policies for full translation accuracy.</p>
+              <p className="text-muted-foreground/60">Click &quot;Generate Policies&quot; on the policies page to compile structured neutral policy data.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border/40">
+              <NpjRow label="Intent">
+                <span className={cn(
+                  'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
+                  INTENT_CHIP[npj.intent ?? ''] ?? 'bg-muted/50 text-muted-foreground border-border',
+                )}>
+                  {npj.intent}
+                </span>
+              </NpjRow>
+
+              <NpjRow label="Family">
+                <span className="text-xs text-foreground/80">{npj.policy_family ?? '—'}</span>
+              </NpjRow>
+
+              {npj.scope?.activities && (
+                <NpjRow label="Activities">
+                  <div className="flex flex-wrap gap-1.5">
+                    {npj.scope.activities.map((a, i) => (
+                      <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md border border-blue-500/25 bg-blue-500/10 text-xs text-blue-400">
+                        {a}
+                      </span>
+                    ))}
+                  </div>
+                </NpjRow>
+              )}
+
+              {npj.scope?.channels && (
+                <NpjRow label="Channels">
+                  <div className="flex flex-wrap gap-1.5">
+                    {npj.scope.channels.map((c, i) => (
+                      <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md border border-border bg-muted/40 text-xs text-muted-foreground/70">
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+                </NpjRow>
+              )}
+
+              {npj.content?.conditions && npj.content.conditions.length > 0 && (
+                <NpjRow label="Detection">
+                  <div className="space-y-1.5">
+                    {npj.content.conditions.slice(0, 3).map((cond, i) => (
+                      <div key={i} className="text-xs text-foreground/75">
+                        {cond.type === 'data_type' && (
+                          <span>
+                            <span className="text-muted-foreground/50">data_type:</span>{' '}
+                            <span className="font-medium">{cond.sensitivity}</span>
+                            {cond.name ? ` — ${cond.name}` : ''}
+                            {cond.confidence ? (
+                              <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded border border-border bg-muted/30 text-muted-foreground/60 uppercase">
+                                {cond.confidence}
+                              </span>
+                            ) : null}
+                          </span>
+                        )}
+                        {cond.type === 'classification_label' && (
+                          <span>
+                            <span className="text-muted-foreground/50">label:</span>{' '}
+                            <span className="font-medium">{cond.label_name}</span>
+                            {cond.label_source ? ` (${cond.label_source})` : ''}
+                          </span>
+                        )}
+                        {cond.type === 'filename' && (
+                          <span>
+                            <span className="text-muted-foreground/50">filename:</span>{' '}
+                            <span className="font-mono text-[10px] text-foreground/70">{cond.pattern}</span>
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                    {npj.content.conditions.length > 3 && (
+                      <p className="text-[10px] text-muted-foreground/50">+{npj.content.conditions.length - 3} more conditions</p>
+                    )}
+                  </div>
+                </NpjRow>
+              )}
+
+              {npj.content?.conditions?.length === 0 && (
+                <NpjRow label="Detection">
+                  <span className="text-xs text-muted-foreground/50 italic">No content conditions — app-level access control</span>
+                </NpjRow>
+              )}
+
+              {npj.decision && (
+                <NpjRow label="Decision">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={cn(
+                      'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
+                      ACTION_CHIP[npj.decision.mode] ?? 'bg-muted/50 text-muted-foreground border-border',
+                    )}>
+                      {npj.decision.mode}
+                    </span>
+                    <span className="text-xs text-muted-foreground/60">severity: <span className="text-foreground/70">{npj.decision.severity}</span></span>
+                    <span className="text-xs text-muted-foreground/60">evidence: <span className={npj.decision.preserve_evidence ? 'text-emerald-400' : 'text-muted-foreground/50'}>{npj.decision.preserve_evidence ? 'yes' : 'no'}</span></span>
+                    <span className="text-xs text-muted-foreground/60">incident: <span className={npj.decision.create_incident ? 'text-blue-400' : 'text-muted-foreground/50'}>{npj.decision.create_incident ? 'yes' : 'no'}</span></span>
+                    {npj.decision.require_acknowledgement && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded border border-orange-500/30 bg-orange-500/10 text-[10px] text-orange-400">ack required</span>
+                    )}
+                    {npj.decision.require_justification && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-[10px] text-amber-400">justification required</span>
+                    )}
+                  </div>
+                </NpjRow>
+              )}
+
+              {npj.exceptions && npj.exceptions.length > 0 ? (
+                <NpjRow label="Exceptions">
+                  <div className="space-y-1">
+                    {npj.exceptions.map((ex, i) => (
+                      <div key={i} className="text-xs text-foreground/75">
+                        <span className="text-muted-foreground/50">{ex.effect}:</span> {ex.reason}
+                      </div>
+                    ))}
+                  </div>
+                </NpjRow>
+              ) : (
+                <NpjRow label="Exceptions">
+                  <span className="text-xs text-muted-foreground/40 italic">—</span>
+                </NpjRow>
+              )}
+
+              <NpjRow label="Generated from">
+                <span className="text-xs text-muted-foreground/70">{npj.provenance?.generated_from ?? '—'}</span>
+              </NpjRow>
+
+              {npj.provenance?.warnings && npj.provenance.warnings.length > 0 ? (
+                <NpjRow label="Warnings">
+                  <div className="space-y-1">
+                    {npj.provenance.warnings.map((w, i) => (
+                      <p key={i} className="text-xs text-amber-400/80">{w}</p>
+                    ))}
+                  </div>
+                </NpjRow>
+              ) : (
+                <NpjRow label="Warnings">
+                  <span className="text-xs text-muted-foreground/40 italic">—</span>
+                </NpjRow>
+              )}
+            </div>
+          )}
+
+          {valid && showJson && (
+            <div className="border-t border-border/40 px-4 py-3">
+              <pre className="text-xs text-muted-foreground/70 bg-muted/30 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-words font-mono border border-border/40">
+                {JSON.stringify(npj, null, 2)}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function NpjRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[120px_1fr] gap-3 px-4 py-2.5 items-start">
+      <span className="text-xs text-muted-foreground/55 pt-0.5 font-medium">{label}</span>
+      <div>{children}</div>
     </div>
   )
 }

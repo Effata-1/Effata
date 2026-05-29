@@ -19,7 +19,7 @@ export default async function TranslationReviewPage({ params }: Props) {
   ] = await Promise.all([
     supabase
       .from('org_genai_policies')
-      .select('id, name, description, policy_type, policy_family, primary_action, approval_status, vendor_translation_status, priority, scope_all_apps, scope_app_ids, rules, data_classification_label')
+      .select('id, name, description, policy_type, policy_family, primary_action, approval_status, vendor_translation_status, priority, scope_all_apps, scope_app_ids, rules, data_classification_label, neutral_policy_json')
       .eq('id', policyId)
       .eq('org_id', user.orgId)
       .maybeSingle(),
