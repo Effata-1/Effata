@@ -8,7 +8,7 @@ import {
   ShieldAlert, ShieldCheck, Sparkles, Trash2, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { deletePolicy, generatePoliciesFromGovernance, togglePolicyActive } from '../actions'
+import { deletePolicy, generatePoliciesFromGovernance, getPolicyPackJobStatus, togglePolicyActive } from '../actions'
 import { PolicyChatPanel } from './policy-chat-panel'
 import type { GenAIPolicy, ApprovalStatus, ActionCode, PolicyRule } from '@/lib/genai/types'
 import { lintAllPolicies, SEVERITY_STYLES, type LintIssue } from '@/lib/genai/lint'
@@ -330,12 +330,43 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
     setIsGenerating(true)
     setGenerateError(null)
     const result = await generatePoliciesFromGovernance()
-    setIsGenerating(false)
     if (result.error) {
       setGenerateError(result.error)
-    } else {
-      router.refresh()
+      setIsGenerating(false)
+      return
     }
+    // Poll until the compile job completes, then refresh to show generated policies
+    const jobId = result.jobId
+    if (!jobId) {
+      router.refresh()
+      setIsGenerating(false)
+      return
+    }
+    let attempts = 0
+    const poll = setInterval(async () => {
+      attempts++
+      try {
+        const status = await getPolicyPackJobStatus(jobId)
+        if (status.status === 'completed' || status.status === 'failed') {
+          clearInterval(poll)
+          setIsGenerating(false)
+          if (status.status === 'failed') {
+            setGenerateError(status.error ?? 'Policy generation failed.')
+          } else {
+            router.refresh()
+          }
+        }
+      } catch {
+        // getPolicyPackJobStatus requires admin — fall back to timed refresh
+        clearInterval(poll)
+        setTimeout(() => { router.refresh(); setIsGenerating(false) }, 4000)
+      }
+      if (attempts >= 30) {
+        clearInterval(poll)
+        setIsGenerating(false)
+        router.refresh()
+      }
+    }, 2000)
   }
 
   return (
@@ -418,6 +449,17 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
           New Policy
         </Link>
       </div>
+
+      {/* Generating progress banner */}
+      {isGenerating && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-blue-500/8 border border-blue-500/20 text-blue-400 text-xs mb-4">
+          <svg className="animate-spin w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+          </svg>
+          Compiling policies from your Governance Matrix… this takes a few seconds.
+        </div>
+      )}
 
       {/* Generate error */}
       {generateError && (
