@@ -10,7 +10,7 @@ import { upsertCustomerLabel, deactivateCustomerLabel } from '../actions'
 export interface CustomerSensitivityLabel {
   id:           string
   display_name: string
-  label_key:    string
+  label_key:    string | null
   label_value:  string
   label_source: string
   color:        string
@@ -43,18 +43,20 @@ const SYSTEM_LEVEL_OPTIONS: { value: SystemLevel | ''; label: string }[] = [
 
 // ── Inline label form ─────────────────────────────────────────────────────────
 
+interface LabelFormFields {
+  display_name: string; label_key: string | null; label_value: string
+  label_source: string; color: string; system_level: string | null
+}
+
 interface LabelFormProps {
-  initial: {
-    display_name: string; label_key: string; label_value: string
-    label_source: string; color: string; system_level: string | null
-  }
-  onSave:        (fields: Omit<LabelFormProps['initial'], never>) => Promise<string | undefined>
-  onCancel:      () => void
+  initial:  LabelFormFields
+  onSave:   (fields: LabelFormFields) => Promise<string | undefined>
+  onCancel: () => void
 }
 
 function LabelForm({ initial, onSave, onCancel }: LabelFormProps) {
   const [displayName,  setDisplayName]  = useState(initial.display_name)
-  const [labelKey,     setLabelKey]     = useState(initial.label_key)
+  const [labelKey,     setLabelKey]     = useState(initial.label_key ?? '')
   const [labelValue,   setLabelValue]   = useState(initial.label_value)
   const [labelSource,  setLabelSource]  = useState(initial.label_source)
   const [color,        setColor]        = useState(initial.color)
@@ -63,11 +65,10 @@ function LabelForm({ initial, onSave, onCancel }: LabelFormProps) {
 
   async function submit() {
     if (!displayName.trim()) { setFormError('Display name is required.'); return }
-    if (!labelKey.trim())    { setFormError('Metadata Key is required — this is the file property your DLP tool reads (e.g. MSIP_Label_xxx_Enabled).'); return }
     setFormError(null)
     const serverError = await onSave({
       display_name: displayName.trim(),
-      label_key:    labelKey.trim(),
+      label_key:    labelKey.trim() || null,
       label_value:  labelValue.trim() || 'True',
       label_source: labelSource,
       color,
@@ -108,7 +109,7 @@ function LabelForm({ initial, onSave, onCancel }: LabelFormProps) {
         <div>
           <label className="block text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide mb-1">Metadata Key</label>
           <input
-            value={labelKey}
+            value={labelKey ?? ''}
             onChange={e => setLabelKey(e.target.value)}
             placeholder="e.g. MSIP_Label_xxx_Enabled"
             className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring font-mono text-xs"
@@ -198,8 +199,14 @@ function LabelRow({ label, onEdit, onDeactivate }: {
         </div>
       </td>
       <td className="px-5 py-3">
-        <span className="font-mono text-xs text-muted-foreground/70 break-all">{label.label_key}</span>
-        <span className="ml-2 text-[10px] text-muted-foreground/40 font-mono">= {label.label_value}</span>
+        {label.label_key ? (
+          <>
+            <span className="font-mono text-xs text-muted-foreground/70 break-all">{label.label_key}</span>
+            <span className="ml-2 text-[10px] text-muted-foreground/40 font-mono">= {label.label_value}</span>
+          </>
+        ) : (
+          <span className="text-xs text-muted-foreground/30 italic">No key configured</span>
+        )}
       </td>
       <td className="px-4 py-3">
         <span className={cn('text-[11px] font-semibold px-2 py-0.5 rounded border', SOURCE_BADGE[label.label_source] ?? SOURCE_BADGE['custom'])}>
@@ -233,7 +240,7 @@ export function SensitivityLabelsClient({ initialLabels }: { initialLabels: Cust
   const [labels,    setLabels]    = useState<CustomerSensitivityLabel[]>(initialLabels)
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
 
-  async function handleSave(id: string | null, fields: Omit<CustomerSensitivityLabel, 'id' | 'priority'>): Promise<string | undefined> {
+  async function handleSave(id: string | null, fields: LabelFormFields): Promise<string | undefined> {
     const priority = id ? (labels.find(l => l.id === id)?.priority ?? labels.length + 1) : labels.length + 1
     const result = await upsertCustomerLabel(id, { ...fields, priority })
     if (result.error) {

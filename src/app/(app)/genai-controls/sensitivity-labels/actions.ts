@@ -6,7 +6,7 @@ import { requireRole } from '@/lib/auth'
 
 export interface CustomerLabelFields {
   display_name: string
-  label_key:    string
+  label_key:    string | null   // optional — stored as NULL when not provided
   label_value:  string
   label_source: string
   color:        string
@@ -24,7 +24,7 @@ export async function upsertCustomerLabel(
   const payload = {
     org_id:       user.orgId,
     display_name: fields.display_name.trim(),
-    label_key:    fields.label_key.trim(),
+    label_key:    fields.label_key?.trim() || null,
     label_value:  fields.label_value.trim() || 'True',
     label_source: fields.label_source,
     color:        fields.color,
