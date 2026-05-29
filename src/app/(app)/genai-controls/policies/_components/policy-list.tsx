@@ -788,10 +788,12 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                     </td>
 
                     <td className="px-3 py-2.5 align-middle max-w-[220px]">
-                      <p className="font-semibold text-foreground/90 leading-tight truncate">{policy.name}</p>
-                      {policy.description && (
-                        <p className="text-muted-foreground/50 mt-0.5 truncate text-[10px]">{policy.description}</p>
-                      )}
+                      <Link href={`/genai-controls/policies/${policy.id}/edit`} className="group">
+                        <p className="font-semibold text-foreground/90 leading-tight truncate group-hover:text-foreground transition-colors">{policy.name}</p>
+                        {policy.description && (
+                          <p className="text-muted-foreground/50 mt-0.5 truncate text-[10px]">{policy.description}</p>
+                        )}
+                      </Link>
                     </td>
 
                     {col('source')      && <td className="px-3 py-2.5 align-middle"><SourceCell policy={policy} identityFields={identityFields} /></td>}
