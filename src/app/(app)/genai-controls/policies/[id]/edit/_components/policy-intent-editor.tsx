@@ -186,6 +186,29 @@ const NPJ_STATUS_CHIP: Record<string, string> = {
 const APPROVAL_OPTIONS: ApprovalStatus[] = ['draft', 'under-review', 'approved', 'rejected', 'expired']
 const TEST_STATUS_OPTIONS = ['untested', 'in-progress', 'passed', 'failed'] as const
 
+const INTENT_LABELS: Record<string, string> = {
+  prevent_data_exfiltration:   'Prevent Data Exfiltration',
+  govern_app_access:           'Control App Access',
+  allow_approved_use:          'Allow Approved Use',
+  monitor_and_alert:           'Monitor & Alert',
+  coach_user_behavior:         'Coach User Behavior',
+  detect_classification_label: 'Detect Classification Label',
+}
+
+const ACTIVITY_DISPLAY: Record<string, string> = {
+  post_prompt: 'Prompt', upload: 'Upload', download: 'Download',
+  response: 'Response', browse: 'Browse', post: 'Post',
+}
+
+const APPROVAL_CHIP_LABELS: Record<string, string> = {
+  draft: 'Draft', 'under-review': 'Under Review', approved: 'Approved',
+  rejected: 'Rejected', expired: 'Expired',
+}
+
+const NPJ_STATUS_LABELS: Record<string, string> = {
+  current: 'Up to date', outdated: 'NPJ Outdated', legacy: 'Legacy', invalid: 'Invalid NPJ',
+}
+
 type ChangeType = 'action' | 'activities' | 'add-data-types' | 'add-customer-label' | 'change-app-scope' | 'add-exception' | 'change-evidence-incident'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -219,8 +242,8 @@ function riskLabel(fromMode: string, toMode: string): { level: string; text: str
 
 function NpjRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[140px_1fr] gap-3 px-4 py-2.5 items-start">
-      <span className="text-xs text-muted-foreground/55 pt-0.5 font-medium">{label}</span>
+    <div className="grid grid-cols-[160px_1fr] gap-3 px-4 py-3 items-start">
+      <span className="text-xs text-muted-foreground/50 pt-0.5 font-medium">{label}</span>
       <div>{children}</div>
     </div>
   )
@@ -234,10 +257,15 @@ function SectionCard({ title, children, tooltip, readOnly }: {
 }) {
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/20">
+      <div className="flex items-center justify-between px-4 py-3.5 border-b border-border/60">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-foreground">{title}</span>
-          {readOnly && <Lock className="h-3 w-3 text-muted-foreground/40" />}
+          {readOnly && (
+            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/45 font-medium">
+              <Lock className="h-2.5 w-2.5" />
+              Compiler-managed
+            </span>
+          )}
           {tooltip && (
             <span title={tooltip} className="cursor-help">
               <Info className="h-3 w-3 text-muted-foreground/40" />
@@ -522,14 +550,25 @@ export function PolicyIntentEditor({
         </Link>
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-xl font-bold text-foreground truncate">{policy.name}</h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-bold text-foreground truncate">{policy.name}</h1>
+              {policy.is_active ? (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-400">
+                  <span className="text-emerald-400">●</span> Active
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/50">
+                  <span>○</span> Inactive
+                </span>
+              )}
+            </div>
             {policy.description && (
               <p className="text-sm text-muted-foreground/70 mt-0.5 line-clamp-2">{policy.description}</p>
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
             <StatusChip
-              label={policy.approval_status}
+              label={APPROVAL_CHIP_LABELS[policy.approval_status] ?? policy.approval_status}
               chipClass={
                 policy.approval_status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
                 policy.approval_status === 'draft' ? 'bg-muted/60 text-muted-foreground/70 border-border/60' :
@@ -537,7 +576,14 @@ export function PolicyIntentEditor({
               }
             />
             <StatusChip
-              label={translationStatus}
+              label={
+                translationStatus === 'pending' ? 'Translation Pending' :
+                translationStatus === 'translated' ? 'Translated' :
+                translationStatus === 'verified' ? 'Translation Verified' :
+                translationStatus === 'deferred' ? 'Translation Deferred' :
+                translationStatus === 'not-applicable' ? 'N/A' :
+                translationStatus
+              }
               chipClass={TRANSLATION_CHIP[translationStatus] ?? 'bg-muted/60 text-muted-foreground/70 border-border/60'}
             />
             <StatusChip
@@ -548,10 +594,12 @@ export function PolicyIntentEditor({
                 'bg-muted/60 text-muted-foreground/70 border-border/60'
               }
             />
-            <StatusChip
-              label={`NPJ ${status}`}
-              chipClass={NPJ_STATUS_CHIP[status] ?? 'bg-muted/60 text-muted-foreground/70 border-border/60'}
-            />
+            {status !== 'current' && (
+              <StatusChip
+                label={NPJ_STATUS_LABELS[status] ?? `NPJ ${status}`}
+                chipClass={NPJ_STATUS_CHIP[status] ?? 'bg-muted/60 text-muted-foreground/70 border-border/60'}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -595,23 +643,23 @@ export function PolicyIntentEditor({
           <div className="divide-y divide-border/40">
             <NpjRow label="Intent">
               <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium', INTENT_CHIP[npj.intent ?? ''] ?? 'bg-muted/50 text-muted-foreground border-border')}>
-                {npj.intent ?? '—'}
+                {INTENT_LABELS[npj.intent ?? ''] ?? npj.intent ?? '—'}
               </span>
             </NpjRow>
             <NpjRow label="Policy Family">
               <span className="text-xs text-foreground/80">{npj.policy_family ?? policy.policy_family ?? '—'}</span>
             </NpjRow>
-            <NpjRow label="Activities">
+            <NpjRow label="Monitored Activities">
               <ReadOnlyTooltip tip="Activities are set by the compiler based on policy family. Use Policy Change Assistant to change.">
                 <div className="flex flex-wrap gap-1.5">
                   {(npj.scope?.activities ?? []).map((a, i) => (
-                    <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md border border-blue-500/25 bg-blue-500/10 text-xs text-blue-400">{a}</span>
+                    <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md border border-blue-500/25 bg-blue-500/10 text-xs text-blue-400">{ACTIVITY_DISPLAY[a] ?? a}</span>
                   ))}
                   {!npj.scope?.activities?.length && <span className="text-xs text-muted-foreground/40 italic">—</span>}
                 </div>
               </ReadOnlyTooltip>
             </NpjRow>
-            <NpjRow label="Decision">
+            <NpjRow label="Enforcement">
               {npj.decision ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium', ACTION_CHIP[npj.decision.mode] ?? 'bg-muted/50 text-muted-foreground border-border')}>
@@ -625,7 +673,7 @@ export function PolicyIntentEditor({
                 </div>
               ) : <span className="text-xs text-muted-foreground/40 italic">—</span>}
             </NpjRow>
-            <NpjRow label="Detection">
+            <NpjRow label="Content Inspection">
               <div className="flex flex-wrap gap-1.5">
                 {(npj.content?.conditions ?? []).map((c, i) => {
                   if (c.type === 'data_type' && c.sensitivity) {
@@ -639,7 +687,7 @@ export function PolicyIntentEditor({
                 {!npj.content?.conditions?.length && <span className="text-xs text-muted-foreground/40 italic">App-level access control</span>}
               </div>
             </NpjRow>
-            <NpjRow label="Generated From">
+            <NpjRow label="Source">
               <span className="text-xs text-muted-foreground/70">{npj.provenance?.generated_from ?? policy.generated_from ?? '—'}</span>
             </NpjRow>
           </div>
@@ -739,7 +787,7 @@ export function PolicyIntentEditor({
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {npj.scope.activities.map((a, i) => (
-                  <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md border border-blue-500/25 bg-blue-500/10 text-xs text-blue-400">{a}</span>
+                  <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md border border-blue-500/25 bg-blue-500/10 text-xs text-blue-400">{ACTIVITY_DISPLAY[a] ?? a}</span>
                 ))}
               </div>
             </div>
@@ -1140,7 +1188,7 @@ export function PolicyIntentEditor({
               <div className="divide-y divide-border/40">
                 <NpjRow label="Intent">
                   <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium', INTENT_CHIP[npj!.intent ?? ''] ?? 'bg-muted/50 text-muted-foreground border-border')}>
-                    {npj!.intent}
+                    {INTENT_LABELS[npj!.intent ?? ''] ?? npj!.intent}
                   </span>
                 </NpjRow>
                 <NpjRow label="Family"><span className="text-xs text-foreground/80">{npj!.policy_family ?? '—'}</span></NpjRow>
@@ -1148,7 +1196,7 @@ export function PolicyIntentEditor({
                   <NpjRow label="Activities">
                     <div className="flex flex-wrap gap-1.5">
                       {npj!.scope.activities.map((a, i) => (
-                        <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md border border-blue-500/25 bg-blue-500/10 text-xs text-blue-400">{a}</span>
+                        <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md border border-blue-500/25 bg-blue-500/10 text-xs text-blue-400">{ACTIVITY_DISPLAY[a] ?? a}</span>
                       ))}
                     </div>
                   </NpjRow>
