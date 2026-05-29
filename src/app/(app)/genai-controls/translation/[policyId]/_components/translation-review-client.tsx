@@ -706,7 +706,8 @@ function NetskopeCard({ policy }: { policy: Record<string, unknown> }) {
   const source        = policy.source as Record<string, string[]> | undefined
   const destination   = policy.destination as Record<string, unknown> | undefined
   const profileAction = policy.profile_action as { dlp_profiles: string[]; action: string; notification_template: string | null } | null | undefined
-  const directAction  = policy.action as string | undefined   // Allow policy has action directly (no DLP profile)
+  // action field is always present on every native policy (profile_action.action mirrors it when profiles exist)
+  const policyAction  = (profileAction?.action ?? policy.action) as string | undefined
   const trafficAction = policy.traffic_action as string | undefined
   const group         = policy.group as string | undefined
   const status        = policy.status as string | undefined
@@ -791,14 +792,17 @@ function NetskopeCard({ policy }: { policy: Record<string, unknown> }) {
                 )}
               </div>
             </>
-          ) : directAction ? (
-            /* Allow policy — no DLP profile, direct action */
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground/50">Action:</span>
-              <ActionChip action={directAction} />
+          ) : policyAction ? (
+            /* No DLP profile — action applies to all content matching activities */
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground/50">Action:</span>
+                <ActionChip action={policyAction} />
+              </div>
+              <p className="text-[10px] text-muted-foreground/50 italic">No DLP profile — action applies to all content</p>
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground/50 italic">No DLP profile — action applies to all content</p>
+            <p className="text-xs text-muted-foreground/50 italic">No profile or action configured</p>
           )}
 
           {/* Traffic Action — only shown when explicitly set (not a default) */}
@@ -827,9 +831,10 @@ function NetskopeCard({ policy }: { policy: Record<string, unknown> }) {
             </div>
           )}
           {description && (
-            <p className="text-xs text-muted-foreground/60 leading-relaxed pt-0.5 border-t border-border/30 mt-1">
-              {description}
-            </p>
+            <div className="pt-1.5 mt-1 border-t border-border/30 space-y-1">
+              <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider">Policy Description</p>
+              <p className="text-xs text-muted-foreground/70 leading-relaxed">{description}</p>
+            </div>
           )}
         </div>
       </div>
