@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  MessageSquare, Pencil, Plus, Search,
+  MessageSquare, Pencil, Plus, Search, Settings,
   ShieldAlert, ShieldCheck, Sparkles, Trash2, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -99,6 +99,21 @@ const VENDOR_LABELS: Record<string, string> = {
   'not-applicable': 'N/A',
 }
 
+type ColumnId = 'source' | 'destination' | 'data' | 'activities' | 'family' | 'test' | 'vendor'
+
+const COLUMN_DEFS: { id: ColumnId; label: string }[] = [
+  { id: 'source',      label: 'Source'      },
+  { id: 'destination', label: 'Destination' },
+  { id: 'data',        label: 'Data'        },
+  { id: 'activities',  label: 'Activities'  },
+  { id: 'family',      label: 'Family'      },
+  { id: 'test',        label: 'Test'        },
+  { id: 'vendor',      label: 'Vendor'      },
+]
+
+const DEFAULT_COLS = new Set<ColumnId>(['source', 'destination', 'data', 'activities'])
+const LS_COL_KEY = 'effata:policy-list-cols'
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const CAT_COLOR_CHIP: Record<string, string> = {
@@ -185,13 +200,9 @@ function DestCell({ policy, apps }: { policy: GenAIPolicy; apps: App[] }) {
   )
 }
 
-function DataCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: RuleItem[] }) {
-  const rules = policy.rules ?? []
-  const { selectedDataKeys, selectedActivities } = deriveFromRules(rules, ruleItems)
+function DataTypeCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: RuleItem[] }) {
+  const { selectedDataKeys } = deriveFromRules(policy.rules ?? [], ruleItems)
   const names = ruleItems.filter(i => selectedDataKeys.has(i.key)).map(i => i.name)
-  const acts  = ACTIVITIES.filter(a => selectedActivities.has(a.key)).map(a => a.label)
-
-  // If no rules but policy has a data_classification_label, show that instead
   if (names.length === 0 && policy.data_classification_label) {
     return (
       <span className="text-[11px] text-muted-foreground/60 capitalize italic">
@@ -199,24 +210,23 @@ function DataCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: RuleI
       </span>
     )
   }
-  if (names.length === 0) {
-    return (
-      <div className="space-y-1">
-        <span className="text-[11px] text-muted-foreground/40 italic">All data</span>
-        <div className="flex gap-0.5 flex-wrap">
-          {acts.map(l => <span key={l} className="text-[9px] px-1 py-0.5 rounded bg-muted/40 border border-border/40 text-muted-foreground/50">{l}</span>)}
-        </div>
-      </div>
-    )
-  }
+  if (names.length === 0) return <span className="text-[11px] text-muted-foreground/40 italic">All data</span>
   return (
-    <div className="space-y-1">
-      <span className="text-[11px] text-foreground/80 truncate block max-w-[140px]">
-        {names[0]}{names.length > 1 ? ` +${names.length - 1}` : ''}
-      </span>
-      <div className="flex gap-0.5 flex-wrap">
-        {acts.map(l => <span key={l} className="text-[9px] px-1 py-0.5 rounded bg-muted/40 border border-border/40 text-muted-foreground/50">{l}</span>)}
-      </div>
+    <span className="text-[11px] text-foreground/80 truncate block max-w-[140px]">
+      {names[0]}{names.length > 1 ? ` +${names.length - 1}` : ''}
+    </span>
+  )
+}
+
+function ActivitiesCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: RuleItem[] }) {
+  const { selectedActivities } = deriveFromRules(policy.rules ?? [], ruleItems)
+  const acts = ACTIVITIES.filter(a => selectedActivities.has(a.key)).map(a => a.label)
+  if (acts.length === 0) return <span className="text-[11px] text-muted-foreground/40 italic">—</span>
+  return (
+    <div className="flex gap-0.5 flex-wrap">
+      {acts.map(l => (
+        <span key={l} className="text-[9px] px-1 py-0.5 rounded bg-muted/40 border border-border/40 text-muted-foreground/60">{l}</span>
+      ))}
     </div>
   )
 }
@@ -317,6 +327,39 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
   const [chatOpen, setChatOpen]               = useState(false)
   const [chatPolicyId, setChatPolicyId]       = useState<string | undefined>(undefined)
   const [deleteTarget, setDeleteTarget]       = useState<{ id: string; name: string } | null>(null)
+  const [visibleCols, setVisibleCols]         = useState<Set<ColumnId>>(DEFAULT_COLS)
+  const [colPickerOpen, setColPickerOpen]     = useState(false)
+  const colPickerRef                          = useRef<HTMLDivElement>(null)
+
+  // Hydrate column visibility from localStorage after mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LS_COL_KEY)
+      if (saved) setVisibleCols(new Set(JSON.parse(saved) as ColumnId[]))
+    } catch { /* ignore */ }
+  }, [])
+
+  // Close column picker on outside click
+  useEffect(() => {
+    if (!colPickerOpen) return
+    function handler(e: MouseEvent) {
+      if (colPickerRef.current && !colPickerRef.current.contains(e.target as Node)) setColPickerOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [colPickerOpen])
+
+  function toggleCol(id: ColumnId) {
+    setVisibleCols(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      try { localStorage.setItem(LS_COL_KEY, JSON.stringify([...next])) } catch { /* ignore */ }
+      return next
+    })
+  }
+
+  const col = (id: ColumnId) => visibleCols.has(id)
 
   void classifications
   void ACTION_CODES
@@ -465,6 +508,38 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
             {isGenerating ? 'Generating…' : 'Generate Policies'}
           </button>
         )}
+        {/* Column chooser */}
+        <div ref={colPickerRef} className="relative">
+          <button
+            onClick={() => setColPickerOpen(o => !o)}
+            className={cn(
+              'flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors',
+              colPickerOpen
+                ? 'border-border bg-muted/60 text-foreground/80'
+                : 'border-border bg-muted/30 hover:bg-muted/60 text-muted-foreground',
+            )}
+            title="Customise columns"
+          >
+            <Settings className="w-3.5 h-3.5" />
+          </button>
+          {colPickerOpen && (
+            <div className="absolute right-0 top-full mt-1.5 z-40 w-44 rounded-xl border border-border bg-card shadow-xl py-1.5">
+              <p className="px-3 py-1 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide">Columns</p>
+              {COLUMN_DEFS.map(({ id, label }) => (
+                <label key={id} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-muted/40 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={visibleCols.has(id)}
+                    onChange={() => toggleCol(id)}
+                    className="accent-foreground w-3 h-3"
+                  />
+                  <span className="text-xs text-foreground/80">{label}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
         <Link
           href="/genai-controls/policies/new"
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 transition-colors"
@@ -589,14 +664,15 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                     Name
                     <span className="ml-2 text-[10px] font-normal text-muted-foreground/30 normal-case tracking-normal">{visible.length} {visible.length === 1 ? 'policy' : 'policies'}</span>
                   </th>
-                  <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5 hidden md:table-cell">Source</th>
-                  <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5 hidden md:table-cell">Destination</th>
-                  <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5 hidden lg:table-cell">Data / Activities</th>
+                  {col('source')      && <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Source</th>}
+                  {col('destination') && <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Destination</th>}
+                  {col('data')        && <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Data</th>}
+                  {col('activities')  && <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Activities</th>}
                   <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Action</th>
                   <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Status</th>
-                  <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5 hidden xl:table-cell">Family</th>
-                  <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5 hidden xl:table-cell">Test</th>
-                  <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5 hidden xl:table-cell">Vendor</th>
+                  {col('family')      && <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Family</th>}
+                  {col('test')        && <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Test</th>}
+                  {col('vendor')      && <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Vendor</th>}
                   <th className="w-16 px-3 py-2.5" />
                 </tr>
               </thead>
@@ -639,17 +715,10 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                       })()}
                     </td>
 
-                    <td className="px-3 py-2.5 align-middle hidden md:table-cell">
-                      <SourceCell policy={policy} identityFields={identityFields} />
-                    </td>
-
-                    <td className="px-3 py-2.5 align-middle hidden md:table-cell">
-                      <DestCell policy={policy} apps={apps} />
-                    </td>
-
-                    <td className="px-3 py-2.5 align-middle hidden lg:table-cell">
-                      <DataCell policy={policy} ruleItems={ruleItems} />
-                    </td>
+                    {col('source')      && <td className="px-3 py-2.5 align-middle"><SourceCell policy={policy} identityFields={identityFields} /></td>}
+                    {col('destination') && <td className="px-3 py-2.5 align-middle"><DestCell policy={policy} apps={apps} /></td>}
+                    {col('data')        && <td className="px-3 py-2.5 align-middle"><DataTypeCell policy={policy} ruleItems={ruleItems} /></td>}
+                    {col('activities')  && <td className="px-3 py-2.5 align-middle"><ActivitiesCell policy={policy} ruleItems={ruleItems} /></td>}
 
                     <td className="px-3 py-2.5 align-middle">
                       <ActionCell policy={policy} ruleItems={ruleItems} />
@@ -661,25 +730,29 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                       </span>
                     </td>
 
-                    <td className="px-3 py-2.5 align-middle hidden xl:table-cell">
-                      {policy.policy_family ? (
-                        <span className="text-[10px] text-muted-foreground/70 truncate block max-w-[120px]">{policy.policy_family}</span>
-                      ) : (
-                        <span className="text-[10px] text-muted-foreground/30 italic">—</span>
-                      )}
-                    </td>
+                    {col('family') && (
+                      <td className="px-3 py-2.5 align-middle">
+                        {policy.policy_family
+                          ? <span className="text-[10px] text-muted-foreground/70 truncate block max-w-[120px]">{policy.policy_family}</span>
+                          : <span className="text-[10px] text-muted-foreground/30 italic">—</span>}
+                      </td>
+                    )}
 
-                    <td className="px-3 py-2.5 align-middle hidden xl:table-cell">
-                      <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded border whitespace-nowrap', TEST_CHIP[policy.test_status ?? 'untested'])}>
-                        {TEST_LABELS[policy.test_status ?? 'untested']}
-                      </span>
-                    </td>
+                    {col('test') && (
+                      <td className="px-3 py-2.5 align-middle">
+                        <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded border whitespace-nowrap', TEST_CHIP[policy.test_status ?? 'untested'])}>
+                          {TEST_LABELS[policy.test_status ?? 'untested']}
+                        </span>
+                      </td>
+                    )}
 
-                    <td className="px-3 py-2.5 align-middle hidden xl:table-cell">
-                      <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded border whitespace-nowrap', VENDOR_CHIP[policy.vendor_translation_status ?? 'pending'])}>
-                        {VENDOR_LABELS[policy.vendor_translation_status ?? 'pending']}
-                      </span>
-                    </td>
+                    {col('vendor') && (
+                      <td className="px-3 py-2.5 align-middle">
+                        <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded border whitespace-nowrap', VENDOR_CHIP[policy.vendor_translation_status ?? 'pending'])}>
+                          {VENDOR_LABELS[policy.vendor_translation_status ?? 'pending']}
+                        </span>
+                      </td>
+                    )}
 
                     <td className="px-3 py-2.5 align-middle">
                       <div className="flex items-center gap-2 justify-end">
