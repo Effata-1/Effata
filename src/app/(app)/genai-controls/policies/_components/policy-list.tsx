@@ -217,46 +217,111 @@ function DestCell({ policy, apps, categories }: { policy: GenAIPolicy; apps: App
   return <span className="text-[11px] text-muted-foreground/40 italic">All GenAI apps</span>
 }
 
-function isAppAccessPolicy(policy: GenAIPolicy): boolean {
-  const npj = (policy as unknown as Record<string, unknown>).neutral_policy_json
-  if (!npj || typeof npj !== 'object') return false
-  const conditions = ((npj as Record<string, unknown>).content as Record<string, unknown> | undefined)?.conditions
-  return Array.isArray(conditions) && conditions.some((c: unknown) => (c as Record<string, unknown>)?.type === 'govern_app_access')
+// ── NPJ-aware helpers ─────────────────────────────────────────────────────────
+
+interface NpjCondition { type: string; sensitivity?: string; label_source?: string; label_name?: string }
+
+function getNpj(policy: GenAIPolicy): Record<string, unknown> | null {
+  const raw = (policy as unknown as Record<string, unknown>).neutral_policy_json
+  if (!raw || typeof raw !== 'object') return null
+  const n = raw as Record<string, unknown>
+  return n.schema_version === '1.0' ? n : null
 }
 
+function getNpjConditions(npj: Record<string, unknown>): NpjCondition[] {
+  return ((npj.content as Record<string, unknown> | undefined)?.conditions as NpjCondition[] | undefined) ?? []
+}
+
+function getNpjActivities(npj: Record<string, unknown>): string[] {
+  return ((npj.scope as Record<string, unknown> | undefined)?.activities as string[] | undefined) ?? []
+}
+
+const NPJ_ACT_LABELS: Record<string, string> = {
+  post_prompt: 'Prompt', upload: 'Upload', download: 'Download', response: 'Response', browse: 'Browse',
+}
+
+// ── Cell components ───────────────────────────────────────────────────────────
+
 function DataTypeCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: RuleItem[] }) {
-  if (isAppAccessPolicy(policy)) {
-    return <span className="text-[11px] text-muted-foreground/40 italic">No content detection</span>
+  const npj = getNpj(policy)
+
+  if (npj) {
+    const conds = getNpjConditions(npj)
+
+    if (conds.length === 0 || conds.every(c => c.type === 'govern_app_access')) {
+      return <span className="text-[11px] text-muted-foreground/40 italic">App access only</span>
+    }
+    if (conds.every(c => c.type === 'filename')) {
+      return <span className="text-[11px] text-muted-foreground/60">Filename pattern</span>
+    }
+    if (conds.every(c => c.type === 'classification_label')) {
+      const sources = [...new Set(conds.map(c => c.label_source).filter(Boolean))]
+      return <span className="text-[11px] text-muted-foreground/60">{sources.length ? `${sources[0]} label` : 'Customer label'}</span>
+    }
+    const dtConds = conds.filter(c => c.type === 'data_type')
+    if (dtConds.length > 0) {
+      const s = (dtConds[0].sensitivity ?? '').replace(/-/g, ' ')
+      const label = s.charAt(0).toUpperCase() + s.slice(1)
+      return (
+        <span className="text-[11px] text-foreground/80 truncate block max-w-[140px]">
+          {label}{dtConds.length > 1 ? ` +${dtConds.length - 1}` : ''}
+        </span>
+      )
+    }
+    return <span className="text-[11px] text-muted-foreground/40 italic">—</span>
   }
+
+  // Legacy fallback — show with indicator
   const { selectedDataKeys } = deriveFromRules(policy.rules ?? [], ruleItems)
   const names = ruleItems.filter(i => selectedDataKeys.has(i.key)).map(i => i.name)
-  if (names.length === 0 && policy.data_classification_label) {
-    return (
-      <span className="text-[11px] text-muted-foreground/60 capitalize italic">
-        {policy.data_classification_label === 'all' ? 'All data' : policy.data_classification_label}
-      </span>
-    )
-  }
-  if (names.length === 0) return <span className="text-[11px] text-muted-foreground/40 italic">All data</span>
+  const legacyLabel = names.length > 0
+    ? `${names[0]}${names.length > 1 ? ` +${names.length - 1}` : ''}`
+    : (policy.data_classification_label && policy.data_classification_label !== 'all')
+      ? policy.data_classification_label
+      : 'All data'
   return (
-    <span className="text-[11px] text-foreground/80 truncate block max-w-[140px]">
-      {names[0]}{names.length > 1 ? ` +${names.length - 1}` : ''}
-    </span>
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[11px] text-muted-foreground/50 italic">{legacyLabel}</span>
+      <span className="text-[9px] px-1 py-px rounded bg-amber-500/10 border border-amber-500/20 text-amber-400/70 w-fit">Legacy</span>
+    </div>
   )
 }
 
 function ActivitiesCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: RuleItem[] }) {
-  if (isAppAccessPolicy(policy)) {
-    return <span className="text-[11px] text-muted-foreground/40 italic">—</span>
+  const npj = getNpj(policy)
+
+  if (npj) {
+    const actKeys = getNpjActivities(npj)
+    const conds   = getNpjConditions(npj)
+
+    // App access with no explicit activity list — show standard access activities
+    const isAppAccess = conds.length === 0 || conds.some(c => c.type === 'govern_app_access')
+    const acts = actKeys.length > 0
+      ? actKeys.map(a => NPJ_ACT_LABELS[a] ?? a)
+      : isAppAccess
+        ? ['Browse', 'Prompt', 'Upload', 'Download']
+        : []
+
+    if (acts.length === 0) return <span className="text-[11px] text-muted-foreground/40 italic">—</span>
+    return (
+      <div className="flex gap-0.5 flex-wrap">
+        {acts.map(l => (
+          <span key={l} className="text-[9px] px-1 py-0.5 rounded bg-muted/40 border border-border/40 text-muted-foreground/60">{l}</span>
+        ))}
+      </div>
+    )
   }
+
+  // Legacy fallback
   const { selectedActivities } = deriveFromRules(policy.rules ?? [], ruleItems)
   const acts = ACTIVITIES.filter(a => selectedActivities.has(a.key)).map(a => a.label)
   if (acts.length === 0) return <span className="text-[11px] text-muted-foreground/40 italic">—</span>
   return (
-    <div className="flex gap-0.5 flex-wrap">
+    <div className="flex gap-0.5 flex-wrap items-center">
       {acts.map(l => (
-        <span key={l} className="text-[9px] px-1 py-0.5 rounded bg-muted/40 border border-border/40 text-muted-foreground/60">{l}</span>
+        <span key={l} className="text-[9px] px-1 py-0.5 rounded bg-muted/40 border border-amber-500/20 text-muted-foreground/50">{l}</span>
       ))}
+      <span className="text-[9px] px-1 py-px rounded bg-amber-500/10 border border-amber-500/20 text-amber-400/70">Legacy</span>
     </div>
   )
 }
