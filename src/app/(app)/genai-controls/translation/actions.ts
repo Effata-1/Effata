@@ -24,18 +24,27 @@ export async function getTranslationJobStatus(jobId: string): Promise<{
   totalItems:     number | null
   error:          string | null
 }> {
-  await requireRole('analyst')
-  const data = await callData<{
-    status:          string
-    processed_items: number | null
-    total_items:     number | null
-    error:           string | null
-  }>(`/api/jobs/${jobId}`)
-  return {
-    status:         data.status,
-    processedItems: data.processed_items,
-    totalItems:     data.total_items,
-    error:          data.error,
+  try {
+    await requireRole('analyst')
+    const data = await callData<{
+      status:          string
+      processed_items: number | null
+      total_items:     number | null
+      error:           string | null
+    }>(`/api/jobs/${jobId}`)
+    return {
+      status:         data.status,
+      processedItems: data.processed_items,
+      totalItems:     data.total_items,
+      error:          data.error,
+    }
+  } catch (err) {
+    return {
+      status:         'error',
+      processedItems: null,
+      totalItems:     null,
+      error:          err instanceof Error ? err.message : 'Failed to fetch job status',
+    }
   }
 }
 
@@ -46,8 +55,8 @@ export async function retranslatePolicy(policyId: string): Promise<{ jobId: stri
       method: 'POST',
       body:   { jobType: 'policy-translate', payload: { policy_ids: [policyId] } },
     })
-    revalidatePath('/genai-controls/translation')
-    revalidatePath(`/genai-controls/translation/${policyId}`)
+    // Do NOT revalidatePath here — job hasn't finished yet, nothing has changed.
+    // window.location.reload() in the polling handler reloads once the job completes.
     return { jobId: result.jobId }
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Failed to trigger re-translation' }
