@@ -1,0 +1,544 @@
+'use client'
+
+import { useState, useOptimistic, useTransition, useRef } from 'react'
+import Link from 'next/link'
+import { ArrowLeft, CheckCircle, Clock, RefreshCw } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import {
+  markTranslationVerified,
+  markTranslationDeferred,
+  retranslatePolicy,
+  getTranslationJobStatus,
+} from '../../actions'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface PolicyRule {
+  data_type:   string
+  post_prompt: string
+  upload:      string
+  download:    string
+  response:    string
+}
+
+interface Policy {
+  id:                        string
+  name:                      string
+  description:               string | null
+  policy_type:               string
+  policy_family:             string | null
+  primary_action:            string | null
+  approval_status:           string
+  vendor_translation_status: string | null
+  priority:                  number
+  scope_all_apps:            boolean
+  scope_app_ids:             string[]
+  rules:                     PolicyRule[]
+  data_classification_label: string | null
+}
+
+interface MappingReport {
+  exact_mappings:        string[]
+  lossy_mappings:        string[]
+  unsupported_intent:    string[]
+  unverified_vendor_areas: string[]
+  tests_required:        string[]
+}
+
+interface Translation {
+  id:                        string
+  vendor_id:                 string
+  status:                    string
+  native_policies:           object[]
+  mapping_report:            MappingReport
+  adapter_version:           string | null
+  capability_registry_version: string | null
+  neutral_policy_hash:       string | null
+  reviewed_by:               string | null
+  reviewed_at:               string | null
+  exported_at:               string | null
+  created_at:                string
+  updated_at:                string
+}
+
+interface Props {
+  policy:       Policy
+  translations: Translation[]
+  vendorTools:  string[]
+}
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const VENDOR_DISPLAY: Record<string, string> = {
+  'netskope':          'Netskope',
+  'microsoft-purview': 'Microsoft Purview',
+  'forcepoint-dlp':    'Forcepoint DLP',
+  'skyhigh-security':  'Skyhigh Security',
+}
+
+const TOOL_TO_VENDOR_ID: Record<string, string> = {
+  'netskope':            'netskope',
+  'microsoft-purview':   'microsoft-purview',
+  'microsoft purview':   'microsoft-purview',
+  'purview':             'microsoft-purview',
+  'forcepoint-dlp':      'forcepoint-dlp',
+  'forcepoint':          'forcepoint-dlp',
+  'skyhigh-security':    'skyhigh-security',
+  'skyhigh security':    'skyhigh-security',
+  'skyhigh':             'skyhigh-security',
+}
+
+const FIRST_WAVE = new Set(['netskope', 'microsoft-purview', 'forcepoint-dlp', 'skyhigh-security'])
+
+const TRANSLATION_CHIP: Record<string, string> = {
+  'pending':        'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  'translating':    'bg-blue-500/15 text-blue-300 border-blue-500/20',
+  'translated':     'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  'partial':        'bg-amber-500/15 text-amber-300 border-amber-500/25',
+  'verified':       'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  'deferred':       'bg-muted/60 text-muted-foreground/60 border-border/50',
+  'error':          'bg-red-500/10 text-red-400 border-red-500/20',
+}
+const TRANSLATION_LABEL: Record<string, string> = {
+  'pending':        'Pending',
+  'translating':    'Running',
+  'translated':     'Translated',
+  'partial':        'Partial',
+  'verified':       'Verified',
+  'deferred':       'Deferred',
+  'error':          'Error',
+}
+
+const ACTION_CHIP: Record<string, string> = {
+  'allow':      'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  'monitor':    'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  'alert':      'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  'coach':      'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  'coach-ack':  'bg-orange-500/15 text-orange-300 border-orange-500/30',
+  'coach-just': 'bg-amber-600/15 text-amber-300 border-amber-600/25',
+  'block':      'bg-red-500/10 text-red-400 border-red-500/20',
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export function TranslationReviewClient({ policy, translations, vendorTools }: Props) {
+  const vendorIds = vendorTools
+    .map(t => TOOL_TO_VENDOR_ID[t.toLowerCase().trim()])
+    .filter((v): v is string => !!v && FIRST_WAVE.has(v))
+  const uniqueVendors = [...new Set(vendorIds)]
+
+  const translationByVendor = new Map(translations.map(t => [t.vendor_id, t]))
+
+  const [activeTab, setActiveTab] = useState<string>(uniqueVendors[0] ?? '')
+
+  const activeTranslation = activeTab ? translationByVendor.get(activeTab) : undefined
+
+  return (
+    <div className="space-y-6">
+      {/* Back + title */}
+      <div className="flex items-start gap-4">
+        <Link
+          href="/genai-controls/translation"
+          className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Translation Hub
+        </Link>
+      </div>
+
+      {/* Policy summary card */}
+      <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs text-muted-foreground/60 mb-1">Priority {policy.priority}</p>
+            <h1 className="text-lg font-bold text-foreground">{policy.name}</h1>
+            {policy.description && (
+              <p className="text-sm text-muted-foreground/70 mt-1">{policy.description}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {policy.primary_action && (
+              <span className={cn(
+                'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
+                ACTION_CHIP[policy.primary_action] ?? 'bg-muted/30 text-muted-foreground/50 border-border/50',
+              )}>
+                {policy.primary_action}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground/60">
+          {policy.policy_family && <span>{policy.policy_family}</span>}
+          {policy.policy_family && policy.data_classification_label && <span>·</span>}
+          {policy.data_classification_label && <span>{policy.data_classification_label}</span>}
+          {policy.scope_all_apps ? (
+            <><span>·</span><span>All GenAI apps</span></>
+          ) : policy.scope_app_ids.length > 0 ? (
+            <><span>·</span><span>{policy.scope_app_ids.length} apps scoped</span></>
+          ) : null}
+          {policy.rules.length > 0 && (
+            <><span>·</span><span>{policy.rules.length} rule{policy.rules.length !== 1 ? 's' : ''}</span></>
+          )}
+        </div>
+      </div>
+
+      {uniqueVendors.length === 0 && (
+        <div className="rounded-xl border border-border bg-card/50 p-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            No supported DLP tools configured. Add vendors in your onboarding profile.
+          </p>
+        </div>
+      )}
+
+      {uniqueVendors.length > 0 && (
+        <div className="space-y-4">
+          {/* Vendor tabs */}
+          <div className="flex items-center gap-1 border-b border-border">
+            {uniqueVendors.map(vendorId => {
+              const t = translationByVendor.get(vendorId)
+              const status = t?.status ?? 'pending'
+              return (
+                <button
+                  key={vendorId}
+                  onClick={() => setActiveTab(vendorId)}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px',
+                    activeTab === vendorId
+                      ? 'border-blue-500 text-blue-400'
+                      : 'border-transparent text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {VENDOR_DISPLAY[vendorId] ?? vendorId}
+                  <span className={cn(
+                    'inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-medium',
+                    TRANSLATION_CHIP[status] ?? TRANSLATION_CHIP['pending'],
+                  )}>
+                    {TRANSLATION_LABEL[status] ?? status}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Tab content */}
+          {activeTab && (
+            <VendorTabContent
+              vendorId={activeTab}
+              translation={activeTranslation ?? null}
+              policyId={policy.id}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Vendor Tab Content ─────────────────────────────────────────────────────────
+
+interface VendorTabProps {
+  vendorId:    string
+  translation: Translation | null
+  policyId:    string
+}
+
+function VendorTabContent({ vendorId, translation, policyId }: VendorTabProps) {
+  const [isPending, startTransition] = useTransition()
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [retranslateJobId, setRetranslateJobId] = useState<string | null>(null)
+  const [retranslating, setRetranslating] = useState(false)
+  const [expandedPolicies, setExpandedPolicies] = useState<Set<number>>(new Set([0]))
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const inflightRef = useRef(false)
+
+  const [optimisticStatus, applyOptimistic] = useOptimistic(
+    translation?.status ?? 'pending',
+    (_: string, next: string) => next,
+  )
+
+  function handleVerify() {
+    if (!translation) return
+    setActionError(null)
+    applyOptimistic('verified')
+    startTransition(async () => {
+      const result = await markTranslationVerified(translation.id)
+      if (result.error) setActionError(result.error)
+    })
+  }
+
+  function handleDefer() {
+    if (!translation) return
+    setActionError(null)
+    applyOptimistic('deferred')
+    startTransition(async () => {
+      const result = await markTranslationDeferred(translation.id)
+      if (result.error) setActionError(result.error)
+    })
+  }
+
+  function handleRetranslate() {
+    setActionError(null)
+    setRetranslating(true)
+    startTransition(async () => {
+      const result = await retranslatePolicy(policyId)
+      if ('error' in result) {
+        setActionError(result.error)
+        setRetranslating(false)
+      } else {
+        setRetranslateJobId(result.jobId)
+        startPollingRetranslate(result.jobId)
+      }
+    })
+  }
+
+  function stopPolling() {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+  }
+
+  function startPollingRetranslate(jobId: string) {
+    intervalRef.current = setInterval(async () => {
+      if (inflightRef.current) return
+      inflightRef.current = true
+      try {
+        const job = await getTranslationJobStatus(jobId)
+        if (job.status === 'completed') {
+          stopPolling()
+          setRetranslating(false)
+          window.location.reload()
+        } else if (job.status === 'failed') {
+          stopPolling()
+          setRetranslating(false)
+          setActionError(job.error ?? 'Re-translation failed.')
+        }
+      } catch {
+        stopPolling()
+        setRetranslating(false)
+        setActionError('Could not check retranslation status. Please refresh.')
+      } finally {
+        inflightRef.current = false
+      }
+    }, 3000)
+  }
+
+  const canVerify = translation && ['translated', 'partial'].includes(optimisticStatus)
+  const canDefer  = translation && ['translated', 'partial'].includes(optimisticStatus)
+  const isVerified = optimisticStatus === 'verified'
+  const isDeferred = optimisticStatus === 'deferred'
+
+  const report = translation?.mapping_report
+
+  if (!translation || translation.status === 'pending') {
+    return (
+      <div className="rounded-xl border border-border bg-card/50 p-8 text-center space-y-3">
+        <p className="text-sm text-muted-foreground">Not translated yet for {VENDOR_DISPLAY[vendorId] ?? vendorId}.</p>
+        <button
+          type="button"
+          onClick={handleRetranslate}
+          disabled={retranslating || isPending}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {retranslating && <span className="inline-block w-2.5 h-2.5 rounded-full border-2 border-white/40 border-t-white animate-spin" />}
+          Translate Now
+        </button>
+        {actionError && <p className="text-xs text-red-400">{actionError}</p>}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Status bar + actions */}
+      <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-4">
+        <div className="flex items-center gap-3">
+          <span className={cn(
+            'inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-medium',
+            TRANSLATION_CHIP[optimisticStatus] ?? TRANSLATION_CHIP['pending'],
+          )}>
+            {TRANSLATION_LABEL[optimisticStatus] ?? optimisticStatus}
+          </span>
+          {translation.adapter_version && (
+            <span className="text-xs text-muted-foreground/50">v{translation.adapter_version}</span>
+          )}
+          {translation.reviewed_at && (
+            <span className="text-xs text-muted-foreground/50 flex items-center gap-1">
+              <CheckCircle className="w-3 h-3" />
+              Reviewed {new Date(translation.reviewed_at).toLocaleDateString()}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleRetranslate}
+            disabled={retranslating || isPending}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw className={cn('w-3 h-3', retranslating && 'animate-spin')} />
+            Re-translate
+          </button>
+          {canDefer && !isDeferred && (
+            <button
+              type="button"
+              onClick={handleDefer}
+              disabled={isPending}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Clock className="w-3 h-3" />
+              Defer
+            </button>
+          )}
+          {canVerify && !isVerified && (
+            <button
+              type="button"
+              onClick={handleVerify}
+              disabled={isPending}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-emerald-600/80 text-white hover:bg-emerald-600 border border-emerald-600/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <CheckCircle className="w-3 h-3" />
+              Mark Verified
+            </button>
+          )}
+          {isVerified && (
+            <span className="flex items-center gap-1 text-xs text-emerald-400">
+              <CheckCircle className="w-3.5 h-3.5" />
+              Verified
+            </span>
+          )}
+        </div>
+      </div>
+      {actionError && <p className="text-xs text-red-400">{actionError}</p>}
+
+      {/* Mapping quality chips */}
+      {report && (
+        <div className="flex flex-wrap items-center gap-2">
+          {report.exact_mappings.length > 0 && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-emerald-500/25 bg-emerald-500/10 text-xs text-emerald-400">
+              <span className="font-semibold">{report.exact_mappings.length}</span> exact
+            </span>
+          )}
+          {report.lossy_mappings.length > 0 && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-amber-500/25 bg-amber-500/10 text-xs text-amber-400">
+              <span className="font-semibold">{report.lossy_mappings.length}</span> lossy
+            </span>
+          )}
+          {report.unsupported_intent.length > 0 && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-red-500/25 bg-red-500/10 text-xs text-red-400">
+              <span className="font-semibold">{report.unsupported_intent.length}</span> unsupported
+            </span>
+          )}
+          {report.unverified_vendor_areas.length > 0 && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-blue-500/25 bg-blue-500/10 text-xs text-blue-400">
+              <span className="font-semibold">{report.unverified_vendor_areas.length}</span> unverified
+            </span>
+          )}
+          {report.tests_required.length > 0 && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-orange-500/25 bg-orange-500/10 text-xs text-orange-400">
+              <span className="font-semibold">{report.tests_required.length}</span> tests required
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Native Policies */}
+      <div className="space-y-2">
+        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Native Policies</h2>
+        {translation.native_policies.length === 0 && (
+          <p className="text-sm text-muted-foreground/60">No native policies generated.</p>
+        )}
+        {translation.native_policies.map((np, i) => {
+          const isExpanded = expandedPolicies.has(i)
+          const npRecord = np as Record<string, unknown>
+          const policyName = (npRecord.name ?? npRecord.policy_name ?? `Policy ${i + 1}`) as string
+          return (
+            <div key={i} className="rounded-xl border border-border bg-card overflow-hidden">
+              <button
+                type="button"
+                onClick={() => {
+                  setExpandedPolicies(prev => {
+                    const next = new Set(prev)
+                    if (next.has(i)) next.delete(i)
+                    else next.add(i)
+                    return next
+                  })
+                }}
+                className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/30 transition-colors text-left"
+              >
+                <span>{policyName}</span>
+                <span className="text-muted-foreground/50 text-xs">{isExpanded ? '▲' : '▼'}</span>
+              </button>
+              {isExpanded && (
+                <div className="border-t border-border bg-muted/20 p-4">
+                  <pre className="text-xs text-muted-foreground overflow-x-auto whitespace-pre-wrap break-words font-mono">
+                    {JSON.stringify(np, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Mapping Report */}
+      {report && (
+        <div className="space-y-4">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Mapping Report</h2>
+
+          <MappingList
+            title="Exact Mappings"
+            items={report.exact_mappings}
+            chipClass="bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+          />
+          <MappingList
+            title="Lossy Mappings"
+            items={report.lossy_mappings}
+            chipClass="bg-amber-500/10 text-amber-400 border-amber-500/20"
+          />
+          <MappingList
+            title="Unsupported Intent"
+            items={report.unsupported_intent}
+            chipClass="bg-red-500/10 text-red-400 border-red-500/20"
+          />
+          <MappingList
+            title="Unverified Vendor Areas"
+            items={report.unverified_vendor_areas}
+            chipClass="bg-blue-500/10 text-blue-400 border-blue-500/20"
+          />
+          {report.tests_required.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">Tests Required</p>
+              <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-3 space-y-2">
+                {report.tests_required.map((item, i) => (
+                  <label key={i} className="flex items-start gap-2.5 cursor-pointer group">
+                    <input type="checkbox" className="mt-0.5 rounded border-orange-500/40 accent-orange-500" />
+                    <span className="text-xs text-orange-300/90">{item}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Mapping List ───────────────────────────────────────────────────────────────
+
+function MappingList({ title, items, chipClass }: { title: string; items: string[]; chipClass: string }) {
+  if (items.length === 0) return null
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-medium text-muted-foreground">{title}</p>
+      <div className="flex flex-wrap gap-2">
+        {items.map((item, i) => (
+          <span key={i} className={cn('inline-flex items-center px-2 py-1 rounded-lg border text-xs', chipClass)}>
+            {item}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
