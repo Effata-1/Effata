@@ -643,11 +643,10 @@ function NativePolicyCard({ policy }: { policy: Record<string, unknown> }) {
   const source      = policy.source as Record<string, unknown> | undefined
   const destination = policy.destination as Record<string, unknown> | undefined
   const dlpProfile  = 'dlp_profile' in policy ? policy.dlp_profile : undefined
-  const alert       = policy.alert as boolean | undefined
-  const saveEvidence= policy.save_evidence as boolean | undefined
   const notification= policy.notification_template as string | null | undefined
+  const mode        = policy.mode as string | undefined
 
-  // Fields specific to other vendors
+  // Other-vendor fields
   const location         = policy.location as string | undefined
   const scope            = policy.scope as Record<string, unknown> | undefined
   const ruleGroups       = policy.rule_groups as unknown[] | undefined
@@ -655,55 +654,32 @@ function NativePolicyCard({ policy }: { policy: Record<string, unknown> }) {
   const sourceResources  = policy.source_resources as string[] | undefined
   const destResources    = policy.destination_resources as string[] | undefined
   const classifiers      = policy.classifiers as string[] | undefined
-  const mode             = policy.mode as string | undefined
 
-  // Remaining fields not in HEADER_FIELDS
   const extraEntries = Object.entries(policy).filter(([k]) => !HEADER_FIELDS.has(k) && k !== 'name' && k !== 'policy_name')
 
   return (
-    <div className="p-4 space-y-1">
-      {/* Action + Severity + Status row */}
-      <div className="flex flex-wrap items-center gap-2 pb-3 border-b border-border/40">
-        {status && (
+    <div className="p-4">
+      {/* Status chip only at top */}
+      {status && (
+        <div className="pb-3 mb-1 border-b border-border/40">
           <span className={cn(
             'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
             status === 'enabled' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-muted/50 text-muted-foreground border-border',
           )}>
             {status}
           </span>
-        )}
-        {action && (
-          <span className={cn(
-            'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
-            ACTION_CHIP_MAP[action] ?? 'bg-muted/50 text-foreground/70 border-border/50',
-          )}>
-            {action}
-          </span>
-        )}
-        {severity && (
-          <span className={cn(
-            'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
-            SEVERITY_CHIP_MAP[severity] ?? 'bg-muted/50 text-foreground/70 border-border/50',
-          )}>
-            {severity}
-          </span>
-        )}
-        {mode && (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium bg-blue-500/10 text-blue-400 border-blue-500/20">
-            {mode}
-          </span>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Structured fields */}
+      {/* All fields as labeled rows */}
       <div>
         {source && (
           <FieldRow label="Source">
             {renderValue('source', source)}
           </FieldRow>
         )}
-        {sourceResources && (
-          <FieldRow label="Source Resources">
+        {sourceResources && sourceResources.length > 0 && (
+          <FieldRow label="Source">
             <StringChips values={sourceResources} />
           </FieldRow>
         )}
@@ -712,7 +688,7 @@ function NativePolicyCard({ policy }: { policy: Record<string, unknown> }) {
             {renderValue('destination', destination)}
           </FieldRow>
         )}
-        {destResources && (
+        {destResources && destResources.length > 0 && (
           <FieldRow label="Destination">
             <StringChips values={destResources} />
           </FieldRow>
@@ -725,6 +701,33 @@ function NativePolicyCard({ policy }: { policy: Record<string, unknown> }) {
         {activities && (
           <FieldRow label="Activities">
             <StringChips values={activities} colorClass="bg-blue-500/10 text-blue-400 border-blue-500/20" />
+          </FieldRow>
+        )}
+        {action && (
+          <FieldRow label="Action">
+            <span className={cn(
+              'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
+              ACTION_CHIP_MAP[action] ?? 'bg-muted/50 text-foreground/70 border-border/50',
+            )}>
+              {action}
+            </span>
+          </FieldRow>
+        )}
+        {severity && (
+          <FieldRow label="Severity">
+            <span className={cn(
+              'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
+              SEVERITY_CHIP_MAP[severity] ?? 'bg-muted/50 text-foreground/70 border-border/50',
+            )}>
+              {severity}
+            </span>
+          </FieldRow>
+        )}
+        {mode && (
+          <FieldRow label="Mode">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium bg-blue-500/10 text-blue-400 border-blue-500/20">
+              {mode}
+            </span>
           </FieldRow>
         )}
         {scope && (
@@ -740,12 +743,12 @@ function NativePolicyCard({ policy }: { policy: Record<string, unknown> }) {
             }
           </FieldRow>
         )}
-        {classifiers && (
+        {classifiers && classifiers.length > 0 && (
           <FieldRow label="Classifiers">
             <StringChips values={classifiers} colorClass="bg-purple-500/10 text-purple-400 border-purple-500/20" />
           </FieldRow>
         )}
-        {contentConditions && (
+        {contentConditions && contentConditions.length > 0 && (
           <FieldRow label="Content Conditions">
             <StringChips values={contentConditions} colorClass="bg-purple-500/10 text-purple-400 border-purple-500/20" />
           </FieldRow>
@@ -766,28 +769,12 @@ function NativePolicyCard({ policy }: { policy: Record<string, unknown> }) {
             </div>
           </FieldRow>
         )}
-        {(alert !== undefined || saveEvidence !== undefined || notification !== undefined) && (
-          <FieldRow label="Options">
-            <div className="flex flex-wrap gap-3">
-              {alert !== undefined && (
-                <span className="text-xs text-muted-foreground/70">
-                  Alert: {renderValue('alert', alert)}
-                </span>
-              )}
-              {saveEvidence !== undefined && (
-                <span className="text-xs text-muted-foreground/70">
-                  Save evidence: {renderValue('save_evidence', saveEvidence)}
-                </span>
-              )}
-              {notification !== undefined && (
-                <span className="text-xs text-muted-foreground/70">
-                  Notification: {notification
-                    ? <span className="font-mono text-foreground/80">{notification}</span>
-                    : <span className="text-muted-foreground/40 italic">None</span>
-                  }
-                </span>
-              )}
-            </div>
+        {notification !== undefined && (
+          <FieldRow label="Notification">
+            {notification
+              ? <span className="text-xs font-mono text-foreground/80">{notification}</span>
+              : <span className="text-xs text-muted-foreground/40 italic">None</span>
+            }
           </FieldRow>
         )}
         {extraEntries.length > 0 && extraEntries.map(([k, v]) => (
@@ -805,7 +792,7 @@ function NativePolicyCard({ policy }: { policy: Record<string, unknown> }) {
       </div>
 
       {/* Raw JSON toggle */}
-      <div className="pt-2">
+      <div className="pt-3">
         <button
           type="button"
           onClick={() => setShowRaw(r => !r)}
