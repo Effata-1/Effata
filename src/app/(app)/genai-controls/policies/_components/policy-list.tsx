@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  MessageSquare, Pencil, Plus, Search, Settings,
+  ChevronLeft, ChevronRight, Filter, MessageSquare, Pencil, Plus, Search, Settings,
   ShieldAlert, ShieldCheck, Sparkles, Trash2, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -42,7 +42,6 @@ const APPROVAL_STYLES: Record<ApprovalStatus, string> = {
   expired:        'bg-amber-500/10 text-amber-400 border-amber-500/20',
 }
 
-const APPROVAL_STATUSES: ApprovalStatus[] = ['draft', 'under-review', 'approved', 'rejected', 'expired']
 
 const ACTION_CODES: ActionCode[] = ['not-set', 'allow', 'monitor', 'alert', 'coach', 'coach-ack', 'coach-just', 'block']
 const ACTION_LABELS: Record<ActionCode, string> = {
@@ -113,6 +112,97 @@ const COLUMN_DEFS: { id: ColumnId; label: string }[] = [
 
 const DEFAULT_COLS = new Set<ColumnId>(['source', 'destination', 'data', 'activities'])
 const LS_COL_KEY = 'effata:policy-list-cols'
+
+// ── Filter types & definitions ────────────────────────────────────────────────
+
+type FilterKey =
+  | 'action' | 'approval' | 'family' | 'category'
+  | 'generated_from' | 'test_status' | 'vendor_status'
+  | 'activities' | 'active' | 'npj_status'
+
+interface FilterOption { value: string; label: string }
+interface FilterDef { key: FilterKey; label: string; staticOptions?: FilterOption[] }
+
+const FILTER_DEFS: FilterDef[] = [
+  {
+    key: 'action', label: 'Action',
+    staticOptions: [
+      { value: 'allow',      label: 'Allow'           },
+      { value: 'monitor',    label: 'Monitor'         },
+      { value: 'alert',      label: 'Alert'           },
+      { value: 'coach',      label: 'Coach'           },
+      { value: 'coach-ack',  label: 'Coach + Ack'     },
+      { value: 'coach-just', label: 'Coach + Justify' },
+      { value: 'block',      label: 'Block'           },
+    ],
+  },
+  {
+    key: 'approval', label: 'Approval Status',
+    staticOptions: [
+      { value: 'draft',        label: 'Draft'        },
+      { value: 'under-review', label: 'Under Review' },
+      { value: 'approved',     label: 'Approved'     },
+      { value: 'rejected',     label: 'Rejected'     },
+      { value: 'expired',      label: 'Expired'      },
+    ],
+  },
+  { key: 'family',   label: 'Policy Family'   },
+  { key: 'category', label: 'App Category'    },
+  {
+    key: 'generated_from', label: 'Source',
+    staticOptions: [
+      { value: 'governance-matrix', label: 'Governance Matrix' },
+      { value: 'policy-pack-agent', label: 'Policy Pack Agent' },
+      { value: 'manual',            label: 'Manual'            },
+      { value: 'legacy-backfill',   label: 'Legacy Backfill'   },
+    ],
+  },
+  {
+    key: 'test_status', label: 'Test Status',
+    staticOptions: [
+      { value: 'untested',    label: 'Untested'    },
+      { value: 'in-progress', label: 'In Progress' },
+      { value: 'passed',      label: 'Passed'      },
+      { value: 'failed',      label: 'Failed'      },
+    ],
+  },
+  {
+    key: 'vendor_status', label: 'Vendor Translation',
+    staticOptions: [
+      { value: 'pending',        label: 'Pending'        },
+      { value: 'translated',     label: 'Translated'     },
+      { value: 'verified',       label: 'Verified'       },
+      { value: 'not-applicable', label: 'Not Applicable' },
+      { value: 'deferred',       label: 'Deferred'       },
+    ],
+  },
+  {
+    key: 'activities', label: 'Activity',
+    staticOptions: [
+      { value: 'post_prompt', label: 'Prompt'   },
+      { value: 'upload',      label: 'Upload'   },
+      { value: 'download',    label: 'Download' },
+      { value: 'response',    label: 'Response' },
+      { value: 'browse',      label: 'Browse'   },
+    ],
+  },
+  {
+    key: 'active', label: 'Active State',
+    staticOptions: [
+      { value: 'active',   label: 'Active'   },
+      { value: 'inactive', label: 'Inactive' },
+    ],
+  },
+  {
+    key: 'npj_status', label: 'Policy Status',
+    staticOptions: [
+      { value: 'current',  label: 'Current'  },
+      { value: 'outdated', label: 'Outdated' },
+      { value: 'legacy',   label: 'Legacy'   },
+      { value: 'invalid',  label: 'Invalid'  },
+    ],
+  },
+]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -240,6 +330,30 @@ const NPJ_ACT_LABELS: Record<string, string> = {
   post_prompt: 'Prompt', upload: 'Upload', download: 'Download', response: 'Response', browse: 'Browse',
 }
 
+function getNpjPolicyStatus(policy: GenAIPolicy): 'current' | 'outdated' | 'legacy' | 'invalid' {
+  const raw = (policy as unknown as Record<string, unknown>).neutral_policy_json
+  if (!raw || (typeof raw === 'object' && Object.keys(raw as object).length === 0)) return 'legacy'
+  if (typeof raw !== 'object') return 'legacy'
+  const n = raw as Record<string, unknown>
+  if (n.schema_version !== '1.0' || typeof n.intent !== 'string' || typeof n.decision !== 'object') return 'invalid'
+  const generatedAt = (n as { provenance?: { generated_at?: string } }).provenance?.generated_at
+  const updatedAt = (policy as unknown as Record<string, unknown>).updated_at as string | undefined
+  if (generatedAt && updatedAt && generatedAt < updatedAt) return 'outdated'
+  return 'current'
+}
+
+function getPolicyAction(policy: GenAIPolicy, ruleItems: RuleItem[]): ActionCode {
+  const npj = getNpj(policy)
+  if (npj) {
+    const mode = ((npj.decision as Record<string, unknown> | undefined)?.mode) as string | undefined
+    if (mode && mode !== 'not-set') return mode as ActionCode
+  }
+  const hasRules = (policy.rules ?? []).length > 0
+  return hasRules
+    ? deriveFromRules(policy.rules ?? [], ruleItems).primaryAction
+    : (policy.primary_action ?? 'not-set')
+}
+
 // ── Cell components ───────────────────────────────────────────────────────────
 
 function DataTypeCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: RuleItem[] }) {
@@ -339,6 +453,22 @@ function ActionCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: Rul
   )
 }
 
+// ── Select-all checkbox (indeterminate support) ───────────────────────────────
+
+function SelectAllBox({ checked, indeterminate, onChange }: { checked: boolean; indeterminate: boolean; onChange: () => void }) {
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => { if (ref.current) ref.current.indeterminate = indeterminate }, [indeterminate])
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      className="accent-foreground w-3 h-3 cursor-pointer"
+    />
+  )
+}
+
 // ── Delete confirm modal ──────────────────────────────────────────────────────
 
 function DeleteConfirmModal({
@@ -412,8 +542,10 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
 
   // Sync local state when server re-renders with fresh data (e.g. after generate)
   useEffect(() => { setPolicies(initialPolicies) }, [initialPolicies])
-  const [filterStatus, setFilterStatus]       = useState<ApprovalStatus | 'all'>('all')
-  const [activeOnly, setActiveOnly]           = useState(false)
+  const [filters, setFilters]                 = useState<Map<FilterKey, Set<string>>>(new Map())
+  const [filterPickerOpen, setFilterPickerOpen] = useState(false)
+  const [filterStep, setFilterStep]           = useState<FilterKey | null>(null)
+  const filterPickerRef                       = useRef<HTMLDivElement>(null)
   const [search, setSearch]                   = useState('')
   const [lintResults, setLintResults]         = useState<LintIssue[] | null>(null)
   const [isGenerating, setIsGenerating]       = useState(false)
@@ -422,6 +554,8 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
   const [chatOpen, setChatOpen]               = useState(false)
   const [chatPolicyId, setChatPolicyId]       = useState<string | undefined>(undefined)
   const [deleteTarget, setDeleteTarget]       = useState<{ id: string; name: string } | null>(null)
+  const [selectedIds, setSelectedIds]         = useState<Set<string>>(new Set())
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
   const [visibleCols, setVisibleCols]         = useState<Set<ColumnId>>(DEFAULT_COLS)
   const [colPickerOpen, setColPickerOpen]     = useState(false)
   const colPickerRef                          = useRef<HTMLDivElement>(null)
@@ -444,6 +578,19 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
     return () => document.removeEventListener('mousedown', handler)
   }, [colPickerOpen])
 
+  // Close filter picker on outside click
+  useEffect(() => {
+    if (!filterPickerOpen) return
+    function handler(e: MouseEvent) {
+      if (filterPickerRef.current && !filterPickerRef.current.contains(e.target as Node)) {
+        setFilterPickerOpen(false)
+        setFilterStep(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [filterPickerOpen])
+
   function toggleCol(id: ColumnId) {
     setVisibleCols(prev => {
       const next = new Set(prev)
@@ -456,8 +603,92 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
 
   const col = (id: ColumnId) => visibleCols.has(id)
 
+  function toggleFilter(key: FilterKey, value: string) {
+    setFilters(prev => {
+      const next = new Map(prev)
+      const vals = new Set(next.get(key) ?? [])
+      if (vals.has(value)) vals.delete(value)
+      else vals.add(value)
+      if (vals.size === 0) next.delete(key)
+      else next.set(key, vals)
+      return next
+    })
+  }
+
+  function removeFilterKey(key: FilterKey) {
+    setFilters(prev => { const next = new Map(prev); next.delete(key); return next })
+  }
+
+  function clearFilters() { setFilters(new Map()) }
+
+  function getFilterOptions(key: FilterKey): FilterOption[] {
+    const def = FILTER_DEFS.find(d => d.key === key)
+    if (def?.staticOptions) return def.staticOptions
+    if (key === 'category') return categories.map(c => ({ value: c.id, label: c.name }))
+    if (key === 'family') {
+      const families = [...new Set(policies.map(p => p.policy_family).filter((f): f is string => Boolean(f)))]
+      return families.map(f => ({ value: f, label: f }))
+    }
+    return []
+  }
+
+  function getFilterValueLabel(key: FilterKey, value: string): string {
+    if (key === 'category') return categories.find(c => c.id === value)?.name ?? value
+    const def = FILTER_DEFS.find(d => d.key === key)
+    return def?.staticOptions?.find(o => o.value === value)?.label ?? value
+  }
+
+  const activeFilterCount = [...filters.values()].reduce((n, s) => n + s.size, 0)
+
   void classifications
   void ACTION_CODES
+
+  // ── Selection helpers ────────────────────────────────────────────────────────
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) { next.delete(id) } else { next.add(id) }
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    const ids = visible.map(p => p.id)
+    const allSelected = ids.every(id => selectedIds.has(id))
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (allSelected) ids.forEach(id => next.delete(id))
+      else ids.forEach(id => next.add(id))
+      return next
+    })
+  }
+
+  function handleBulkActivate() {
+    const ids = [...selectedIds]
+    setPolicies(ps => ps.map(p => ids.includes(p.id) ? { ...p, is_active: true } : p))
+    startTransition(async () => { await Promise.all(ids.map(id => togglePolicyActive(id, true))) })
+  }
+
+  function handleBulkDeactivate() {
+    const ids = [...selectedIds]
+    setPolicies(ps => ps.map(p => ids.includes(p.id) ? { ...p, is_active: false } : p))
+    startTransition(async () => { await Promise.all(ids.map(id => togglePolicyActive(id, false))) })
+  }
+
+  async function handleBulkDelete() {
+    const ids = [...selectedIds]
+    setBulkDeleteConfirm(false)
+    setSelectedIds(new Set())
+    setPolicies(ps => ps.filter(p => !ids.includes(p.id)))
+    await Promise.all(ids.map(id => deletePolicy(id)))
+  }
+
+  function openBulkAI() {
+    // Open chat in general mode — all policies are available as context
+    setChatPolicyId(undefined)
+    setChatOpen(true)
+  }
 
   function openChat(policyId?: string) {
     setChatPolicyId(policyId)
@@ -465,11 +696,54 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
   }
 
   const visible = policies.filter(p => {
-    if (filterStatus !== 'all' && p.approval_status !== filterStatus) return false
-    if (activeOnly && !p.is_active) return false
     if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false
+    for (const [key, vals] of filters) {
+      if (vals.size === 0) continue
+      switch (key) {
+        case 'action':
+          if (!vals.has(getPolicyAction(p, ruleItems))) return false
+          break
+        case 'approval':
+          if (!vals.has(p.approval_status)) return false
+          break
+        case 'family':
+          if (!vals.has(p.policy_family ?? '')) return false
+          break
+        case 'category': {
+          const cats = getPolicyCategories(p, categories).map(c => c.id)
+          if (!cats.some(id => vals.has(id))) return false
+          break
+        }
+        case 'generated_from': {
+          const gf = ((p as unknown as Record<string, unknown>).generated_from as string) ?? 'manual'
+          if (!vals.has(gf)) return false
+          break
+        }
+        case 'test_status':
+          if (!vals.has(p.test_status ?? 'untested')) return false
+          break
+        case 'vendor_status':
+          if (!vals.has(p.vendor_translation_status ?? 'pending')) return false
+          break
+        case 'activities': {
+          const npj = getNpj(p)
+          const acts = npj ? getNpjActivities(npj) : []
+          if (!acts.some(a => vals.has(a))) return false
+          break
+        }
+        case 'active':
+          if (!vals.has(p.is_active ? 'active' : 'inactive')) return false
+          break
+        case 'npj_status':
+          if (!vals.has(getNpjPolicyStatus(p))) return false
+          break
+      }
+    }
     return true
   })
+
+  const allVisibleSelected  = visible.length > 0 && visible.every(p => selectedIds.has(p.id))
+  const someVisibleSelected = visible.some(p => selectedIds.has(p.id))
 
   function handleToggle(id: string, current: boolean) {
     setPolicies(ps => ps.map(p => p.id === id ? { ...p, is_active: !current } : p))
@@ -484,6 +758,7 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
     if (!deleteTarget) return
     const { id } = deleteTarget
     setDeleteTarget(null)
+    setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n })
     setPolicies(ps => ps.filter(p => p.id !== id))
     startTransition(async () => { await deletePolicy(id) })
   }
@@ -551,6 +826,46 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
         />
       )}
 
+      {/* Bulk delete confirmation */}
+      {bulkDeleteConfirm && (
+        <>
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => setBulkDeleteConfirm(false)} />
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm rounded-xl border border-border bg-card shadow-2xl p-6 space-y-4"
+          >
+            <div className="flex items-start gap-3">
+              <div className="shrink-0 w-9 h-9 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                <Trash2 className="w-4 h-4 text-red-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">Delete {selectedIds.size} {selectedIds.size === 1 ? 'policy' : 'policies'}?</p>
+                <p className="text-xs text-muted-foreground/70 mt-1 leading-relaxed">
+                  This will permanently delete all {selectedIds.size} selected {selectedIds.size === 1 ? 'policy' : 'policies'}. This cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setBulkDeleteConfirm(false)}
+                className="px-3.5 py-1.5 text-xs font-medium rounded-md border border-border bg-muted/30 hover:bg-muted/60 text-foreground/70 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                className="px-3.5 py-1.5 text-xs font-semibold rounded-md bg-red-600 hover:bg-red-700 text-white transition-colors"
+              >
+                Delete {selectedIds.size} {selectedIds.size === 1 ? 'policy' : 'policies'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Floating "Refine with AI" button */}
       {policies.length > 0 && !chatOpen && (
         <button
@@ -573,16 +888,89 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
             className="bg-card text-xs text-foreground placeholder:text-muted-foreground/30 border border-border/60 rounded-md pl-8 pr-3 py-1.5 w-52 focus:outline-none focus:border-border transition-colors"
           />
         </div>
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as ApprovalStatus | 'all')}
-          className="bg-card text-xs text-foreground border border-border/60 rounded-md px-2.5 py-1.5 focus:outline-none appearance-none cursor-pointer"
-        >
-          <option value="all">All statuses</option>
-          {APPROVAL_STATUSES.map(s => <option key={s} value={s}>{s.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>)}
-        </select>
-        <label className="flex items-center gap-1.5 text-xs text-muted-foreground/70 cursor-pointer select-none">
-          <input type="checkbox" checked={activeOnly} onChange={e => setActiveOnly(e.target.checked)} className="accent-foreground" />
-          Active only
-        </label>
+        {/* Filter picker */}
+        <div ref={filterPickerRef} className="relative">
+          <button
+            onClick={() => { setFilterPickerOpen(o => !o); setFilterStep(null) }}
+            className={cn(
+              'flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors',
+              filterPickerOpen || activeFilterCount > 0
+                ? 'border-blue-500/40 bg-blue-500/8 text-blue-400'
+                : 'border-border bg-muted/30 hover:bg-muted/60 text-muted-foreground',
+            )}
+          >
+            <Filter className="w-3.5 h-3.5" />
+            Add Filter
+            {activeFilterCount > 0 && (
+              <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/20 text-[10px] font-semibold leading-none">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+
+          {filterPickerOpen && (
+            <div className="absolute left-0 top-full mt-1.5 z-40 w-56 rounded-xl border border-border bg-card shadow-xl py-1.5">
+              {filterStep === null ? (
+                <>
+                  <p className="px-3 py-1 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide">Filter by</p>
+                  {FILTER_DEFS.map(def => {
+                    const active = filters.get(def.key)
+                    return (
+                      <button
+                        key={def.key}
+                        onClick={() => setFilterStep(def.key)}
+                        className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-muted/40 text-xs text-foreground/80 transition-colors"
+                      >
+                        <span>{def.label}</span>
+                        <div className="flex items-center gap-1.5">
+                          {active && active.size > 0 && (
+                            <span className="px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/20 text-[10px] font-semibold leading-none">
+                              {active.size}
+                            </span>
+                          )}
+                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/40" />
+                        </div>
+                      </button>
+                    )
+                  })}
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-1 px-2 py-1 border-b border-border/40 mb-1">
+                    <button
+                      onClick={() => setFilterStep(null)}
+                      className="p-0.5 rounded hover:bg-muted/60 text-muted-foreground/60 hover:text-foreground transition-colors"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
+                    <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide">
+                      {FILTER_DEFS.find(d => d.key === filterStep)?.label}
+                    </p>
+                  </div>
+                  <div className="max-h-52 overflow-y-auto">
+                    {getFilterOptions(filterStep).map(opt => {
+                      const checked = filters.get(filterStep)?.has(opt.value) ?? false
+                      return (
+                        <label key={opt.value} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-muted/40 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleFilter(filterStep, opt.value)}
+                            className="accent-foreground w-3 h-3 shrink-0"
+                          />
+                          <span className="text-xs text-foreground/80">{opt.label}</span>
+                        </label>
+                      )
+                    })}
+                    {getFilterOptions(filterStep).length === 0 && (
+                      <p className="px-3 py-2 text-xs text-muted-foreground/40 italic">No options available</p>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
         <div className="flex-1" />
         <button onClick={() => setLintResults(lintAllPolicies(policies))}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-border bg-muted/30 hover:bg-muted/60 text-muted-foreground transition-colors"
@@ -643,6 +1031,86 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
           New Policy
         </Link>
       </div>
+
+      {/* Active filter chips */}
+      {filters.size > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 mb-3">
+          {[...filters.entries()].map(([key, vals]) => {
+            const def = FILTER_DEFS.find(d => d.key === key)!
+            const valueLabels = [...vals].map(v => getFilterValueLabel(key, v)).join(', ')
+            return (
+              <span
+                key={key}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-medium"
+              >
+                <span className="text-blue-400/60">{def.label}:</span>
+                {valueLabels}
+                <button
+                  onClick={() => removeFilterKey(key)}
+                  className="ml-0.5 text-blue-400/60 hover:text-blue-300 transition-colors"
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </span>
+            )
+          })}
+          <button
+            onClick={clearFilters}
+            className="text-[10px] text-muted-foreground/50 hover:text-foreground transition-colors ml-1"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+
+      {/* Bulk selection action bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-card border border-blue-500/20 shadow-sm mb-4">
+          <span className="text-xs font-semibold text-foreground/80 shrink-0">
+            {selectedIds.size} {selectedIds.size === 1 ? 'policy' : 'policies'} selected
+          </span>
+          <div className="w-px h-4 bg-border/60 mx-1 shrink-0" />
+          <button
+            type="button"
+            onClick={openBulkAI}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-blue-500/30 bg-blue-500/8 text-blue-400 hover:bg-blue-500/15 transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Ask AI
+          </button>
+          <button
+            type="button"
+            onClick={handleBulkActivate}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-border bg-muted/30 hover:bg-muted/60 text-muted-foreground transition-colors"
+          >
+            Activate
+          </button>
+          <button
+            type="button"
+            onClick={handleBulkDeactivate}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-border bg-muted/30 hover:bg-muted/60 text-muted-foreground transition-colors"
+          >
+            Deactivate
+          </button>
+          <div className="flex-1" />
+          <button
+            type="button"
+            onClick={() => setBulkDeleteConfirm(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-red-500/20 bg-red-500/8 text-red-400 hover:bg-red-500/15 transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete {selectedIds.size}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedIds(new Set())}
+            className="p-1 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted/40 transition-colors"
+            title="Clear selection"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Generating progress banner */}
       {isGenerating && (
@@ -754,6 +1222,13 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border bg-card/80">
+                  <th className="w-8 px-3 py-2.5">
+                    <SelectAllBox
+                      checked={allVisibleSelected}
+                      indeterminate={someVisibleSelected && !allVisibleSelected}
+                      onChange={toggleSelectAll}
+                    />
+                  </th>
                   <th className="w-10 px-3 py-2.5" />
                   <th className="w-8 px-2 py-2.5 text-[10px] font-semibold text-muted-foreground/30 text-right">#</th>
                   <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">
@@ -776,8 +1251,23 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
               <tbody>
                 {visible.map((policy, idx) => (
                   <tr key={policy.id}
-                    className={cn('border-b border-border/40 last:border-0 hover:bg-card/40 transition-colors', !policy.is_active && 'opacity-50')}
+                    className={cn(
+                      'border-b border-border/40 last:border-0 transition-colors',
+                      selectedIds.has(policy.id)
+                        ? 'bg-blue-500/5 hover:bg-blue-500/8'
+                        : 'hover:bg-card/40',
+                      !policy.is_active && 'opacity-50',
+                    )}
                   >
+                    <td className="px-3 py-2.5 align-middle w-8">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(policy.id)}
+                        onChange={() => toggleSelect(policy.id)}
+                        className="accent-foreground w-3 h-3 cursor-pointer"
+                      />
+                    </td>
+
                     <td className="px-3 py-2.5 align-middle">
                       <button
                         onClick={() => handleToggle(policy.id, policy.is_active)}
