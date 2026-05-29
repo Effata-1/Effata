@@ -1060,7 +1060,7 @@ export function PolicyIntentEditor({
               <div className="rounded-lg border border-border bg-card/60 p-3 space-y-3">
                 <p className="text-xs text-foreground/80">Data types are managed in the Data Catalog. Adding or removing in-scope data types will cause this policy to be recompiled with updated detection conditions.</p>
                 <Link
-                  href="/genai-controls/data-catalog"
+                  href="/policies/data-catalog"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted/40 transition-colors"
                 >
                   <ExternalLink className="h-3 w-3" /> Go to Data Catalog
@@ -1082,7 +1082,7 @@ export function PolicyIntentEditor({
               <div className="rounded-lg border border-border bg-card/60 p-3 space-y-3">
                 <p className="text-xs text-foreground/80">App category scope is managed in App Governance. Moving an app between categories (e.g. Approved → Restricted) changes which compiled policies apply to it.</p>
                 <Link
-                  href="/genai-controls/governance"
+                  href="/genai-controls/app-governance"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted/40 transition-colors"
                 >
                   <ExternalLink className="h-3 w-3" /> Go to App Governance
