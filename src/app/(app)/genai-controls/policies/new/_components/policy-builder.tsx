@@ -195,12 +195,12 @@ function PolicySection({
   noBorder?: boolean
 }) {
   return (
-    <div className={cn('flex gap-0', !noBorder && 'border-b border-border/60')}>
-      <div className="w-36 shrink-0 flex items-start gap-2 px-5 py-5 text-muted-foreground/60">
-        <span className="mt-0.5 shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5">{icon}</span>
-        <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
+    <div className={cn('flex gap-0', !noBorder && 'border-b border-border/50')}>
+      <div className="w-44 shrink-0 flex items-start gap-2.5 px-5 py-5 bg-muted/5">
+        <span className="mt-px shrink-0 text-muted-foreground/40 [&>svg]:w-3.5 [&>svg]:h-3.5">{icon}</span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 pt-px">{label}</span>
       </div>
-      <div className="flex-1 px-5 py-5 min-w-0">
+      <div className="flex-1 px-6 py-5 min-w-0">
         {children}
       </div>
     </div>
@@ -677,44 +677,62 @@ function DataProfileSection({
 
 // ── Action section ────────────────────────────────────────────────────────────
 
+const ACTION_DESCS: Partial<Record<ActionCode, string>> = {
+  allow:        'Permit without restriction',
+  monitor:      'Log silently, no user impact',
+  alert:        'Notify security team',
+  coach:        'Show guidance to the user',
+  'coach-ack':  'Guidance + explicit acknowledgement',
+  'coach-just': 'Guidance + written justification',
+  block:        'Prevent the activity entirely',
+}
+
 function ActionSection({
   primaryAction, setPrimaryAction,
 }: {
   primaryAction: ActionCode
   setPrimaryAction: (v: ActionCode) => void
 }) {
+  const visibleActions: ActionCode[] = ['allow', 'monitor', 'alert', 'coach', 'coach-ack', 'coach-just', 'block']
   return (
-    <div className="flex items-center gap-4">
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide">Action</span>
-        <span className="text-xs text-muted-foreground/40">=</span>
-        <select
-          value={primaryAction}
-          onChange={e => setPrimaryAction(e.target.value as ActionCode)}
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          onClick={() => setPrimaryAction('not-set')}
           className={cn(
-            'text-xs font-semibold px-3 py-2 rounded-lg border cursor-pointer appearance-none focus:outline-none transition-colors bg-card',
-            primaryAction !== 'not-set' ? ACTION_CHIP[primaryAction] : 'border-border/60 text-muted-foreground/60',
+            'px-3 py-1.5 rounded-lg border text-xs font-medium transition-all',
+            primaryAction === 'not-set'
+              ? 'bg-muted/60 border-border text-muted-foreground'
+              : 'border-border/40 text-muted-foreground/30 hover:border-border hover:text-muted-foreground/60',
           )}
         >
-          {ACTION_CODES.map(ac => (
-            <option key={ac} value={ac} className="bg-card text-foreground font-normal">
-              {ACTION_LABELS[ac]}
-            </option>
-          ))}
-        </select>
+          Inherit
+        </button>
+        {visibleActions.map(ac => (
+          <button
+            key={ac}
+            type="button"
+            onClick={() => setPrimaryAction(ac)}
+            className={cn(
+              'px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all',
+              primaryAction === ac
+                ? ACTION_CHIP[ac]
+                : 'border-border/40 text-muted-foreground/40 hover:border-border hover:text-muted-foreground/70',
+            )}
+          >
+            {ACTION_LABELS[ac]}
+          </button>
+        ))}
       </div>
 
-      {primaryAction !== 'not-set' && (
-        <span className={cn('text-[10px] px-2 py-1 rounded border font-semibold', ACTION_CHIP[primaryAction])}>
-          {primaryAction.toUpperCase().replace(/-/g, ' ')}
-        </span>
-      )}
-
-      {primaryAction === 'not-set' && (
-        <p className="text-xs text-muted-foreground/40 italic">
-          Rules inherit from the{' '}
-          <a href="/genai-controls/control-matrix" className="underline hover:text-muted-foreground/60 transition-colors">Control Matrix</a>
+      {primaryAction === 'not-set' ? (
+        <p className="text-[11px] text-muted-foreground/40 italic">
+          Action will be inherited from the{' '}
+          <a href="/genai-controls/control-matrix" className="underline hover:text-muted-foreground/60 transition-colors">Control Matrix</a>.
         </p>
+      ) : (
+        <p className="text-[11px] text-muted-foreground/50">{ACTION_DESCS[primaryAction]}</p>
       )}
     </div>
   )
@@ -730,14 +748,13 @@ function PolicyDetailsSection({
   description: string; setDescription: (v: string) => void
   approvalStatus: ApprovalStatus; setApprovalStatus: (v: ApprovalStatus) => void
 }) {
-  const inputCls = 'w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/30 border border-border/60 rounded-lg px-3.5 py-2.5 focus:border-border focus:outline-none transition-colors'
-  const selectCls = 'bg-card text-xs text-foreground border border-border/60 rounded-lg px-3 py-2.5 focus:outline-none appearance-none cursor-pointer'
+  const inputCls = 'w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/25 border border-border/60 rounded-lg px-3.5 py-2.5 focus:border-border/80 focus:outline-none transition-colors'
 
   return (
-    <div className="space-y-3 max-w-lg">
+    <div className="space-y-4 max-w-xl">
       <div>
-        <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">
-          Policy Name <span className="text-red-400">*</span>
+        <label className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest block mb-1.5">
+          Policy Name <span className="text-red-400 normal-case font-normal">required</span>
         </label>
         <input
           value={name}
@@ -747,7 +764,7 @@ function PolicyDetailsSection({
         />
       </div>
       <div>
-        <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Description</label>
+        <label className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest block mb-1.5">Description</label>
         <textarea
           value={description}
           onChange={e => setDescription(e.target.value)}
@@ -757,12 +774,28 @@ function PolicyDetailsSection({
         />
       </div>
       <div>
-        <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Approval Status</label>
-        <select value={approvalStatus} onChange={e => setApprovalStatus(e.target.value as ApprovalStatus)} className={selectCls}>
+        <label className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest block mb-2">Approval Status</label>
+        <div className="flex flex-wrap gap-1.5">
           {APPROVAL_STATUSES.map(s => (
-            <option key={s} value={s}>{s.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>
+            <button
+              key={s}
+              type="button"
+              onClick={() => setApprovalStatus(s)}
+              className={cn(
+                'px-3 py-1.5 rounded-lg border text-xs font-medium transition-all',
+                approvalStatus === s
+                  ? s === 'approved'   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                  : s === 'rejected'   ? 'bg-red-500/10 border-red-500/30 text-red-400'
+                  : s === 'expired'    ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                  : s === 'under-review' ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                  : 'bg-muted/60 border-border text-muted-foreground'
+                  : 'border-border/40 text-muted-foreground/40 hover:border-border hover:text-muted-foreground/70',
+              )}
+            >
+              {s.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+            </button>
           ))}
-        </select>
+        </div>
       </div>
     </div>
   )
@@ -809,8 +842,9 @@ function MetadataSection({
   allPolicies: PolicyOption[]
   currentPolicyId?: string
 }) {
-  const inputCls   = 'w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/30 border border-border/60 rounded-lg px-3.5 py-2.5 focus:border-border focus:outline-none transition-colors'
-  const selectCls  = 'bg-card text-xs text-foreground border border-border/60 rounded-lg px-3 py-2.5 focus:outline-none appearance-none cursor-pointer'
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const inputCls  = 'w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/25 border border-border/60 rounded-lg px-3.5 py-2.5 focus:border-border/80 focus:outline-none transition-colors'
+  const selectCls = 'bg-card text-xs text-foreground border border-border/60 rounded-lg px-3 py-2.5 focus:outline-none appearance-none cursor-pointer w-full'
 
   const otherPolicies = allPolicies.filter(p => p.id !== currentPolicyId)
 
@@ -821,47 +855,21 @@ function MetadataSection({
   }
 
   return (
-    <div className="space-y-4 max-w-lg">
-      {/* Generated From badge (read-only) */}
+    <div className="space-y-4 max-w-xl">
       {generatedFrom && (
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide w-40 shrink-0">Generated From</span>
-          <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 font-semibold">{generatedFrom}</span>
-        </div>
+        <span className="inline-flex items-center text-[10px] px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 font-semibold">
+          Generated from: {generatedFrom}
+        </span>
       )}
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Policy Family</label>
-          <input value={policyFamily} onChange={e => setPolicyFamily(e.target.value)} placeholder="e.g. GenAI Data Protection" className={inputCls} />
+          <label className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest block mb-1.5">Policy Family</label>
+          <input value={policyFamily} onChange={e => setPolicyFamily(e.target.value)} placeholder="e.g. Content Detection" className={inputCls} />
         </div>
         <div>
-          <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Data Classification Label</label>
-          <input value={dataClassLabel} onChange={e => setDataClassLabel(e.target.value)} placeholder="e.g. secret, highly-confidential, all" className={inputCls} />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Fallback Action</label>
-          <select
-            value={fallbackAction ?? ''}
-            onChange={e => setFallbackAction((e.target.value as ActionCode) || null)}
-            className={selectCls}
-          >
-            <option value="">— None</option>
-            {ACTION_CODES.filter(a => a !== 'not-set').map(ac => (
-              <option key={ac} value={ac}>{ACTION_LABELS[ac]}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Coaching Template</label>
-          <select
-            value={coachingTemplateId ?? ''}
-            onChange={e => setCoachingTemplateId(e.target.value || null)}
-            className={selectCls}
-          >
+          <label className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest block mb-1.5">Coaching Template</label>
+          <select value={coachingTemplateId ?? ''} onChange={e => setCoachingTemplateId(e.target.value || null)} className={selectCls}>
             <option value="">— None</option>
             {coachingTemplates.map(t => (
               <option key={t.id} value={t.id}>{t.coach_label ?? t.name}</option>
@@ -870,27 +878,12 @@ function MetadataSection({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Vendor Translation Status</label>
-          <select value={vendorStatus} onChange={e => setVendorStatus(e.target.value as 'pending' | 'translated' | 'verified' | 'not-applicable')} className={selectCls}>
-            {VENDOR_STATUSES.map(s => <option key={s} value={s}>{VENDOR_LABELS[s]}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">Test Status</label>
-          <select value={testStatus} onChange={e => setTestStatus(e.target.value as 'untested' | 'in-progress' | 'passed' | 'failed')} className={selectCls}>
-            {TEST_STATUSES.map(s => <option key={s} value={s}>{TEST_LABELS_MAP[s]}</option>)}
-          </select>
-        </div>
-      </div>
-
       {otherPolicies.length > 0 && (
         <div>
-          <label className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide block mb-1.5">
-            Required Dependencies
+          <label className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest block mb-2">
+            Related Policies
           </label>
-          <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1">
+          <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
             {otherPolicies.map(p => {
               const sel = selectedDependencies.has(p.id)
               return (
@@ -900,22 +893,68 @@ function MetadataSection({
                   onClick={() => toggleDep(p.id)}
                   className={cn(
                     'flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-medium transition-all',
-                    sel ? 'bg-foreground/10 border-foreground/30 text-foreground' : 'border-border text-muted-foreground/60 hover:border-border-strong',
+                    sel ? 'bg-foreground/10 border-foreground/30 text-foreground' : 'border-border/40 text-muted-foreground/50 hover:border-border',
                   )}
                 >
                   {sel && <Check className="w-2.5 h-2.5 shrink-0" />}
-                  <span className="truncate max-w-[160px]">{p.name}</span>
+                  <span className="truncate max-w-[180px]">{p.name}</span>
                 </button>
               )
             })}
           </div>
           {selectedDependencies.size > 0 && (
-            <button type="button" onClick={() => setSelectedDependencies(new Set())} className="text-[10px] text-muted-foreground/40 hover:text-muted-foreground/60 underline mt-1">
+            <button type="button" onClick={() => setSelectedDependencies(new Set())} className="text-[10px] text-muted-foreground/40 hover:text-muted-foreground/60 underline mt-1.5">
               Clear all
             </button>
           )}
         </div>
       )}
+
+      {/* Advanced settings */}
+      <div>
+        <button
+          type="button"
+          onClick={() => setShowAdvanced(o => !o)}
+          className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest hover:text-muted-foreground/60 transition-colors"
+        >
+          <ChevronDown className={cn('w-3 h-3 transition-transform', showAdvanced && 'rotate-180')} />
+          Advanced Settings
+        </button>
+
+        {showAdvanced && (
+          <div className="mt-3 space-y-3 pl-4 border-l border-border/40">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest block mb-1.5">Data Classification Label</label>
+                <input value={dataClassLabel} onChange={e => setDataClassLabel(e.target.value)} placeholder="e.g. secret, all" className={inputCls} />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest block mb-1.5">Fallback Action</label>
+                <select value={fallbackAction ?? ''} onChange={e => setFallbackAction((e.target.value as ActionCode) || null)} className={selectCls}>
+                  <option value="">— None</option>
+                  {ACTION_CODES.filter(a => a !== 'not-set').map(ac => (
+                    <option key={ac} value={ac}>{ACTION_LABELS[ac]}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest block mb-1.5">Vendor Translation</label>
+                <select value={vendorStatus} onChange={e => setVendorStatus(e.target.value as 'pending' | 'translated' | 'verified' | 'not-applicable')} className={selectCls}>
+                  {VENDOR_STATUSES.map(s => <option key={s} value={s}>{VENDOR_LABELS[s]}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest block mb-1.5">Test Status</label>
+                <select value={testStatus} onChange={e => setTestStatus(e.target.value as 'untested' | 'in-progress' | 'passed' | 'failed')} className={selectCls}>
+                  {TEST_STATUSES.map(s => <option key={s} value={s}>{TEST_LABELS_MAP[s]}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -1042,7 +1081,7 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-border bg-card/50 shadow-sm overflow-hidden">
+      <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
         <PolicySection icon={<Users2 />} label="Source">
           <SourceSection
             identityContext={identityContext}
@@ -1099,23 +1138,37 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
         </PolicySection>
       </div>
 
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && (
+        <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+          <span className="shrink-0">⚠</span>
+          {error}
+        </div>
+      )}
 
-      <div className="flex items-center justify-end gap-3 pb-8">
-        <Link
-          href="/genai-controls/policies"
-          className="px-4 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          Cancel
-        </Link>
-        <button
-          onClick={handleSave}
-          disabled={isPending}
-          className="flex items-center gap-1.5 px-5 py-2 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
-        >
-          {isPending && <Loader2 className="w-3 h-3 animate-spin" />}
-          {isEdit ? 'Save Changes' : 'Create Policy'}
-        </button>
+      <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 px-5 py-3.5 rounded-xl border border-border bg-card/95 backdrop-blur shadow-lg">
+        <div className="text-xs text-muted-foreground/40">
+          {name.trim() ? (
+            <span className="text-foreground/60 font-medium">{name.trim()}</span>
+          ) : (
+            <span className="italic">No name yet</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/genai-controls/policies"
+            className="px-4 py-2 text-xs font-medium rounded-lg border border-border bg-muted/30 hover:bg-muted/60 text-muted-foreground/70 transition-colors"
+          >
+            Cancel
+          </Link>
+          <button
+            onClick={handleSave}
+            disabled={isPending || !name.trim()}
+            className="flex items-center gap-1.5 px-5 py-2 text-xs font-semibold rounded-lg bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+            {isEdit ? 'Save Changes' : 'Create Policy'}
+          </button>
+        </div>
       </div>
     </div>
   )
