@@ -591,8 +591,8 @@ const HEADER_FIELDS = new Set([
   'source', 'destination', 'activities', 'dlp_profile',
   'alert', 'save_evidence', 'notification_template',
   'policy_type', 'policy_family',
-  // Netskope v2
-  'profile_action', 'fallback_action', 'group',
+  // Netskope v3
+  'profile_action', 'traffic_action', 'fallback_action', 'group',
   // Skyhigh / Purview
   'mode', 'location', 'scope', 'rule_groups', 'content_conditions',
   // Forcepoint
@@ -705,14 +705,15 @@ function NetskopeCard({ policy }: { policy: Record<string, unknown> }) {
 
   const source        = policy.source as Record<string, string[]> | undefined
   const destination   = policy.destination as Record<string, unknown> | undefined
-  const profileAction = policy.profile_action as Array<Record<string, unknown>> | undefined
-  const fallbackAction= policy.fallback_action as string | undefined
+  const profileAction = policy.profile_action as { dlp_profiles: string[]; action: string; notification_template: string | null } | null | undefined
+  const directAction  = policy.action as string | undefined   // Allow policy has action directly (no DLP profile)
+  const trafficAction = policy.traffic_action as string | undefined
   const group         = policy.group as string | undefined
   const status        = policy.status as string | undefined
 
   const activities    = (destination?.activities ?? []) as string[]
   const usersOrGroups = source?.users_or_groups ?? ['All Users']
-  const dlpProfiles   = profileAction?.map(pa => String(pa.dlp_profile ?? '—')) ?? []
+  const dlpProfiles   = profileAction?.dlp_profiles ?? []
 
   return (
     <div className="divide-y divide-border/40">
@@ -755,52 +756,57 @@ function NetskopeCard({ policy }: { policy: Record<string, unknown> }) {
       {/* Profile & Action */}
       <div className="grid grid-cols-[160px_1fr] gap-4 px-5 py-3.5 items-start">
         <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide pt-0.5">Profile &amp; Action</span>
-        <div className="space-y-3">
+        <div className="space-y-2.5">
 
-          {/* DLP Profile chips row — mirrors Netskope "DLP Profile =" row above the table */}
-          {dlpProfiles.length > 0 && (
-            <div className="flex items-start gap-2 flex-wrap">
-              <span className="text-xs text-muted-foreground/50 shrink-0 pt-0.5">DLP Profile =</span>
-              <div className="flex flex-wrap gap-1.5">
-                {dlpProfiles.map((name, i) => (
-                  <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md border border-border bg-muted/40 text-xs font-mono text-foreground/80">
-                    {name}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* PROFILE ACTION table */}
-          {profileAction && profileAction.length > 0 ? (
-            <div className="rounded-lg border border-border overflow-hidden">
-              <div className="grid grid-cols-[1fr_1fr] bg-muted/40 px-3 py-2 border-b border-border">
-                <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider">Profile Action</span>
-                <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider">Action</span>
-              </div>
-              {profileAction.map((pa, i) => {
-                const actionStr = String(pa.action ?? '—')
-                const template  = pa.notification_template ? String(pa.notification_template) : null
-                const combined  = template ? `${actionStr} : ${template}` : actionStr
-                return (
-                  <div key={i} className="grid grid-cols-[1fr_1fr] items-center px-3 py-2.5 border-b border-border/40 last:border-0 gap-4">
-                    <span className="text-xs text-foreground/80">{String(pa.dlp_profile ?? '—')}</span>
-                    <span className="text-xs text-foreground/80">{combined}</span>
+          {profileAction ? (
+            <>
+              {/* DLP Profile chips */}
+              {dlpProfiles.length > 0 && (
+                <div className="flex items-start gap-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground/50 shrink-0 pt-0.5">DLP Profile =</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {dlpProfiles.map((name, i) => (
+                      <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md border border-border bg-muted/40 text-xs font-mono text-foreground/80">
+                        {name}
+                      </span>
+                    ))}
                   </div>
-                )
-              })}
+                </div>
+              )}
+
+              {/* Single action for all profiles — simple form (no per-profile table) */}
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground/50">Action:</span>
+                  <ActionChip action={profileAction.action} />
+                </div>
+                {profileAction.notification_template && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground/50">Template:</span>
+                    <span className="text-xs font-mono text-foreground/70 bg-muted/30 px-2 py-0.5 rounded border border-border/50">
+                      {profileAction.notification_template}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : directAction ? (
+            /* Allow policy — no DLP profile, direct action */
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground/50">Action:</span>
+              <ActionChip action={directAction} />
             </div>
           ) : (
             <p className="text-xs text-muted-foreground/50 italic">No DLP profile — action applies to all content</p>
           )}
 
-          {/* Fallback: "If none of the specified profiles matches" */}
-          {fallbackAction && (
+          {/* Traffic Action — only shown when explicitly set (not a default) */}
+          {trafficAction && (
             <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-3 py-2.5 space-y-1.5">
-              <p className="text-[10px] text-muted-foreground/50">If none of the specified profiles matches</p>
+              <p className="text-[10px] text-muted-foreground/60">If none of the specified profiles matches</p>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground/60">Action:</span>
-                <ActionChip action={fallbackAction} />
+                <ActionChip action={trafficAction} />
               </div>
             </div>
           )}
