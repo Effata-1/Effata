@@ -109,6 +109,16 @@ const TRANSLATION_LABEL: Record<string, string> = {
   'error':          'Error',
 }
 
+const READINESS_LABEL: Record<string, string> = {
+  'pending':     'Not translated',
+  'translating': 'Translating…',
+  'translated':  'Verify before deploying',
+  'partial':     'Review required',
+  'verified':    'Ready to deploy',
+  'deferred':    'Deferred — revisit later',
+  'error':       'Translation error',
+}
+
 const ACTION_CHIP: Record<string, string> = {
   'allow':      'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   'monitor':    'bg-blue-500/10 text-blue-400 border-blue-500/20',
@@ -352,18 +362,27 @@ function VendorTabContent({ vendorId, translation, policyId }: VendorTabProps) {
     <div className="space-y-5">
       {/* Status bar + actions */}
       <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-4">
-        <div className="flex items-center gap-3">
-          <span className={cn(
-            'inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-medium',
-            TRANSLATION_CHIP[optimisticStatus] ?? TRANSLATION_CHIP['pending'],
-          )}>
-            {TRANSLATION_LABEL[optimisticStatus] ?? optimisticStatus}
-          </span>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex flex-col gap-0.5">
+            <span className={cn(
+              'inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-medium',
+              TRANSLATION_CHIP[optimisticStatus] ?? TRANSLATION_CHIP['pending'],
+            )}>
+              {TRANSLATION_LABEL[optimisticStatus] ?? optimisticStatus}
+            </span>
+            {optimisticStatus === 'partial' && report && (
+              <span className="text-[10px] text-amber-400/70 px-0.5">
+                {report.lossy_mappings.length > 0 && `${report.lossy_mappings.length} lossy`}
+                {report.lossy_mappings.length > 0 && report.tests_required.length > 0 && ' · '}
+                {report.tests_required.length > 0 && `${report.tests_required.length} test${report.tests_required.length !== 1 ? 's' : ''} required`}
+              </span>
+            )}
+          </div>
           {translation.adapter_version && (
             <span className="text-xs text-muted-foreground/50">v{translation.adapter_version}</span>
           )}
           {translation.reviewed_at && (
-            <span className="text-xs text-muted-foreground/50 flex items-center gap-1">
+            <span className="text-xs text-muted-foreground/60 flex items-center gap-1">
               <CheckCircle className="w-3 h-3" />
               Reviewed {new Date(translation.reviewed_at).toLocaleDateString()}
             </span>
@@ -442,9 +461,33 @@ function VendorTabContent({ vendorId, translation, policyId }: VendorTabProps) {
         </div>
       )}
 
+      {/* Implementation readiness summary */}
+      {report && (
+        <div className="rounded-xl border border-border bg-card/60 p-4">
+          <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider mb-3">Translation Summary</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2.5 text-xs">
+            <SummaryRow label="Vendor" value={VENDOR_DISPLAY[vendorId] ?? vendorId} />
+            <SummaryRow
+              label="Status"
+              value={READINESS_LABEL[optimisticStatus] ?? optimisticStatus}
+              valueClass={
+                optimisticStatus === 'verified'   ? 'text-emerald-400' :
+                optimisticStatus === 'partial'     ? 'text-amber-400'   :
+                optimisticStatus === 'translated'  ? 'text-blue-400'    :
+                'text-muted-foreground/70'
+              }
+            />
+            <SummaryRow label="Native Policies" value={String(translation.native_policies.length)} />
+            <SummaryRow label="Exact Mappings"  value={String(report.exact_mappings.length)}   valueClass="text-emerald-400" />
+            <SummaryRow label="Lossy Mappings"  value={String(report.lossy_mappings.length)}   valueClass={report.lossy_mappings.length > 0 ? 'text-amber-400' : 'text-muted-foreground/70'} />
+            <SummaryRow label="Tests Required"  value={String(report.tests_required.length)}   valueClass={report.tests_required.length > 0 ? 'text-orange-400' : 'text-muted-foreground/70'} />
+          </div>
+        </div>
+      )}
+
       {/* Native Policies */}
       <div className="space-y-2">
-        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Native Policies</h2>
+        <h2 className="text-xs font-semibold text-muted-foreground/80 uppercase tracking-wider">Native Policies</h2>
         {translation.native_policies.length === 0 && (
           <p className="text-sm text-muted-foreground/60">No native policies generated.</p>
         )}
@@ -482,7 +525,7 @@ function VendorTabContent({ vendorId, translation, policyId }: VendorTabProps) {
       {/* Mapping Report */}
       {report && (
         <div className="space-y-4">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Mapping Report</h2>
+          <h2 className="text-xs font-semibold text-muted-foreground/80 uppercase tracking-wider">Mapping Report</h2>
 
           <MappingList
             title="Exact Mappings"
@@ -506,12 +549,12 @@ function VendorTabContent({ vendorId, translation, policyId }: VendorTabProps) {
           />
           {report.tests_required.length > 0 && (
             <div className="space-y-1.5">
-              <p className="text-xs font-medium text-muted-foreground">Tests Required</p>
-              <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-3 space-y-2">
+              <p className="text-xs font-semibold text-foreground/70">Tests Required</p>
+              <div className="rounded-lg border border-orange-500/25 bg-orange-500/5 p-3 space-y-2.5">
                 {report.tests_required.map((item, i) => (
                   <label key={i} className="flex items-start gap-2.5 cursor-pointer group">
-                    <input type="checkbox" className="mt-0.5 rounded border-orange-500/40 accent-orange-500" />
-                    <span className="text-xs text-orange-300/90">{item}</span>
+                    <input type="checkbox" className="mt-0.5 rounded border-orange-500/40 accent-orange-500 shrink-0" />
+                    <span className="text-xs text-foreground/75 leading-relaxed">{item}</span>
                   </label>
                 ))}
               </div>
@@ -561,6 +604,15 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
     <div className="grid grid-cols-[140px_1fr] gap-3 py-2.5 border-b border-border/40 last:border-0 items-start">
       <span className="text-xs text-muted-foreground/60 pt-0.5 uppercase tracking-wide font-medium">{label}</span>
       <div>{children}</div>
+    </div>
+  )
+}
+
+function SummaryRow({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-muted-foreground/60">{label}</span>
+      <span className={cn('font-medium', valueClass ?? 'text-foreground/80')}>{value}</span>
     </div>
   )
 }
@@ -771,18 +823,18 @@ function NetskopeCard({ policy }: { policy: Record<string, unknown> }) {
       </div>
 
       {/* Status */}
-      <div className="grid grid-cols-[160px_1fr] gap-4 px-5 py-3.5 items-center">
-        <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide">Status</span>
-        <span className={cn(
-          'inline-flex items-center gap-1.5 text-xs font-medium',
-          status === 'enabled' ? 'text-emerald-400' : 'text-muted-foreground/60',
-        )}>
-          <span className={cn(
-            'w-2 h-2 rounded-full',
-            status === 'enabled' ? 'bg-emerald-400' : 'bg-muted-foreground/40',
-          )} />
-          {status === 'enabled' ? 'Enabled' : 'Disabled'}
-        </span>
+      <div className="grid grid-cols-[160px_1fr] gap-4 px-5 py-3.5 items-start">
+        <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide pt-0.5">Status</span>
+        <div className="space-y-1">
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-400">
+            <span className="w-2 h-2 rounded-full bg-blue-400/70" />
+            Draft — Not Deployed
+          </span>
+          <p className="text-[10px] text-muted-foreground/50">
+            Configure in Netskope console. Set to{' '}
+            <span className="font-mono">{status ?? 'enabled'}</span> when deploying.
+          </p>
+        </div>
       </div>
 
       {/* Raw JSON toggle */}
@@ -909,14 +961,17 @@ function NativePolicyCard({ policy }: { policy: Record<string, unknown> }) {
 
 function MappingList({ title, items, chipClass }: { title: string; items: string[]; chipClass: string }) {
   if (items.length === 0) return null
+  // Extract the left-border color from chipClass to use as the dot/bar accent
+  const accentBorder = chipClass.split(' ').find(c => c.startsWith('border-')) ?? 'border-border'
   return (
     <div className="space-y-1.5">
-      <p className="text-xs font-medium text-muted-foreground">{title}</p>
-      <div className="flex flex-wrap gap-2">
+      <p className="text-xs font-semibold text-foreground/70">{title}</p>
+      <div className={cn('rounded-lg border p-3 space-y-2', accentBorder, 'bg-muted/10')}>
         {items.map((item, i) => (
-          <span key={i} className={cn('inline-flex items-center px-2 py-1 rounded-lg border text-xs', chipClass)}>
-            {item}
-          </span>
+          <div key={i} className="flex items-start gap-2">
+            <span className={cn('mt-1.5 w-1.5 h-1.5 rounded-full shrink-0', chipClass.split(' ').find(c => c.startsWith('bg-')) ?? 'bg-muted')} />
+            <span className="text-xs text-foreground/75 leading-relaxed">{item}</span>
+          </div>
         ))}
       </div>
     </div>
