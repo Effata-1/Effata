@@ -93,14 +93,6 @@ export async function togglePolicyActive(
   return {}
 }
 
-export async function requestPolicyPackJob(): Promise<{ jobId: string }> {
-  await requireRole('admin')
-  const result = await callData<{ jobId: string }>('/api/jobs', {
-    method: 'POST',
-    body:   { jobType: 'policy-pack', payload: {} },
-  })
-  return { jobId: result.jobId }
-}
 
 export async function getPolicyPackJobStatus(jobId: string): Promise<{
   status:         string
