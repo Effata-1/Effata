@@ -7,6 +7,25 @@ import { PolicyBuilder } from '../../new/_components/policy-builder'
 import { getIdentityPageData } from '@/app/(app)/policies/identity/actions'
 import { ensureClassificationLabels } from '@/lib/data-catalog/actions'
 import type { RuleItem } from '../../new/_components/policy-builder'
+import type { PolicyRule, ActionCode } from '@/lib/genai/types'
+
+// ── Neutral-policy-json shape (minimal — only fields we read here) ─────────────
+interface NpjCondition { type: string; sensitivity?: string }
+interface NpjDecision  { mode?: string; require_acknowledgement?: boolean; require_justification?: boolean }
+interface NpjShape     { scope?: { activities?: string[] }; content?: { conditions?: NpjCondition[] }; decision?: NpjDecision }
+
+function npjDecisionToAction(d: NpjDecision): ActionCode {
+  if (d.mode === 'block')   return 'block'
+  if (d.mode === 'alert')   return 'alert'
+  if (d.mode === 'monitor') return 'monitor'
+  if (d.mode === 'allow')   return 'allow'
+  if (d.mode === 'coach') {
+    if (d.require_justification)   return 'coach-just'
+    if (d.require_acknowledgement) return 'coach-ack'
+    return 'coach'
+  }
+  return 'not-set'
+}
 
 export default async function EditPolicyPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -92,6 +111,35 @@ export default async function EditPolicyPage({ params }: { params: Promise<{ id:
       }),
   ]
 
+  // When rules are empty (compiler-generated policies), synthesize them from
+  // neutral_policy_json.content.conditions so DataProfileSection pre-populates.
+  const effectiveRules: PolicyRule[] = (() => {
+    const saved = (policy.rules ?? []) as PolicyRule[]
+    if (saved.length > 0) return saved
+
+    const npj = policy.neutral_policy_json as NpjShape | null
+    const conditions = npj?.content?.conditions ?? []
+    const dataConditions = conditions.filter(c => c.type === 'data_type' && c.sensitivity)
+    if (dataConditions.length === 0) return saved
+
+    const sensitivities = [...new Set(dataConditions.map(c => c.sensitivity!))]
+    const actionCode    = npjDecisionToAction(npj?.decision ?? {})
+    const acts          = npj?.scope?.activities ?? []
+
+    const postPrompt: ActionCode = acts.some(a => a === 'post' || a === 'prompt_submit') ? actionCode : 'not-set'
+    const upload: ActionCode     = acts.includes('upload')   ? actionCode : 'not-set'
+    const download: ActionCode   = acts.includes('download') ? actionCode : 'not-set'
+    const response: ActionCode   = acts.includes('response') ? actionCode : 'not-set'
+
+    return sensitivities.map(s => ({
+      data_type:   `label:${s}`,
+      post_prompt: postPrompt,
+      upload,
+      download,
+      response,
+    }))
+  })()
+
   const identityFields = Object.fromEntries(
     identityData.fieldOrder.map(f => [
       f,
@@ -133,7 +181,7 @@ export default async function EditPolicyPage({ params }: { params: Promise<{ id:
           approval_status:  policy.approval_status,
           category_id:      policy.category_id,
           scope_app_ids:    policy.scope_app_ids ?? [],
-          rules:            policy.rules ?? [],
+          rules:            effectiveRules,
           identity_context: policy.identity_context,
           // migration 052
           policy_family:             policy.policy_family ?? null,
