@@ -542,12 +542,14 @@ const SEVERITY_CHIP_MAP: Record<string, string> = {
   'Low':      'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
 }
 
-// Fields rendered in the structured header — skip them in the generic table
+// Fields rendered explicitly — excluded from the generic extra-entries table
 const HEADER_FIELDS = new Set([
   'name', 'policy_name', 'status', 'action', 'severity',
   'source', 'destination', 'activities', 'dlp_profile',
   'alert', 'save_evidence', 'notification_template',
   'policy_type', 'policy_family',
+  // Netskope v2
+  'profile_action', 'fallback_action', 'group',
   // Skyhigh / Purview
   'mode', 'location', 'scope', 'rule_groups', 'content_conditions',
   // Forcepoint
@@ -633,7 +635,162 @@ function renderValue(key: string, value: unknown): React.ReactNode {
   return <span className="text-xs text-foreground/80">{String(value)}</span>
 }
 
+function ActionChip({ action }: { action: string }) {
+  return (
+    <span className={cn(
+      'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
+      ACTION_CHIP_MAP[action] ?? 'bg-muted/50 text-foreground/70 border-border/50',
+    )}>
+      {action}
+    </span>
+  )
+}
+
+// ── Netskope-specific card — mirrors the Netskope RT policy UI exactly ─────────
+
+function NetskopeCard({ policy }: { policy: Record<string, unknown> }) {
+  const [showRaw, setShowRaw] = useState(false)
+
+  const source        = policy.source as Record<string, string[]> | undefined
+  const destination   = policy.destination as Record<string, unknown> | undefined
+  const profileAction = policy.profile_action as Array<Record<string, unknown>> | undefined
+  const fallbackAction= policy.fallback_action as string | undefined
+  const group         = policy.group as string | undefined
+  const status        = policy.status as string | undefined
+
+  const destTarget    = destination?.category
+    ? `Category = ${String(destination.category)}`
+    : destination?.specific_apps
+      ? `Apps = ${(destination.specific_apps as string[]).join(', ')}`
+      : '—'
+  const activities    = (destination?.activities ?? []) as string[]
+  const usersOrGroups = source?.users_or_groups ?? ['All Users']
+
+  return (
+    <div className="divide-y divide-border/40">
+      {/* Source */}
+      <div className="grid grid-cols-[160px_1fr] gap-4 px-5 py-3.5 items-start">
+        <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide pt-0.5">Source</span>
+        <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground/50">User =</p>
+          <StringChips values={usersOrGroups} />
+        </div>
+      </div>
+
+      {/* Destination */}
+      <div className="grid grid-cols-[160px_1fr] gap-4 px-5 py-3.5 items-start">
+        <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide pt-0.5">Destination</span>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground/50">Category =</span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-border bg-muted/40 text-xs text-foreground/80">
+              {destination?.category as string ?? destination?.specific_apps ? (destination?.specific_apps as string[]).join(', ') : '—'}
+            </span>
+          </div>
+          {activities.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground/50">Activities =</span>
+              <StringChips values={activities} colorClass="bg-blue-500/10 text-blue-400 border-blue-500/20" />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Profile & Action */}
+      <div className="grid grid-cols-[160px_1fr] gap-4 px-5 py-3.5 items-start">
+        <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide pt-0.5">Profile &amp; Action</span>
+        <div className="space-y-2">
+          {profileAction && profileAction.length > 0 ? (
+            <>
+              <div className="rounded-lg border border-border overflow-hidden">
+                <div className="grid grid-cols-[1fr_auto] bg-muted/30 px-3 py-2 border-b border-border">
+                  <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider">DLP Profile</span>
+                  <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider">Action</span>
+                </div>
+                {profileAction.map((pa, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_auto] items-center px-3 py-2.5 border-b border-border/40 last:border-0 gap-4">
+                    <span className="text-xs font-mono text-foreground/80 bg-muted/30 px-2 py-0.5 rounded border border-border/50 w-fit">
+                      {String(pa.dlp_profile ?? '—')}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <ActionChip action={String(pa.action)} />
+                      {!!pa.notification_template && (
+                        <span className="text-[10px] text-muted-foreground/60 font-mono">{String(pa.notification_template)}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {fallbackAction && (
+                <div className="rounded-lg border border-border/40 bg-muted/20 px-3 py-2.5 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground/60">If none of the profiles match</span>
+                  <ActionChip action={fallbackAction} />
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="rounded-lg border border-border/40 bg-muted/20 px-3 py-2.5 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground/60 italic">No DLP profile — action applies to all content</span>
+              {fallbackAction && <ActionChip action={fallbackAction} />}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Policy Name + Group */}
+      <div className="grid grid-cols-[160px_1fr] gap-4 px-5 py-3.5 items-start">
+        <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide pt-0.5">Policy Name</span>
+        <div className="space-y-1.5">
+          <span className="text-xs text-foreground/80">{String(policy.name ?? '—')}</span>
+          {group && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground/50">Group =</span>
+              <span className="text-xs text-muted-foreground/70">{group}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Status */}
+      <div className="grid grid-cols-[160px_1fr] gap-4 px-5 py-3.5 items-center">
+        <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide">Status</span>
+        <span className={cn(
+          'inline-flex items-center gap-1.5 text-xs font-medium',
+          status === 'enabled' ? 'text-emerald-400' : 'text-muted-foreground/60',
+        )}>
+          <span className={cn(
+            'w-2 h-2 rounded-full',
+            status === 'enabled' ? 'bg-emerald-400' : 'bg-muted-foreground/40',
+          )} />
+          {status === 'enabled' ? 'Enabled' : 'Disabled'}
+        </span>
+      </div>
+
+      {/* Raw JSON toggle */}
+      <div className="px-5 py-3">
+        <button
+          type="button"
+          onClick={() => setShowRaw(r => !r)}
+          className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+        >
+          {showRaw ? '▲ Hide raw JSON' : '▼ View raw JSON'}
+        </button>
+        {showRaw && (
+          <pre className="mt-2 text-xs text-muted-foreground/70 bg-muted/30 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-words font-mono border border-border/40">
+            {JSON.stringify(policy, null, 2)}
+          </pre>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Generic card — fallback for Purview / Forcepoint / Skyhigh ─────────────────
+
 function NativePolicyCard({ policy }: { policy: Record<string, unknown> }) {
+  // Detect Netskope v2 format by presence of profile_action
+  if ('profile_action' in policy) return <NetskopeCard policy={policy} />
+
   const [showRaw, setShowRaw] = useState(false)
 
   const action      = policy.action as string | undefined
@@ -645,8 +802,6 @@ function NativePolicyCard({ policy }: { policy: Record<string, unknown> }) {
   const dlpProfile  = 'dlp_profile' in policy ? policy.dlp_profile : undefined
   const notification= policy.notification_template as string | null | undefined
   const mode        = policy.mode as string | undefined
-
-  // Other-vendor fields
   const location         = policy.location as string | undefined
   const scope            = policy.scope as Record<string, unknown> | undefined
   const ruleGroups       = policy.rule_groups as unknown[] | undefined
@@ -654,105 +809,38 @@ function NativePolicyCard({ policy }: { policy: Record<string, unknown> }) {
   const sourceResources  = policy.source_resources as string[] | undefined
   const destResources    = policy.destination_resources as string[] | undefined
   const classifiers      = policy.classifiers as string[] | undefined
-
   const extraEntries = Object.entries(policy).filter(([k]) => !HEADER_FIELDS.has(k) && k !== 'name' && k !== 'policy_name')
 
   return (
     <div className="p-4">
-      {/* Status chip only at top */}
       {status && (
         <div className="pb-3 mb-1 border-b border-border/40">
           <span className={cn(
             'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
             status === 'enabled' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-muted/50 text-muted-foreground border-border',
-          )}>
-            {status}
-          </span>
+          )}>{status}</span>
         </div>
       )}
-
-      {/* All fields as labeled rows */}
       <div>
-        {source && (
-          <FieldRow label="Source">
-            {renderValue('source', source)}
-          </FieldRow>
-        )}
-        {sourceResources && sourceResources.length > 0 && (
-          <FieldRow label="Source">
-            <StringChips values={sourceResources} />
-          </FieldRow>
-        )}
-        {destination && (
-          <FieldRow label="Destination">
-            {renderValue('destination', destination)}
-          </FieldRow>
-        )}
-        {destResources && destResources.length > 0 && (
-          <FieldRow label="Destination">
-            <StringChips values={destResources} />
-          </FieldRow>
-        )}
-        {location && (
-          <FieldRow label="Location">
-            <span className="text-xs text-foreground/80">{location}</span>
-          </FieldRow>
-        )}
-        {activities && (
-          <FieldRow label="Activities">
-            <StringChips values={activities} colorClass="bg-blue-500/10 text-blue-400 border-blue-500/20" />
-          </FieldRow>
-        )}
-        {action && (
-          <FieldRow label="Action">
-            <span className={cn(
-              'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
-              ACTION_CHIP_MAP[action] ?? 'bg-muted/50 text-foreground/70 border-border/50',
-            )}>
-              {action}
-            </span>
-          </FieldRow>
-        )}
-        {severity && (
-          <FieldRow label="Severity">
-            <span className={cn(
-              'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
-              SEVERITY_CHIP_MAP[severity] ?? 'bg-muted/50 text-foreground/70 border-border/50',
-            )}>
-              {severity}
-            </span>
-          </FieldRow>
-        )}
-        {mode && (
-          <FieldRow label="Mode">
-            <span className="inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium bg-blue-500/10 text-blue-400 border-blue-500/20">
-              {mode}
-            </span>
-          </FieldRow>
-        )}
-        {scope && (
-          <FieldRow label="Scope">
-            {renderValue('scope', scope)}
-          </FieldRow>
-        )}
+        {source          && <FieldRow label="Source">{renderValue('source', source)}</FieldRow>}
+        {sourceResources && sourceResources.length > 0 && <FieldRow label="Source"><StringChips values={sourceResources} /></FieldRow>}
+        {destination     && <FieldRow label="Destination">{renderValue('destination', destination)}</FieldRow>}
+        {destResources   && destResources.length > 0 && <FieldRow label="Destination"><StringChips values={destResources} /></FieldRow>}
+        {location        && <FieldRow label="Location"><span className="text-xs text-foreground/80">{location}</span></FieldRow>}
+        {activities      && <FieldRow label="Activities"><StringChips values={activities} colorClass="bg-blue-500/10 text-blue-400 border-blue-500/20" /></FieldRow>}
+        {action          && <FieldRow label="Action"><ActionChip action={action} /></FieldRow>}
+        {severity        && <FieldRow label="Severity"><span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium', SEVERITY_CHIP_MAP[severity] ?? 'bg-muted/50 text-foreground/70 border-border/50')}>{severity}</span></FieldRow>}
+        {mode            && <FieldRow label="Mode"><ActionChip action={mode} /></FieldRow>}
+        {scope           && <FieldRow label="Scope">{renderValue('scope', scope)}</FieldRow>}
         {'dlp_profile' in policy && (
           <FieldRow label="DLP Profile">
             {dlpProfile
               ? <span className="text-xs font-mono text-foreground/80 bg-muted/50 px-2 py-0.5 rounded border border-border">{String(dlpProfile)}</span>
-              : <span className="text-xs text-amber-400/80 italic">None — policy matches all content (no content inspection)</span>
-            }
+              : <span className="text-xs text-amber-400/80 italic">None — matches all content</span>}
           </FieldRow>
         )}
-        {classifiers && classifiers.length > 0 && (
-          <FieldRow label="Classifiers">
-            <StringChips values={classifiers} colorClass="bg-purple-500/10 text-purple-400 border-purple-500/20" />
-          </FieldRow>
-        )}
-        {contentConditions && contentConditions.length > 0 && (
-          <FieldRow label="Content Conditions">
-            <StringChips values={contentConditions} colorClass="bg-purple-500/10 text-purple-400 border-purple-500/20" />
-          </FieldRow>
-        )}
+        {classifiers     && classifiers.length > 0 && <FieldRow label="Classifiers"><StringChips values={classifiers} colorClass="bg-purple-500/10 text-purple-400 border-purple-500/20" /></FieldRow>}
+        {contentConditions && contentConditions.length > 0 && <FieldRow label="Content Conditions"><StringChips values={contentConditions} colorClass="bg-purple-500/10 text-purple-400 border-purple-500/20" /></FieldRow>}
         {ruleGroups && ruleGroups.length > 0 && (
           <FieldRow label="Rule Groups">
             <div className="space-y-2">
@@ -771,17 +859,10 @@ function NativePolicyCard({ policy }: { policy: Record<string, unknown> }) {
         )}
         {notification !== undefined && (
           <FieldRow label="Notification">
-            {notification
-              ? <span className="text-xs font-mono text-foreground/80">{notification}</span>
-              : <span className="text-xs text-muted-foreground/40 italic">None</span>
-            }
+            {notification ? <span className="text-xs font-mono text-foreground/80">{notification}</span> : <span className="text-xs text-muted-foreground/40 italic">None</span>}
           </FieldRow>
         )}
-        {extraEntries.length > 0 && extraEntries.map(([k, v]) => (
-          <FieldRow key={k} label={k.replace(/_/g, ' ')}>
-            {renderValue(k, v)}
-          </FieldRow>
-        ))}
+        {extraEntries.map(([k, v]) => <FieldRow key={k} label={k.replace(/_/g, ' ')}>{renderValue(k, v)}</FieldRow>)}
         {!!(policy.policy_type || policy.policy_family) && (
           <FieldRow label="Type / Family">
             <span className="text-xs text-muted-foreground/60">
@@ -790,14 +871,8 @@ function NativePolicyCard({ policy }: { policy: Record<string, unknown> }) {
           </FieldRow>
         )}
       </div>
-
-      {/* Raw JSON toggle */}
       <div className="pt-3">
-        <button
-          type="button"
-          onClick={() => setShowRaw(r => !r)}
-          className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-        >
+        <button type="button" onClick={() => setShowRaw(r => !r)} className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors">
           {showRaw ? '▲ Hide raw JSON' : '▼ View raw JSON'}
         </button>
         {showRaw && (
