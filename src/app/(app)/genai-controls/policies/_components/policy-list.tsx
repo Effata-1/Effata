@@ -184,20 +184,37 @@ function SourceCell({ policy, identityFields }: { policy: GenAIPolicy; identityF
   )
 }
 
-function DestCell({ policy, apps }: { policy: GenAIPolicy; apps: App[] }) {
+function DestCell({ policy, apps, categories }: { policy: GenAIPolicy; apps: App[]; categories: Category[] }) {
+  // Specific app instances take priority
   const ids = policy.scope_app_ids ?? []
-  if (ids.length === 0) return <span className="text-[11px] text-muted-foreground/40 italic">All GenAI apps</span>
-  const scoped = apps.filter(a => ids.includes(a.app_id))
-  if (scoped.length === 0) return <span className="text-[11px] text-muted-foreground/40 italic">All GenAI apps</span>
-  return (
-    <div className="space-y-0.5">
-      <div className="flex items-center gap-1.5">
-        <span className="w-3.5 h-3.5 rounded flex items-center justify-center text-[8px] font-bold text-foreground shrink-0" style={{ backgroundColor: scoped[0].logo_bg }}>{scoped[0].logo_letter}</span>
-        <span className="text-[11px] text-foreground/80 truncate max-w-[100px]">{scoped[0].app_name}</span>
+  const scoped = ids.length > 0 ? apps.filter(a => ids.includes(a.app_id)) : []
+  if (scoped.length > 0) {
+    return (
+      <div className="space-y-0.5">
+        <div className="flex items-center gap-1.5">
+          <span className="w-3.5 h-3.5 rounded flex items-center justify-center text-[8px] font-bold text-foreground shrink-0" style={{ backgroundColor: scoped[0].logo_bg }}>{scoped[0].logo_letter}</span>
+          <span className="text-[11px] text-foreground/80 truncate max-w-[100px]">{scoped[0].app_name}</span>
+        </div>
+        {scoped.length > 1 && <span className="text-[10px] text-muted-foreground/50">+{scoped.length - 1} more</span>}
       </div>
-      {scoped.length > 1 && <span className="text-[10px] text-muted-foreground/50">+{scoped.length - 1} more</span>}
-    </div>
-  )
+    )
+  }
+
+  // Fall back to app categories from neutral policy json
+  const cats = getPolicyCategories(policy, categories)
+  if (cats.length > 0) {
+    return (
+      <div className="flex gap-1 flex-wrap">
+        {cats.map(cat => (
+          <span key={cat.id} className={cn('text-[9px] px-1.5 py-0.5 rounded border font-medium', CAT_COLOR_CHIP[cat.color] ?? CAT_COLOR_CHIP.zinc)}>
+            {cat.name}
+          </span>
+        ))}
+      </div>
+    )
+  }
+
+  return <span className="text-[11px] text-muted-foreground/40 italic">All GenAI apps</span>
 }
 
 function isAppAccessPolicy(policy: GenAIPolicy): boolean {
@@ -710,26 +727,10 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                       {policy.description && (
                         <p className="text-muted-foreground/50 mt-0.5 truncate text-[10px]">{policy.description}</p>
                       )}
-                      {(() => {
-                        const cats = getPolicyCategories(policy, categories)
-                        if (cats.length === 0) return null
-                        return (
-                          <div className="flex gap-1 flex-wrap mt-1">
-                            {cats.map(cat => (
-                              <span
-                                key={cat.id}
-                                className={cn('text-[9px] px-1.5 py-0.5 rounded border font-medium', CAT_COLOR_CHIP[cat.color] ?? CAT_COLOR_CHIP.zinc)}
-                              >
-                                {cat.name}
-                              </span>
-                            ))}
-                          </div>
-                        )
-                      })()}
                     </td>
 
                     {col('source')      && <td className="px-3 py-2.5 align-middle"><SourceCell policy={policy} identityFields={identityFields} /></td>}
-                    {col('destination') && <td className="px-3 py-2.5 align-middle"><DestCell policy={policy} apps={apps} /></td>}
+                    {col('destination') && <td className="px-3 py-2.5 align-middle"><DestCell policy={policy} apps={apps} categories={categories} /></td>}
                     {col('data')        && <td className="px-3 py-2.5 align-middle"><DataTypeCell policy={policy} ruleItems={ruleItems} /></td>}
                     {col('activities')  && <td className="px-3 py-2.5 align-middle"><ActivitiesCell policy={policy} ruleItems={ruleItems} /></td>}
 
