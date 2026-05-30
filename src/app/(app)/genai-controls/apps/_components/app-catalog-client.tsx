@@ -778,6 +778,7 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
 
   function handleEvaluate() {
     setEvalError(null)
+    setEvalErrorOpen(false)
     setEvaluatedApp(null)
     const termSnapshot = trimmed
     startTransition(async () => {
@@ -904,7 +905,7 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
             ref={inputRef}
             type="text"
             value={search}
-            onChange={e => { setSearch(e.target.value); setEvaluatedApp(null); setEvalError(null) }}
+            onChange={e => { setSearch(e.target.value); setEvaluatedApp(null); setEvalError(null); setEvalErrorOpen(false) }}
             placeholder="Search by name, vendor, or domain…"
             className="w-full pl-9 pr-9 py-2 rounded-lg border border-border bg-card/50 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-border-strong focus:bg-card transition-all"
           />

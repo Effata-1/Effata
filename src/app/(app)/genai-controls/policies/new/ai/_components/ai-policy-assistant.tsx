@@ -294,7 +294,13 @@ function PolicyProposalCard({
                 <button
                   key={intent}
                   type="button"
-                  onClick={() => setDraft(p => ({ ...p, npj: { ...p.npj, intent } }))}
+                  onClick={() => setDraft(p => {
+                    const newNpj: NeutralPolicyJson = { ...p.npj, intent }
+                    if (intent === 'govern_app_access') {
+                      newNpj.content = { operator: newNpj.content?.operator ?? 'any', conditions: [] }
+                    }
+                    return { ...p, npj: newNpj }
+                  })}
                   className={cn(
                     'inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-semibold transition-colors',
                     dn.intent === intent
