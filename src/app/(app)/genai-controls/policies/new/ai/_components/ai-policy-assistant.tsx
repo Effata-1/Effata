@@ -84,7 +84,7 @@ interface PolicyProposal {
 
 interface PolicyCreationContext {
   intents:    string[]
-  categories: { id: string; name: string; system_tag: string | null }[]
+  categories: { id: string; name: string; system_tag: string | null; access_posture?: string }[]
   dataTypes:  { key: string; name: string; sensitivity: string }[]
   actions:    string[]
   activities: string[]
@@ -764,7 +764,7 @@ export function AiPolicyAssistant({ apps: _apps, categories, ruleItems, vendors 
   function buildContext(): PolicyCreationContext {
     return {
       intents:    [...VALID_INTENTS],
-      categories: categories.map(c => ({ id: c.id, name: c.name, system_tag: c.system_tag })),
+      categories: categories.map(c => ({ id: c.id, name: c.name, system_tag: c.system_tag, access_posture: c.access_posture })),
       dataTypes:  ruleItems.slice(0, 50).map(r => ({
         key:         r.key,
         name:        r.name,

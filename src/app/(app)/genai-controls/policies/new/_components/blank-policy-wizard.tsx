@@ -42,10 +42,11 @@ export interface AppRow {
 }
 
 export interface CategoryRow {
-  id:         string
-  system_tag: string | null
-  name:       string
-  color:      string
+  id:              string
+  system_tag:      string | null
+  name:            string
+  color:           string
+  access_posture?: string
 }
 
 export interface CoachingTemplateRow {
