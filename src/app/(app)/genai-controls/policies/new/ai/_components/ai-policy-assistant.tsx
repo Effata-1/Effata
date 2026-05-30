@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import {
   VALID_INTENTS, INTENT_LABELS, INTENT_CHIP, ACTIVITY_LABELS,
+  GENAI_ACTIVITIES, APP_ACCESS_ACTIVITIES,
   validateNeutralPolicy,
   type NpjIntent, type NpjActivity,
 } from '@/lib/genai/npj-schema'
@@ -298,6 +299,23 @@ function PolicyProposalCard({
                     const newNpj: NeutralPolicyJson = { ...p.npj, intent }
                     if (intent === 'govern_app_access') {
                       newNpj.content = { operator: newNpj.content?.operator ?? 'any', conditions: [] }
+                      // Lock activities to browse+login, keep only prohibited categories
+                      newNpj.scope = {
+                        ...newNpj.scope,
+                        activities:     [...APP_ACCESS_ACTIVITIES],
+                        app_categories: (newNpj.scope?.app_categories ?? []).filter(c =>
+                          c.system_tag === 'prohibited' || c.name.toLowerCase() === 'prohibited',
+                        ),
+                      }
+                    } else if (p.npj.intent === 'govern_app_access') {
+                      // Leaving govern_app_access: reset to data-handling defaults
+                      newNpj.scope = {
+                        ...newNpj.scope,
+                        activities:     ['post', 'prompt_submit', 'upload'],
+                        app_categories: (newNpj.scope?.app_categories ?? []).filter(c =>
+                          c.system_tag !== 'prohibited' && c.name.toLowerCase() !== 'prohibited',
+                        ),
+                      }
                     }
                     return { ...p, npj: newNpj }
                   })}
@@ -317,54 +335,94 @@ function PolicyProposalCard({
           {/* Activities */}
           <div>
             <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-2">Activities</p>
-            <div className="flex flex-wrap gap-1.5">
-              {(Object.entries(ACTIVITY_LABELS) as [NpjActivity, string][]).map(([a, label]) => {
-                const active = (dn.scope?.activities ?? []).includes(a)
-                return (
-                  <button
-                    key={a}
-                    type="button"
-                    onClick={() => toggleActivity(a)}
-                    className={cn(
-                      'inline-flex items-center px-2 py-0.5 rounded-md border text-xs transition-colors',
-                      active
-                        ? 'border-blue-500/25 bg-blue-500/10 text-blue-400'
-                        : 'border-border/40 bg-muted/10 text-muted-foreground/40 hover:bg-muted/30 hover:text-foreground/60',
-                    )}
-                  >
-                    {label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* App Categories */}
-          {categories.length > 0 && (
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-2">App Categories</p>
+            {dn.intent === 'govern_app_access' ? (
+              <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 px-4 py-3 space-y-2">
+                <p className="text-xs font-semibold text-purple-400">Fixed for app access control</p>
+                <p className="text-xs text-muted-foreground/60">Prohibited policies apply to Browse and Login only — no data activities needed.</p>
+                <div className="flex gap-1.5">
+                  {APP_ACCESS_ACTIVITIES.map(a => (
+                    <span key={a} className="inline-flex items-center px-2 py-0.5 rounded-md border border-purple-500/25 bg-purple-500/10 text-xs text-purple-400">{ACTIVITY_LABELS[a]}</span>
+                  ))}
+                </div>
+              </div>
+            ) : (
               <div className="flex flex-wrap gap-1.5">
-                {categories.map(cat => {
-                  const active = (dn.scope?.app_categories ?? []).some(c => c.id === cat.id)
+                {GENAI_ACTIVITIES.map(a => {
+                  const active = (dn.scope?.activities ?? []).includes(a)
                   return (
                     <button
-                      key={cat.id}
+                      key={a}
                       type="button"
-                      onClick={() => toggleCategory(cat)}
+                      onClick={() => toggleActivity(a)}
                       className={cn(
                         'inline-flex items-center px-2 py-0.5 rounded-md border text-xs transition-colors',
                         active
-                          ? 'border-border bg-muted/50 text-foreground/80'
+                          ? 'border-blue-500/25 bg-blue-500/10 text-blue-400'
                           : 'border-border/40 bg-muted/10 text-muted-foreground/40 hover:bg-muted/30 hover:text-foreground/60',
                       )}
                     >
-                      {cat.name}
+                      {ACTIVITY_LABELS[a]}
                     </button>
                   )
                 })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
+
+          {/* App Categories */}
+          {categories.length > 0 && (() => {
+            const prohibitedCat = categories.find(c => c.system_tag === 'prohibited' || c.name.toLowerCase() === 'prohibited')
+            const isAppAccess   = dn.intent === 'govern_app_access'
+
+            if (isAppAccess) {
+              return (
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-2">App Categories</p>
+                  <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 px-4 py-3 space-y-2">
+                    <p className="text-xs font-semibold text-purple-400">Prohibited apps only</p>
+                    <p className="text-xs text-muted-foreground/60">
+                      Add apps to the <span className="font-semibold">Prohibited</span> classification list — this policy enforces the block automatically for all apps in that category.
+                    </p>
+                    {prohibitedCat && (
+                      <div className="flex gap-1.5">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-purple-500/25 bg-purple-500/10 text-xs text-purple-400">{prohibitedCat.name}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            }
+
+            const dataCategories = categories.filter(c => c.system_tag !== 'prohibited' && c.name.toLowerCase() !== 'prohibited')
+            return (
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-2">App Categories</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {dataCategories.map(cat => {
+                    const active = (dn.scope?.app_categories ?? []).some(c => c.id === cat.id)
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => toggleCategory(cat)}
+                        className={cn(
+                          'inline-flex items-center px-2 py-0.5 rounded-md border text-xs transition-colors',
+                          active
+                            ? 'border-border bg-muted/50 text-foreground/80'
+                            : 'border-border/40 bg-muted/10 text-muted-foreground/40 hover:bg-muted/30 hover:text-foreground/60',
+                        )}
+                      >
+                        {cat.name}
+                      </button>
+                    )
+                  })}
+                </div>
+                {prohibitedCat && (
+                  <p className="text-[10px] text-muted-foreground/40 mt-1.5">Prohibited apps are blocked entirely — use <span className="font-medium text-muted-foreground/60">Govern App Access</span> intent for that.</p>
+                )}
+              </div>
+            )
+          })()}
 
           {/* Decision */}
           {dn.decision && (

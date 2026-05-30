@@ -7,7 +7,7 @@ import { colorClasses, SYSTEM_LEVEL_META } from '@/lib/data-catalog/types'
 import {
   VALID_INTENTS, INTENT_LABELS, INTENT_CHIP,
   VALID_DECISION_MODES,
-  ACTIVITY_LABELS, GENAI_ACTIVITIES,
+  ACTIVITY_LABELS, GENAI_ACTIVITIES, APP_ACCESS_ACTIVITIES,
   UI_ACTION_CODES,
   uiActionToNpjMode, uiActionToFlags,
   validateNeutralPolicy,
@@ -342,7 +342,29 @@ export function BlankPolicyWizard({ apps, categories, ruleItems, coachingTemplat
               <button
                 key={intent}
                 type="button"
-                onClick={() => update({ intent })}
+                onClick={() => {
+                  if (intent === 'govern_app_access') {
+                    // Auto-lock activities to browse+login and pre-select prohibited category
+                    const prohibitedCat = categories.find(c => c.system_tag === 'prohibited' || c.name.toLowerCase() === 'prohibited')
+                    update({
+                      intent,
+                      activities:  new Set<NpjActivity>(APP_ACCESS_ACTIVITIES),
+                      categoryIds: prohibitedCat ? new Set([prohibitedCat.id]) : new Set(),
+                    })
+                  } else if (state.intent === 'govern_app_access') {
+                    // Leaving govern_app_access: reset to data-handling defaults, remove prohibited
+                    const prohibitedCat = categories.find(c => c.system_tag === 'prohibited' || c.name.toLowerCase() === 'prohibited')
+                    const newCatIds = new Set(state.categoryIds)
+                    if (prohibitedCat) newCatIds.delete(prohibitedCat.id)
+                    update({
+                      intent,
+                      activities:  new Set<NpjActivity>(['prompt_submit', 'upload']),
+                      categoryIds: newCatIds,
+                    })
+                  } else {
+                    update({ intent })
+                  }
+                }}
                 className={cn(
                   'inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-semibold transition-colors',
                   state.intent === intent
@@ -404,45 +426,84 @@ export function BlankPolicyWizard({ apps, categories, ruleItems, coachingTemplat
   // ── Step 2 ─────────────────────────────────────────────────────────────────
 
   function renderStep2() {
+    const isAppAccess   = state.intent === 'govern_app_access'
+    const prohibitedCat = categories.find(c => c.system_tag === 'prohibited' || c.name.toLowerCase() === 'prohibited')
+    const visibleCats   = isAppAccess
+      ? categories.filter(c => c.system_tag === 'prohibited' || c.name.toLowerCase() === 'prohibited')
+      : categories.filter(c => c.system_tag !== 'prohibited' && c.name.toLowerCase() !== 'prohibited')
+
     return (
       <div className="space-y-6">
-        <WizardSection title="App Categories" note="Leave empty to apply to all app categories">
-          <div className="flex flex-wrap gap-1.5">
-            {categories.map(cat => {
-              const active = state.categoryIds.has(cat.id)
-              const c = colorClasses(cat.color)
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => update({ categoryIds: toggleSet(state.categoryIds, cat.id) })}
-                  className={cn(
-                    'inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors',
-                    active
-                      ? cn(c.text, c.bg, c.border)
-                      : 'bg-muted/20 border-border/50 text-muted-foreground/60 hover:bg-muted/40',
-                  )}
-                >
-                  {cat.name}
-                </button>
-              )
-            })}
-          </div>
-        </WizardSection>
+        {isAppAccess ? (
+          <WizardSection title="App Categories">
+            <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 px-4 py-3 space-y-2">
+              <p className="text-xs font-semibold text-purple-400">Prohibited apps only</p>
+              <p className="text-xs text-muted-foreground/60">
+                Add apps to the <span className="font-semibold">Prohibited</span> classification list — this policy enforces the block automatically. You don&apos;t need to list individual apps here.
+              </p>
+              {prohibitedCat && (
+                <div className="flex gap-1.5">
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-lg border border-purple-500/25 bg-purple-500/10 text-xs font-medium text-purple-400">{prohibitedCat.name}</span>
+                </div>
+              )}
+            </div>
+          </WizardSection>
+        ) : (
+          <WizardSection title="App Categories" note="Leave empty to apply to all non-prohibited categories">
+            <div className="flex flex-wrap gap-1.5">
+              {visibleCats.map(cat => {
+                const active = state.categoryIds.has(cat.id)
+                const c = colorClasses(cat.color)
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => update({ categoryIds: toggleSet(state.categoryIds, cat.id) })}
+                    className={cn(
+                      'inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors',
+                      active
+                        ? cn(c.text, c.bg, c.border)
+                        : 'bg-muted/20 border-border/50 text-muted-foreground/60 hover:bg-muted/40',
+                    )}
+                  >
+                    {cat.name}
+                  </button>
+                )
+              })}
+            </div>
+            {prohibitedCat && (
+              <p className="text-[10px] text-muted-foreground/40 mt-1">Prohibited apps are blocked entirely — use <span className="font-medium text-muted-foreground/60">Govern App Access</span> intent for that.</p>
+            )}
+          </WizardSection>
+        )}
 
-        <WizardSection title="Activities" note="Which GenAI actions this policy monitors">
-          <div className="flex flex-wrap gap-1.5">
-            {GENAI_ACTIVITIES.map(act => (
-              <ChipToggle
-                key={act}
-                active={state.activities.has(act)}
-                label={ACTIVITY_LABELS[act]}
-                color="bg-blue-500/10 text-blue-400 border-blue-500/20"
-                onClick={() => update({ activities: toggleSet(state.activities, act) })}
-              />
-            ))}
-          </div>
-        </WizardSection>
+        {isAppAccess ? (
+          <WizardSection title="Activities">
+            <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 px-4 py-3 space-y-2">
+              <p className="text-xs font-semibold text-purple-400">Fixed for app access control</p>
+              <p className="text-xs text-muted-foreground/60">Browse and Login are the only activities relevant to app-level blocking.</p>
+              <div className="flex gap-1.5">
+                {APP_ACCESS_ACTIVITIES.map(act => (
+                  <span key={act} className="inline-flex items-center px-2.5 py-1 rounded-lg border border-purple-500/25 bg-purple-500/10 text-xs font-medium text-purple-400">{ACTIVITY_LABELS[act]}</span>
+                ))}
+              </div>
+            </div>
+          </WizardSection>
+        ) : (
+          <WizardSection title="Activities" note="Which GenAI actions this policy monitors">
+            <div className="flex flex-wrap gap-1.5">
+              {GENAI_ACTIVITIES.map(act => (
+                <ChipToggle
+                  key={act}
+                  active={state.activities.has(act)}
+                  label={ACTIVITY_LABELS[act]}
+                  color="bg-blue-500/10 text-blue-400 border-blue-500/20"
+                  onClick={() => update({ activities: toggleSet(state.activities, act) })}
+                />
+              ))}
+            </div>
+          </WizardSection>
+        )}
 
         <WizardSection title="Specific Apps" note="Optional — limits this policy to specific apps instead of all apps in the selected categories">
           {state.specificAppIds.size > 0 && (

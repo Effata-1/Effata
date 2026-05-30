@@ -65,6 +65,7 @@ export function uiActionToFlags(code: UiActionCode): {
 
 export const VALID_ACTIVITIES = [
   'browse',
+  'login',
   'post',
   'prompt_submit',
   'upload',
@@ -80,6 +81,7 @@ export type NpjActivity = typeof VALID_ACTIVITIES[number]
 
 export const ACTIVITY_LABELS: Record<NpjActivity, string> = {
   browse:        'Browse',
+  login:         'Login',
   post:          'Post',
   prompt_submit: 'Prompt Submit',
   upload:        'Upload',
@@ -91,10 +93,14 @@ export const ACTIVITY_LABELS: Record<NpjActivity, string> = {
   email_send:    'Email Send',
 }
 
-// Subset shown in the GenAI policy wizard (most relevant for GenAI channel)
+// Activities shown in GenAI policy controls — share/copy_paste/print/email_send are endpoint/email
+// channel activities, not applicable to GenAI apps.
 export const GENAI_ACTIVITIES: NpjActivity[] = [
-  'browse', 'post', 'prompt_submit', 'upload', 'download', 'response',
+  'browse', 'login', 'post', 'prompt_submit', 'upload', 'download', 'response',
 ]
+
+// Activities for govern_app_access intent (app-level access block — no data detection)
+export const APP_ACCESS_ACTIVITIES: NpjActivity[] = ['browse', 'login']
 
 // ── Canonical condition types ─────────────────────────────────────────────────
 
