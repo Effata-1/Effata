@@ -387,8 +387,7 @@ function VendorTabContent({ vendorId, translation, policyId }: VendorTabProps) {
   }
 
   const report = translation?.mapping_report
-  const hasMissingMappings = (report?.customer_mapping_required?.length ?? 0) > 0
-  const canVerify = translation && ['translated', 'partial'].includes(optimisticStatus) && !hasMissingMappings
+  const canVerify = translation && ['translated', 'partial'].includes(optimisticStatus)
   const canDefer  = translation && ['translated', 'partial'].includes(optimisticStatus)
   const isVerified = optimisticStatus === 'verified'
   const isDeferred = optimisticStatus === 'deferred'
@@ -468,26 +467,16 @@ function VendorTabContent({ vendorId, translation, policyId }: VendorTabProps) {
               Defer
             </button>
           )}
-          {!isVerified && ['translated', 'partial'].includes(optimisticStatus) && (
-            hasMissingMappings ? (
-              <span
-                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-muted/50 text-muted-foreground/50 border border-border/50 cursor-not-allowed"
-                title="Configure required mappings before marking verified"
-              >
-                <CheckCircle className="w-3 h-3" />
-                Mark Verified
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={handleVerify}
-                disabled={isPending}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-emerald-600/80 text-white hover:bg-emerald-600 border border-emerald-600/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <CheckCircle className="w-3 h-3" />
-                Mark Verified
-              </button>
-            )
+          {canVerify && !isVerified && (
+            <button
+              type="button"
+              onClick={handleVerify}
+              disabled={isPending}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-emerald-600/80 text-white hover:bg-emerald-600 border border-emerald-600/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <CheckCircle className="w-3 h-3" />
+              Mark Verified
+            </button>
           )}
           {isVerified && (
             <span className="flex items-center gap-1 text-xs text-emerald-400">
@@ -551,46 +540,6 @@ function VendorTabContent({ vendorId, translation, policyId }: VendorTabProps) {
             <SummaryRow label="Lossy Mappings"  value={String(report.lossy_mappings.length)}   valueClass={report.lossy_mappings.length > 0 ? 'text-amber-400' : 'text-muted-foreground/70'} />
             <SummaryRow label="Tests Required"  value={String(report.tests_required.length)}   valueClass={report.tests_required.length > 0 ? 'text-orange-400' : 'text-muted-foreground/70'} />
           </div>
-        </div>
-      )}
-
-      {/* Customer Mapping Required — must be resolved before marking verified */}
-      {(report?.customer_mapping_required?.length ?? 0) > 0 && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-semibold text-red-400">Customer Mapping Required</p>
-            <a
-              href="/genai-controls/vendor-mapping/netskope"
-              className="text-xs text-red-400 hover:text-red-300 underline shrink-0"
-            >
-              Add mapping →
-            </a>
-          </div>
-          <p className="text-xs text-red-400/80">
-            These mappings are missing in your Netskope tenant configuration. The translation output contains
-            placeholders — do not deploy until all gaps are resolved.
-          </p>
-          <ul className="space-y-1">
-            {(report?.customer_mapping_required ?? []).map((item, i) => (
-              <li key={i} className="flex items-start gap-2">
-                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-                <span className="text-xs text-red-400/80 leading-relaxed">{item}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Native Policies — placeholder banner when not deployment-ready */}
-      {translation.native_policies.some(np => (np as Record<string, unknown>)._deployment_ready === false) && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3">
-          <p className="text-xs font-semibold text-amber-400">
-            ⚠ Placeholder output only — do not implement until required Netskope mappings are configured.
-          </p>
-          <p className="text-xs text-amber-400/70 mt-1">
-            One or more native policies contain placeholder destination values. Configure app category mappings
-            in <a href="/genai-controls/vendor-mapping/netskope" className="underline hover:text-amber-300">Vendor Mapping</a>, then re-translate.
-          </p>
         </div>
       )}
 
@@ -963,6 +912,9 @@ function NetskopeCard({ policy }: { policy: Record<string, unknown> }) {
         </div>
       </div>
 
+      {/* Implementation Guide */}
+      <NetskopeImplementationGuide policy={policy} />
+
       {/* Raw JSON toggle */}
       <div className="px-5 py-3">
         <button
@@ -979,6 +931,174 @@ function NetskopeCard({ policy }: { policy: Record<string, unknown> }) {
         )}
       </div>
 
+    </div>
+  )
+}
+
+// ── Netskope Implementation Guide ─────────────────────────────────────────────
+
+function NetskopeImplementationGuide({ policy }: { policy: Record<string, unknown> }) {
+  const [expanded, setExpanded] = useState(false)
+
+  const profileAction = policy.profile_action as { dlp_profiles: string[]; action: string; notification_template: string | null } | null
+  const policyAction  = (profileAction?.action ?? policy.action) as string
+  const destination   = policy.destination as Record<string, unknown> | undefined
+  const activities    = (destination?.activities ?? []) as string[]
+  const dlpProfiles   = profileAction?.dlp_profiles ?? []
+  const notifTemplate = profileAction?.notification_template ?? null
+  const isCoach       = policyAction === 'Coach'
+  const hasDLP        = dlpProfiles.length > 0
+  const group         = policy.group as string | undefined
+
+  let stepNum = 0
+  const step = (title: string, navPath: string, content: React.ReactNode) => {
+    stepNum++
+    return (
+      <div key={stepNum} className="border-l-2 border-blue-500/20 pl-3 space-y-1.5">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold text-blue-400/60 uppercase tracking-wider">Step {stepNum}</span>
+          <span className="text-xs font-semibold text-foreground/80">{title}</span>
+        </div>
+        <p className="text-[10px] font-mono text-muted-foreground/45">{navPath}</p>
+        <div className="text-xs text-muted-foreground/70 leading-relaxed space-y-1.5">
+          {content}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="border-t border-border/40 px-5 py-3">
+      <button
+        type="button"
+        onClick={() => setExpanded(e => !e)}
+        className="flex items-center gap-1.5 text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+      >
+        <span>{expanded ? '▼' : '▶'}</span>
+        How to implement in Netskope
+      </button>
+
+      {expanded && (
+        <div className="mt-4 space-y-5">
+
+          {/* Step 1 — App Scope */}
+          {step(
+            'Define App Scope',
+            'Netskope Console → Policies → App Categories',
+            <>
+              <p>Choose how to scope this policy&apos;s destination in your Netskope tenant:</p>
+              <div className="space-y-2 pl-2">
+                <div>
+                  <span className="font-semibold text-foreground/75">Option A — Custom App Category</span>
+                  <span className="text-muted-foreground/60"> (precise)</span>
+                  <p className="mt-0.5">
+                    Go to <span className="font-mono text-[10px] bg-muted/40 px-1 py-0.5 rounded">Policies → App Categories → New Custom App Category</span>.
+                    Name it after your governance tier (e.g. &ldquo;Prohibited GenAI Apps&rdquo;), add your specific apps,
+                    then reference this category as the policy destination.
+                  </p>
+                </div>
+                <div>
+                  <span className="font-semibold text-foreground/75">Option B — Built-in &ldquo;Generative AI&rdquo; category</span>
+                  <span className="text-muted-foreground/60"> (broad)</span>
+                  <p className="mt-0.5">
+                    Use Netskope&apos;s built-in Generative AI destination category. Covers all apps Netskope
+                    classifies as GenAI — no setup required. Best when broad coverage is sufficient.
+                  </p>
+                </div>
+                <p className="text-muted-foreground/50 text-[11px]">
+                  Tip: You can also use <span className="font-mono text-[10px]">Tag Manager</span> to tag apps
+                  with your governance tier name and reference the tag as the destination.
+                </p>
+              </div>
+            </>,
+          )}
+
+          {/* Step 2 — DLP Profile (conditional) */}
+          {hasDLP && step(
+            'Set Up DLP Profile',
+            'Netskope Console → Policies → DLP',
+            <>
+              <p>
+                This policy uses a DLP profile to inspect content. Suggested profile name(s) from the translation:
+              </p>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {dlpProfiles.map((name, i) => (
+                  <span key={i} className="font-mono text-[11px] bg-muted/40 border border-border/50 px-2 py-0.5 rounded text-foreground/75">
+                    {name}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-1">
+                If a matching profile already exists in your tenant, use it. Otherwise create a new DLP Profile
+                under <span className="font-mono text-[10px] bg-muted/40 px-1 py-0.5 rounded">Policies → DLP</span> with
+                detection rules covering your required data types, then reference it by name in this policy.
+              </p>
+            </>,
+          )}
+
+          {/* Step 3 — Notification Template (conditional) */}
+          {isCoach && notifTemplate && step(
+            'Create User Notification Template',
+            'Netskope Console → Policies → User Notifications',
+            <>
+              <p>
+                This coach policy shows a message to users when triggered. Suggested template name:{' '}
+                <span className="font-mono text-[11px] bg-muted/40 border border-border/50 px-1.5 py-0.5 rounded text-foreground/75">
+                  {notifTemplate}
+                </span>
+              </p>
+              <p className="mt-1">
+                Go to <span className="font-mono text-[10px] bg-muted/40 px-1 py-0.5 rounded">Policies → User Notifications → New Template</span>.
+                Write your coaching message, save the template, then reference it in the policy action below.
+              </p>
+            </>,
+          )}
+
+          {/* Step 4 — Create the Policy */}
+          {step(
+            'Create the Real-time Protection Policy',
+            'Netskope Console → Policies → Real-time Protection → New Policy',
+            <div className="space-y-1">
+              <p>Configure the policy using the values shown above:</p>
+              <ul className="space-y-0.5 pl-3 list-disc list-outside marker:text-muted-foreground/40">
+                <li><span className="font-medium text-foreground/75">Source:</span> All Users — refine to specific groups or OUs after initial setup</li>
+                <li><span className="font-medium text-foreground/75">Destination:</span> your app category from Step 1</li>
+                <li><span className="font-medium text-foreground/75">Activities:</span> {activities.join(', ') || '—'}</li>
+                {hasDLP ? (
+                  <li>
+                    <span className="font-medium text-foreground/75">DLP Profile:</span>{' '}
+                    {dlpProfiles.join(', ')} →{' '}
+                    <span className="font-medium text-foreground/75">Action:</span> {policyAction}
+                  </li>
+                ) : (
+                  <li>
+                    <span className="font-medium text-foreground/75">Action:</span> {policyAction} — applies to all content matching the destination and activities (no DLP content inspection)
+                  </li>
+                )}
+                {isCoach && notifTemplate && (
+                  <li><span className="font-medium text-foreground/75">User Notification:</span> your template from Step 3</li>
+                )}
+                <li><span className="font-medium text-foreground/75">Policy Group:</span> {group ?? '2. DLP Policies'}</li>
+              </ul>
+            </div>,
+          )}
+
+          {/* Step 5 — Policy Order */}
+          {step(
+            'Verify Policy Order',
+            'Netskope Console → Policies → Real-time Protection',
+            <>
+              <p>Netskope evaluates policies top-to-bottom. Ensure:</p>
+              <ul className="space-y-0.5 pl-3 list-disc list-outside marker:text-muted-foreground/40 mt-1">
+                <li>Allow rules for approved apps sit <span className="font-semibold text-foreground/75">above</span> Block / DLP rules for the same destination</li>
+                <li>This policy is placed in group: <span className="font-mono text-[11px] bg-muted/40 px-1 py-0.5 rounded">{group ?? '—'}</span></li>
+              </ul>
+              <p className="mt-1 text-muted-foreground/50 text-[11px]">Drag policies to reorder them within the Netskope console.</p>
+            </>,
+          )}
+
+        </div>
+      )}
     </div>
   )
 }

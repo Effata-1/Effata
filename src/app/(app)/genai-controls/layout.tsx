@@ -12,7 +12,6 @@ const ITEMS = [
   { label: 'App Catalog',         href: '/genai-controls/apps' },
   { label: 'Control Matrix',      href: '/genai-controls/control-matrix' },
   { label: 'Sensitivity Labels',  href: '/genai-controls/sensitivity-labels' },
-  { label: 'Vendor Mapping',      href: '/genai-controls/vendor-mapping/netskope' },
   { label: 'Translation',         href: '/genai-controls/translation' },
   { label: 'Presentation',        href: '/genai-controls/presentation' },
   { label: 'Refresh Logs',        href: '/genai-controls/refresh-logs' },
