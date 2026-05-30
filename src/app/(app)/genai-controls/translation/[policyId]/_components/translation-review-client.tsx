@@ -86,27 +86,29 @@ interface Policy {
 }
 
 interface MappingReport {
-  exact_mappings:        string[]
-  lossy_mappings:        string[]
-  unsupported_intent:    string[]
-  unverified_vendor_areas: string[]
-  tests_required:        string[]
+  exact_mappings:            string[]
+  lossy_mappings:            string[]
+  unsupported_intent:        string[]
+  unverified_vendor_areas:   string[]
+  tests_required:            string[]
+  customer_mapping_required: string[]  // missing tenant mappings blocking exact translation
 }
 
 interface Translation {
-  id:                        string
-  vendor_id:                 string
-  status:                    string
-  native_policies:           object[]
-  mapping_report:            MappingReport
-  adapter_version:           string | null
+  id:                          string
+  vendor_id:                   string
+  status:                      string
+  native_policies:             object[]
+  mapping_report:              MappingReport
+  adapter_version:             string | null
   capability_registry_version: string | null
-  neutral_policy_hash:       string | null
-  reviewed_by:               string | null
-  reviewed_at:               string | null
-  exported_at:               string | null
-  created_at:                string
-  updated_at:                string
+  customer_mapping_version:    string | null
+  neutral_policy_hash:         string | null
+  reviewed_by:                 string | null
+  reviewed_at:                 string | null
+  exported_at:                 string | null
+  created_at:                  string
+  updated_at:                  string
 }
 
 interface Props {
@@ -384,12 +386,12 @@ function VendorTabContent({ vendorId, translation, policyId }: VendorTabProps) {
     }, 3000)
   }
 
-  const canVerify = translation && ['translated', 'partial'].includes(optimisticStatus)
+  const report = translation?.mapping_report
+  const hasMissingMappings = (report?.customer_mapping_required?.length ?? 0) > 0
+  const canVerify = translation && ['translated', 'partial'].includes(optimisticStatus) && !hasMissingMappings
   const canDefer  = translation && ['translated', 'partial'].includes(optimisticStatus)
   const isVerified = optimisticStatus === 'verified'
   const isDeferred = optimisticStatus === 'deferred'
-
-  const report = translation?.mapping_report
 
   if (!translation || translation.status === 'pending') {
     return (
@@ -430,7 +432,13 @@ function VendorTabContent({ vendorId, translation, policyId }: VendorTabProps) {
             )}
           </div>
           {translation.adapter_version && (
-            <span className="text-xs text-muted-foreground/50">v{translation.adapter_version}</span>
+            <span className="text-xs text-muted-foreground/50">adapter v{translation.adapter_version}</span>
+          )}
+          {translation.capability_registry_version && (
+            <span className="text-xs text-muted-foreground/50">catalog {translation.capability_registry_version}</span>
+          )}
+          {translation.customer_mapping_version && (
+            <span className="text-xs text-muted-foreground/50">mappings {translation.customer_mapping_version.slice(0, 8)}</span>
           )}
           {translation.reviewed_at && (
             <span className="text-xs text-muted-foreground/60 flex items-center gap-1">
@@ -460,16 +468,26 @@ function VendorTabContent({ vendorId, translation, policyId }: VendorTabProps) {
               Defer
             </button>
           )}
-          {canVerify && !isVerified && (
-            <button
-              type="button"
-              onClick={handleVerify}
-              disabled={isPending}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-emerald-600/80 text-white hover:bg-emerald-600 border border-emerald-600/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <CheckCircle className="w-3 h-3" />
-              Mark Verified
-            </button>
+          {!isVerified && ['translated', 'partial'].includes(optimisticStatus) && (
+            hasMissingMappings ? (
+              <span
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-muted/50 text-muted-foreground/50 border border-border/50 cursor-not-allowed"
+                title="Configure required mappings before marking verified"
+              >
+                <CheckCircle className="w-3 h-3" />
+                Mark Verified
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleVerify}
+                disabled={isPending}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-emerald-600/80 text-white hover:bg-emerald-600 border border-emerald-600/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <CheckCircle className="w-3 h-3" />
+                Mark Verified
+              </button>
+            )
           )}
           {isVerified && (
             <span className="flex items-center gap-1 text-xs text-emerald-400">
@@ -533,6 +551,46 @@ function VendorTabContent({ vendorId, translation, policyId }: VendorTabProps) {
             <SummaryRow label="Lossy Mappings"  value={String(report.lossy_mappings.length)}   valueClass={report.lossy_mappings.length > 0 ? 'text-amber-400' : 'text-muted-foreground/70'} />
             <SummaryRow label="Tests Required"  value={String(report.tests_required.length)}   valueClass={report.tests_required.length > 0 ? 'text-orange-400' : 'text-muted-foreground/70'} />
           </div>
+        </div>
+      )}
+
+      {/* Customer Mapping Required — must be resolved before marking verified */}
+      {report && report.customer_mapping_required.length > 0 && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold text-red-400">Customer Mapping Required</p>
+            <a
+              href="/genai-controls/vendor-mapping/netskope"
+              className="text-xs text-red-400 hover:text-red-300 underline shrink-0"
+            >
+              Add mapping →
+            </a>
+          </div>
+          <p className="text-xs text-red-400/80">
+            These mappings are missing in your Netskope tenant configuration. The translation output contains
+            placeholders — do not deploy until all gaps are resolved.
+          </p>
+          <ul className="space-y-1">
+            {report.customer_mapping_required.map((item, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+                <span className="text-xs text-red-400/80 leading-relaxed">{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Native Policies — placeholder banner when not deployment-ready */}
+      {translation.native_policies.some(np => (np as Record<string, unknown>)._deployment_ready === false) && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+          <p className="text-xs font-semibold text-amber-400">
+            ⚠ Placeholder output only — do not implement until required Netskope mappings are configured.
+          </p>
+          <p className="text-xs text-amber-400/70 mt-1">
+            One or more native policies contain placeholder destination values. Configure app category mappings
+            in <a href="/genai-controls/vendor-mapping/netskope" className="underline hover:text-amber-300">Vendor Mapping</a>, then re-translate.
+          </p>
         </div>
       )}
 

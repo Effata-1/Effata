@@ -25,7 +25,7 @@ export default async function TranslationReviewPage({ params }: Props) {
       .maybeSingle(),
     supabase
       .from('org_vendor_translations')
-      .select('id, vendor_id, status, native_policies, mapping_report, adapter_version, capability_registry_version, neutral_policy_hash, reviewed_by, reviewed_at, exported_at, created_at, updated_at')
+      .select('id, vendor_id, status, native_policies, mapping_report, adapter_version, capability_registry_version, neutral_policy_hash, customer_mapping_version, reviewed_by, reviewed_at, exported_at, created_at, updated_at')
       .eq('org_id', user.orgId)
       .eq('policy_id', policyId),
     supabase
