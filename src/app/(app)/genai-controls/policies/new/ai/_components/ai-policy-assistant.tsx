@@ -443,8 +443,7 @@ export function AiPolicyAssistant({ apps: _apps, categories, ruleItems, vendors 
 
     setCreating(false)
     if (res.error) { setCreateError(res.error); return }
-    if (res.id) router.push(`/genai-controls/policies/${res.id}/edit`)
-    else router.push('/genai-controls/policies')
+    router.push('/genai-controls/policies')
   }
 
   function handleReset() {
