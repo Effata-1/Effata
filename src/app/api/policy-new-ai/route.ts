@@ -28,7 +28,9 @@ export async function POST(req: NextRequest) {
   })
 
   if (!upstream.ok) {
-    return new Response(await upstream.text(), { status: upstream.status })
+    const body = await upstream.text()
+    const msg = body.includes('<') ? `Backend unavailable (${upstream.status} ${upstream.statusText})` : body
+    return new Response(msg, { status: upstream.status })
   }
 
   return new Response(upstream.body, {
