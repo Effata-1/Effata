@@ -620,23 +620,84 @@ function parseEvalError(rawError: string, searchTerm: string): {
   message:     string
   suggestions: string[]
 } {
+  const errLower = rawError.toLowerCase()
+
+  // Service-level failures — show actionable guidance before app-specific hints
+  const isTimeout     = errLower.includes('abort') || errLower.includes('timed out') || errLower.includes('timeout')
+  const isAuthError   = errLower.includes('authentication') || errLower.includes('invalid api key') || errLower.includes('api_key') || errLower.includes('401')
+  const isRateLimit   = errLower.includes('rate_limit') || errLower.includes('rate limit') || errLower.includes('429') || errLower.includes('too many request')
+  const isServiceDown = errLower.includes('econnrefused') || errLower.includes('fetch failed') || errLower.includes('railway api error 5') || errLower.includes('not configured')
+
+  if (isTimeout) {
+    return {
+      title:   'Evaluation timed out',
+      message: 'The AI evaluation took too long to complete — the service may be under high load. Please try again in a moment.',
+      suggestions: ['Try again — timeouts are usually temporary', 'If it keeps timing out, try a well-known app name like "ChatGPT" or "Claude"'],
+    }
+  }
+
+  if (isAuthError) {
+    return {
+      title:   'AI service not available',
+      message: 'The evaluation service is not authorised. This is a configuration issue — please contact support.',
+      suggestions: ['Contact your administrator to verify the AI service configuration'],
+    }
+  }
+
+  if (isRateLimit) {
+    return {
+      title:   'Service rate limited',
+      message: 'Too many evaluation requests in a short time. Please wait a minute and try again.',
+      suggestions: ['Wait 60 seconds and try again', 'Search by exact product name for a faster result'],
+    }
+  }
+
+  if (isServiceDown) {
+    return {
+      title:   'Evaluation service unavailable',
+      message: 'The AI evaluation service is temporarily unreachable. Please try again shortly.',
+      suggestions: ['Try again in a few minutes', 'Check your network connection'],
+    }
+  }
+
   const isAiRefusal  = rawError.includes('Unexpected token') || rawError.includes('not valid JSON') || rawError.includes('not able')
   const isNotRecog   = rawError.includes("doesn't appear to be a known GenAI application")
 
   const termLower = searchTerm.toLowerCase()
   const appHints: string[] = []
-  if (termLower.includes('chatgpt') || termLower.includes('openai') || termLower.includes('open'))
+
+  if (termLower.includes('chatgpt') || termLower.includes('openai'))
     appHints.push('Try "ChatGPT" or the domain "openai.com"')
   if (termLower.includes('claude') || termLower.includes('claw') || termLower.includes('anthropic'))
     appHints.push('Try "Claude" or the domain "claude.ai"')
-  if (termLower.includes('gemini') || termLower.includes('google'))
+  if (termLower.includes('gemini') || termLower.includes('google') || termLower.includes('bard'))
     appHints.push('Try "Google Gemini" or "gemini.google.com"')
   if (termLower.includes('copilot') || termLower.includes('microsoft') || termLower.includes('bing'))
     appHints.push('Try "Microsoft Copilot" or "copilot.microsoft.com"')
-  if (termLower.includes('gpt'))
+  if (termLower.includes('gpt') && !termLower.includes('chatgpt'))
     appHints.push('Try "ChatGPT" for OpenAI\'s flagship model')
   if (termLower.includes('perplexity'))
     appHints.push('Try "Perplexity AI" or "perplexity.ai"')
+  if (termLower.includes('articulate'))
+    appHints.push('Try "Articulate 360" or the domain "articulate.com"')
+  if (termLower.includes('midjourney') || termLower.includes('mid journey'))
+    appHints.push('Try "Midjourney" or "midjourney.com"')
+  if (termLower.includes('notion'))
+    appHints.push('Try "Notion AI" or "notion.so"')
+  if (termLower.includes('grammarly'))
+    appHints.push('Try "Grammarly" or "grammarly.com"')
+  if (termLower.includes('jasper'))
+    appHints.push('Try "Jasper AI" or "jasper.ai"')
+  if (termLower.includes('runway'))
+    appHints.push('Try "Runway ML" or "runwayml.com"')
+  if (termLower.includes('adobe') || termLower.includes('firefly'))
+    appHints.push('Try "Adobe Firefly" or "firefly.adobe.com"')
+  if (termLower.includes('canva'))
+    appHints.push('Try "Canva AI" or "canva.com"')
+  if (termLower.includes('github'))
+    appHints.push('Try "GitHub Copilot" or "github.com/features/copilot"')
+  if (termLower.includes('mistral') || termLower.includes('llama') || termLower.includes('groq'))
+    appHints.push('Search by the exact model provider domain (e.g. "mistral.ai", "groq.com")')
 
   const defaultSuggestions = [
     'Use the full product name (e.g. "ChatGPT", "Google Gemini", "Microsoft Copilot")',
@@ -663,13 +724,13 @@ function parseEvalError(rawError: string, searchTerm: string): {
     }
   }
 
+  // Generic server/network error — still show app-specific hints if we recognise the term
   return {
     title:   'Evaluation failed',
     message: 'Something went wrong while evaluating this application. Please try again.',
-    suggestions: [
-      'Check your network connection and retry',
-      ...defaultSuggestions.slice(0, 2),
-    ],
+    suggestions: appHints.length > 0
+      ? ['Check your network connection and retry', ...appHints]
+      : ['Check your network connection and retry', ...defaultSuggestions.slice(0, 2)],
   }
 }
 

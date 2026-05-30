@@ -62,7 +62,12 @@ export async function evaluateApp(
 
     return { data: response.data }
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    return { error: `Evaluation failed: ${msg}` }
+    let msg = err instanceof Error ? err.message : String(err)
+    // Backend returns JSON errors: {"error":"..."} — unwrap to get the real message
+    try {
+      const parsed = JSON.parse(msg) as Record<string, unknown>
+      if (typeof parsed.error === 'string') msg = parsed.error
+    } catch {}
+    return { error: msg }
   }
 }
