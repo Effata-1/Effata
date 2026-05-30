@@ -561,6 +561,14 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
   const [colPickerOpen, setColPickerOpen]     = useState(false)
   const colPickerRef                          = useRef<HTMLDivElement>(null)
 
+  // Close new-policy modal on Escape
+  useEffect(() => {
+    if (!showNewModal) return
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setShowNewModal(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [showNewModal])
+
   // Hydrate column visibility from localStorage after mount
   useEffect(() => {
     try {
