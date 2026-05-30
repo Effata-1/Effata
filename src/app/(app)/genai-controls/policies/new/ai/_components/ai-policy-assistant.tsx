@@ -43,6 +43,7 @@ interface NeutralPolicyJson {
   intent?:         string
   policy_family?:  string
   scope?: {
+    users?:          string[]
     activities?:     string[]
     channels?:       string[]
     app_categories?: Array<{ id: string; system_tag: string | null; name: string }>
@@ -144,12 +145,17 @@ function parsePolicyProposal(text: string): PolicyProposal | null {
 }
 
 function normalizeProposal(p: PolicyProposal): PolicyProposal {
-  if (p.npj?.intent !== 'govern_app_access') return p
+  const users = (p.npj.scope?.users?.length ?? 0) > 0 ? p.npj.scope!.users! : ['All Users']
+  const baseNpj: NeutralPolicyJson = {
+    ...p.npj,
+    scope: { ...p.npj.scope, users },
+  }
+  if (p.npj?.intent !== 'govern_app_access') return { ...p, npj: baseNpj }
   return {
     ...p,
     npj: {
-      ...p.npj,
-      scope:   { ...p.npj.scope,   activities: ['browse', 'login'] },
+      ...baseNpj,
+      scope:   { ...baseNpj.scope, activities: ['browse', 'login'] },
       content: { operator: p.npj.content?.operator ?? 'any', conditions: [] },
     },
   }
@@ -192,6 +198,74 @@ function NpjRow({ label, children }: { label: string; children: React.ReactNode 
     <div className="flex items-start gap-0 px-5 py-3 border-b border-border/40 last:border-0">
       <span className="w-44 shrink-0 text-[11px] font-bold uppercase tracking-widest text-muted-foreground/40 pt-0.5">{label}</span>
       <div className="flex-1 min-w-0">{children}</div>
+    </div>
+  )
+}
+
+// ── UsersEditor ───────────────────────────────────────────────────────────────
+
+function UsersEditor({ users, onChange }: { users: string[]; onChange: (u: string[]) => void }) {
+  const [inputVal, setInputVal] = useState('')
+
+  function add(raw: string) {
+    const trimmed = raw.trim()
+    if (!trimmed || users.includes(trimmed)) { setInputVal(''); return }
+    onChange([...users.filter(u => u !== 'All Users'), trimmed])
+    setInputVal('')
+  }
+
+  function remove(u: string) {
+    const next = users.filter(x => x !== u)
+    onChange(next.length === 0 ? ['All Users'] : next)
+  }
+
+  function resetToAll() {
+    onChange(['All Users'])
+  }
+
+  return (
+    <div>
+      <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-2">Users / Source</p>
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {users.map(u => (
+          <span key={u} className={cn(
+            'inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-xs',
+            u === 'All Users'
+              ? 'border-border bg-muted/40 text-muted-foreground/70'
+              : 'border-blue-500/25 bg-blue-500/10 text-blue-400',
+          )}>
+            {u}
+            {u !== 'All Users' && (
+              <button type="button" onClick={() => remove(u)} className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity">×</button>
+            )}
+          </span>
+        ))}
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          value={inputVal}
+          onChange={e => setInputVal(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add(inputVal) }
+          }}
+          placeholder="Add group (e.g. HR, Finance)…"
+          className="flex-1 rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+        />
+        <button
+          type="button"
+          onClick={() => add(inputVal)}
+          disabled={!inputVal.trim()}
+          className="px-2.5 py-1.5 text-xs rounded-lg bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+        >
+          Add
+        </button>
+        {!users.includes('All Users') && (
+          <button type="button" onClick={resetToAll} className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+            Reset to All Users
+          </button>
+        )}
+      </div>
+      <p className="text-[10px] text-muted-foreground/40 mt-1.5">Press Enter or comma to add. Leave as &ldquo;All Users&rdquo; to apply to everyone.</p>
     </div>
   )
 }
@@ -350,6 +424,12 @@ function PolicyProposalCard({
               ))}
             </div>
           </div>
+
+          {/* Users */}
+          <UsersEditor
+            users={draft.npj.scope?.users ?? ['All Users']}
+            onChange={users => setDraft(p => ({ ...p, npj: { ...p.npj, scope: { ...p.npj.scope, users } } }))}
+          />
 
           {/* Activities */}
           <div>
@@ -582,6 +662,20 @@ function PolicyProposalCard({
           <div className="rounded-xl border border-border bg-card overflow-hidden">
             <NpjRow label="Policy Family">
               <span className="text-sm text-foreground/80">{npj.policy_family ?? '—'}</span>
+            </NpjRow>
+            <NpjRow label="Users">
+              <div className="flex flex-wrap gap-1.5">
+                {(npj.scope?.users ?? ['All Users']).map((u, i) => (
+                  <span key={i} className={cn(
+                    'inline-flex items-center px-2 py-0.5 rounded-md border text-xs',
+                    u === 'All Users'
+                      ? 'border-border bg-muted/40 text-muted-foreground/70'
+                      : 'border-blue-500/25 bg-blue-500/10 text-blue-400',
+                  )}>
+                    {u}
+                  </span>
+                ))}
+              </div>
             </NpjRow>
             <NpjRow label="Activities">
               <div className="flex flex-wrap gap-1.5">
