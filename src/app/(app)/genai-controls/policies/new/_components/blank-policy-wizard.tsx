@@ -14,6 +14,7 @@ import {
   type NpjIntent, type NpjActivity, type UiActionCode,
 } from '@/lib/genai/npj-schema'
 import { upsertPolicy } from '../../actions'
+import type { ActionCode, PolicyType } from '@/lib/genai/types'
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Lock, Plus, X } from 'lucide-react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -197,6 +198,19 @@ function buildConditions(keys: string[], ruleItems: RuleItem[]) {
       ...(key.startsWith('cat:') ? { confidence: 'medium' } : {}),
     }
   })
+}
+
+function intentToPolicyType(intent: string): PolicyType {
+  switch (intent) {
+    case 'prevent_exfiltration':
+    case 'detect_only':
+    case 'coach_user':
+    case 'label_or_classify':
+    case 'govern_data_at_rest': return 'data-handling'
+    case 'allow_approved_use':  return 'approved-use'
+    case 'govern_app_access':   return 'usage'
+    default:                    return 'usage'
+  }
 }
 
 function buildNpj(state: WizardState, categories: CategoryRow[]) {
@@ -807,16 +821,20 @@ export function BlankPolicyWizard({ apps, categories, ruleItems, coachingTemplat
     setSaving(true)
     setSaveError('')
     const res = await upsertPolicy(null, {
-      name:                   state.policyName.trim(),
-      description:            state.description.trim() || undefined,
-      is_active:              true,
-      approval_status:        'draft',
+      name:                      state.policyName.trim(),
+      description:               state.description.trim() || undefined,
+      is_active:                 true,
+      approval_status:           'draft',
       vendor_translation_status: 'pending',
-      generated_from:         'manual',
-      policy_family:          state.policyFamily || null,
-      coaching_template_id:   state.coachTemplateId || null,
-      scope_app_ids:          [...state.specificAppIds],
-      neutral_policy_json:    npj as Record<string, unknown>,
+      generated_from:            'manual',
+      policy_family:             state.policyFamily || null,
+      coaching_template_id:      state.coachTemplateId || null,
+      scope_app_ids:             [...state.specificAppIds],
+      neutral_policy_json:       npj as Record<string, unknown>,
+      // Legacy fields for vendor adapter fallback (NPJ may fail strict NeutralPolicyV1Schema)
+      primary_action:            state.action as ActionCode,
+      policy_type:               intentToPolicyType(state.intent),
+      scope_all_apps:            state.categoryIds.size === 0 && state.specificAppIds.size === 0,
     })
     setSaving(false)
     if (res.error) { setSaveError(res.error); return }

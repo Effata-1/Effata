@@ -49,7 +49,7 @@ function ApplyDiffCard({ diff, policies, onApplied }: { diff: PolicyDiff; polici
   function handleApply() {
     setError(null)
     startTransition(async () => {
-      const result = await applyPolicyDiff({ policyId: diff.policyId, changes: diff.changes as Record<string, never> })
+      const result = await applyPolicyDiff({ policyId: diff.policyId, changes: diff.changes })
       if (result.error) {
         setError(result.error)
       } else {

@@ -200,7 +200,7 @@ const ALLOWED_DIFF_KEYS: Set<keyof PolicyFields> = new Set([
 
 export async function applyPolicyDiff(diff: {
   policyId: string
-  changes:  Record<string, never>
+  changes:  Record<string, unknown>
 }): Promise<{ error?: string }> {
   const user    = await requireRole('analyst')
   const supabase = await createClient()
