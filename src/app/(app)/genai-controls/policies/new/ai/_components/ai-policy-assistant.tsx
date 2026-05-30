@@ -344,7 +344,7 @@ export function AiPolicyAssistant({ apps: _apps, categories, ruleItems, vendors 
     return {
       intents:    [...VALID_INTENTS],
       categories: categories.map(c => ({ id: c.id, name: c.name, system_tag: c.system_tag })),
-      dataTypes:  ruleItems.map(r => ({
+      dataTypes:  ruleItems.slice(0, 50).map(r => ({
         key:         r.key,
         name:        r.name,
         sensitivity: r.layerLabel ?? r.name,
