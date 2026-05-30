@@ -4,8 +4,8 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  ChevronLeft, ChevronRight, Filter, MessageSquare, Pencil, Plus, Search, Settings,
-  ShieldAlert, ShieldCheck, Sparkles, Trash2, X,
+  ChevronLeft, ChevronRight, FileText, Filter, Library, MessageSquare, Pencil, Plus,
+  Search, Settings, ShieldAlert, ShieldCheck, Sparkles, Trash2, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { deletePolicy, generatePoliciesFromGovernance, getPolicyPackJobStatus, togglePolicyActive } from '../actions'
@@ -556,6 +556,7 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
   const [deleteTarget, setDeleteTarget]       = useState<{ id: string; name: string } | null>(null)
   const [selectedIds, setSelectedIds]         = useState<Set<string>>(new Set())
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
+  const [showNewModal, setShowNewModal]       = useState(false)
   const [visibleCols, setVisibleCols]         = useState<Set<ColumnId>>(DEFAULT_COLS)
   const [colPickerOpen, setColPickerOpen]     = useState(false)
   const colPickerRef                          = useRef<HTMLDivElement>(null)
@@ -866,6 +867,93 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
         </>
       )}
 
+      {/* New Policy Mode Selection Modal */}
+      {showNewModal && (
+        <>
+          <div
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowNewModal(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl rounded-2xl border border-border bg-card shadow-2xl p-6 space-y-5"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-base font-bold text-foreground">Create a New Policy</h2>
+                <p className="text-xs text-muted-foreground/60 mt-0.5">How would you like to create this policy?</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNewModal(false)}
+                className="text-muted-foreground/40 hover:text-foreground/70 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              {/* AI-Assisted */}
+              <button
+                type="button"
+                onClick={() => { setShowNewModal(false); router.push('/genai-controls/policies/new/ai') }}
+                className="flex flex-col items-start gap-3 p-4 rounded-xl border border-blue-500/25 bg-blue-500/5 hover:bg-blue-500/10 hover:border-blue-500/40 transition-colors text-left group"
+              >
+                <div className="w-9 h-9 rounded-lg bg-blue-500/15 border border-blue-500/25 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-blue-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-foreground group-hover:text-blue-400 transition-colors">AI-Assisted</p>
+                  <p className="text-xs text-muted-foreground/60 mt-0.5 leading-relaxed">
+                    Describe your requirement. AI drafts a full structured proposal for your review before anything is created.
+                  </p>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-md border border-blue-500/30 bg-blue-500/10 text-blue-400">
+                  Proposal required · NPJ from AI
+                </span>
+              </button>
+
+              {/* Blank Policy */}
+              <button
+                type="button"
+                onClick={() => { setShowNewModal(false); router.push('/genai-controls/policies/new') }}
+                className="flex flex-col items-start gap-3 p-4 rounded-xl border border-border bg-muted/20 hover:bg-muted/40 hover:border-border-strong transition-colors text-left group"
+              >
+                <div className="w-9 h-9 rounded-lg bg-muted/50 border border-border flex items-center justify-center">
+                  <FileText className="w-4 h-4 text-foreground/60" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-foreground">Blank Policy</p>
+                  <p className="text-xs text-muted-foreground/60 mt-0.5 leading-relaxed">
+                    Step-by-step structured wizard. You control every field. Creates a valid neutral policy from scratch.
+                  </p>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-md border border-border/60 bg-muted/30 text-muted-foreground/60">
+                  NPJ from step 1 · Full control
+                </span>
+              </button>
+
+              {/* Template Library — coming soon */}
+              <div className="flex flex-col items-start gap-3 p-4 rounded-xl border border-border/40 bg-muted/10 opacity-50 cursor-not-allowed">
+                <div className="w-9 h-9 rounded-lg bg-muted/30 border border-border/40 flex items-center justify-center">
+                  <Library className="w-4 h-4 text-muted-foreground/40" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-muted-foreground/60">Template Library</p>
+                  <p className="text-xs text-muted-foreground/40 mt-0.5 leading-relaxed">
+                    Start from a pre-built policy. Block secrets, coach confidential uploads, allow enterprise Copilot, and more.
+                  </p>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-md border border-border/40 bg-muted/20 text-muted-foreground/40">
+                  Coming soon
+                </span>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Floating "Refine with AI" button */}
       {policies.length > 0 && !chatOpen && (
         <button
@@ -1023,13 +1111,14 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
           )}
         </div>
 
-        <Link
-          href="/genai-controls/policies/new"
+        <button
+          type="button"
+          onClick={() => setShowNewModal(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
           New Policy
-        </Link>
+        </button>
       </div>
 
       {/* Active filter chips */}
@@ -1201,12 +1290,13 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                   <Sparkles className="w-3.5 h-3.5" />
                   {isGenerating ? 'Generating…' : 'Generate Policies'}
                 </button>
-                <Link
-                  href="/genai-controls/policies/new"
+                <button
+                  type="button"
+                  onClick={() => setShowNewModal(true)}
                   className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-md border border-border bg-card hover:bg-muted/40 text-foreground/70 transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" /> New Policy
-                </Link>
+                </button>
               </div>
             </>
           ) : (

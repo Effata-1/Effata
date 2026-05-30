@@ -3,10 +3,10 @@ import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import { ensureClassificationLabels } from '@/lib/data-catalog/actions'
-import { BlankPolicyWizard } from './_components/blank-policy-wizard'
-import type { RuleItem } from './_components/blank-policy-wizard'
+import { AiPolicyAssistant } from './_components/ai-policy-assistant'
+import type { RuleItem } from '../_components/blank-policy-wizard'
 
-export default async function NewPolicyPage() {
+export default async function AiPolicyPage() {
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
@@ -17,7 +17,6 @@ export default async function NewPolicyPage() {
     orgTypesResult,
     orgTypeMappingsResult,
     catalogTypesResult,
-    coachingTemplatesResult,
   ] = await Promise.all([
     supabase
       .from('genai_apps')
@@ -46,19 +45,13 @@ export default async function NewPolicyPage() {
       .eq('active', true)
       .order('priority')
       .order('name'),
-    supabase
-      .from('org_coaching_notifications')
-      .select('id, name, coach_label')
-      .eq('org_id', user.orgId)
-      .order('name'),
   ])
 
-  const apps              = appsResult.data              ?? []
-  const categories        = categoriesResult.data        ?? []
-  const orgTypes          = orgTypesResult.data          ?? []
-  const orgTypeMappings   = orgTypeMappingsResult.data   ?? []
-  const catalogTypes      = catalogTypesResult.data      ?? []
-  const coachingTemplates = coachingTemplatesResult.data ?? []
+  const apps     = appsResult.data     ?? []
+  const categories = categoriesResult.data ?? []
+  const orgTypes = orgTypesResult.data ?? []
+  const orgTypeMappings = orgTypeMappingsResult.data ?? []
+  const catalogTypes = catalogTypesResult.data ?? []
 
   const orgTypeLabelMap = new Map(
     orgTypeMappings.map(m => [m.org_data_type_id as string, m.org_classification_label_id as string]),
@@ -110,17 +103,16 @@ export default async function NewPolicyPage() {
         >
           <ChevronLeft className="h-3 w-3" /> Policy Library
         </Link>
-        <h1 className="text-xl font-bold text-foreground">New Blank Policy</h1>
+        <h1 className="text-xl font-bold text-foreground">AI-Assisted Policy</h1>
         <p className="text-sm text-muted-foreground/70 mt-0.5">
-          Step-by-step wizard — every field you set creates a valid neutral policy from the start.
+          Describe what you need — AI drafts a full structured proposal for your review before anything is created.
         </p>
       </div>
 
-      <BlankPolicyWizard
+      <AiPolicyAssistant
         apps={apps}
         categories={categories}
         ruleItems={ruleItems}
-        coachingTemplates={coachingTemplates}
       />
     </div>
   )

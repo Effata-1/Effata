@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import { callData } from '@/lib/api-client.server'
 import { logAuditEvent } from '@/lib/audit'
+import { validateNeutralPolicy } from '@/lib/genai/npj-schema'
 import type { ApprovalStatus, PolicyType, PolicyRule, ActionCode } from '@/lib/genai/types'
 
 export interface PolicyFields {
@@ -35,14 +36,24 @@ export interface PolicyFields {
   vendor_translation_status?: 'pending' | 'translated' | 'verified' | 'not-applicable' | 'deferred'
   required_dependencies?:     string[]
   test_status?:               'untested' | 'in-progress' | 'passed' | 'failed'
+  // neutral policy json — source of truth for structured policies
+  neutral_policy_json?:       Record<string, unknown> | null
 }
 
 export async function upsertPolicy(
   id: string | null,
   fields: PolicyFields,
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; id?: string }> {
   const user = await requireRole('analyst')
   const supabase = await createClient()
+
+  // Server-side NPJ validation — never trust client-side alone
+  if (fields.neutral_policy_json != null) {
+    const result = validateNeutralPolicy(fields.neutral_policy_json)
+    if (!result.valid) {
+      return { error: `Invalid neutral policy: ${result.errors.join('; ')}` }
+    }
+  }
 
   const payload = {
     org_id:     user.orgId,
@@ -51,13 +62,13 @@ export async function upsertPolicy(
     ...(id ? { id } : {}),
   }
 
-  const { error } = id
-    ? await supabase.from('org_genai_policies').upsert(payload, { onConflict: 'id' })
-    : await supabase.from('org_genai_policies').insert(payload)
+  const { data, error } = id
+    ? await supabase.from('org_genai_policies').upsert(payload, { onConflict: 'id' }).select('id').maybeSingle()
+    : await supabase.from('org_genai_policies').insert(payload).select('id').maybeSingle()
 
   if (error) return { error: error.message }
   revalidatePath('/genai-controls/policies')
-  return {}
+  return { id: (data as { id: string } | null)?.id }
 }
 
 export async function deletePolicy(id: string): Promise<{ error?: string }> {
@@ -162,7 +173,7 @@ const ALLOWED_DIFF_KEYS: Set<keyof PolicyFields> = new Set([
   'policy_family', 'data_classification_label', 'primary_action',
   'fallback_action', 'coaching_template_id', 'vendor_translation_status',
   'required_dependencies', 'test_status', 'review_date', 'next_review_date',
-  'effective_date',
+  'effective_date', 'neutral_policy_json',
 ])
 
 export async function applyPolicyDiff(diff: {
