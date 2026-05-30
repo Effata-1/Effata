@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { cn } from '@/lib/utils'
 import { colorClasses } from '@/lib/data-catalog/types'
 import type { OrgClassificationLabel, SystemLevel } from '@/lib/data-catalog/types'
-import { RotateCcw, Lock, ArrowRight } from 'lucide-react'
+import { RotateCcw, Lock, ArrowRight, Shield, CheckCircle2 } from 'lucide-react'
 import { upsertControlMatrixCell, deleteControlMatrixCell } from '../actions'
 
 // ── Action registry ───────────────────────────────────────────────────────────
@@ -279,6 +279,59 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
           )
         })}
       </div>
+
+      {/* ── App Access Posture ─────────────────────────────────────────────── */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-border/50 bg-muted/10">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+            App Access Posture
+          </p>
+          <p className="text-[10px] text-muted-foreground/40 mt-0.5">
+            Whether access to apps in this category is permitted or blocked at the network level (browse + login).
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 px-4 py-3">
+          {orderedCats.map(cat => {
+            const isBlocked  = cat.system_tag === 'prohibited'
+            const isApproved = cat.system_tag === 'enterprise-approved'
+            const isSelected = cat.id === selectedCat?.id
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedCatId(cat.id)}
+                className={cn(
+                  'inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition-all text-left',
+                  isSelected
+                    ? 'border-border bg-muted/20 ring-1 ring-primary/20'
+                    : 'border-border/30 opacity-55 hover:opacity-80',
+                )}
+              >
+                <span className={cn(
+                  'inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-semibold',
+                  isBlocked
+                    ? 'border-red-500/30 bg-red-500/10 text-red-400'
+                    : isApproved
+                      ? 'border-emerald-500/25 bg-emerald-500/5 text-emerald-400'
+                      : 'border-amber-500/20 bg-amber-500/5 text-amber-500',
+                )}>
+                  {isBlocked
+                    ? <><Lock className="h-2.5 w-2.5" /> Block Access</>
+                    : isApproved
+                      ? <><CheckCircle2 className="h-2.5 w-2.5" /> Allow</>
+                      : <><Shield className="h-2.5 w-2.5" /> Allow + DLP Controls</>
+                  }
+                </span>
+                <span className="text-[11px] text-muted-foreground/60 font-medium">{cat.name}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ── Data Controls label ─────────────────────────────────────────────── */}
+      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 px-1">
+        Data Controls
+      </p>
 
       {/* Matrix table */}
       <div className="rounded-xl border border-border overflow-hidden shadow-sm">
