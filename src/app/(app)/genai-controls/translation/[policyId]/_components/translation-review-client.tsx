@@ -555,7 +555,7 @@ function VendorTabContent({ vendorId, translation, policyId }: VendorTabProps) {
       )}
 
       {/* Customer Mapping Required — must be resolved before marking verified */}
-      {report && report.customer_mapping_required.length > 0 && (
+      {(report?.customer_mapping_required?.length ?? 0) > 0 && (
         <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 space-y-2">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-semibold text-red-400">Customer Mapping Required</p>
@@ -571,7 +571,7 @@ function VendorTabContent({ vendorId, translation, policyId }: VendorTabProps) {
             placeholders — do not deploy until all gaps are resolved.
           </p>
           <ul className="space-y-1">
-            {report.customer_mapping_required.map((item, i) => (
+            {(report?.customer_mapping_required ?? []).map((item, i) => (
               <li key={i} className="flex items-start gap-2">
                 <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
                 <span className="text-xs text-red-400/80 leading-relaxed">{item}</span>
