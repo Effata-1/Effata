@@ -626,7 +626,7 @@ function parseEvalError(rawError: string, searchTerm: string): {
   const isTimeout     = errLower.includes('abort') || errLower.includes('timed out') || errLower.includes('timeout')
   const isAuthError   = errLower.includes('authentication') || errLower.includes('invalid api key') || errLower.includes('api_key') || errLower.includes('401')
   const isRateLimit   = errLower.includes('rate_limit') || errLower.includes('rate limit') || errLower.includes('429') || errLower.includes('too many request')
-  const isServiceDown = errLower.includes('econnrefused') || errLower.includes('fetch failed') || errLower.includes('railway api error 5') || errLower.includes('not configured')
+  const isServiceDown = errLower.includes('econnrefused') || errLower.includes('fetch failed') || errLower.includes('railway api error 5') || errLower.includes('not configured') || errLower.includes('connection error') || errLower.includes('api_error') || errLower.includes('overloaded') || errLower.includes('529')
 
   if (isTimeout) {
     return {
