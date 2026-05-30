@@ -224,10 +224,17 @@ function getPolicyCategories(policy: GenAIPolicy, categories: Category[]): Categ
   if (!npj || typeof npj !== 'object') return []
   const scope = (npj as Record<string, unknown>).scope
   if (!scope || typeof scope !== 'object') return []
-  const tags = (scope as Record<string, unknown>).app_categories
-  if (!Array.isArray(tags)) return []
-  return (tags as unknown[])
-    .map(tag => categories.find(c => c.system_tag === tag))
+  const npjCats = (scope as Record<string, unknown>).app_categories
+  if (!Array.isArray(npjCats) || npjCats.length === 0) return []
+  return (npjCats as unknown[])
+    .map(item => {
+      if (!item || typeof item !== 'object') return undefined
+      const c = item as Record<string, unknown>
+      return categories.find(cat =>
+        (c.id && cat.id === c.id) ||
+        (c.system_tag && cat.system_tag === (c.system_tag as string))
+      )
+    })
     .filter((c): c is Category => Boolean(c))
 }
 
@@ -327,7 +334,9 @@ function getNpjActivities(npj: Record<string, unknown>): string[] {
 }
 
 const NPJ_ACT_LABELS: Record<string, string> = {
-  post_prompt: 'Prompt', upload: 'Upload', download: 'Download', response: 'Response', browse: 'Browse',
+  browse: 'Browse', login: 'Login', post: 'Post', post_prompt: 'Prompt',
+  upload: 'Upload', download: 'Download', response: 'Response',
+  share: 'Share', copy_paste: 'Copy/Paste', print: 'Print', email_send: 'Email Send',
 }
 
 function getNpjPolicyStatus(policy: GenAIPolicy): 'current' | 'outdated' | 'legacy' | 'invalid' {
@@ -362,8 +371,8 @@ function DataTypeCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: R
   if (npj) {
     const conds = getNpjConditions(npj)
 
-    if (conds.length === 0 || conds.every(c => c.type === 'govern_app_access')) {
-      return <span className="text-[11px] text-muted-foreground/40 italic">App access only</span>
+    if (npj.intent === 'govern_app_access' || conds.length === 0) {
+      return <span className="text-[11px] text-muted-foreground/40 italic">{npj.intent === 'govern_app_access' ? 'App access only' : '—'}</span>
     }
     if (conds.every(c => c.type === 'filename')) {
       return <span className="text-[11px] text-muted-foreground/60">Filename pattern</span>
@@ -406,14 +415,14 @@ function ActivitiesCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems:
 
   if (npj) {
     const actKeys = getNpjActivities(npj)
-    const conds   = getNpjConditions(npj)
+    const isAppAccess = npj.intent === 'govern_app_access'
 
-    // App access with no explicit activity list — show standard access activities
-    const isAppAccess = conds.length === 0 || conds.some(c => c.type === 'govern_app_access')
-    const acts = actKeys.length > 0
-      ? actKeys.map(a => NPJ_ACT_LABELS[a] ?? a)
-      : isAppAccess
-        ? ['Browse', 'Prompt', 'Upload', 'Download']
+    // govern_app_access: always Browse + Login (access-level control only)
+    // This normalises stale stored values from before the compiler fix.
+    const acts = isAppAccess
+      ? ['Browse', 'Login']
+      : actKeys.length > 0
+        ? actKeys.map(a => NPJ_ACT_LABELS[a] ?? a)
         : []
 
     if (acts.length === 0) return <span className="text-[11px] text-muted-foreground/40 italic">—</span>

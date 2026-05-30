@@ -9,7 +9,9 @@ import {
   validateNeutralPolicy,
   type NpjIntent, type NpjActivity,
 } from '@/lib/genai/npj-schema'
-import { upsertPolicy } from '../../../actions'
+import { upsertPolicy, checkPolicyCoverage } from '../../../actions'
+import type { CoverageResult } from '../../../actions'
+import { PolicyCoverageWarning } from '../../../_components/policy-coverage-warning'
 import type { RuleItem, AppRow, CategoryRow } from '../../_components/blank-policy-wizard'
 import type { ActionCode, PolicyType } from '@/lib/genai/types'
 import {
@@ -135,10 +137,22 @@ function parseProposalError(text: string): string[] | null {
 
 function parsePolicyProposal(text: string): PolicyProposal | null {
   const repairMatch = text.match(/<policyProposalRepair>\s*([\s\S]*?)\s*<\/policyProposalRepair>/)
-  if (repairMatch) { try { return JSON.parse(repairMatch[1]) as PolicyProposal } catch {} }
+  if (repairMatch) { try { return normalizeProposal(JSON.parse(repairMatch[1]) as PolicyProposal) } catch {} }
   const match = text.match(/<policyProposal>\s*([\s\S]*?)\s*<\/policyProposal>/)
   if (!match) return null
-  try { return JSON.parse(match[1]) as PolicyProposal } catch { return null }
+  try { return normalizeProposal(JSON.parse(match[1]) as PolicyProposal) } catch { return null }
+}
+
+function normalizeProposal(p: PolicyProposal): PolicyProposal {
+  if (p.npj?.intent !== 'govern_app_access') return p
+  return {
+    ...p,
+    npj: {
+      ...p.npj,
+      scope:   { ...p.npj.scope,   activities: ['browse', 'login'] },
+      content: { operator: p.npj.content?.operator ?? 'any', conditions: [] },
+    },
+  }
 }
 
 function displayText(text: string): string {
@@ -192,6 +206,9 @@ function PolicyProposalCard({
   onApprove,
   creating,
   createError,
+  coverage,
+  coverageLoading,
+  onDiscard,
 }: {
   proposal:         PolicyProposal
   categories:       CategoryRow[]
@@ -200,17 +217,22 @@ function PolicyProposalCard({
   onApprove:        () => void
   creating:         boolean
   createError:      string
+  coverage:         CoverageResult | null
+  coverageLoading:  boolean
+  onDiscard:        () => void
 }) {
-  const [editing,    setEditing]    = useState(false)
-  const [draft,      setDraft]      = useState<PolicyProposal>(proposal)
-  const [editErrors, setEditErrors] = useState<string[]>([])
-  const [jsonOpen,   setJsonOpen]   = useState(false)
+  const [editing,     setEditing]    = useState(false)
+  const [draft,       setDraft]      = useState<PolicyProposal>(proposal)
+  const [editErrors,  setEditErrors] = useState<string[]>([])
+  const [jsonOpen,    setJsonOpen]   = useState(false)
+  const [forceCreate, setForceCreate] = useState(false)
 
-  // When a new proposal arrives (re-generate), reset edit state
+  // When a new proposal arrives (re-generate), reset edit state and coverage override
   useEffect(() => {
     setDraft(proposal)
     setEditing(false)
     setEditErrors([])
+    setForceCreate(false)
   }, [proposal])
 
   function handleSave() {
@@ -298,17 +320,12 @@ function PolicyProposalCard({
                   onClick={() => setDraft(p => {
                     const newNpj: NeutralPolicyJson = { ...p.npj, intent }
                     if (intent === 'govern_app_access') {
+                      // Lock activities to browse+login and clear content conditions — app access only
                       newNpj.content = { operator: newNpj.content?.operator ?? 'any', conditions: [] }
-                      // Lock activities to browse+login, keep only prohibited categories
-                      newNpj.scope = {
-                        ...newNpj.scope,
-                        activities:     [...APP_ACCESS_ACTIVITIES],
-                        app_categories: (newNpj.scope?.app_categories ?? []).filter(c =>
-                          c.system_tag === 'prohibited' || c.name.toLowerCase() === 'prohibited',
-                        ),
-                      }
+                      newNpj.scope   = { ...newNpj.scope, activities: [...APP_ACCESS_ACTIVITIES] }
                     } else if (p.npj.intent === 'govern_app_access') {
-                      // Leaving govern_app_access: reset to data-handling defaults
+                      // Leaving govern_app_access: reset activities, strip prohibited categories
+                      // (data policies don't apply to prohibited apps — blocked at access level)
                       newNpj.scope = {
                         ...newNpj.scope,
                         activities:     ['post', 'prompt_submit', 'upload'],
@@ -338,7 +355,7 @@ function PolicyProposalCard({
             {dn.intent === 'govern_app_access' ? (
               <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 px-4 py-3 space-y-2">
                 <p className="text-xs font-semibold text-purple-400">Fixed for app access control</p>
-                <p className="text-xs text-muted-foreground/60">Prohibited policies apply to Browse and Login only — no data activities needed.</p>
+                <p className="text-xs text-muted-foreground/60">App access decisions happen at Browse and Login — no data-level activities apply.</p>
                 <div className="flex gap-1.5">
                   {APP_ACCESS_ACTIVITIES.map(a => (
                     <span key={a} className="inline-flex items-center px-2 py-0.5 rounded-md border border-purple-500/25 bg-purple-500/10 text-xs text-purple-400">{ACTIVITY_LABELS[a]}</span>
@@ -371,34 +388,19 @@ function PolicyProposalCard({
 
           {/* App Categories */}
           {categories.length > 0 && (() => {
-            const prohibitedCat = categories.find(c => c.system_tag === 'prohibited' || c.name.toLowerCase() === 'prohibited')
-            const isAppAccess   = dn.intent === 'govern_app_access'
+            const prohibitedCat  = categories.find(c => c.system_tag === 'prohibited' || c.name.toLowerCase() === 'prohibited')
+            const isAppAccess    = dn.intent === 'govern_app_access'
+            // govern_app_access: all categories (allow/block/restrict any)
+            // data intents: no prohibited — blocked at access level, data policy never triggers
+            const visibleCats = isAppAccess
+              ? categories
+              : categories.filter(c => c.system_tag !== 'prohibited' && c.name.toLowerCase() !== 'prohibited')
 
-            if (isAppAccess) {
-              return (
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-2">App Categories</p>
-                  <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 px-4 py-3 space-y-2">
-                    <p className="text-xs font-semibold text-purple-400">Prohibited apps only</p>
-                    <p className="text-xs text-muted-foreground/60">
-                      Add apps to the <span className="font-semibold">Prohibited</span> classification list — this policy enforces the block automatically for all apps in that category.
-                    </p>
-                    {prohibitedCat && (
-                      <div className="flex gap-1.5">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-purple-500/25 bg-purple-500/10 text-xs text-purple-400">{prohibitedCat.name}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )
-            }
-
-            const dataCategories = categories.filter(c => c.system_tag !== 'prohibited' && c.name.toLowerCase() !== 'prohibited')
             return (
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-2">App Categories</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {dataCategories.map(cat => {
+                  {visibleCats.map(cat => {
                     const active = (dn.scope?.app_categories ?? []).some(c => c.id === cat.id)
                     return (
                       <button
@@ -417,8 +419,10 @@ function PolicyProposalCard({
                     )
                   })}
                 </div>
-                {prohibitedCat && (
-                  <p className="text-[10px] text-muted-foreground/40 mt-1.5">Prohibited apps are blocked entirely — use <span className="font-medium text-muted-foreground/60">Govern App Access</span> intent for that.</p>
+                {!isAppAccess && prohibitedCat && (
+                  <p className="text-[10px] text-muted-foreground/40 mt-1.5">
+                    Prohibited apps are blocked at access level — data policies don&apos;t apply to them. Use <span className="font-medium text-muted-foreground/60">Govern App Access</span> to control prohibited app access.
+                  </p>
                 )}
               </div>
             )
@@ -702,22 +706,38 @@ function PolicyProposalCard({
       </div>
 
       {/* Card footer */}
-      <div className="flex items-center justify-between px-5 py-4 border-t border-border/40 bg-muted/5">
-        <p className="text-[10px] text-muted-foreground/50">
-          Policy will be created as <span className="font-mono">draft · inactive</span> — requires review before enabling.
-        </p>
-        <div className="flex items-center gap-2">
-          {createError && <p className="text-xs text-red-400">{createError}</p>}
-          <button
-            type="button"
-            onClick={onApprove}
-            disabled={creating}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-foreground text-background text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-40"
-          >
-            {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
-            Approve & Create
-          </button>
-        </div>
+      <div className="px-5 py-4 border-t border-border/40 bg-muted/5 space-y-3">
+        {/* Coverage warning — shown while loading or when coverage/conflict found and not overridden */}
+        {(coverageLoading || ((coverage?.hasCoverage || coverage?.hasConflict) && !forceCreate)) && (
+          <PolicyCoverageWarning
+            result={coverage ?? { hasCoverage: false, hasConflict: false, matches: [] }}
+            loading={coverageLoading}
+            creating={creating}
+            onCreateAnyway={() => setForceCreate(true)}
+            onDiscard={onDiscard}
+          />
+        )}
+
+        {/* Normal footer row — hidden when coverage warning is blocking */}
+        {(!coverage || forceCreate || (!coverage.hasCoverage && !coverage.hasConflict)) && (
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-muted-foreground/50">
+              Policy will be created as <span className="font-mono">draft · inactive</span> — requires review before enabling.
+            </p>
+            <div className="flex items-center gap-2">
+              {createError && <p className="text-xs text-red-400">{createError}</p>}
+              <button
+                type="button"
+                onClick={onApprove}
+                disabled={creating}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-foreground text-background text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-40"
+              >
+                {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                Approve & Create
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </>
   )
@@ -727,14 +747,16 @@ function PolicyProposalCard({
 
 export function AiPolicyAssistant({ apps: _apps, categories, ruleItems, vendors = [] }: Props) {
   const router = useRouter()
-  const [input, setInput]             = useState('')
-  const [streaming, setStreaming]     = useState(false)
-  const [streamText, setStreamText]   = useState('')
-  const [proposal, setProposal]       = useState<PolicyProposal | null>(null)
-  const [parseError, setParseError]   = useState('')
-  const [validErrors, setValidErrors] = useState<string[]>([])
-  const [creating, setCreating]       = useState(false)
-  const [createError, setCreateError] = useState('')
+  const [input, setInput]                   = useState('')
+  const [streaming, setStreaming]           = useState(false)
+  const [streamText, setStreamText]         = useState('')
+  const [proposal, setProposal]             = useState<PolicyProposal | null>(null)
+  const [parseError, setParseError]         = useState('')
+  const [validErrors, setValidErrors]       = useState<string[]>([])
+  const [creating, setCreating]             = useState(false)
+  const [createError, setCreateError]       = useState('')
+  const [coverage, setCoverage]             = useState<CoverageResult | null>(null)
+  const [coverageLoading, setCoverageLoading] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => () => { abortRef.current?.abort() }, [])
@@ -812,6 +834,12 @@ export function AiPolicyAssistant({ apps: _apps, categories, ruleItems, vendors 
       }
 
       setProposal(parsed)
+      // Run coverage check asynchronously — don't block rendering
+      setCoverageLoading(true)
+      checkPolicyCoverage(parsed.npj as Record<string, unknown>)
+        .then(result => setCoverage(result))
+        .catch(() => setCoverage(null))
+        .finally(() => setCoverageLoading(false))
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
         setParseError((err as Error).message || 'Network error')
@@ -853,6 +881,8 @@ export function AiPolicyAssistant({ apps: _apps, categories, ruleItems, vendors 
     setParseError('')
     setValidErrors([])
     setCreateError('')
+    setCoverage(null)
+    setCoverageLoading(false)
   }
 
   const hasResult = Boolean(proposal || parseError || validErrors.length > 0)
@@ -962,11 +992,14 @@ export function AiPolicyAssistant({ apps: _apps, categories, ruleItems, vendors 
           <PolicyProposalCard
             proposal={proposal}
             categories={categories}
-            onProposalChange={setProposal}
+            onProposalChange={p => { setProposal(p); setCoverage(null) }}
             onReset={handleReset}
             onApprove={handleCreate}
             creating={creating}
             createError={createError}
+            coverage={coverage}
+            coverageLoading={coverageLoading}
+            onDiscard={handleReset}
           />
         </div>
       )}

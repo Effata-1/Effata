@@ -13,7 +13,9 @@ import {
   validateNeutralPolicy,
   type NpjIntent, type NpjActivity, type UiActionCode,
 } from '@/lib/genai/npj-schema'
-import { upsertPolicy } from '../../actions'
+import { upsertPolicy, checkPolicyCoverage } from '../../actions'
+import type { CoverageResult } from '../../actions'
+import { PolicyCoverageWarning } from '../../_components/policy-coverage-warning'
 import type { ActionCode, PolicyType } from '@/lib/genai/types'
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Lock, Plus, X } from 'lucide-react'
 
@@ -285,6 +287,9 @@ export function BlankPolicyWizard({ apps, categories, ruleItems, coachingTemplat
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [coverage, setCoverage]               = useState<CoverageResult | null>(null)
+  const [coverageLoading, setCoverageLoading] = useState(false)
+  const [forceCreate, setForceCreate]         = useState(false)
 
   const [state, setState] = useState<WizardState>({
     ruleItems,
@@ -344,23 +349,15 @@ export function BlankPolicyWizard({ apps, categories, ruleItems, coachingTemplat
                 type="button"
                 onClick={() => {
                   if (intent === 'govern_app_access') {
-                    // Auto-lock activities to browse+login and pre-select prohibited category
-                    const prohibitedCat = categories.find(c => c.system_tag === 'prohibited' || c.name.toLowerCase() === 'prohibited')
-                    update({
-                      intent,
-                      activities:  new Set<NpjActivity>(APP_ACCESS_ACTIVITIES),
-                      categoryIds: prohibitedCat ? new Set([prohibitedCat.id]) : new Set(),
-                    })
+                    // Lock activities to browse+login — app access control only
+                    update({ intent, activities: new Set<NpjActivity>(APP_ACCESS_ACTIVITIES) })
                   } else if (state.intent === 'govern_app_access') {
-                    // Leaving govern_app_access: reset to data-handling defaults, remove prohibited
+                    // Leaving govern_app_access: reset to data defaults, strip prohibited category
+                    // (data policies don't apply to prohibited apps — those are blocked at access level)
                     const prohibitedCat = categories.find(c => c.system_tag === 'prohibited' || c.name.toLowerCase() === 'prohibited')
                     const newCatIds = new Set(state.categoryIds)
                     if (prohibitedCat) newCatIds.delete(prohibitedCat.id)
-                    update({
-                      intent,
-                      activities:  new Set<NpjActivity>(['prompt_submit', 'upload']),
-                      categoryIds: newCatIds,
-                    })
+                    update({ intent, activities: new Set<NpjActivity>(['prompt_submit', 'upload']), categoryIds: newCatIds })
                   } else {
                     update({ intent })
                   }
@@ -428,54 +425,42 @@ export function BlankPolicyWizard({ apps, categories, ruleItems, coachingTemplat
   function renderStep2() {
     const isAppAccess   = state.intent === 'govern_app_access'
     const prohibitedCat = categories.find(c => c.system_tag === 'prohibited' || c.name.toLowerCase() === 'prohibited')
+    // govern_app_access: all categories (allow/block/restrict any category)
+    // data intents: exclude prohibited (blocked at access level — data policy never triggers)
     const visibleCats   = isAppAccess
-      ? categories.filter(c => c.system_tag === 'prohibited' || c.name.toLowerCase() === 'prohibited')
+      ? categories
       : categories.filter(c => c.system_tag !== 'prohibited' && c.name.toLowerCase() !== 'prohibited')
 
     return (
       <div className="space-y-6">
-        {isAppAccess ? (
-          <WizardSection title="App Categories">
-            <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 px-4 py-3 space-y-2">
-              <p className="text-xs font-semibold text-purple-400">Prohibited apps only</p>
-              <p className="text-xs text-muted-foreground/60">
-                Add apps to the <span className="font-semibold">Prohibited</span> classification list — this policy enforces the block automatically. You don&apos;t need to list individual apps here.
-              </p>
-              {prohibitedCat && (
-                <div className="flex gap-1.5">
-                  <span className="inline-flex items-center px-2.5 py-1 rounded-lg border border-purple-500/25 bg-purple-500/10 text-xs font-medium text-purple-400">{prohibitedCat.name}</span>
-                </div>
-              )}
-            </div>
-          </WizardSection>
-        ) : (
-          <WizardSection title="App Categories" note="Leave empty to apply to all non-prohibited categories">
-            <div className="flex flex-wrap gap-1.5">
-              {visibleCats.map(cat => {
-                const active = state.categoryIds.has(cat.id)
-                const c = colorClasses(cat.color)
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => update({ categoryIds: toggleSet(state.categoryIds, cat.id) })}
-                    className={cn(
-                      'inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors',
-                      active
-                        ? cn(c.text, c.bg, c.border)
-                        : 'bg-muted/20 border-border/50 text-muted-foreground/60 hover:bg-muted/40',
-                    )}
-                  >
-                    {cat.name}
-                  </button>
-                )
-              })}
-            </div>
-            {prohibitedCat && (
-              <p className="text-[10px] text-muted-foreground/40 mt-1">Prohibited apps are blocked entirely — use <span className="font-medium text-muted-foreground/60">Govern App Access</span> intent for that.</p>
-            )}
-          </WizardSection>
-        )}
+        <WizardSection title="App Categories" note={isAppAccess ? 'Which app categories this access control applies to' : 'Leave empty to apply to all non-prohibited categories'}>
+          <div className="flex flex-wrap gap-1.5">
+            {visibleCats.map(cat => {
+              const active = state.categoryIds.has(cat.id)
+              const c = colorClasses(cat.color)
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => update({ categoryIds: toggleSet(state.categoryIds, cat.id) })}
+                  className={cn(
+                    'inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors',
+                    active
+                      ? cn(c.text, c.bg, c.border)
+                      : 'bg-muted/20 border-border/50 text-muted-foreground/60 hover:bg-muted/40',
+                  )}
+                >
+                  {cat.name}
+                </button>
+              )
+            })}
+          </div>
+          {!isAppAccess && prohibitedCat && (
+            <p className="text-[10px] text-muted-foreground/40 mt-1">
+              Prohibited apps are blocked at access level — data policies don&apos;t reach them. Use <span className="font-medium text-muted-foreground/60">Govern App Access</span> to control prohibited app access.
+            </p>
+          )}
+        </WizardSection>
 
         {isAppAccess ? (
           <WizardSection title="Activities">
@@ -936,7 +921,15 @@ export function BlankPolicyWizard({ apps, categories, ruleItems, coachingTemplat
       <div className="flex items-center justify-between px-6 py-4 border-t border-border/40 bg-muted/5">
         <button
           type="button"
-          onClick={() => step > 0 ? setStep(s => s - 1) : router.push('/genai-controls/policies')}
+          onClick={() => {
+            if (step > 0) {
+              setStep(s => s - 1)
+              // Reset coverage when going back so it re-checks if user changes something
+              if (step === STEPS.length - 1) { setCoverage(null); setForceCreate(false) }
+            } else {
+              router.push('/genai-controls/policies')
+            }
+          }}
           className="flex items-center gap-1 text-xs font-medium text-muted-foreground/70 hover:text-foreground/80 transition-colors"
         >
           <ChevronLeft className="h-3.5 w-3.5" />
@@ -947,7 +940,16 @@ export function BlankPolicyWizard({ apps, categories, ruleItems, coachingTemplat
           {step === 4 && (
             <button
               type="button"
-              onClick={() => setStep(5)}
+              onClick={() => {
+                setStep(5)
+                const builtNpj = buildNpj(state, categories)
+                if (builtNpj) {
+                  setCoverage(null); setForceCreate(false); setCoverageLoading(true)
+                  checkPolicyCoverage(builtNpj as Record<string, unknown>)
+                    .then(r => setCoverage(r)).catch(() => setCoverage(null))
+                    .finally(() => setCoverageLoading(false))
+                }
+              }}
               className="text-xs text-muted-foreground/60 hover:text-foreground/70 transition-colors"
             >
               Skip — no exceptions
@@ -956,22 +958,49 @@ export function BlankPolicyWizard({ apps, categories, ruleItems, coachingTemplat
           {!isLastStep ? (
             <button
               type="button"
-              onClick={() => setStep(s => s + 1)}
+              onClick={() => {
+                const nextStep = step + 1
+                setStep(nextStep)
+                // Trigger coverage check when arriving at Review step
+                if (nextStep === STEPS.length - 1) {
+                  const builtNpj = buildNpj(state, categories)
+                  if (builtNpj) {
+                    setCoverage(null); setForceCreate(false); setCoverageLoading(true)
+                    checkPolicyCoverage(builtNpj as Record<string, unknown>)
+                      .then(r => setCoverage(r)).catch(() => setCoverage(null))
+                      .finally(() => setCoverageLoading(false))
+                  }
+                }
+              }}
               disabled={!canProceed[step]}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-foreground text-background text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-40"
             >
               Next <ChevronRight className="h-3.5 w-3.5" />
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={handleCreate}
-              disabled={saving || !validation.valid}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-foreground text-background text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-40"
-            >
-              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
-              Create Policy
-            </button>
+            <>
+              {/* Coverage warning on final step */}
+              {(coverageLoading || ((coverage?.hasCoverage || coverage?.hasConflict) && !forceCreate)) && (
+                <PolicyCoverageWarning
+                  result={coverage ?? { hasCoverage: false, hasConflict: false, matches: [] }}
+                  loading={coverageLoading}
+                  creating={saving}
+                  onCreateAnyway={() => setForceCreate(true)}
+                  onDiscard={() => router.push('/genai-controls/policies')}
+                />
+              )}
+              {(!coverage || forceCreate || (!coverage.hasCoverage && !coverage.hasConflict)) && (
+                <button
+                  type="button"
+                  onClick={handleCreate}
+                  disabled={saving || !validation.valid}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-foreground text-background text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-40"
+                >
+                  {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                  Create Policy
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
