@@ -298,7 +298,6 @@ function PolicyProposalCard({
   const [editing,     setEditing]    = useState(false)
   const [draft,       setDraft]      = useState<PolicyProposal>(proposal)
   const [editErrors,  setEditErrors] = useState<string[]>([])
-  const [jsonOpen,    setJsonOpen]   = useState(false)
   const [forceCreate, setForceCreate] = useState(false)
 
   // When a new proposal arrives (re-generate), reset edit state and coverage override
@@ -747,59 +746,20 @@ function PolicyProposalCard({
             )}
           </div>
 
-          {/* Source & Translation impact */}
-          {(proposal.sourceImpact?.length > 0 || proposal.translationImpact?.length > 0) && (
-            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-5 py-4 space-y-3">
-              {proposal.sourceImpact?.length > 0 && (
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400/60 mb-1.5">Source Impact</p>
-                  <div className="space-y-1">
-                    {proposal.sourceImpact.map((item, i) => (
-                      <div key={i} className="flex items-start gap-2 text-xs">
-                        <span className="text-[10px] px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-400 font-mono shrink-0">
-                          {item.source_layer}
-                        </span>
-                        <span className="text-muted-foreground/70">{item.impact}</span>
-                        {item.action_required && <span className="text-amber-400/70 shrink-0">⚠ action required</span>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {proposal.translationImpact?.length > 0 && (
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400/60 mb-1.5">Translation Impact</p>
-                  <div className="space-y-1">
-                    {proposal.translationImpact.map((item, i) => (
-                      <div key={i} className="flex items-start gap-2 text-xs">
-                        <span className="text-muted-foreground/70">{item.impact}</span>
-                        {item.requires_translation && <span className="text-blue-400/70 shrink-0">→ translation needed</span>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+          {/* Source Impact */}
+          {proposal.sourceImpact?.length > 0 && (
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-5 py-4">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400/60 mb-2">Source Impact</p>
+              <ul className="space-y-1.5">
+                {proposal.sourceImpact.map((item, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs">
+                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-400/60 shrink-0" />
+                    <span className="text-muted-foreground/70">{item.impact}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
-
-          {/* JSON collapsible */}
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setJsonOpen(o => !o)}
-              className="w-full flex items-center justify-between px-4 py-3 text-xs font-medium text-foreground hover:bg-muted/30 transition-colors text-left"
-            >
-              <span>{jsonOpen ? '▼' : '▶'} Neutral Policy JSON</span>
-              <span className="text-[10px] text-muted-foreground/50">schema_version 1.0</span>
-            </button>
-            {jsonOpen && (
-              <div className="border-t border-border px-4 py-3">
-                <pre className="text-xs text-muted-foreground/60 bg-muted/20 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-words font-mono border border-border/40 max-h-64">
-                  {JSON.stringify(npj, null, 2)}
-                </pre>
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
