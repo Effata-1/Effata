@@ -157,7 +157,7 @@ function npjIntentToPolicyType(intent?: string): string {
     case 'govern_data_at_rest': return 'data-handling'
     case 'allow_approved_use':  return 'approved-use'
     case 'govern_app_access':   return 'usage'
-    default:                    return 'data-handling'
+    default:                    return 'usage'
   }
 }
 

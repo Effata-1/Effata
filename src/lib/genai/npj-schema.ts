@@ -159,6 +159,44 @@ export function validateNeutralPolicy(npj: unknown): NpjValidationResult {
   return { valid: errors.length === 0, errors }
 }
 
+// ── Proposal validation (two-level: wrapper shape + deep NPJ) ────────────────
+
+export interface ProposalValidationResult {
+  valid:  boolean
+  errors: string[]
+}
+
+export function validatePolicyProposal(proposal: unknown): ProposalValidationResult {
+  const errors: string[] = []
+
+  if (!proposal || typeof proposal !== 'object') {
+    return { valid: false, errors: ['proposal is not an object'] }
+  }
+
+  const p = proposal as Record<string, unknown>
+
+  if (!p.name || typeof p.name !== 'string' || !p.name.trim()) {
+    errors.push('Missing proposal.name')
+  }
+  if (typeof p.description !== 'string') {
+    errors.push('Missing proposal.description')
+  }
+  if (!p.npj || typeof p.npj !== 'object') {
+    errors.push('Missing proposal.npj')
+  }
+  if (!Array.isArray(p.sourceImpact)) {
+    errors.push('Missing proposal.sourceImpact array')
+  }
+  if (!Array.isArray(p.translationImpact)) {
+    errors.push('Missing proposal.translationImpact array')
+  }
+
+  if (errors.length > 0) return { valid: false, errors }
+
+  const npjResult = validateNeutralPolicy(p.npj)
+  return { valid: npjResult.valid, errors: npjResult.errors }
+}
+
 // ── generated_from registry ────────────────────────────────────────────────────
 
 export const GENERATED_FROM_LABELS: Record<string, string> = {

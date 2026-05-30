@@ -50,7 +50,7 @@ export interface PolicyFields {
   required_dependencies?:     string[]
   test_status?:               'untested' | 'in-progress' | 'passed' | 'failed'
   // neutral policy json — source of truth for structured policies
-  neutral_policy_json?:       Record<string, unknown> | null
+  neutral_policy_json?:       Record<string, unknown>
   neutral_policy_hash?:       string | null
   neutral_policy_version?:    string | null
 }
