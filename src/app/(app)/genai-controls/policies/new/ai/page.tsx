@@ -17,6 +17,7 @@ export default async function AiPolicyPage() {
     orgTypesResult,
     orgTypeMappingsResult,
     catalogTypesResult,
+    vendorsResult,
   ] = await Promise.all([
     supabase
       .from('genai_apps')
@@ -45,11 +46,17 @@ export default async function AiPolicyPage() {
       .eq('active', true)
       .order('priority')
       .order('name'),
+    supabase
+      .from('onboarding_profiles')
+      .select('tools')
+      .eq('org_id', user.orgId)
+      .maybeSingle(),
   ])
 
-  const apps     = appsResult.data     ?? []
+  const apps       = appsResult.data     ?? []
   const categories = categoriesResult.data ?? []
-  const orgTypes = orgTypesResult.data ?? []
+  const vendors    = (vendorsResult.data?.tools ?? []) as string[]
+  const orgTypes   = orgTypesResult.data ?? []
   const orgTypeMappings = orgTypeMappingsResult.data ?? []
   const catalogTypes = catalogTypesResult.data ?? []
 
@@ -113,6 +120,7 @@ export default async function AiPolicyPage() {
         apps={apps}
         categories={categories}
         ruleItems={ruleItems}
+        vendors={vendors}
       />
     </div>
   )

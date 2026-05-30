@@ -1,5 +1,6 @@
 'use server'
 
+import { createHash } from 'crypto'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
@@ -7,6 +8,18 @@ import { callData } from '@/lib/api-client.server'
 import { logAuditEvent } from '@/lib/audit'
 import { validateNeutralPolicy } from '@/lib/genai/npj-schema'
 import type { ApprovalStatus, PolicyType, PolicyRule, ActionCode } from '@/lib/genai/types'
+
+function sortedStringify(obj: unknown): string {
+  if (obj === null || typeof obj !== 'object') return JSON.stringify(obj)
+  if (Array.isArray(obj)) return '[' + obj.map(sortedStringify).join(',') + ']'
+  const sorted = Object.keys(obj as Record<string, unknown>).sort()
+  return '{' + sorted.map(k => JSON.stringify(k) + ':' + sortedStringify((obj as Record<string, unknown>)[k])).join(',') + '}'
+}
+
+function computeNpjHash(npj: Record<string, unknown>): string {
+  const stable = sortedStringify({ scope: npj.scope, content: npj.content, decision: npj.decision })
+  return createHash('sha256').update(stable).digest('hex')
+}
 
 export interface PolicyFields {
   name?:             string
@@ -38,6 +51,8 @@ export interface PolicyFields {
   test_status?:               'untested' | 'in-progress' | 'passed' | 'failed'
   // neutral policy json — source of truth for structured policies
   neutral_policy_json?:       Record<string, unknown> | null
+  neutral_policy_hash?:       string | null
+  neutral_policy_version?:    string | null
 }
 
 export async function upsertPolicy(
@@ -52,6 +67,13 @@ export async function upsertPolicy(
     const result = validateNeutralPolicy(fields.neutral_policy_json)
     if (!result.valid) {
       return { error: `Invalid neutral policy: ${result.errors.join('; ')}` }
+    }
+    if (fields.neutral_policy_hash === undefined) {
+      fields = {
+        ...fields,
+        neutral_policy_hash:    computeNpjHash(fields.neutral_policy_json),
+        neutral_policy_version: '1.0',
+      }
     }
   }
 
@@ -173,7 +195,7 @@ const ALLOWED_DIFF_KEYS: Set<keyof PolicyFields> = new Set([
   'policy_family', 'data_classification_label', 'primary_action',
   'fallback_action', 'coaching_template_id', 'vendor_translation_status',
   'required_dependencies', 'test_status', 'review_date', 'next_review_date',
-  'effective_date', 'neutral_policy_json',
+  'effective_date', 'neutral_policy_json', 'neutral_policy_hash', 'neutral_policy_version',
 ])
 
 export async function applyPolicyDiff(diff: {

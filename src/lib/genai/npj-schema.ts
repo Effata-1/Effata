@@ -101,6 +101,11 @@ export const GENAI_ACTIVITIES: NpjActivity[] = [
 export const VALID_CONDITION_TYPES = ['data_type', 'classification_label', 'filename'] as const
 export type NpjConditionType = typeof VALID_CONDITION_TYPES[number]
 
+// ── Canonical content.operator values ────────────────────────────────────────
+
+export const VALID_OPERATORS = ['any', 'all'] as const
+export type NpjOperator = typeof VALID_OPERATORS[number]
+
 // ── Validation ─────────────────────────────────────────────────────────────────
 
 export interface NpjValidationResult {
@@ -142,6 +147,9 @@ export function validateNeutralPolicy(npj: unknown): NpjValidationResult {
   }
 
   const content = (n.content ?? {}) as Record<string, unknown>
+  if (content.operator !== undefined && !VALID_OPERATORS.includes(content.operator as NpjOperator)) {
+    errors.push(`Invalid content.operator: "${content.operator}". Must be 'any' or 'all'`)
+  }
   for (const c of (content.conditions ?? []) as Array<Record<string, unknown>>) {
     if (!VALID_CONDITION_TYPES.includes(c.type as NpjConditionType)) {
       errors.push(`Invalid condition type: "${c.type}"`)

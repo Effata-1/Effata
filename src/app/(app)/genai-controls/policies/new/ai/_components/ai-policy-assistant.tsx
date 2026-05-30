@@ -11,6 +11,7 @@ import {
 } from '@/lib/genai/npj-schema'
 import { upsertPolicy } from '../../../actions'
 import type { RuleItem, AppRow, CategoryRow } from '../../_components/blank-policy-wizard'
+import type { ActionCode, PolicyType } from '@/lib/genai/types'
 import {
   AlertTriangle, CheckCircle2, Loader2, RefreshCw, Sparkles, X,
 } from 'lucide-react'
@@ -85,12 +86,14 @@ interface PolicyCreationContext {
   dataTypes:  { key: string; name: string; sensitivity: string }[]
   actions:    string[]
   activities: string[]
+  vendors:    string[]
 }
 
 interface Props {
   apps:       AppRow[]
   categories: CategoryRow[]
   ruleItems:  RuleItem[]
+  vendors?:   string[]
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -114,14 +117,48 @@ const EXAMPLE_PROMPTS = [
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function parseProposalError(text: string): string[] | null {
+  const m = text.match(/<policyProposalError>\s*([\s\S]*?)\s*<\/policyProposalError>/)
+  if (!m) return null
+  try { return (JSON.parse(m[1]) as { errors: string[] }).errors } catch { return null }
+}
+
 function parsePolicyProposal(text: string): PolicyProposal | null {
+  const repairMatch = text.match(/<policyProposalRepair>\s*([\s\S]*?)\s*<\/policyProposalRepair>/)
+  if (repairMatch) { try { return JSON.parse(repairMatch[1]) as PolicyProposal } catch {} }
   const match = text.match(/<policyProposal>\s*([\s\S]*?)\s*<\/policyProposal>/)
   if (!match) return null
   try { return JSON.parse(match[1]) as PolicyProposal } catch { return null }
 }
 
 function displayText(text: string): string {
-  return text.replace(/<policyProposal>[\s\S]*?<\/policyProposal>/g, '').trim()
+  return text
+    .replace(/<policyProposal>[\s\S]*?<\/policyProposal>/g, '')
+    .replace(/<policyProposalRepair>[\s\S]*?<\/policyProposalRepair>/g, '')
+    .replace(/<policyProposalError>[\s\S]*?<\/policyProposalError>/g, '')
+    .trim()
+}
+
+function npjDecisionToPrimaryAction(
+  d?: { mode?: string; require_acknowledgement?: boolean; require_justification?: boolean },
+): string | null {
+  if (!d?.mode) return null
+  if (d.mode === 'coach' && d.require_justification)   return 'coach-just'
+  if (d.mode === 'coach' && d.require_acknowledgement) return 'coach-ack'
+  return d.mode
+}
+
+function npjIntentToPolicyType(intent?: string): string {
+  switch (intent) {
+    case 'prevent_exfiltration':
+    case 'detect_only':
+    case 'coach_user':
+    case 'label_or_classify':
+    case 'govern_data_at_rest': return 'data-handling'
+    case 'allow_approved_use':  return 'approved-use'
+    case 'govern_app_access':   return 'usage'
+    default:                    return 'data-handling'
+  }
 }
 
 // ── NpjRow (same visual pattern as policy-intent-editor) ──────────────────────
@@ -290,7 +327,7 @@ function PolicyProposalCard({ proposal }: { proposal: PolicyProposal }) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export function AiPolicyAssistant({ apps: _apps, categories, ruleItems }: Props) {
+export function AiPolicyAssistant({ apps: _apps, categories, ruleItems, vendors = [] }: Props) {
   const router = useRouter()
   const [input, setInput]             = useState('')
   const [streaming, setStreaming]     = useState(false)
@@ -313,6 +350,7 @@ export function AiPolicyAssistant({ apps: _apps, categories, ruleItems }: Props)
       })),
       actions:    ['allow', 'monitor', 'alert', 'coach', 'block'],
       activities: ['browse', 'post', 'prompt_submit', 'upload', 'download', 'response'],
+      vendors,
     }
   }
 
@@ -354,6 +392,12 @@ export function AiPolicyAssistant({ apps: _apps, categories, ruleItems }: Props)
 
       setStreaming(false)
 
+      const backendErrors = parseProposalError(full)
+      if (backendErrors) {
+        setValidErrors(backendErrors)
+        return
+      }
+
       const parsed = parsePolicyProposal(full)
       if (!parsed) {
         setParseError('AI did not return a structured proposal. Please try rephrasing your request.')
@@ -390,11 +434,15 @@ export function AiPolicyAssistant({ apps: _apps, categories, ruleItems }: Props)
       policy_family:             proposal.npj.policy_family ?? null,
       neutral_policy_json:       proposal.npj as Record<string, unknown>,
       scope_app_ids:             [],
+      primary_action:            npjDecisionToPrimaryAction(proposal.npj.decision) as ActionCode | null,
+      policy_type:               npjIntentToPolicyType(proposal.npj.intent) as PolicyType,
+      scope_all_apps:            !proposal.npj.scope?.app_categories?.length,
     })
 
     setCreating(false)
     if (res.error) { setCreateError(res.error); return }
-    router.push('/genai-controls/policies')
+    if (res.id) router.push(`/genai-controls/policies/${res.id}/edit`)
+    else router.push('/genai-controls/policies')
   }
 
   function handleReset() {

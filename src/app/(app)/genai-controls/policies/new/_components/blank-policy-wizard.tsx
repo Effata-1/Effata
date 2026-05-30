@@ -251,7 +251,7 @@ interface WizardState {
   activities:      Set<NpjActivity>
   // step 3
   dataKeys:        Set<string>
-  operator:        'OR' | 'AND'
+  operator:        'any' | 'all'
   // step 4
   action:          UiActionCode
   severity:        Severity
@@ -282,7 +282,7 @@ export function BlankPolicyWizard({ apps, categories, ruleItems, coachingTemplat
     specificAppIds:  new Set(),
     activities:      new Set<NpjActivity>(['prompt_submit', 'upload']),
     dataKeys:        new Set(),
-    operator:        'OR',
+    operator:        'any',
     action:          'block',
     severity:        'high',
     requireAck:      false,
@@ -492,7 +492,7 @@ export function BlankPolicyWizard({ apps, categories, ruleItems, coachingTemplat
           {state.dataKeys.size >= 2 && (
             <div className="flex items-center gap-1.5 ml-auto">
               <span className="text-[10px] text-muted-foreground/50">Operator:</span>
-              {(['OR', 'AND'] as const).map(op => (
+              {(['any', 'all'] as const).map(op => (
                 <button
                   key={op}
                   type="button"
