@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { colorClasses } from '@/lib/data-catalog/types'
 import {
   VALID_INTENTS, INTENT_LABELS, INTENT_CHIP, ACTIVITY_LABELS,
   validateNeutralPolicy,
@@ -339,6 +338,8 @@ export function AiPolicyAssistant({ apps: _apps, categories, ruleItems, vendors 
   const [createError, setCreateError] = useState('')
   const abortRef = useRef<AbortController | null>(null)
 
+  useEffect(() => () => { abortRef.current?.abort() }, [])
+
   function buildContext(): PolicyCreationContext {
     return {
       intents:    [...VALID_INTENTS],
@@ -386,9 +387,10 @@ export function AiPolicyAssistant({ apps: _apps, categories, ruleItems, vendors 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        full += decoder.decode(value)
+        full += decoder.decode(value, { stream: true })
         setStreamText(full)
       }
+      full += decoder.decode()  // flush any remaining bytes
 
       setStreaming(false)
 

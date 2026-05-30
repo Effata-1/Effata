@@ -18,7 +18,10 @@ export async function POST(req: NextRequest) {
     return new Response('Invalid request body', { status: 400 })
   }
 
-  const upstream = await fetch(`${process.env.RAILWAY_API_BASE_URL}/api/ai/policy-create`, {
+  const apiBase = process.env.RAILWAY_API_BASE_URL
+  if (!apiBase) return new Response('Service unavailable', { status: 503 })
+
+  const upstream = await fetch(`${apiBase}/api/ai/policy-create`, {
     method:  'POST',
     headers: {
       'Content-Type':  'application/json',
@@ -28,8 +31,8 @@ export async function POST(req: NextRequest) {
   })
 
   if (!upstream.ok) {
-    const body = await upstream.text()
-    const msg = body.includes('<') ? `Backend unavailable (${upstream.status} ${upstream.statusText})` : body
+    const errorBody = await upstream.text()
+    const msg = errorBody.includes('<') ? `Backend unavailable (${upstream.status} ${upstream.statusText})` : errorBody
     return new Response(msg, { status: upstream.status })
   }
 
