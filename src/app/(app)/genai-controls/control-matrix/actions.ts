@@ -52,6 +52,26 @@ export async function deleteControlMatrixCell(
   return {}
 }
 
+export async function updateCategoryAccessPosture(
+  categoryId: string,
+  accessPosture: 'allow' | 'block',
+): Promise<{ error?: string }> {
+  const user = await requireRole('analyst')
+  const supabase = await createClient()
+
+  // Prohibited categories are locked to 'block' — never allow overriding them.
+  const { error } = await supabase
+    .from('org_genai_governance_categories')
+    .update({ access_posture: accessPosture })
+    .eq('org_id', user.orgId)
+    .eq('id', categoryId)
+    .neq('system_tag', 'prohibited')
+
+  if (error) return { error: error.message }
+  revalidatePath('/genai-controls/control-matrix')
+  return {}
+}
+
 // ── Classification label management (also revalidates control matrix) ─────────
 
 export async function upsertMatrixLabel(

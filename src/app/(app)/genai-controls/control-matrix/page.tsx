@@ -30,7 +30,7 @@ export default async function ControlMatrixPage() {
 
   const { data: catRows } = await supabase
     .from('org_genai_governance_categories')
-    .select('id, system_tag, name, color')
+    .select('id, system_tag, name, color, access_posture')
     .eq('org_id', user.orgId)
     .eq('active', true)
     .order('priority')
