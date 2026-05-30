@@ -324,14 +324,16 @@ function PolicyProposalCard({
                       newNpj.content = { operator: newNpj.content?.operator ?? 'any', conditions: [] }
                       newNpj.scope   = { ...newNpj.scope, activities: [...APP_ACCESS_ACTIVITIES] }
                     } else if (p.npj.intent === 'govern_app_access') {
-                      // Leaving govern_app_access: reset activities, strip prohibited categories
-                      // (data policies don't apply to prohibited apps — blocked at access level)
+                      // Leaving govern_app_access: reset activities, strip access-blocked categories
+                      // (data policies don't fire on categories with access blocked at browse+login)
                       newNpj.scope = {
                         ...newNpj.scope,
                         activities:     ['post', 'prompt_submit', 'upload'],
-                        app_categories: (newNpj.scope?.app_categories ?? []).filter(c =>
-                          c.system_tag !== 'prohibited' && c.name.toLowerCase() !== 'prohibited',
-                        ),
+                        app_categories: (newNpj.scope?.app_categories ?? []).filter(c => {
+                          const fullCat = categories.find(cat => cat.id === c.id)
+                          const posture = fullCat?.access_posture ?? (c.system_tag === 'prohibited' ? 'block' : 'allow')
+                          return posture !== 'block'
+                        }),
                       }
                     }
                     return { ...p, npj: newNpj }
@@ -388,13 +390,15 @@ function PolicyProposalCard({
 
           {/* App Categories */}
           {categories.length > 0 && (() => {
-            const prohibitedCat  = categories.find(c => c.system_tag === 'prohibited' || c.name.toLowerCase() === 'prohibited')
-            const isAppAccess    = dn.intent === 'govern_app_access'
-            // govern_app_access: all categories (allow/block/restrict any)
-            // data intents: no prohibited — blocked at access level, data policy never triggers
-            const visibleCats = isAppAccess
-              ? categories
-              : categories.filter(c => c.system_tag !== 'prohibited' && c.name.toLowerCase() !== 'prohibited')
+            const isAppAccess = dn.intent === 'govern_app_access'
+            const catPosture  = (c: typeof categories[number]) =>
+              c.access_posture ?? (c.system_tag === 'prohibited' ? 'block' : 'allow')
+            // govern_app_access: only categories with access blocked at browse+login level
+            // data intents: only categories where access is allowed (data policies don't fire on blocked apps)
+            const visibleCats    = isAppAccess
+              ? categories.filter(c => catPosture(c) === 'block')
+              : categories.filter(c => catPosture(c) !== 'block')
+            const hiddenBlockCats = !isAppAccess ? categories.filter(c => catPosture(c) === 'block') : []
 
             return (
               <div>
@@ -419,9 +423,9 @@ function PolicyProposalCard({
                     )
                   })}
                 </div>
-                {!isAppAccess && prohibitedCat && (
+                {hiddenBlockCats.length > 0 && (
                   <p className="text-[10px] text-muted-foreground/40 mt-1.5">
-                    Prohibited apps are blocked at access level — data policies don&apos;t apply to them. Use <span className="font-medium text-muted-foreground/60">Govern App Access</span> to control prohibited app access.
+                    {hiddenBlockCats.map(c => c.name).join(', ')} {hiddenBlockCats.length === 1 ? 'is' : 'are'} blocked at access level — data policies don&apos;t apply. Use <span className="font-medium text-muted-foreground/60">Govern App Access</span> to manage access-level controls.
                   </p>
                 )}
               </div>
