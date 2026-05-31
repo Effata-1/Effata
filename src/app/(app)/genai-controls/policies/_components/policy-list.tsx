@@ -1363,40 +1363,40 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                   {col('data')        && <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Data</th>}
                   {col('activities')  && <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Activities</th>}
                   <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Action</th>
-                  <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">
-                    <span className="flex items-center gap-1.5">
-                      Status
-                      <div ref={colPickerRef} className="relative">
-                        <button
-                          onClick={() => setColPickerOpen(o => !o)}
-                          className="text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
-                          title="Customise columns"
-                        >
-                          <Settings className="w-3 h-3" />
-                        </button>
-                        {colPickerOpen && (
-                          <div className="absolute left-0 top-full mt-1.5 z-40 w-44 rounded-xl border border-border bg-card shadow-xl py-1.5">
-                            <p className="px-3 py-1 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide">Columns</p>
-                            {COLUMN_DEFS.map(({ id, label }) => (
-                              <label key={id} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-muted/40 cursor-pointer select-none">
-                                <input
-                                  type="checkbox"
-                                  checked={visibleCols.has(id)}
-                                  onChange={() => toggleCol(id)}
-                                  className="accent-foreground w-3 h-3"
-                                />
-                                <span className="text-xs text-foreground/80">{label}</span>
-                              </label>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </span>
-                  </th>
+                  <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Status</th>
                   {col('family')      && <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Family</th>}
                   {col('test')        && <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Test</th>}
                   {col('vendor')      && <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Vendor</th>}
-                  <th className="w-16 px-3 py-2.5" />
+                  <th className="w-16 px-3 py-2.5">
+                    <div ref={colPickerRef} className="relative flex justify-end">
+                      <button
+                        onClick={() => setColPickerOpen(o => !o)}
+                        className={cn(
+                          'text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors p-0.5 rounded',
+                          colPickerOpen && 'text-muted-foreground/60',
+                        )}
+                        title="Customise columns"
+                      >
+                        <Settings className="w-3.5 h-3.5" />
+                      </button>
+                      {colPickerOpen && (
+                        <div className="absolute right-0 top-full mt-1.5 z-40 w-44 rounded-xl border border-border bg-card shadow-xl py-1.5">
+                          <p className="px-3 py-1 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide">Columns</p>
+                          {COLUMN_DEFS.map(({ id, label }) => (
+                            <label key={id} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-muted/40 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={visibleCols.has(id)}
+                                onChange={() => toggleCol(id)}
+                                className="accent-foreground w-3 h-3"
+                              />
+                              <span className="text-xs text-foreground/80">{label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </th>
                 </tr>
               </thead>
 

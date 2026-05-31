@@ -108,7 +108,7 @@ export async function upsertGenAICategory(
   } else {
     const { error } = await supabase
       .from('org_genai_governance_categories')
-      .insert({ org_id: user.orgId, ...fields, is_system: false, access_posture: 'allow_dlp' })
+      .insert({ org_id: user.orgId, ...fields, is_system: false })
     if (error) return { error: error.message }
   }
 
