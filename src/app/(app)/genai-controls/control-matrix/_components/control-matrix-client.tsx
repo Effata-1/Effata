@@ -373,7 +373,11 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
 
   function handleAction(rowKey: string, action: ActionCode) {
     if (!selectedCat) return
-    const coachingId = localOverrides[`${rowKey}::${selectedCat.id}`]?.coachingId ?? null
+    const existingOverride = localOverrides[`${rowKey}::${selectedCat.id}`]
+    const rfKey = rowKey.startsWith('pp|rf:') ? rowKey.slice('pp|rf:'.length) : null
+    const coachingId = existingOverride !== undefined
+      ? existingOverride.coachingId
+      : (rfKey ? getRfCoachingDefault(rfKey, selectedCat.system_tag) : null)
     setLocalOverrides(prev => ({ ...prev, [`${rowKey}::${selectedCat.id}`]: { action, coachingId } }))
     startTransition(async () => { await upsertControlMatrixCell(rowKey, selectedCat.id, action, coachingId) })
   }
@@ -400,7 +404,7 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     if (!selectedCat) return null
     const override          = localOverrides[`${rowKey}::${selectedCat.id}`] ?? null
     const effectiveAction   = (override?.action ?? defaultAction ?? 'not-set') as ActionCode
-    const effectiveCoaching = override?.coachingId ?? defaultCoachingId
+    const effectiveCoaching = override !== null ? override.coachingId : defaultCoachingId
     const isOverride        = !!override
     const meta              = ACTIONS[effectiveAction]
     const selectedNotif     = notifications.find(n => n.id === effectiveCoaching)
