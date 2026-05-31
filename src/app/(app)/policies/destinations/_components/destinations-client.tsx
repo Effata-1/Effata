@@ -28,7 +28,7 @@ const TRUST_TAGS: Record<TrustTag, {
   border:  string
 }> = {
   enterprise_approved: {
-    label:   'Enterprise Approved',
+    label:   'Approved & Supported',
     tagline: 'Fully managed and approved for corporate use. Covered by your DLP policies and access controls.',
     dot:     'bg-emerald-400', text: 'text-emerald-400',
     bg:      'bg-emerald-500/10', border: 'border-emerald-500/25',
@@ -40,7 +40,7 @@ const TRUST_TAGS: Record<TrustTag, {
     bg:      'bg-blue-500/10', border: 'border-blue-500/25',
   },
   permitted_with_restriction: {
-    label:   'Permitted with Restriction',
+    label:   'Restricted / Unassessed',
     tagline: 'Allowed for specific low-risk use cases only. Confidential data and above must be blocked.',
     dot:     'bg-amber-400', text: 'text-amber-400',
     bg:      'bg-amber-500/10', border: 'border-amber-500/25',
@@ -912,7 +912,7 @@ export function DestinationsClient({
         {[
           { label: 'Total Destinations',              value: totalCount,      cls: 'text-foreground' },
           { label: 'In Scope',                        value: inScopeCount,    cls: 'text-emerald-400' },
-          { label: 'Enterprise Approved (in scope)',  value: enterpriseCount, cls: 'text-emerald-400' },
+          { label: 'Approved & Supported (in scope)', value: enterpriseCount, cls: 'text-emerald-400' },
           { label: 'Prohibited',                      value: prohibitedCount, cls: 'text-red-400' },
         ].map(stat => (
           <div key={stat.label} className="rounded-xl bg-card border border-border px-4 py-3 shadow-sm">
