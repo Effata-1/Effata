@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { cn } from '@/lib/utils'
-import { colorClasses } from '@/lib/data-catalog/types'
-import type { OrgClassificationLabel, SystemLevel } from '@/lib/data-catalog/types'
+import { colorClasses, RISK_FAMILY_META } from '@/lib/data-catalog/types'
+import type { OrgClassificationLabel, SystemLevel, RiskFamily } from '@/lib/data-catalog/types'
 import { RotateCcw, Lock, ArrowRight, Shield, CheckCircle2 } from 'lucide-react'
 import { upsertControlMatrixCell, deleteControlMatrixCell, updateCategoryAccessPosture } from '../actions'
 
@@ -24,16 +24,195 @@ export const ACTIONS: Record<ActionCode, { label: string; cell: string; text: st
   'not-set':    { label: '—',                     cell: 'bg-transparent border-border',            text: 'text-muted-foreground/30' },
 }
 
-// ── Defaults ─────────────────────────────────────────────────────────────────
+// ── Legacy alias mapping: DB system_tag → internal key ───────────────────────
+
+const TAG_ALIAS: Record<string, string> = {
+  'enterprise-approved':        'approved_supported',
+  'approved-with-conditions':   'approved_with_conditions',
+  'permitted-with-restriction': 'restricted_unassessed',
+  'prohibited':                 'prohibited',
+}
+
+// ── Product-facing display names for system categories ───────────────────────
+
+const TAG_DISPLAY_NAMES: Record<string, string> = {
+  'enterprise-approved':        'Approved & Supported GenAI',
+  'approved-with-conditions':   'Approved with Conditions',
+  'permitted-with-restriction': 'Restricted / Unassessed GenAI',
+  'prohibited':                 'Prohibited GenAI',
+}
+
+function catDisplayName(cat: { system_tag: string | null; name: string }): string {
+  return cat.system_tag ? (TAG_DISPLAY_NAMES[cat.system_tag] ?? cat.name) : cat.name
+}
+
+// ── Stable slug keys for risk family rows ─────────────────────────────────────
+
+const RF_KEY: Record<string, string> = {
+  'Credentials, Keys & Secrets':    'credentials_keys_secrets',
+  'Regulated Data':                 'regulated_data',
+  'Source Code':                    'source_code',
+  'Intellectual Property':          'intellectual_property',
+  'Customer & Employee Data':       'customer_employee_data',
+  'Financial & Commercial Data':    'financial_commercial_data',
+  'Legal & Contractual Data':       'legal_contractual_data',
+  'Security & Infrastructure Data': 'security_infrastructure_data',
+  'Public & Low-Risk Data':         'public_low_risk_data',
+  'Bulk Data / Large Dataset':      'bulk_data',
+  'Large File Upload':              'large_file_upload',
+  'General Usage Reminder':         'general_usage_reminder',
+}
+
+// ── Content detection rows (fixed, in matrix order) ──────────────────────────
+
+const CONTENT_DETECTION_ROWS = [
+  'Credentials, Keys & Secrets',
+  'Regulated Data',
+  'Source Code',
+  'Intellectual Property',
+  'Customer & Employee Data',
+  'Financial & Commercial Data',
+  'Legal & Contractual Data',
+  'Security & Infrastructure Data',
+  'Public & Low-Risk Data',
+  'Bulk Data / Large Dataset',
+  'Large File Upload',
+  'General Usage Reminder',
+] as const
+
+// ── Extra meta for rows outside RISK_FAMILY_META ─────────────────────────────
+
+const EXTRA_ROW_META: Record<string, { color: string }> = {
+  'Bulk Data / Large Dataset': { color: 'zinc' },
+  'Large File Upload':         { color: 'zinc' },
+  'General Usage Reminder':    { color: 'zinc' },
+}
+
+// ── RF_DEFAULTS: action per (trust level × risk family) ──────────────────────
+
+const RF_DEFAULTS: Record<string, Partial<Record<string, ActionCode>>> = {
+  approved_supported: {
+    credentials_keys_secrets:     'block',
+    regulated_data:               'alert',
+    source_code:                  'alert',
+    intellectual_property:        'alert',
+    customer_employee_data:       'alert',
+    financial_commercial_data:    'alert',
+    legal_contractual_data:       'alert',
+    security_infrastructure_data: 'coach-just',
+    public_low_risk_data:         'allow',
+    bulk_data:                    'coach-just',
+    large_file_upload:            'block',
+    general_usage_reminder:       'monitor',
+  },
+  approved_with_conditions: {
+    credentials_keys_secrets:     'block',
+    regulated_data:               'block',
+    source_code:                  'block',
+    intellectual_property:        'block',
+    customer_employee_data:       'coach-just',
+    financial_commercial_data:    'coach-just',
+    legal_contractual_data:       'coach-just',
+    security_infrastructure_data: 'block',
+    public_low_risk_data:         'allow',
+    bulk_data:                    'block',
+    large_file_upload:            'block',
+    general_usage_reminder:       'coach-ack',
+  },
+  restricted_unassessed: {
+    credentials_keys_secrets:     'block',
+    regulated_data:               'block',
+    source_code:                  'block',
+    intellectual_property:        'block',
+    customer_employee_data:       'block',
+    financial_commercial_data:    'block',
+    legal_contractual_data:       'block',
+    security_infrastructure_data: 'block',
+    public_low_risk_data:         'coach-ack',
+    bulk_data:                    'block',
+    large_file_upload:            'block',
+    general_usage_reminder:       'coach-ack',
+  },
+  prohibited: {
+    credentials_keys_secrets:     'block',
+    regulated_data:               'block',
+    source_code:                  'block',
+    intellectual_property:        'block',
+    customer_employee_data:       'block',
+    financial_commercial_data:    'block',
+    legal_contractual_data:       'block',
+    security_infrastructure_data: 'block',
+    public_low_risk_data:         'block',
+    bulk_data:                    'block',
+    large_file_upload:            'block',
+    general_usage_reminder:       'block',
+  },
+}
+
+// ── RF_COACHING_DEFAULTS: coaching notification name per (trust level × risk family) ──
+
+const RF_COACHING_DEFAULTS: Record<string, Partial<Record<string, string | null>>> = {
+  approved_supported: {
+    credentials_keys_secrets:     'Credential Sharing Blocked',
+    regulated_data:               null,
+    source_code:                  null,
+    intellectual_property:        null,
+    customer_employee_data:       null,
+    financial_commercial_data:    null,
+    legal_contractual_data:       null,
+    security_infrastructure_data: 'Sensitive Data Blocked',
+    public_low_risk_data:         null,
+    bulk_data:                    'Bulk Data Sharing Detected',
+    large_file_upload:            'Large File Upload Blocked',
+    general_usage_reminder:       null,
+  },
+  approved_with_conditions: {
+    credentials_keys_secrets:     'Credential Sharing Blocked',
+    regulated_data:               'Regulated Data Detected',
+    source_code:                  'Source Code or Intellectual Property Detected',
+    intellectual_property:        'Source Code or Intellectual Property Detected',
+    customer_employee_data:       'Regulated Data Detected',
+    financial_commercial_data:    'Regulated Data Detected',
+    legal_contractual_data:       'Classified Data Detected',
+    security_infrastructure_data: 'Sensitive Data Blocked',
+    public_low_risk_data:         null,
+    bulk_data:                    'Bulk Data Sharing Detected',
+    large_file_upload:            'Large File Upload Blocked',
+    general_usage_reminder:       'GenAI Usage Reminder',
+  },
+  restricted_unassessed: {
+    credentials_keys_secrets:     'Credential Sharing Blocked',
+    regulated_data:               'Regulated Data Detected',
+    source_code:                  'Source Code or Intellectual Property Detected',
+    intellectual_property:        'Source Code or Intellectual Property Detected',
+    customer_employee_data:       'Regulated Data Detected',
+    financial_commercial_data:    'Regulated Data Detected',
+    legal_contractual_data:       'Classified Data Detected',
+    security_infrastructure_data: 'Sensitive Data Blocked',
+    public_low_risk_data:         'GenAI Usage Reminder',
+    bulk_data:                    'Bulk Data Sharing Detected',
+    large_file_upload:            'Large File Upload Blocked',
+    general_usage_reminder:       'GenAI Usage Reminder',
+  },
+  prohibited: {
+    credentials_keys_secrets:     'GenAI Application Blocked',
+    regulated_data:               'GenAI Application Blocked',
+    source_code:                  'GenAI Application Blocked',
+    intellectual_property:        'GenAI Application Blocked',
+    customer_employee_data:       'GenAI Application Blocked',
+    financial_commercial_data:    'GenAI Application Blocked',
+    legal_contractual_data:       'GenAI Application Blocked',
+    security_infrastructure_data: 'GenAI Application Blocked',
+    public_low_risk_data:         'GenAI Application Blocked',
+    bulk_data:                    'GenAI Application Blocked',
+    large_file_upload:            'GenAI Application Blocked',
+    general_usage_reminder:       'GenAI Application Blocked',
+  },
+}
+
+// ── Label / filename detection defaults (unchanged) ───────────────────────────
 
 type LevelMap = Partial<Record<SystemLevel, ActionCode>>
-
-const PP_DEFAULTS: Record<string, LevelMap> = {
-  'enterprise-approved':        { public: 'allow',   internal: 'monitor', confidential: 'alert',     highly_confidential: 'coach-ack', secret: 'block' },
-  'approved-with-conditions':   { public: 'allow',   internal: 'monitor', confidential: 'coach',     highly_confidential: 'block',     secret: 'block' },
-  'permitted-with-restriction': { public: 'monitor', internal: 'coach',   confidential: 'block',     highly_confidential: 'block',     secret: 'block' },
-  'prohibited':                 { public: 'block',   internal: 'block',   confidential: 'block',     highly_confidential: 'block',     secret: 'block' },
-}
 
 const UL_DC_DEFAULTS: Record<string, LevelMap> = {
   'enterprise-approved':        { public: 'allow',   internal: 'monitor', confidential: 'alert',     highly_confidential: 'coach-ack', secret: 'block' },
@@ -125,19 +304,23 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
   // ── Flat row list ─────────────────────────────────────────────────────────
 
   type FlatItem =
-    | { type: 'section'; sectionId: string; label: string; color: string }
-    | { type: 'row'; rowKey: string; label: OrgClassificationLabel; sectionId: string; ri: number }
-    | { type: 'clabel-row'; rowKey: string; clabel: CustomerLabel; sectionId: string; ri: number }
+    | { type: 'section';      sectionId: string; label: string; color: string }
+    | { type: 'rf-row';       rowKey: string; riskFamily: string; rfKey: string; sectionId: string; ri: number }
+    | { type: 'row';          rowKey: string; label: OrgClassificationLabel; sectionId: string; ri: number }
+    | { type: 'clabel-row';   rowKey: string; clabel: CustomerLabel; sectionId: string; ri: number }
     | { type: 'clabel-empty'; sectionId: string }
 
   const flatItems: FlatItem[] = []
   let rowIndex = 0
 
+  // Content detection — risk family rows
   flatItems.push({ type: 'section', sectionId: 'pp', label: 'Prompt / Upload (Content Detection)', color: 'text-orange-400' })
-  localLabels.forEach(lbl =>
-    flatItems.push({ type: 'row', rowKey: `pp|${lbl.id}`, label: lbl, sectionId: 'pp', ri: rowIndex++ })
-  )
+  CONTENT_DETECTION_ROWS.forEach(rf => {
+    const key = RF_KEY[rf]
+    flatItems.push({ type: 'rf-row', rowKey: `pp|rf:${key}`, riskFamily: rf, rfKey: key, sectionId: 'pp', ri: rowIndex++ })
+  })
 
+  // Label detection — customer sensitivity labels (unchanged)
   const hasCustomerLabels = customerLabels.length > 0
   flatItems.push({
     type: 'section', sectionId: 'ul_dc',
@@ -152,6 +335,7 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     flatItems.push({ type: 'clabel-empty', sectionId: 'ul_dc' })
   }
 
+  // Filename detection (unchanged)
   const filenameLabels = localLabels.filter(lbl => lbl.system_level && FILENAME_LEVELS.includes(lbl.system_level as SystemLevel))
   if (filenameLabels.length > 0) {
     flatItems.push({ type: 'section', sectionId: 'ul_fn', label: 'Upload — Filename Detection', color: 'text-muted-foreground/60' })
@@ -162,11 +346,23 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
+  function getRfDefault(rfKey: string, catTag: string | null): ActionCode | null {
+    if (!catTag) return null
+    const tag = TAG_ALIAS[catTag] ?? catTag
+    return RF_DEFAULTS[tag]?.[rfKey] ?? null
+  }
+
+  function getRfCoachingDefault(rfKey: string, catTag: string | null): string | null {
+    if (!catTag) return null
+    const tag = TAG_ALIAS[catTag] ?? catTag
+    const notifName = RF_COACHING_DEFAULTS[tag]?.[rfKey] ?? null
+    if (!notifName) return null
+    return notifications.find(n => n.name === notifName)?.id ?? null
+  }
+
   function getDefault(sectionId: string, lbl: OrgClassificationLabel, catTag: string | null): ActionCode | null {
     if (!catTag || !lbl.system_level) return null
-    const level = lbl.system_level as SystemLevel
-    if (sectionId === 'pp')    return PP_DEFAULTS[catTag]?.[level]    ?? null
-    if (sectionId === 'ul_fn') return UL_FN_DEFAULTS[catTag]?.[level] ?? null
+    if (sectionId === 'ul_fn') return UL_FN_DEFAULTS[catTag]?.[lbl.system_level as SystemLevel] ?? null
     return null
   }
 
@@ -200,14 +396,14 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     startTransition(async () => { await deleteControlMatrixCell(rowKey, selectedCat.id) })
   }
 
-  function renderCell(rowKey: string, defaultAction: ActionCode | null) {
+  function renderCell(rowKey: string, defaultAction: ActionCode | null, defaultCoachingId: string | null = null) {
     if (!selectedCat) return null
-    const override        = localOverrides[`${rowKey}::${selectedCat.id}`] ?? null
-    const effectiveAction = (override?.action ?? defaultAction ?? 'not-set') as ActionCode
-    const effectiveCoaching = override?.coachingId ?? null
-    const isOverride      = !!override
-    const meta            = ACTIONS[effectiveAction]
-    const selectedNotif   = notifications.find(n => n.id === effectiveCoaching)
+    const override          = localOverrides[`${rowKey}::${selectedCat.id}`] ?? null
+    const effectiveAction   = (override?.action ?? defaultAction ?? 'not-set') as ActionCode
+    const effectiveCoaching = override?.coachingId ?? defaultCoachingId
+    const isOverride        = !!override
+    const meta              = ACTIONS[effectiveAction]
+    const selectedNotif     = notifications.find(n => n.id === effectiveCoaching)
 
     return (
       <td className="px-4 py-3 w-80">
@@ -284,7 +480,7 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
                   : 'bg-transparent border-border/40 text-muted-foreground/50 hover:border-border hover:text-muted-foreground/80',
               )}
             >
-              {cat.name}
+              {catDisplayName(cat)}
             </button>
           )
         })}
@@ -339,7 +535,7 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
                       : <><Shield className="h-2.5 w-2.5" /> Allow + DLP Controls</>
                   }
                 </span>
-                <span className="text-[11px] text-muted-foreground/60 font-medium">{cat.name}</span>
+                <span className="text-[11px] text-muted-foreground/60 font-medium">{catDisplayName(cat)}</span>
               </button>
             )
           })}
@@ -357,12 +553,12 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
           <thead>
             <tr className="border-b border-border bg-card/80">
               <th className="text-left text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide px-5 py-3 w-64">
-                Activity / Label
+                Activity / Data Type
               </th>
               <th className="px-4 py-3 text-left w-80">
                 {selectedCat && (
                   <p className={cn('text-xs font-bold', colorClasses(selectedCat.color).text)}>
-                    {selectedCat.name}
+                    {catDisplayName(selectedCat)}
                     {!selectedCat.system_tag && (
                       <span className="ml-1.5 text-[9px] text-muted-foreground/40 font-normal">custom</span>
                     )}
@@ -410,6 +606,27 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
 
               const ri = 'ri' in item ? item.ri : 0
               const rowBg = cn('border-b border-border/40 hover:bg-card/20 transition-colors', ri % 2 !== 0 && 'bg-card/10')
+
+              if (item.type === 'rf-row') {
+                const { rowKey, riskFamily, rfKey } = item
+                const meta = RISK_FAMILY_META[riskFamily as RiskFamily] ?? EXTRA_ROW_META[riskFamily] ?? null
+                const cc   = meta ? colorClasses(meta.color) : null
+                return (
+                  <tr key={rowKey} className={rowBg}>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-2">
+                        {cc && <span className={cn('w-2 h-2 rounded-full shrink-0', cc.dot)} />}
+                        <span className={cn('text-sm font-semibold', cc?.text ?? 'text-foreground/70')}>{riskFamily}</span>
+                      </div>
+                    </td>
+                    {renderCell(
+                      rowKey,
+                      getRfDefault(rfKey, selectedCat?.system_tag ?? null),
+                      getRfCoachingDefault(rfKey, selectedCat?.system_tag ?? null),
+                    )}
+                  </tr>
+                )
+              }
 
               if (item.type === 'clabel-row') {
                 const { rowKey, clabel } = item
