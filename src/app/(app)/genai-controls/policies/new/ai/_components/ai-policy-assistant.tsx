@@ -234,7 +234,7 @@ function UsersEditor({ users, onChange }: { users: string[]; onChange: (u: strin
               ? 'border-border bg-muted/40 text-muted-foreground/70'
               : 'border-blue-500/25 bg-blue-500/10 text-blue-400',
           )}>
-            {u}
+            {u === 'All Users' ? 'All Users' : `${u} Users`}
             {u !== 'All Users' && (
               <button type="button" onClick={() => remove(u)} className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity">×</button>
             )}
@@ -671,7 +671,7 @@ function PolicyProposalCard({
                       ? 'border-border bg-muted/40 text-muted-foreground/70'
                       : 'border-blue-500/25 bg-blue-500/10 text-blue-400',
                   )}>
-                    {u}
+                    {u === 'All Users' ? 'All Users' : `${u} Users`}
                   </span>
                 ))}
               </div>

@@ -687,7 +687,7 @@ export function PolicyIntentEditor({
                       ? 'border-border bg-muted/40 text-muted-foreground/70'
                       : 'border-blue-500/25 bg-blue-500/10 text-blue-400',
                   )}>
-                    {u}
+                    {u === 'All Users' ? 'All Users' : `${u} Users`}
                   </span>
                 ))}
               </div>
