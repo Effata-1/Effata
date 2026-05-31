@@ -32,17 +32,18 @@ export const SYSTEM_TRUST_DEFAULTS: Omit<OrgDestinationTrustLabel, 'id' | 'org_i
 ]
 
 export interface CatalogDataType {
-  id:          string
-  slug:        string
-  name:        string
+  id:           string
+  slug:         string
+  name:         string
   system_level: SystemLevel
-  subcategory: string | null
-  description: string | null
-  examples:    string[]
-  notes:       string | null
-  priority:    number
-  tags:        string[]
-  active:      boolean
+  subcategory:  string | null
+  risk_family:  string | null
+  description:  string | null
+  examples:     string[]
+  notes:        string | null
+  priority:     number
+  tags:         string[]
+  active:       boolean
 }
 
 export interface OrgClassificationLabel {
@@ -65,6 +66,7 @@ export interface OrgDataType {
   description:           string | null
   examples:              string[]
   notes:                 string | null
+  risk_family:           string | null
   is_in_scope:           boolean
   is_custom:             boolean
   // joined fields
@@ -134,6 +136,32 @@ export const COLOR_OPTIONS = [
   { value: 'purple',  label: 'Purple',  class: 'bg-purple-500' },
   { value: 'zinc',    label: 'Grey',    class: 'bg-accent' },
 ]
+
+export const RISK_FAMILIES = [
+  'Credentials, Keys & Secrets',
+  'Regulated Data',
+  'Source Code',
+  'Intellectual Property',
+  'Customer & Employee Data',
+  'Financial & Commercial Data',
+  'Legal & Contractual Data',
+  'Security & Infrastructure Data',
+  'Public & Low-Risk Data',
+] as const
+
+export type RiskFamily = typeof RISK_FAMILIES[number]
+
+export const RISK_FAMILY_META: Record<RiskFamily, { color: string }> = {
+  'Credentials, Keys & Secrets':    { color: 'red'     },
+  'Regulated Data':                 { color: 'orange'  },
+  'Source Code':                    { color: 'purple'  },
+  'Intellectual Property':          { color: 'amber'   },
+  'Customer & Employee Data':       { color: 'blue'    },
+  'Financial & Commercial Data':    { color: 'emerald' },
+  'Legal & Contractual Data':       { color: 'sky'     },
+  'Security & Infrastructure Data': { color: 'zinc'    },
+  'Public & Low-Risk Data':         { color: 'green'   },
+}
 
 export function colorClasses(color: string) {
   const map: Record<string, { text: string; bg: string; border: string; dot: string }> = {

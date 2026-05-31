@@ -260,6 +260,7 @@ export async function addCustomDataType(fields: {
   examples:    string[]
   notes:       string
   labelId:     string
+  riskFamily?: string | null
 }): Promise<{ error?: string }> {
   const user = await requireRole('analyst')
   const supabase = await createClient()
@@ -272,6 +273,7 @@ export async function addCustomDataType(fields: {
       description: fields.description,
       examples:    fields.examples,
       notes:       fields.notes,
+      risk_family: fields.riskFamily ?? null,
       is_custom:   true,
       is_in_scope: true,
     })

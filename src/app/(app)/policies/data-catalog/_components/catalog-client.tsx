@@ -4,8 +4,8 @@ import { useState, useMemo, useTransition, useOptimistic, useEffect, useRef } fr
 import { cn } from '@/lib/utils'
 import { Search, X, Plus, ChevronDown, ChevronRight, Info, AlertTriangle, Wand2, FlaskConical, Check } from 'lucide-react'
 import { toggleInScope, setClassification, addCustomDataType, batchToggleInScope } from '@/lib/data-catalog/actions'
-import { colorClasses, SYSTEM_LEVEL_META } from '@/lib/data-catalog/types'
-import type { OrgClassificationLabel, SystemLevel } from '@/lib/data-catalog/types'
+import { colorClasses, SYSTEM_LEVEL_META, RISK_FAMILIES, RISK_FAMILY_META } from '@/lib/data-catalog/types'
+import type { OrgClassificationLabel, SystemLevel, RiskFamily } from '@/lib/data-catalog/types'
 import { FilterSelect, MultiFilterSelect } from '@/components/ui/filter-select'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -16,6 +16,7 @@ interface EnrichedCatalogType {
   name:                    string
   system_level:            SystemLevel
   subcategory:             string | null
+  risk_family:             string | null
   description:             string | null
   examples:                string[]
   notes:                   string | null
@@ -32,6 +33,7 @@ interface CustomType {
   name:                    string
   description:             string | null
   examples:                string[]
+  risk_family:             string | null
   is_custom:               boolean
   org_data_type_id:        string
   classification_label_id: string | null
@@ -82,7 +84,7 @@ function RulesPanel() {
 // ─── Add custom type modal ────────────────────────────────────────────────────
 
 function AddCustomModal({ labels, onClose }: { labels: OrgClassificationLabel[]; onClose: () => void }) {
-  const [form, setForm] = useState({ name: '', description: '', examples: '', notes: '', labelId: labels[0]?.id ?? '' })
+  const [form, setForm] = useState({ name: '', description: '', examples: '', notes: '', labelId: labels[0]?.id ?? '', riskFamily: '' })
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -96,6 +98,7 @@ function AddCustomModal({ labels, onClose }: { labels: OrgClassificationLabel[];
         examples:    form.examples.split(',').map(s => s.trim()).filter(Boolean),
         notes:       form.notes.trim(),
         labelId:     form.labelId,
+        riskFamily:  form.riskFamily || null,
       })
       if (result.error) { setError(result.error); return }
       onClose()
@@ -135,6 +138,19 @@ function AddCustomModal({ labels, onClose }: { labels: OrgClassificationLabel[];
               className="w-full bg-muted border border-border-strong rounded-lg px-3 py-2.5 text-sm text-foreground/70 focus:outline-none focus:border-blue-500"
             >
               {labels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              Risk Family <span className="text-muted-foreground/40">(optional)</span>
+            </label>
+            <select
+              value={form.riskFamily}
+              onChange={e => setForm(f => ({ ...f, riskFamily: e.target.value }))}
+              className="w-full bg-muted border border-border-strong rounded-lg px-3 py-2.5 text-sm text-foreground/70 focus:outline-none focus:border-blue-500"
+            >
+              <option value="">— None —</option>
+              {RISK_FAMILIES.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
           </div>
           {error && <p className="text-xs text-red-400">{error}</p>}
@@ -318,6 +334,18 @@ function DataTypeRow({
                 </p>
               )}
               <ComplianceBadges tags={item.tags ?? []} />
+              {item.risk_family && (() => {
+                const meta = RISK_FAMILY_META[item.risk_family as RiskFamily]
+                const cc   = meta ? colorClasses(meta.color) : null
+                return (
+                  <span className={cn(
+                    'inline-block text-[9px] font-semibold px-1.5 py-0.5 rounded border mt-1',
+                    cc ? `${cc.text} ${cc.bg} ${cc.border}` : 'text-muted-foreground/50 bg-muted border-border',
+                  )}>
+                    {item.risk_family}
+                  </span>
+                )
+              })()}
             </div>
           </div>
         </td>
@@ -682,6 +710,7 @@ export function CatalogClient({
   const [search,            setSearch]            = useState('')
   const [levelFilter,       setLevelFilter]       = useState<string[]>([])
   const [subcatFilter,      setSubcatFilter]      = useState<string>('')
+  const [riskFamilyFilter,  setRiskFamilyFilter]  = useState<string>('')
   const [complianceFilter,  setComplianceFilter]  = useState<string[]>([])
   const [scopeFilter,       setScopeFilter]       = useState<string>('')
   const [showAddModal,      setShowAddModal]      = useState(false)
@@ -750,6 +779,11 @@ export function CatalogClient({
     return [{ value: 'all', label: 'All categories' }, ...all.map(s => ({ value: s, label: s }))]
   }, [catalog])
 
+  const riskFamilyOptions = useMemo(() => [
+    { value: '', label: 'All risk families' },
+    ...RISK_FAMILIES.map(f => ({ value: f, label: f })),
+  ], [])
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     return optimisticCatalog.filter(item => {
@@ -763,6 +797,7 @@ export function CatalogClient({
         if (!matches) return false
       }
       if (subcatFilter && (item.subcategory ?? 'General') !== subcatFilter) return false
+      if (riskFamilyFilter && item.risk_family !== riskFamilyFilter) return false
       // Compliance filter (multi) — OR logic: item must match at least one selected tag
       if (complianceFilter.length > 0 && !complianceFilter.some(t => (item.tags ?? []).includes(t))) return false
       if (scopeFilter === 'in_scope'     && !item.is_in_scope) return false
@@ -774,7 +809,7 @@ export function CatalogClient({
         item.examples.some(e => e.toLowerCase().includes(q))
       )
     })
-  }, [optimisticCatalog, search, levelFilter, subcatFilter, complianceFilter, scopeFilter, labelById])
+  }, [optimisticCatalog, search, levelFilter, subcatFilter, riskFamilyFilter, complianceFilter, scopeFilter, labelById])
 
   const totalInScope = optimisticCatalog.filter(i => i.is_in_scope).length + customTypes.length
   const totalMapped  = optimisticCatalog.filter(i => i.is_in_scope && i.classification_label_id).length
@@ -850,6 +885,13 @@ export function CatalogClient({
           placeholder="All categories"
         />
 
+        <FilterSelect
+          value={riskFamilyFilter}
+          onChange={setRiskFamilyFilter}
+          options={riskFamilyOptions}
+          placeholder="All risk families"
+        />
+
         <MultiFilterSelect
           value={complianceFilter}
           onChange={setComplianceFilter}
@@ -865,9 +907,9 @@ export function CatalogClient({
           searchable={false}
         />
 
-        {(search || levelFilter.length > 0 || subcatFilter || complianceFilter.length > 0 || scopeFilter) && (
+        {(search || levelFilter.length > 0 || subcatFilter || riskFamilyFilter || complianceFilter.length > 0 || scopeFilter) && (
           <button
-            onClick={() => { setSearch(''); setLevelFilter([]); setSubcatFilter(''); setComplianceFilter([]); setScopeFilter('') }}
+            onClick={() => { setSearch(''); setLevelFilter([]); setSubcatFilter(''); setRiskFamilyFilter(''); setComplianceFilter([]); setScopeFilter('') }}
             className="text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
           >
             Clear all
@@ -883,7 +925,7 @@ export function CatalogClient({
       <div className="space-y-2">
         {levels.map(level => {
           const sectionItems = filtered.filter(i => i.system_level === level)
-          const anyFilterActive = search.length > 0 || subcatFilter !== '' || complianceFilter.length > 0 || levelFilter.length > 0 || scopeFilter !== ''
+          const anyFilterActive = search.length > 0 || subcatFilter !== '' || riskFamilyFilter !== '' || complianceFilter.length > 0 || levelFilter.length > 0 || scopeFilter !== ''
           const forceExpand = anyFilterActive && sectionItems.length > 0
           return (
           <ClassificationSection
@@ -923,6 +965,18 @@ export function CatalogClient({
                           <div>
                             <p className="text-sm font-medium text-foreground">{t.name}</p>
                             {t.examples.length > 0 && <p className="text-xs text-muted-foreground/60 mt-0.5">{t.examples.slice(0, 3).join('  ·  ')}</p>}
+                            {t.risk_family && (() => {
+                              const meta = RISK_FAMILY_META[t.risk_family as RiskFamily]
+                              const cc   = meta ? colorClasses(meta.color) : null
+                              return (
+                                <span className={cn(
+                                  'inline-block text-[9px] font-semibold px-1.5 py-0.5 rounded border mt-1',
+                                  cc ? `${cc.text} ${cc.bg} ${cc.border}` : 'text-muted-foreground/50 bg-muted border-border',
+                                )}>
+                                  {t.risk_family}
+                                </span>
+                              )
+                            })()}
                           </div>
                         </div>
                       </td>
@@ -948,7 +1002,7 @@ export function CatalogClient({
       {filtered.length === 0 && (
         <div className="text-center py-16 text-muted-foreground/60 text-sm rounded-xl border border-border">
           No data types match your filters.
-          <button onClick={() => { setSearch(''); setLevelFilter([]); setSubcatFilter(''); setComplianceFilter([]); setScopeFilter('') }} className="ml-2 text-blue-400 hover:underline">
+          <button onClick={() => { setSearch(''); setLevelFilter([]); setSubcatFilter(''); setRiskFamilyFilter(''); setComplianceFilter([]); setScopeFilter('') }} className="ml-2 text-blue-400 hover:underline">
             Clear filters
           </button>
         </div>
