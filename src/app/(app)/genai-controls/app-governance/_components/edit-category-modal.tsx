@@ -44,9 +44,13 @@ export function EditCategoryModal({ category, categories, onClose }: Props) {
     e.preventDefault()
     if (!form.name.trim()) { setError('Name is required.'); return }
     startTransition(async () => {
-      const result = await upsertGenAICategory(category?.id ?? null, { ...form, name: form.name.trim() })
-      if (result.error) { setError(result.error); return }
-      onClose()
+      try {
+        const result = await upsertGenAICategory(category?.id ?? null, { ...form, name: form.name.trim() })
+        if (result.error) { setError(result.error); return }
+        onClose()
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+      }
     })
   }
 

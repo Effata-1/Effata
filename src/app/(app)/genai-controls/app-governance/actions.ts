@@ -69,6 +69,7 @@ export async function ensureGenAIGovernanceCategories(): Promise<GenAIGovernance
     .from('org_genai_governance_categories')
     .select('*')
     .eq('org_id', user.orgId)
+    .eq('active', true)
     .order('priority')
 
   const existingTags = new Set((existing ?? []).map((r: GenAIGovernanceCategory) => r.system_tag).filter(Boolean))
@@ -84,6 +85,7 @@ export async function ensureGenAIGovernanceCategories(): Promise<GenAIGovernance
     .from('org_genai_governance_categories')
     .select('*')
     .eq('org_id', user.orgId)
+    .eq('active', true)
     .order('priority')
 
   return (refreshed ?? []) as GenAIGovernanceCategory[]
@@ -106,7 +108,7 @@ export async function upsertGenAICategory(
   } else {
     const { error } = await supabase
       .from('org_genai_governance_categories')
-      .insert({ org_id: user.orgId, ...fields, is_system: false })
+      .insert({ org_id: user.orgId, ...fields, is_system: false, access_posture: 'allow_dlp' })
     if (error) return { error: error.message }
   }
 
