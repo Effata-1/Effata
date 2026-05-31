@@ -52,6 +52,7 @@ interface NeutralPolicyJson {
   policy_family?:  string
   policy_key?:     string
   scope?: {
+    users?:          string[]
     activities?:     string[]
     channels?:       string[]
     app_categories?: Array<{ id: string; system_tag: string | null; name: string }>
@@ -676,6 +677,22 @@ export function PolicyIntentEditor({
           <NpjRow label="Policy Family">
             <span className="text-sm text-foreground/80">{npj.policy_family ?? policy.policy_family ?? '—'}</span>
           </NpjRow>
+          {(npj.scope?.users?.length ?? 0) > 0 && (
+            <NpjRow label="Users">
+              <div className="flex flex-wrap gap-1.5">
+                {(npj.scope!.users!).map((u, i) => (
+                  <span key={i} className={cn(
+                    'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
+                    u === 'All Users'
+                      ? 'border-border bg-muted/40 text-muted-foreground/70'
+                      : 'border-blue-500/25 bg-blue-500/10 text-blue-400',
+                  )}>
+                    {u}
+                  </span>
+                ))}
+              </div>
+            </NpjRow>
+          )}
           <NpjRow label="Monitored Activities">
             <ReadOnlyTooltip tip="Activities are set by the compiler. Use Policy Change Assistant to change.">
               <div className="flex flex-wrap gap-1.5">
