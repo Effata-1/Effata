@@ -268,6 +268,22 @@ function deriveFromRules(rules: PolicyRule[], ruleItems: RuleItem[]) {
 // ── Row summary cells ─────────────────────────────────────────────────────────
 
 function SourceCell({ policy, identityFields }: { policy: GenAIPolicy; identityFields: Record<string, IdentityOption[]> }) {
+  // Prefer NPJ scope.users — specific groups set by AI or editor
+  const npj = getNpj(policy)
+  if (npj) {
+    const npjUsers = ((npj.scope as Record<string, unknown> | undefined)?.users as string[] | undefined) ?? []
+    const specific = npjUsers.filter(u => u !== 'All Users')
+    if (specific.length > 0) {
+      return (
+        <div className="space-y-0.5">
+          <span className="text-[11px] text-foreground/80 truncate block max-w-[120px]">{`${specific[0]} Users`}</span>
+          {specific.length > 1 && <span className="text-[10px] text-muted-foreground/50">+{specific.length - 1} more</span>}
+        </div>
+      )
+    }
+  }
+
+  // Fall back to identity_context (legacy field IDs)
   const ids = policy.identity_context ?? []
   if (ids.length === 0) return <span className="text-[11px] text-muted-foreground/40 italic">Any user</span>
   const all = Object.values(identityFields).flat()
