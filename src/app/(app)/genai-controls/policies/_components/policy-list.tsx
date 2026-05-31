@@ -580,6 +580,7 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
   const [chatPolicyId, setChatPolicyId]       = useState<string | undefined>(undefined)
   const [deleteTarget, setDeleteTarget]       = useState<{ id: string; name: string } | null>(null)
   const [selectedIds, setSelectedIds]         = useState<Set<string>>(new Set())
+  const [selectMode, setSelectMode]           = useState(false)
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
   const [showNewModal, setShowNewModal]       = useState(false)
   const [visibleCols, setVisibleCols]         = useState<Set<ColumnId>>(DEFAULT_COLS)
@@ -715,12 +716,14 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
 
   function handleBulkActivate() {
     const ids = [...selectedIds]
+    setSelectedIds(new Set()); setSelectMode(false)
     setPolicies(ps => ps.map(p => ids.includes(p.id) ? { ...p, is_active: true } : p))
     startTransition(async () => { await Promise.all(ids.map(id => togglePolicyActive(id, true))) })
   }
 
   function handleBulkDeactivate() {
     const ids = [...selectedIds]
+    setSelectedIds(new Set()); setSelectMode(false)
     setPolicies(ps => ps.map(p => ids.includes(p.id) ? { ...p, is_active: false } : p))
     startTransition(async () => { await Promise.all(ids.map(id => togglePolicyActive(id, false))) })
   }
@@ -728,7 +731,7 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
   async function handleBulkDelete() {
     const ids = [...selectedIds]
     setBulkDeleteConfirm(false)
-    setSelectedIds(new Set())
+    setSelectedIds(new Set()); setSelectMode(false)
     setPolicies(ps => ps.filter(p => !ids.includes(p.id)))
     await Promise.all(ids.map(id => deletePolicy(id)))
   }
@@ -1127,37 +1130,18 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
             {isGenerating ? 'Generating…' : 'Generate Policies'}
           </button>
         )}
-        {/* Column chooser */}
-        <div ref={colPickerRef} className="relative">
-          <button
-            onClick={() => setColPickerOpen(o => !o)}
-            className={cn(
-              'flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors',
-              colPickerOpen
-                ? 'border-border bg-muted/60 text-foreground/80'
-                : 'border-border bg-muted/30 hover:bg-muted/60 text-muted-foreground',
-            )}
-            title="Customise columns"
-          >
-            <Settings className="w-3.5 h-3.5" />
-          </button>
-          {colPickerOpen && (
-            <div className="absolute right-0 top-full mt-1.5 z-40 w-44 rounded-xl border border-border bg-card shadow-xl py-1.5">
-              <p className="px-3 py-1 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide">Columns</p>
-              {COLUMN_DEFS.map(({ id, label }) => (
-                <label key={id} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-muted/40 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={visibleCols.has(id)}
-                    onChange={() => toggleCol(id)}
-                    className="accent-foreground w-3 h-3"
-                  />
-                  <span className="text-xs text-foreground/80">{label}</span>
-                </label>
-              ))}
-            </div>
+        {/* Select mode toggle */}
+        <button
+          onClick={() => { setSelectMode(m => !m); if (selectMode) setSelectedIds(new Set()) }}
+          className={cn(
+            'flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors',
+            selectMode
+              ? 'border-blue-500/40 bg-blue-500/10 text-blue-400'
+              : 'border-border bg-muted/30 hover:bg-muted/60 text-muted-foreground',
           )}
-        </div>
+        >
+          Select
+        </button>
 
         <button
           type="button"
@@ -1360,14 +1344,15 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border bg-card/80">
-                  <th className="w-8 px-3 py-2.5">
-                    <SelectAllBox
-                      checked={allVisibleSelected}
-                      indeterminate={someVisibleSelected && !allVisibleSelected}
-                      onChange={toggleSelectAll}
-                    />
-                  </th>
-                  <th className="w-10 px-3 py-2.5" />
+                  {selectMode && (
+                    <th className="w-8 px-3 py-2.5">
+                      <SelectAllBox
+                        checked={allVisibleSelected}
+                        indeterminate={someVisibleSelected && !allVisibleSelected}
+                        onChange={toggleSelectAll}
+                      />
+                    </th>
+                  )}
                   <th className="w-8 px-2 py-2.5 text-[10px] font-semibold text-muted-foreground/30 text-right">#</th>
                   <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">
                     Name
@@ -1378,7 +1363,36 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                   {col('data')        && <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Data</th>}
                   {col('activities')  && <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Activities</th>}
                   <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Action</th>
-                  <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Status</th>
+                  <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">
+                    <span className="flex items-center gap-1.5">
+                      Status
+                      <div ref={colPickerRef} className="relative">
+                        <button
+                          onClick={() => setColPickerOpen(o => !o)}
+                          className="text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
+                          title="Customise columns"
+                        >
+                          <Settings className="w-3 h-3" />
+                        </button>
+                        {colPickerOpen && (
+                          <div className="absolute left-0 top-full mt-1.5 z-40 w-44 rounded-xl border border-border bg-card shadow-xl py-1.5">
+                            <p className="px-3 py-1 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide">Columns</p>
+                            {COLUMN_DEFS.map(({ id, label }) => (
+                              <label key={id} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-muted/40 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={visibleCols.has(id)}
+                                  onChange={() => toggleCol(id)}
+                                  className="accent-foreground w-3 h-3"
+                                />
+                                <span className="text-xs text-foreground/80">{label}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </span>
+                  </th>
                   {col('family')      && <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Family</th>}
                   {col('test')        && <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Test</th>}
                   {col('vendor')      && <th className="text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide px-3 py-2.5">Vendor</th>}
@@ -1397,24 +1411,16 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                       !policy.is_active && 'opacity-50',
                     )}
                   >
-                    <td className="px-3 py-2.5 align-middle w-8">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(policy.id)}
-                        onChange={() => toggleSelect(policy.id)}
-                        className="accent-foreground w-3 h-3 cursor-pointer"
-                      />
-                    </td>
-
-                    <td className="px-3 py-2.5 align-middle">
-                      <button
-                        onClick={() => handleToggle(policy.id, policy.is_active)}
-                        className={cn('w-7 h-4 rounded-full transition-colors relative shrink-0', policy.is_active ? 'bg-emerald-500/70' : 'bg-muted')}
-                        title={policy.is_active ? 'Deactivate' : 'Activate'}
-                      >
-                        <span className={cn('absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all', policy.is_active ? 'left-3.5' : 'left-0.5')} />
-                      </button>
-                    </td>
+                    {selectMode && (
+                      <td className="px-3 py-2.5 align-middle w-8">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(policy.id)}
+                          onChange={() => toggleSelect(policy.id)}
+                          className="accent-foreground w-3 h-3 cursor-pointer"
+                        />
+                      </td>
+                    )}
 
                     <td className="px-2 py-2.5 align-middle text-right w-8">
                       <span className="text-[10px] text-muted-foreground/30 tabular-nums">{idx + 1}</span>
@@ -1511,6 +1517,17 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                             >
                               <Copy className="w-3.5 h-3.5 text-muted-foreground/60" />
                               Duplicate
+                            </button>
+                            <div className="my-1 border-t border-border/40" />
+                            <button
+                              type="button"
+                              onClick={() => { setOpenMenuId(null); handleToggle(policy.id, policy.is_active) }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
+                            >
+                              {policy.is_active
+                                ? <><ShieldAlert className="w-3.5 h-3.5 text-amber-400" />Disable</>
+                                : <><ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />Activate</>
+                              }
                             </button>
                             <div className="my-1 border-t border-border/40" />
                             <button
