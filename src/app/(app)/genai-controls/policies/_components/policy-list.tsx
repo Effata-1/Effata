@@ -5,10 +5,10 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   ChevronLeft, ChevronRight, Copy, FileText, Filter, Library, MessageSquare, MoreVertical,
-  Pencil, Plus, Search, Settings, ShieldAlert, ShieldCheck, Sparkles, Trash2, X,
+  Pencil, Plus, RotateCcw, Search, Settings, ShieldAlert, ShieldCheck, Sparkles, Trash2, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { deletePolicy, duplicatePolicy, generatePoliciesFromGovernance, getPolicyPackJobStatus, togglePolicyActive } from '../actions'
+import { deletePolicy, duplicatePolicy, generatePoliciesFromGovernance, getPolicyPackJobStatus, resetPolicyToDefault, togglePolicyActive } from '../actions'
 import { PolicyChatPanel } from './policy-chat-panel'
 import type { GenAIPolicy, ApprovalStatus, ActionCode, PolicyRule } from '@/lib/genai/types'
 import { lintAllPolicies, SEVERITY_STYLES, type LintIssue } from '@/lib/genai/lint'
@@ -151,10 +151,11 @@ const FILTER_DEFS: FilterDef[] = [
   {
     key: 'generated_from', label: 'Source',
     staticOptions: [
-      { value: 'governance-matrix', label: 'Governance Matrix' },
-      { value: 'policy-pack-agent', label: 'Policy Pack Agent' },
-      { value: 'manual',            label: 'Manual'            },
-      { value: 'legacy-backfill',   label: 'Legacy Backfill'   },
+      { value: 'predefined',        label: 'Predefined (RF Matrix)' },
+      { value: 'governance-matrix', label: 'Governance Matrix'      },
+      { value: 'policy-pack-agent', label: 'Policy Pack Agent'      },
+      { value: 'manual',            label: 'Manual'                  },
+      { value: 'legacy-backfill',   label: 'Legacy Backfill'        },
     ],
   },
   {
@@ -332,7 +333,7 @@ function DestCell({ policy, apps, categories }: { policy: GenAIPolicy; apps: App
 
 // ── NPJ-aware helpers ─────────────────────────────────────────────────────────
 
-interface NpjCondition { type: string; sensitivity?: string; label_source?: string; label_name?: string }
+interface NpjCondition { type: string; sensitivity?: string; risk_family?: string; label_source?: string; label_name?: string }
 
 function getNpj(policy: GenAIPolicy): Record<string, unknown> | null {
   const raw = (policy as unknown as Record<string, unknown>).neutral_policy_json
@@ -399,8 +400,10 @@ function DataTypeCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: R
     }
     const dtConds = conds.filter(c => c.type === 'data_type')
     if (dtConds.length > 0) {
-      const s = (dtConds[0].sensitivity ?? '').replace(/-/g, ' ')
-      const label = s.charAt(0).toUpperCase() + s.slice(1)
+      const rf    = dtConds[0].risk_family
+      const label = rf
+        ? rf.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+        : (dtConds[0].sensitivity ?? '').replace(/-/g, ' ').replace(/^./, c => c.toUpperCase())
       return (
         <span className="text-[11px] text-foreground/80 truncate block max-w-[140px]">
           {label}{dtConds.length > 1 ? ` +${dtConds.length - 1}` : ''}
@@ -466,11 +469,8 @@ function ActivitiesCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems:
 }
 
 function ActionCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: RuleItem[] }) {
-  const hasRules = (policy.rules ?? []).length > 0
-  const action: ActionCode = hasRules
-    ? deriveFromRules(policy.rules ?? [], ruleItems).primaryAction
-    : (policy.primary_action ?? 'not-set')
-  const label = action === 'not-set' ? 'Inherited' : ACTION_LABELS[action]
+  const action = getPolicyAction(policy, ruleItems)
+  const label  = action === 'not-set' ? 'Inherited' : ACTION_LABELS[action]
   return (
     <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded border whitespace-nowrap', ACTION_CHIP[action])}>
       {label}
@@ -745,6 +745,11 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
   function openChat(policyId?: string) {
     setChatPolicyId(policyId)
     setChatOpen(true)
+  }
+
+  function handleResetToDefault(id: string) {
+    setPolicies(ps => ps.map(p => p.id === id ? { ...p, is_customized: false } : p))
+    startTransition(async () => { await resetPolicyToDefault(id) })
   }
 
   const visible = policies.filter(p => {
@@ -1426,9 +1431,21 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                       <span className="text-[10px] text-muted-foreground/30 tabular-nums">{idx + 1}</span>
                     </td>
 
-                    <td className="px-3 py-2.5 align-middle max-w-[220px]">
+                    <td className="px-3 py-2.5 align-middle max-w-[240px]">
                       <Link href={`/genai-controls/policies/${policy.id}/edit`} className="group">
-                        <p className="font-semibold text-foreground/90 leading-tight truncate group-hover:text-foreground transition-colors">{policy.name}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="font-semibold text-foreground/90 leading-tight truncate group-hover:text-foreground transition-colors">{policy.name}</p>
+                          {policy.policy_source === 'predefined' && !policy.is_customized && (
+                            <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-blue-500/10 text-blue-400 border-blue-500/20">
+                              Predefined
+                            </span>
+                          )}
+                          {policy.policy_source === 'predefined' && policy.is_customized && (
+                            <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/20">
+                              Modified
+                            </span>
+                          )}
+                        </div>
                         {policy.description && (
                           <p className="text-muted-foreground/50 mt-0.5 truncate text-[10px]">{policy.description}</p>
                         )}
@@ -1529,6 +1546,19 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                                 : <><ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />Activate</>
                               }
                             </button>
+                            {policy.policy_source === 'predefined' && policy.is_customized && (
+                              <>
+                                <div className="my-1 border-t border-border/40" />
+                                <button
+                                  type="button"
+                                  onClick={() => { setOpenMenuId(null); handleResetToDefault(policy.id) }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-amber-400 hover:bg-amber-500/10 transition-colors"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" />
+                                  Reset to Default
+                                </button>
+                              </>
+                            )}
                             <div className="my-1 border-t border-border/40" />
                             <button
                               type="button"

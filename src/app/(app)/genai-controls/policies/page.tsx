@@ -2,6 +2,7 @@ import { requireRole } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { ensureClassificationLabels } from '@/lib/data-catalog/actions'
 import { getIdentityPageData } from '@/app/(app)/policies/identity/actions'
+import { seedPredefinedPolicies } from './actions'
 import { PolicyList } from './_components/policy-list'
 import type { GenAIPolicy } from '@/lib/genai/types'
 import type { RuleItem } from './new/_components/policy-builder'
@@ -9,6 +10,8 @@ import type { RuleItem } from './new/_components/policy-builder'
 export default async function GenAIPoliciesPage() {
   const user     = await requireRole('analyst')
   const supabase = await createClient()
+
+  await seedPredefinedPolicies()
 
   const [
     policyResult,
@@ -28,7 +31,7 @@ export default async function GenAIPoliciesPage() {
     ensureClassificationLabels(),
     supabase.from('org_data_types').select('id, name, catalog_data_type_id').eq('org_id', user.orgId).eq('is_in_scope', true).order('name'),
     supabase.from('org_data_type_classifications').select('org_data_type_id, org_classification_label_id').eq('org_id', user.orgId),
-    supabase.from('catalog_data_types').select('id, name, system_level').eq('active', true).order('priority').order('name'),
+    supabase.from('catalog_data_types').select('id, name, system_level, risk_family').eq('active', true).order('priority').order('name'),
     getIdentityPageData(),
   ])
 

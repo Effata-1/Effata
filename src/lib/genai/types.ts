@@ -172,6 +172,10 @@ export interface GenAIPolicy {
   test_status:               'untested' | 'in-progress' | 'passed' | 'failed'
   created_at:       string
   updated_at:       string
+  // migration 079 — predefined policy provenance
+  policy_source: 'predefined' | 'matrix' | 'custom'
+  is_customized: boolean
+  policy_key:    string | null
 }
 
 export type CustomerClass =

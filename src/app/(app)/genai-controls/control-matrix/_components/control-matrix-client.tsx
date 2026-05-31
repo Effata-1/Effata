@@ -27,19 +27,29 @@ export const ACTIONS: Record<ActionCode, { label: string; cell: string; text: st
 // ── Legacy alias mapping: DB system_tag → internal key ───────────────────────
 
 const TAG_ALIAS: Record<string, string> = {
+  // DB system_tag → internal key (old → new)
   'enterprise-approved':        'approved_supported',
   'approved-with-conditions':   'approved_with_conditions',
   'permitted-with-restriction': 'restricted_unassessed',
   'prohibited':                 'prohibited',
+  // Identity: current keys resolve to themselves
+  'approved_supported':         'approved_supported',
+  'approved_with_conditions':   'approved_with_conditions',
+  'restricted_unassessed':      'restricted_unassessed',
 }
 
 // ── Product-facing display names for system categories ───────────────────────
 
 const TAG_DISPLAY_NAMES: Record<string, string> = {
+  // Old DB system_tags
   'enterprise-approved':        'Approved & Supported GenAI',
   'approved-with-conditions':   'Approved with Conditions',
   'permitted-with-restriction': 'Restricted / Unassessed GenAI',
   'prohibited':                 'Prohibited GenAI',
+  // Current internal keys (same display names)
+  'approved_supported':         'Approved & Supported GenAI',
+  'approved_with_conditions':   'Approved with Conditions',
+  'restricted_unassessed':      'Restricted / Unassessed GenAI',
 }
 
 function catDisplayName(cat: { system_tag: string | null; name: string }): string {
