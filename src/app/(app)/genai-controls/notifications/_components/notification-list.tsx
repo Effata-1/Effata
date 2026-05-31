@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useRef, useTransition, useCallback } from 'react'
+import { useState, useRef, useEffect, useTransition, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Search, Pencil, Trash2, Plus, X, Download, Eye,
   Copy, EyeOff, ChevronDown, Sparkles, AlertTriangle, FileText,
+  MoreVertical, RotateCcw,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -12,6 +13,7 @@ import {
   deleteNotification,
   duplicateNotification,
   toggleNotificationActive,
+  resetNotification,
 } from '../actions'
 import type { CoachingNotification, ControlType } from '@/lib/genai/types'
 
@@ -904,6 +906,28 @@ function DeleteConfirmModal({ name, onConfirm, onCancel }: { name: string; onCon
   )
 }
 
+function ResetConfirmModal({ name, onConfirm, onCancel }: { name: string; onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-card border border-border rounded-xl p-6 w-full max-w-sm shadow-2xl">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-9 h-9 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0">
+            <RotateCcw className="w-4 h-4 text-amber-400" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foreground">Reset to default?</p>
+            <p className="text-xs text-muted-foreground/60 mt-0.5">&ldquo;{name}&rdquo; will be restored to its original content. Any edits will be lost.</p>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <button onClick={onCancel} className="px-4 py-1.5 text-xs rounded-lg border border-border bg-muted/30 text-muted-foreground hover:bg-muted/60 transition-colors">Cancel</button>
+          <button onClick={onConfirm} className="px-4 py-1.5 text-xs rounded-lg bg-amber-500 text-white hover:bg-amber-400 transition-colors">Reset</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Table Row ─────────────────────────────────────────────────────────────────
 
 function TemplateRow({
@@ -911,33 +935,49 @@ function TemplateRow({
   onEdit,
   onDeleted,
   onDuplicated,
+  onReset,
 }: {
   notification: CoachingNotification
   onEdit:       (n: CoachingNotification) => void
   onDeleted:    (id: string) => void
   onDuplicated: () => void
+  onReset:      (updated: CoachingNotification) => void
 }) {
-  // Only own UI flags + an active override for optimistic toggle.
-  // All notification data comes from props so edits in the parent are reflected immediately.
   const [activeOverride, setActiveOverride] = useState<boolean | null>(null)
   const [previewing,     setPreviewing]     = useState(false)
   const [confirmDelete,  setConfirmDelete]  = useState(false)
+  const [confirmReset,   setConfirmReset]   = useState(false)
+  const [menuOpen,       setMenuOpen]       = useState(false)
   const [, startTransition]                = useTransition()
+  const menuRef                            = useRef<HTMLDivElement>(null)
 
   const isActive = activeOverride ?? notification.is_active
   const meta = CONTROL_TYPE_META[notification.control_type] ?? CONTROL_TYPE_META.coach_acknowledge
 
+  // Close the dropdown when the user clicks anywhere outside it
+  const closeMenu = useCallback(() => setMenuOpen(false), [])
+  useEffect(() => {
+    if (!menuOpen) return
+    function onDocClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) closeMenu()
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [menuOpen, closeMenu])
+
   function handleToggleActive() {
+    setMenuOpen(false)
     const next = !isActive
     setActiveOverride(next)
     startTransition(() => {
       toggleNotificationActive(notification.id, next).then(res => {
-        if (res.error) setActiveOverride(null)  // revert on failure
+        if (res.error) setActiveOverride(null)
       })
     })
   }
 
   function handleDuplicate() {
+    setMenuOpen(false)
     duplicateNotification(notification.id).then(() => onDuplicated())
   }
 
@@ -947,26 +987,36 @@ function TemplateRow({
     startTransition(() => { deleteNotification(notification.id) })
   }
 
+  function handleReset() {
+    setConfirmReset(false)
+    startTransition(() => {
+      resetNotification(notification.id).then(res => {
+        if (!res.error) onReset({ ...notification })
+      })
+    })
+  }
+
   return (
     <>
       <tr className={cn('border-b border-border/30 last:border-0 transition-colors hover:bg-muted/10', !isActive && 'opacity-60')}>
-        {/* Preview */}
-        <td className="w-10 px-3 py-3.5 text-center">
+        {/* Name + description — clickable to open edit */}
+        <td className="px-4 py-3.5 min-w-[220px]">
           <button
-            onClick={() => setPreviewing(true)}
-            className="text-muted-foreground/40 hover:text-foreground transition-colors"
-            title="Preview"
+            onClick={() => onEdit(notification)}
+            className="text-left group w-full"
           >
-            <Eye className="h-3.5 w-3.5" />
+            <div className="flex items-center gap-1.5">
+              <p className="text-xs font-semibold text-foreground leading-snug group-hover:text-blue-400 transition-colors">{notification.name}</p>
+              {notification.is_default ? (
+                <span className="text-[9px] px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-400 font-medium whitespace-nowrap">Predefined</span>
+              ) : (
+                <span className="text-[9px] px-1.5 py-0.5 rounded border border-border/40 bg-muted/20 text-muted-foreground/50 font-medium whitespace-nowrap">Custom</span>
+              )}
+            </div>
+            {notification.description && (
+              <p className="text-[10px] text-muted-foreground/50 mt-0.5 leading-snug line-clamp-1 text-left">{notification.description}</p>
+            )}
           </button>
-        </td>
-
-        {/* Name + description */}
-        <td className="px-4 py-3.5 min-w-[180px]">
-          <p className="text-xs font-semibold text-foreground leading-snug">{notification.name}</p>
-          {notification.description && (
-            <p className="text-[10px] text-muted-foreground/50 mt-0.5 leading-snug line-clamp-1">{notification.description}</p>
-          )}
         </td>
 
         {/* Control type */}
@@ -1022,37 +1072,75 @@ function TemplateRow({
           {formatDate(notification.updated_at || notification.created_at)}
         </td>
 
-        {/* Actions */}
+        {/* 3-dot menu */}
         <td className="px-3 py-3.5">
-          <div className="flex items-center gap-2.5 justify-end">
+          <div className="relative flex justify-end" ref={menuRef} onClick={e => e.stopPropagation()}>
             <button
-              onClick={() => onEdit(notification)}
-              className="text-muted-foreground/40 hover:text-foreground transition-colors"
-              title="Edit"
+              onClick={() => setMenuOpen(o => !o)}
+              className="text-muted-foreground/40 hover:text-foreground transition-colors p-0.5 rounded"
+              title="Actions"
             >
-              <Pencil className="h-3.5 w-3.5" />
+              <MoreVertical className="h-4 w-4" />
             </button>
-            <button
-              onClick={handleDuplicate}
-              className="text-muted-foreground/40 hover:text-foreground transition-colors"
-              title="Duplicate"
-            >
-              <Copy className="h-3.5 w-3.5" />
-            </button>
-            <button
-              onClick={handleToggleActive}
-              className={cn('transition-colors', isActive ? 'text-muted-foreground/40 hover:text-amber-400' : 'text-muted-foreground/40 hover:text-emerald-400')}
-              title={isActive ? 'Disable' : 'Enable'}
-            >
-              {isActive ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-            </button>
-            <button
-              onClick={() => setConfirmDelete(true)}
-              className="text-muted-foreground/40 hover:text-red-400 transition-colors"
-              title="Delete"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-full mt-1 z-30 bg-card border border-border rounded-lg shadow-xl py-1 min-w-[150px]">
+                <button
+                  onClick={() => { setMenuOpen(false); onEdit(notification) }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
+                >
+                  <Pencil className="w-3.5 h-3.5 text-muted-foreground/60" />
+                  Edit
+                </button>
+                <button
+                  onClick={() => { setMenuOpen(false); setPreviewing(true) }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
+                >
+                  <Eye className="w-3.5 h-3.5 text-muted-foreground/60" />
+                  Preview
+                </button>
+                <button
+                  onClick={handleDuplicate}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
+                >
+                  <Copy className="w-3.5 h-3.5 text-muted-foreground/60" />
+                  Duplicate
+                </button>
+                <button
+                  onClick={handleToggleActive}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
+                >
+                  {isActive ? (
+                    <><EyeOff className="w-3.5 h-3.5 text-muted-foreground/60" />Disable</>
+                  ) : (
+                    <><Eye className="w-3.5 h-3.5 text-muted-foreground/60" />Enable</>
+                  )}
+                </button>
+                {notification.is_default && (
+                  <>
+                    <div className="my-1 border-t border-border/40" />
+                    <button
+                      onClick={() => { setMenuOpen(false); setConfirmReset(true) }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-amber-400 hover:bg-amber-500/10 transition-colors"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Reset to Default
+                    </button>
+                  </>
+                )}
+                {!notification.is_default && (
+                  <>
+                    <div className="my-1 border-t border-border/40" />
+                    <button
+                      onClick={() => { setMenuOpen(false); setConfirmDelete(true) }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </td>
       </tr>
@@ -1063,6 +1151,13 @@ function TemplateRow({
           name={notification.name}
           onConfirm={handleDelete}
           onCancel={() => setConfirmDelete(false)}
+        />
+      )}
+      {confirmReset && (
+        <ResetConfirmModal
+          name={notification.name}
+          onConfirm={handleReset}
+          onCancel={() => setConfirmReset(false)}
         />
       )}
     </>
@@ -1084,10 +1179,12 @@ export function NotificationList({ notifications: initial }: { notifications: Co
   const [search,      setSearch]      = useState('')
   const [ctFilter,    setCtFilter]    = useState<ControlType | ''>('')
   const [statusFilter, setStatusFilter] = useState<'active' | 'disabled' | ''>('')
+  const [typeFilter,  setTypeFilter]  = useState<'predefined' | 'custom' | ''>('')
   const [ctOpen,      setCtOpen]      = useState(false)
   const [stOpen,      setStOpen]      = useState(false)
+  const [tyOpen,      setTyOpen]      = useState(false)
 
-  const closeAll = useCallback(() => { setCtOpen(false); setStOpen(false) }, [])
+  const closeAll = useCallback(() => { setCtOpen(false); setStOpen(false); setTyOpen(false) }, [])
 
   const editingNotification: CoachingNotification | null =
     editState.mode === 'edit' ? editState.n : null
@@ -1098,6 +1195,8 @@ export function NotificationList({ notifications: initial }: { notifications: Co
     if (ctFilter && n.control_type !== ctFilter) return false
     if (statusFilter === 'active'   && !n.is_active) return false
     if (statusFilter === 'disabled' &&  n.is_active) return false
+    if (typeFilter === 'predefined' && !n.is_default) return false
+    if (typeFilter === 'custom'     &&  n.is_default) return false
     return true
   })
 
@@ -1114,6 +1213,10 @@ export function NotificationList({ notifications: initial }: { notifications: Co
   }
 
   function handleDuplicated() {
+    router.refresh()
+  }
+
+  function handleReset(_n: CoachingNotification) {
     router.refresh()
   }
 
@@ -1184,7 +1287,7 @@ export function NotificationList({ notifications: initial }: { notifications: Co
         {/* Status filter */}
         <div className="relative" onClick={e => e.stopPropagation()}>
           <button
-            onClick={() => { setStOpen(o => !o); setCtOpen(false) }}
+            onClick={() => { setStOpen(o => !o); setCtOpen(false); setTyOpen(false) }}
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors',
               statusFilter ? 'border-blue-500/40 bg-blue-500/8 text-blue-400' : 'border-border/60 bg-card text-muted-foreground hover:bg-muted/40',
@@ -1198,6 +1301,27 @@ export function NotificationList({ notifications: initial }: { notifications: Co
               <button onClick={() => { setStatusFilter(''); setStOpen(false) }} className="w-full text-left px-3 py-1.5 text-xs text-muted-foreground/60 hover:bg-muted/40">All</button>
               <button onClick={() => { setStatusFilter('active'); setStOpen(false) }} className="w-full text-left px-3 py-1.5 text-xs text-foreground/80 hover:bg-muted/40">Active ({activeCount})</button>
               <button onClick={() => { setStatusFilter('disabled'); setStOpen(false) }} className="w-full text-left px-3 py-1.5 text-xs text-foreground/80 hover:bg-muted/40">Disabled ({disabledCount})</button>
+            </div>
+          )}
+        </div>
+
+        {/* Type filter */}
+        <div className="relative" onClick={e => e.stopPropagation()}>
+          <button
+            onClick={() => { setTyOpen(o => !o); setCtOpen(false); setStOpen(false) }}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors',
+              typeFilter ? 'border-blue-500/40 bg-blue-500/8 text-blue-400' : 'border-border/60 bg-card text-muted-foreground hover:bg-muted/40',
+            )}
+          >
+            {typeFilter === 'predefined' ? 'Predefined' : typeFilter === 'custom' ? 'Custom' : 'Type'}
+            <ChevronDown className="w-3 h-3" />
+          </button>
+          {tyOpen && (
+            <div className="absolute top-full left-0 mt-1 z-20 bg-card border border-border rounded-lg shadow-lg py-1 min-w-[140px]">
+              <button onClick={() => { setTypeFilter(''); setTyOpen(false) }} className="w-full text-left px-3 py-1.5 text-xs text-muted-foreground/60 hover:bg-muted/40">All</button>
+              <button onClick={() => { setTypeFilter('predefined'); setTyOpen(false) }} className="w-full text-left px-3 py-1.5 text-xs text-foreground/80 hover:bg-muted/40">Predefined</button>
+              <button onClick={() => { setTypeFilter('custom'); setTyOpen(false) }} className="w-full text-left px-3 py-1.5 text-xs text-foreground/80 hover:bg-muted/40">Custom</button>
             </div>
           )}
         </div>
@@ -1248,14 +1372,13 @@ export function NotificationList({ notifications: initial }: { notifications: Co
             <table className="w-full text-xs border-collapse">
               <thead>
                 <tr className="border-b border-border bg-card/80">
-                  <th className="w-10 px-3 py-2.5 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide text-center">View</th>
                   <th className="px-4 py-2.5 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide text-left">Template Name</th>
                   <th className="w-36 px-4 py-2.5 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide text-left">Control Type</th>
                   <th className="w-52 px-4 py-2.5 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide text-left">Recommended For</th>
                   <th className="w-28 px-4 py-2.5 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide text-left">Buttons</th>
                   <th className="w-24 px-4 py-2.5 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide text-left">Status</th>
                   <th className="w-28 px-4 py-2.5 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wide text-left">Last Updated</th>
-                  <th className="w-24 px-3 py-2.5" />
+                  <th className="w-12 px-3 py-2.5" />
                 </tr>
               </thead>
               <tbody>
@@ -1266,6 +1389,7 @@ export function NotificationList({ notifications: initial }: { notifications: Co
                     onEdit={updated => setEditState({ mode: 'edit', n: updated })}
                     onDeleted={handleDeleted}
                     onDuplicated={handleDuplicated}
+                    onReset={handleReset}
                   />
                 ))}
               </tbody>

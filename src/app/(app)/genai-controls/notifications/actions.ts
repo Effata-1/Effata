@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import type { ControlType, CoachingTone } from '@/lib/genai/types'
+import { SEED_BY_KEY } from './_data/seeds'
 
 export interface NotificationFields {
   name?:                string
@@ -102,6 +103,48 @@ export async function toggleNotificationActive(
   const { error } = await supabase
     .from('org_coaching_notifications')
     .update({ is_active, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('org_id', user.orgId)
+
+  if (error) return { error: error.message }
+  revalidatePath('/genai-controls/notifications')
+  return {}
+}
+
+export async function resetNotification(id: string): Promise<{ error?: string }> {
+  const user = await requireRole('analyst')
+  const supabase = await createClient()
+
+  const { data, error: fetchErr } = await supabase
+    .from('org_coaching_notifications')
+    .select('template_key')
+    .eq('id', id)
+    .eq('org_id', user.orgId)
+    .single()
+
+  if (fetchErr || !data) return { error: fetchErr?.message ?? 'Not found' }
+
+  const seed = data.template_key ? SEED_BY_KEY.get(data.template_key) : null
+  if (!seed) return { error: 'No seed data found for this template' }
+
+  const tokens_used = extractTokens(seed.title, seed.subtitle, seed.message)
+  const { error } = await supabase
+    .from('org_coaching_notifications')
+    .update({
+      name:                seed.name,
+      description:         seed.description,
+      control_type:        seed.control_type,
+      title:               seed.title,
+      subtitle:            seed.subtitle,
+      message:             seed.message,
+      show_exception_line: seed.show_exception_line,
+      show_details:        seed.show_details,
+      recommended_for:     seed.recommended_for,
+      action_code:         seed.action_code,
+      tone:                seed.tone,
+      tokens_used,
+      updated_at:          new Date().toISOString(),
+    })
     .eq('id', id)
     .eq('org_id', user.orgId)
 
