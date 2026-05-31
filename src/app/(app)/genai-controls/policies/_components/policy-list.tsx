@@ -4,8 +4,8 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  ChevronLeft, ChevronRight, FileText, Filter, Library, MessageSquare, Pencil, Plus,
-  Search, Settings, ShieldAlert, ShieldCheck, Sparkles, Trash2, X,
+  ChevronLeft, ChevronRight, FileText, Filter, Library, MessageSquare, MoreVertical,
+  Pencil, Plus, Search, Settings, ShieldAlert, ShieldCheck, Sparkles, Trash2, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { deletePolicy, generatePoliciesFromGovernance, getPolicyPackJobStatus, togglePolicyActive } from '../actions'
@@ -585,6 +585,9 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
   const [visibleCols, setVisibleCols]         = useState<Set<ColumnId>>(DEFAULT_COLS)
   const [colPickerOpen, setColPickerOpen]     = useState(false)
   const colPickerRef                          = useRef<HTMLDivElement>(null)
+  const [openMenuId,   setOpenMenuId]         = useState<string | null>(null)
+  const [menuPos,      setMenuPos]            = useState({ top: 0, right: 0 })
+  const menuTriggerRef                        = useRef<HTMLButtonElement | null>(null)
 
   // Close new-policy modal on Escape
   useEffect(() => {
@@ -624,6 +627,18 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [filterPickerOpen])
+
+  // Close row 3-dot menu on outside click
+  useEffect(() => {
+    if (!openMenuId) return
+    function handler(e: MouseEvent) {
+      if (menuTriggerRef.current && !menuTriggerRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [openMenuId])
 
   function toggleCol(id: ColumnId) {
     setVisibleCols(prev => {
@@ -1454,25 +1469,52 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                     )}
 
                     <td className="px-3 py-2.5 align-middle">
-                      <div className="flex items-center gap-2 justify-end">
+                      <div className="flex justify-end">
                         <button
                           type="button"
-                          onClick={() => openChat(policy.id)}
-                          className="text-muted-foreground/50 hover:text-blue-400 transition-colors"
-                          title="Refine with AI"
+                          onClick={e => {
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            menuTriggerRef.current = e.currentTarget
+                            setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+                            setOpenMenuId(prev => prev === policy.id ? null : policy.id)
+                          }}
+                          className="text-muted-foreground/40 hover:text-foreground transition-colors p-0.5 rounded"
+                          title="Actions"
                         >
-                          <MessageSquare className="w-3.5 h-3.5" />
+                          <MoreVertical className="w-4 h-4" />
                         </button>
-                        <Link
-                          href={`/genai-controls/policies/${policy.id}/edit`}
-                          className="text-muted-foreground/50 hover:text-foreground transition-colors"
-                          title="Edit"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Link>
-                        <button onClick={() => handleDelete(policy.id, policy.name)} className="text-muted-foreground/50 hover:text-red-400 transition-colors" title="Delete">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {openMenuId === policy.id && (
+                          <div
+                            className="fixed z-50 bg-card border border-border rounded-lg shadow-xl py-1 min-w-[160px]"
+                            style={{ top: menuPos.top, right: menuPos.right }}
+                          >
+                            <Link
+                              href={`/genai-controls/policies/${policy.id}/edit`}
+                              onClick={() => setOpenMenuId(null)}
+                              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
+                            >
+                              <Pencil className="w-3.5 h-3.5 text-muted-foreground/60" />
+                              Edit
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => { setOpenMenuId(null); openChat(policy.id) }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5 text-muted-foreground/60" />
+                              Refine with AI
+                            </button>
+                            <div className="my-1 border-t border-border/40" />
+                            <button
+                              type="button"
+                              onClick={() => { setOpenMenuId(null); handleDelete(policy.id, policy.name) }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Delete
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>
