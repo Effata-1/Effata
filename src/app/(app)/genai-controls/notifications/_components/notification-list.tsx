@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Search, Pencil, Trash2, Plus, X, Download, Eye,
   Copy, EyeOff, ChevronDown, Sparkles, AlertTriangle, FileText,
-  MoreVertical, RotateCcw,
+  MoreVertical, RotateCcw, Power,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -16,6 +16,7 @@ import {
   resetNotification,
 } from '../actions'
 import type { CoachingNotification, ControlType } from '@/lib/genai/types'
+import { SEED_BY_KEY } from '../_data/seeds'
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -948,22 +949,31 @@ function TemplateRow({
   const [confirmDelete,  setConfirmDelete]  = useState(false)
   const [confirmReset,   setConfirmReset]   = useState(false)
   const [menuOpen,       setMenuOpen]       = useState(false)
+  const [menuPos,        setMenuPos]        = useState({ top: 0, right: 0 })
   const [, startTransition]                = useTransition()
-  const menuRef                            = useRef<HTMLDivElement>(null)
+  const triggerRef                         = useRef<HTMLButtonElement>(null)
 
   const isActive = activeOverride ?? notification.is_active
   const meta = CONTROL_TYPE_META[notification.control_type] ?? CONTROL_TYPE_META.coach_acknowledge
 
-  // Close the dropdown when the user clicks anywhere outside it
+  // Close the dropdown when the user clicks anywhere outside the trigger button
   const closeMenu = useCallback(() => setMenuOpen(false), [])
   useEffect(() => {
     if (!menuOpen) return
     function onDocClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) closeMenu()
+      if (triggerRef.current && !triggerRef.current.contains(e.target as Node)) closeMenu()
     }
     document.addEventListener('mousedown', onDocClick)
     return () => document.removeEventListener('mousedown', onDocClick)
   }, [menuOpen, closeMenu])
+
+  function openMenu() {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+    }
+    setMenuOpen(o => !o)
+  }
 
   function handleToggleActive() {
     setMenuOpen(false)
@@ -991,7 +1001,24 @@ function TemplateRow({
     setConfirmReset(false)
     startTransition(() => {
       resetNotification(notification.id).then(res => {
-        if (!res.error) onReset({ ...notification })
+        if (res.error) return
+        const seed = notification.template_key ? SEED_BY_KEY.get(notification.template_key) : null
+        if (!seed) return
+        onReset({
+          ...notification,
+          name:                seed.name,
+          description:         seed.description,
+          control_type:        seed.control_type,
+          title:               seed.title,
+          subtitle:            seed.subtitle ?? null,
+          message:             seed.message,
+          show_exception_line: seed.show_exception_line,
+          show_details:        seed.show_details,
+          recommended_for:     seed.recommended_for,
+          action_code:         seed.action_code,
+          tone:                seed.tone,
+          updated_at:          new Date().toISOString(),
+        })
       })
     })
   }
@@ -1074,25 +1101,29 @@ function TemplateRow({
 
         {/* 3-dot menu */}
         <td className="px-3 py-3.5">
-          <div className="relative flex justify-end" ref={menuRef} onClick={e => e.stopPropagation()}>
+          <div className="flex justify-end">
             <button
-              onClick={() => setMenuOpen(o => !o)}
+              ref={triggerRef}
+              onClick={openMenu}
               className="text-muted-foreground/40 hover:text-foreground transition-colors p-0.5 rounded"
               title="Actions"
             >
               <MoreVertical className="h-4 w-4" />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-full mt-1 z-30 bg-card border border-border rounded-lg shadow-xl py-1 min-w-[150px]">
+              <div
+                className="fixed z-50 bg-card border border-border rounded-lg shadow-xl py-1 min-w-[150px]"
+                style={{ top: menuPos.top, right: menuPos.right }}
+              >
                 <button
-                  onClick={() => { setMenuOpen(false); onEdit(notification) }}
+                  onClick={() => { closeMenu(); onEdit(notification) }}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
                 >
                   <Pencil className="w-3.5 h-3.5 text-muted-foreground/60" />
                   Edit
                 </button>
                 <button
-                  onClick={() => { setMenuOpen(false); setPreviewing(true) }}
+                  onClick={() => { closeMenu(); setPreviewing(true) }}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
                 >
                   <Eye className="w-3.5 h-3.5 text-muted-foreground/60" />
@@ -1109,17 +1140,14 @@ function TemplateRow({
                   onClick={handleToggleActive}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
                 >
-                  {isActive ? (
-                    <><EyeOff className="w-3.5 h-3.5 text-muted-foreground/60" />Disable</>
-                  ) : (
-                    <><Eye className="w-3.5 h-3.5 text-muted-foreground/60" />Enable</>
-                  )}
+                  <Power className="w-3.5 h-3.5 text-muted-foreground/60" />
+                  {isActive ? 'Disable' : 'Enable'}
                 </button>
                 {notification.is_default && (
                   <>
                     <div className="my-1 border-t border-border/40" />
                     <button
-                      onClick={() => { setMenuOpen(false); setConfirmReset(true) }}
+                      onClick={() => { closeMenu(); setConfirmReset(true) }}
                       className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-amber-400 hover:bg-amber-500/10 transition-colors"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
@@ -1131,7 +1159,7 @@ function TemplateRow({
                   <>
                     <div className="my-1 border-t border-border/40" />
                     <button
-                      onClick={() => { setMenuOpen(false); setConfirmDelete(true) }}
+                      onClick={() => { closeMenu(); setConfirmDelete(true) }}
                       className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -1216,8 +1244,8 @@ export function NotificationList({ notifications: initial }: { notifications: Co
     router.refresh()
   }
 
-  function handleReset(_n: CoachingNotification) {
-    router.refresh()
+  function handleReset(updated: CoachingNotification) {
+    setItems(prev => prev.map(n => n.id === updated.id ? updated : n))
   }
 
   function handleExport() {
