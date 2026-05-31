@@ -4,7 +4,7 @@ import { useState, useRef, useTransition, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Search, Pencil, Trash2, Plus, X, Download, Eye,
-  Copy, EyeOff, ChevronDown, Sparkles, AlertTriangle,
+  Copy, EyeOff, ChevronDown, Sparkles, AlertTriangle, FileText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -271,12 +271,14 @@ function LivePreviewCard({
 
 function EditModal({
   n,
+  initialTab = 'preview',
   onSaved,
   onClose,
 }: {
-  n:       CoachingNotification | null  // null = new template
-  onSaved: (updated: CoachingNotification) => void
-  onClose: () => void
+  n:           CoachingNotification | null  // null = new template
+  initialTab?: 'preview' | 'tokens' | 'ai'
+  onSaved:     (updated: CoachingNotification) => void
+  onClose:     () => void
 }) {
   const isNew = n === null
 
@@ -295,7 +297,7 @@ function EditModal({
   const msgRef = useRef<HTMLTextAreaElement>(null)
 
   // AI assistant state
-  const [rightTab,       setRightTab]       = useState<'preview' | 'tokens' | 'ai'>('preview')
+  const [rightTab,       setRightTab]       = useState<'preview' | 'tokens' | 'ai'>(initialTab)
   const [aiAction,       setAiAction]       = useState('rewrite_existing')
   const [aiTone,         setAiTone]         = useState('professional')
   const [aiLength,       setAiLength]       = useState('medium')
@@ -1071,13 +1073,14 @@ function TemplateRow({
 
 type EditState =
   | { mode: 'closed' }
-  | { mode: 'new' }
+  | { mode: 'new'; initialTab?: 'preview' | 'tokens' | 'ai' }
   | { mode: 'edit'; n: CoachingNotification }
 
 export function NotificationList({ notifications: initial }: { notifications: CoachingNotification[] }) {
-  const router                                          = useRouter()
-  const [items,       setItems]       = useState(initial)
-  const [editState,   setEditState]   = useState<EditState>({ mode: 'closed' })
+  const router                                            = useRouter()
+  const [items,        setItems]        = useState(initial)
+  const [editState,    setEditState]    = useState<EditState>({ mode: 'closed' })
+  const [showNewModal, setShowNewModal] = useState(false)
   const [search,      setSearch]      = useState('')
   const [ctFilter,    setCtFilter]    = useState<ControlType | ''>('')
   const [statusFilter, setStatusFilter] = useState<'active' | 'disabled' | ''>('')
@@ -1203,7 +1206,7 @@ export function NotificationList({ notifications: initial }: { notifications: Co
 
         {/* Actions */}
         <button
-          onClick={() => setEditState({ mode: 'new' })}
+          onClick={() => setShowNewModal(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -1232,7 +1235,7 @@ export function NotificationList({ notifications: initial }: { notifications: Co
             </p>
             {items.length === 0 && (
               <button
-                onClick={() => setEditState({ mode: 'new' })}
+                onClick={() => setShowNewModal(true)}
                 className="flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -1271,10 +1274,82 @@ export function NotificationList({ notifications: initial }: { notifications: Co
         )}
       </div>
 
+      {/* New template mode selection */}
+      {showNewModal && (
+        <>
+          <div
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowNewModal(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl p-6 space-y-5"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-base font-bold text-foreground">New Coaching Template</h2>
+                <p className="text-xs text-muted-foreground/60 mt-0.5">How would you like to create this template?</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNewModal(false)}
+                className="text-muted-foreground/40 hover:text-foreground/70 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              {/* AI Assisted */}
+              <button
+                type="button"
+                onClick={() => { setShowNewModal(false); setEditState({ mode: 'new', initialTab: 'ai' }) }}
+                className="flex flex-col items-start gap-3 p-4 rounded-xl border border-blue-500/25 bg-blue-500/5 hover:bg-blue-500/10 hover:border-blue-500/40 transition-colors text-left group"
+              >
+                <div className="w-9 h-9 rounded-lg bg-blue-500/15 border border-blue-500/25 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-blue-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-foreground group-hover:text-blue-400 transition-colors">AI Assisted</p>
+                  <p className="text-xs text-muted-foreground/60 mt-0.5 leading-relaxed">
+                    Describe your requirement and let AI draft a coaching message. You review and apply before saving.
+                  </p>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-md border border-blue-500/30 bg-blue-500/10 text-blue-400">
+                  AI drafts · you approve
+                </span>
+              </button>
+
+              {/* Blank Template */}
+              <button
+                type="button"
+                onClick={() => { setShowNewModal(false); setEditState({ mode: 'new', initialTab: 'preview' }) }}
+                className="flex flex-col items-start gap-3 p-4 rounded-xl border border-border bg-muted/20 hover:bg-muted/40 transition-colors text-left group"
+              >
+                <div className="w-9 h-9 rounded-lg bg-muted/50 border border-border flex items-center justify-center">
+                  <FileText className="w-4 h-4 text-foreground/60" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-foreground">Blank Template</p>
+                  <p className="text-xs text-muted-foreground/60 mt-0.5 leading-relaxed">
+                    Write the title, message, and choose a control type yourself. Full control from the start.
+                  </p>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-md border border-border/60 bg-muted/30 text-muted-foreground/60">
+                  Manual · full control
+                </span>
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Edit / new modal */}
       {editState.mode !== 'closed' && (
         <EditModal
           n={editingNotification}
+          initialTab={editState.mode === 'new' ? (editState.initialTab ?? 'preview') : 'preview'}
           onSaved={handleSaved}
           onClose={() => setEditState({ mode: 'closed' })}
         />
