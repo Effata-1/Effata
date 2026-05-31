@@ -281,6 +281,38 @@ export async function checkPolicyCoverage(
   }
 }
 
+export async function duplicatePolicy(id: string): Promise<{ error?: string }> {
+  const user = await requireRole('analyst')
+  const supabase = await createClient()
+
+  const { data, error: fetchErr } = await supabase
+    .from('org_genai_policies')
+    .select('*')
+    .eq('id', id)
+    .eq('org_id', user.orgId)
+    .single()
+
+  if (fetchErr || !data) return { error: fetchErr?.message ?? 'Not found' }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { id: _id, created_at: _ca, updated_at: _ua, ...rest } = data as Record<string, unknown>
+
+  const { error } = await supabase
+    .from('org_genai_policies')
+    .insert({
+      ...rest,
+      org_id:          user.orgId,
+      name:            `${String(rest.name ?? '')} (copy)`,
+      approval_status: 'draft',
+      is_active:       false,
+      updated_at:      new Date().toISOString(),
+    })
+
+  if (error) return { error: error.message }
+  revalidatePath('/genai-controls/policies')
+  return {}
+}
+
 export async function deletePolicy(id: string): Promise<{ error?: string }> {
   const user = await requireRole('analyst')
   const supabase = await createClient()

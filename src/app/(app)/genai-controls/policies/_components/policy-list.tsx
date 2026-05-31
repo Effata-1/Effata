@@ -4,11 +4,11 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  ChevronLeft, ChevronRight, FileText, Filter, Library, MessageSquare, MoreVertical,
+  ChevronLeft, ChevronRight, Copy, FileText, Filter, Library, MessageSquare, MoreVertical,
   Pencil, Plus, Search, Settings, ShieldAlert, ShieldCheck, Sparkles, Trash2, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { deletePolicy, generatePoliciesFromGovernance, getPolicyPackJobStatus, togglePolicyActive } from '../actions'
+import { deletePolicy, duplicatePolicy, generatePoliciesFromGovernance, getPolicyPackJobStatus, togglePolicyActive } from '../actions'
 import { PolicyChatPanel } from './policy-chat-panel'
 import type { GenAIPolicy, ApprovalStatus, ActionCode, PolicyRule } from '@/lib/genai/types'
 import { lintAllPolicies, SEVERITY_STYLES, type LintIssue } from '@/lib/genai/lint'
@@ -1503,6 +1503,14 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                             >
                               <MessageSquare className="w-3.5 h-3.5 text-muted-foreground/60" />
                               Refine with AI
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setOpenMenuId(null); duplicatePolicy(policy.id).then(() => router.refresh()) }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
+                            >
+                              <Copy className="w-3.5 h-3.5 text-muted-foreground/60" />
+                              Duplicate
                             </button>
                             <div className="my-1 border-t border-border/40" />
                             <button
