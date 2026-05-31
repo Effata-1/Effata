@@ -3,18 +3,43 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
-import type { CoachingTone } from '@/lib/genai/types'
+import type { ControlType, CoachingTone } from '@/lib/genai/types'
 
 export interface NotificationFields {
-  name?:             string
-  coach_label?:      string | null
-  action_code?:      'coach' | 'coach-ack' | 'coach-just'
-  title?:            string
-  message?:          string
-  tone?:             CoachingTone
-  linked_policy_id?: string | null
-  is_default?:       boolean
-  is_active?:        boolean
+  name?:                string
+  description?:         string | null
+  coach_label?:         string | null
+  template_key?:        string | null
+  action_code?:         'coach' | 'coach-ack' | 'coach-just'
+  control_type?:        ControlType
+  title?:               string
+  subtitle?:            string | null
+  message?:             string
+  show_exception_line?: boolean
+  show_details?:        boolean
+  recommended_for?:     string[]
+  tone?:                CoachingTone
+  linked_policy_id?:    string | null
+  is_default?:          boolean
+  is_active?:           boolean
+}
+
+function extractTokens(...inputs: (string | null | undefined)[]): string[] {
+  const combined = inputs.filter(Boolean).join(' ')
+  const matches = combined.match(/\{\{[A-Z_]+\}\}/g) ?? []
+  return Array.from(new Set(matches))
+}
+
+function controlTypeToActionCode(ct: ControlType): 'coach' | 'coach-ack' | 'coach-just' {
+  if (ct === 'coach_acknowledge')   return 'coach-ack'
+  if (ct === 'coach_justification') return 'coach-just'
+  return 'coach'
+}
+
+function controlTypeToTone(ct: ControlType): CoachingTone {
+  if (ct === 'block')                                              return 'urgent'
+  if (ct === 'coach_acknowledge' || ct === 'coach_justification') return 'warning'
+  return 'informational'
 }
 
 export async function upsertNotification(
@@ -24,10 +49,22 @@ export async function upsertNotification(
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
+  const tokens_used = extractTokens(fields.title, fields.subtitle, fields.message)
+
+  // Derive legacy action_code + tone from control_type when provided
+  const derived = fields.control_type
+    ? {
+        action_code: fields.action_code ?? controlTypeToActionCode(fields.control_type),
+        tone:        fields.tone        ?? controlTypeToTone(fields.control_type),
+      }
+    : {}
+
   const payload = {
     org_id:     user.orgId,
     updated_at: new Date().toISOString(),
     ...fields,
+    ...derived,
+    tokens_used,
     ...(id ? { id } : {}),
   }
 
@@ -67,6 +104,38 @@ export async function toggleNotificationActive(
     .update({ is_active, updated_at: new Date().toISOString() })
     .eq('id', id)
     .eq('org_id', user.orgId)
+
+  if (error) return { error: error.message }
+  revalidatePath('/genai-controls/notifications')
+  return {}
+}
+
+export async function duplicateNotification(id: string): Promise<{ error?: string }> {
+  const user = await requireRole('analyst')
+  const supabase = await createClient()
+
+  const { data, error: fetchErr } = await supabase
+    .from('org_coaching_notifications')
+    .select('*')
+    .eq('id', id)
+    .eq('org_id', user.orgId)
+    .single()
+
+  if (fetchErr || !data) return { error: fetchErr?.message ?? 'Not found' }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { id: _id, created_at: _ca, updated_at: _ua, template_key: _tk, ...rest } = data
+
+  const { error } = await supabase
+    .from('org_coaching_notifications')
+    .insert({
+      ...rest,
+      org_id:       user.orgId,
+      name:         `${rest.name} (copy)`,
+      template_key: null,
+      is_default:   false,
+      updated_at:   new Date().toISOString(),
+    })
 
   if (error) return { error: error.message }
   revalidatePath('/genai-controls/notifications')

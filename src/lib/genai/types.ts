@@ -184,20 +184,35 @@ export type CustomerClass =
 
 export type CoachingTone = 'informational' | 'warning' | 'urgent'
 
+export type ControlType =
+  | 'block'
+  | 'coach_acknowledge'
+  | 'coach_justification'
+  | 'monitor'
+  | 'allow'
+
 export interface CoachingNotification {
-  id:               string
-  org_id:           string
-  name:             string
-  coach_label:      string | null
-  action_code:      'coach' | 'coach-ack' | 'coach-just'
-  title:            string
-  message:          string
-  tone:             CoachingTone
-  linked_policy_id: string | null
-  is_default:       boolean
-  is_active:        boolean
-  created_at:       string
-  updated_at:       string
+  id:                  string
+  org_id:              string
+  name:                string
+  description:         string | null
+  coach_label:         string | null
+  template_key:        string | null
+  action_code:         'coach' | 'coach-ack' | 'coach-just'   // kept for control matrix compat
+  control_type:        ControlType
+  title:               string
+  subtitle:            string | null
+  message:             string
+  show_exception_line: boolean
+  show_details:        boolean
+  recommended_for:     string[]
+  tokens_used:         string[]
+  tone:                CoachingTone
+  linked_policy_id:    string | null
+  is_default:          boolean
+  is_active:           boolean
+  created_at:          string
+  updated_at:          string
 }
 
 export interface TrustScores {
