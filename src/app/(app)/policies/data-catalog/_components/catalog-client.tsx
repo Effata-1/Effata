@@ -780,7 +780,7 @@ export function CatalogClient({
   }, [catalog])
 
   const riskFamilyOptions = useMemo(() => [
-    { value: '', label: 'All risk families' },
+    { value: 'all', label: 'All risk families' },
     ...RISK_FAMILIES.map(f => ({ value: f, label: f })),
   ], [])
 
@@ -797,7 +797,7 @@ export function CatalogClient({
         if (!matches) return false
       }
       if (subcatFilter && (item.subcategory ?? 'General') !== subcatFilter) return false
-      if (riskFamilyFilter && item.risk_family !== riskFamilyFilter) return false
+      if (riskFamilyFilter && riskFamilyFilter !== 'all' && item.risk_family !== riskFamilyFilter) return false
       // Compliance filter (multi) — OR logic: item must match at least one selected tag
       if (complianceFilter.length > 0 && !complianceFilter.some(t => (item.tags ?? []).includes(t))) return false
       if (scopeFilter === 'in_scope'     && !item.is_in_scope) return false
