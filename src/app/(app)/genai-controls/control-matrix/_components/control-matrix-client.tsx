@@ -244,7 +244,7 @@ export interface MatrixCategory {
   system_tag:     string | null
   name:           string
   color:          string
-  access_posture: 'allow' | 'block'
+  access_posture: 'allow' | 'allow_dlp' | 'block'
 }
 
 export interface MatrixOverride {
@@ -288,7 +288,7 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     }
     return map
   })
-  const [localPostures, setLocalPostures] = useState<Record<string, 'allow' | 'block'>>(() =>
+  const [localPostures, setLocalPostures] = useState<Record<string, 'allow' | 'allow_dlp' | 'block'>>(() =>
     Object.fromEntries(categories.map(c => [c.id, c.access_posture]))
   )
   const [, startTransition] = useTransition()
@@ -388,8 +388,8 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     startTransition(async () => { await upsertControlMatrixCell(rowKey, selectedCat.id, effectiveAction, coachingId) })
   }
 
-  function handlePostureToggle(catId: string, current: 'allow' | 'block') {
-    const next = current === 'allow' ? 'block' : 'allow'
+  function handlePostureToggle(catId: string, current: 'allow' | 'allow_dlp' | 'block') {
+    const next = current === 'allow' ? 'allow_dlp' : current === 'allow_dlp' ? 'block' : 'allow'
     setLocalPostures(prev => ({ ...prev, [catId]: next }))
     startTransition(async () => { await updateCategoryAccessPosture(catId, next) })
   }
@@ -505,7 +505,7 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
             const isLocked   = cat.system_tag === 'prohibited'
             const posture    = localPostures[cat.id] ?? cat.access_posture
             const isBlocked  = posture === 'block'
-            const isApproved = !isBlocked && cat.system_tag === 'enterprise-approved'
+            const isAllowDlp = posture === 'allow_dlp'
             const isSelected = cat.id === selectedCat?.id
             return (
               <button
@@ -518,25 +518,25 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
                     : 'border-border/30 opacity-55 hover:opacity-80',
                 )}
               >
-                {/* Badge — clickable to toggle for non-prohibited categories */}
+                {/* Badge — clickable to cycle allow → allow_dlp → block for non-prohibited categories */}
                 <span
                   onClick={e => { if (!isLocked) { e.stopPropagation(); handlePostureToggle(cat.id, posture) } }}
-                  title={isLocked ? 'Prohibited categories are always blocked' : `Click to toggle (currently: ${posture})`}
+                  title={isLocked ? 'Prohibited categories are always blocked' : `Click to cycle posture (currently: ${posture})`}
                   className={cn(
                     'inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-semibold transition-opacity',
                     isBlocked
                       ? 'border-red-500/30 bg-red-500/10 text-red-400'
-                      : isApproved
-                        ? 'border-emerald-500/25 bg-emerald-500/5 text-emerald-400'
-                        : 'border-amber-500/20 bg-amber-500/5 text-amber-500',
+                      : isAllowDlp
+                        ? 'border-amber-500/20 bg-amber-500/5 text-amber-500'
+                        : 'border-emerald-500/25 bg-emerald-500/5 text-emerald-400',
                     !isLocked && 'cursor-pointer hover:opacity-80',
                   )}
                 >
                   {isBlocked
                     ? <><Lock className="h-2.5 w-2.5" /> Block Access</>
-                    : isApproved
-                      ? <><CheckCircle2 className="h-2.5 w-2.5" /> Allow</>
-                      : <><Shield className="h-2.5 w-2.5" /> Allow + DLP Controls</>
+                    : isAllowDlp
+                      ? <><Shield className="h-2.5 w-2.5" /> Allow + DLP Controls</>
+                      : <><CheckCircle2 className="h-2.5 w-2.5" /> Allow</>
                   }
                 </span>
                 <span className="text-[11px] text-muted-foreground/60 font-medium">{catDisplayName(cat)}</span>

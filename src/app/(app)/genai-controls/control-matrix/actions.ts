@@ -54,7 +54,7 @@ export async function deleteControlMatrixCell(
 
 export async function updateCategoryAccessPosture(
   categoryId: string,
-  accessPosture: 'allow' | 'block',
+  accessPosture: 'allow' | 'allow_dlp' | 'block',
 ): Promise<{ error?: string }> {
   const user = await requireRole('analyst')
   const supabase = await createClient()

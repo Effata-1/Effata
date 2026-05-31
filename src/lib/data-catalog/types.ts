@@ -153,13 +153,13 @@ export type RiskFamily = typeof RISK_FAMILIES[number]
 
 export const RISK_FAMILY_META: Record<RiskFamily, { color: string }> = {
   'Credentials, Keys & Secrets':    { color: 'red'     },
-  'Regulated Data':                 { color: 'orange'  },
-  'Source Code':                    { color: 'purple'  },
-  'Intellectual Property':          { color: 'amber'   },
-  'Customer & Employee Data':       { color: 'blue'    },
-  'Financial & Commercial Data':    { color: 'emerald' },
-  'Legal & Contractual Data':       { color: 'sky'     },
-  'Security & Infrastructure Data': { color: 'zinc'    },
+  'Regulated Data':                 { color: 'red'     },
+  'Source Code':                    { color: 'red'     },
+  'Intellectual Property':          { color: 'red'     },
+  'Customer & Employee Data':       { color: 'orange'  },
+  'Financial & Commercial Data':    { color: 'amber'   },
+  'Legal & Contractual Data':       { color: 'amber'   },
+  'Security & Infrastructure Data': { color: 'orange'  },
   'Public & Low-Risk Data':         { color: 'green'   },
 }
 
