@@ -223,6 +223,7 @@ function buildNpj(state: WizardState, categories: CategoryRow[]) {
     intent:         state.intent,
     policy_family:  state.policyFamily,
     scope: {
+      users:          state.users.length > 0 ? state.users : ['All Users'],
       activities:     [...state.activities],
       channels:       ['genai'],
       app_categories: [...state.categoryIds].map(id => {
@@ -263,6 +264,7 @@ interface WizardState {
   policyName:      string
   description:     string
   // step 2
+  users:           string[]
   categoryIds:     Set<string>
   specificAppIds:  Set<string>
   activities:      Set<NpjActivity>
@@ -292,12 +294,15 @@ export function BlankPolicyWizard({ apps, categories, ruleItems, coachingTemplat
   const [coverageLoading, setCoverageLoading] = useState(false)
   const [forceCreate, setForceCreate]         = useState(false)
 
+  const [usersInput, setUsersInput] = useState('')
+
   const [state, setState] = useState<WizardState>({
     ruleItems,
     intent:          '',
     policyFamily:    '',
     policyName:      '',
     description:     '',
+    users:           ['All Users'],
     categoryIds:     new Set(),
     specificAppIds:  new Set(),
     activities:      new Set<NpjActivity>(['prompt_submit', 'upload']),
@@ -434,6 +439,75 @@ export function BlankPolicyWizard({ apps, categories, ruleItems, coachingTemplat
 
     return (
       <div className="space-y-6">
+
+        <WizardSection title="Users / Source" note="Default is All Users — add groups only if this policy targets a specific set of users">
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {state.users.map(u => (
+              <span key={u} className={cn(
+                'inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-xs',
+                u === 'All Users'
+                  ? 'border-border bg-muted/40 text-muted-foreground/70'
+                  : 'border-blue-500/25 bg-blue-500/10 text-blue-400',
+              )}>
+                {u === 'All Users' ? 'All Users' : `${u} Users`}
+                {u !== 'All Users' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = state.users.filter(x => x !== u)
+                      update({ users: next.length === 0 ? ['All Users'] : next })
+                    }}
+                    className="opacity-50 hover:opacity-100 transition-opacity"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              value={usersInput}
+              onChange={e => setUsersInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ',') {
+                  e.preventDefault()
+                  const trimmed = usersInput.trim()
+                  if (trimmed && !state.users.includes(trimmed)) {
+                    update({ users: [...state.users.filter(u => u !== 'All Users'), trimmed] })
+                  }
+                  setUsersInput('')
+                }
+              }}
+              placeholder="Add group (e.g. Finance, HR)…"
+              className="flex-1 max-w-xs rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const trimmed = usersInput.trim()
+                if (trimmed && !state.users.includes(trimmed)) {
+                  update({ users: [...state.users.filter(u => u !== 'All Users'), trimmed] })
+                }
+                setUsersInput('')
+              }}
+              disabled={!usersInput.trim()}
+              className="px-2.5 py-1.5 text-xs rounded-lg bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+            >
+              Add
+            </button>
+            {!state.users.includes('All Users') && (
+              <button
+                type="button"
+                onClick={() => update({ users: ['All Users'] })}
+                className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+              >
+                Reset to All Users
+              </button>
+            )}
+          </div>
+        </WizardSection>
+
         <WizardSection title="App Categories" note={isAppAccess ? 'Which app categories this access control applies to' : 'Leave empty to apply to all non-prohibited categories'}>
           <div className="flex flex-wrap gap-1.5">
             {visibleCats.map(cat => {
@@ -821,6 +895,7 @@ export function BlankPolicyWizard({ apps, categories, ruleItems, coachingTemplat
             { label: 'Name',        value: state.policyName },
             { label: 'Intent',      value: INTENT_LABELS[state.intent as NpjIntent] ?? state.intent },
             { label: 'Family',      value: state.policyFamily || '—' },
+            { label: 'Users',       value: state.users.map(u => u === 'All Users' ? 'All Users' : `${u} Users`).join(', ') },
             { label: 'Activities',  value: [...state.activities].map(a => ACTIVITY_LABELS[a]).join(', ') || '—' },
             { label: 'Detection',   value: state.intent === 'govern_app_access' ? 'App-level only' : (state.dataKeys.size ? `${state.dataKeys.size} condition(s)` : 'None') },
             { label: 'Decision',    value: `${state.action} · ${state.severity} severity` },
