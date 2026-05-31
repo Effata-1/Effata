@@ -230,6 +230,11 @@ const UL_FN_DEFAULTS: Record<string, LevelMap> = {
 
 const FILENAME_LEVELS: SystemLevel[] = ['highly_confidential', 'secret']
 
+const UL_FN_COACHING_DEFAULTS: Partial<Record<SystemLevel, string>> = {
+  highly_confidential: 'Sensitive File Name Detected',
+  secret:              'Sensitive File Name Detected',
+}
+
 export const SYSTEM_TAG_ORDER = [
   'enterprise-approved',
   'approved-with-conditions',
@@ -356,6 +361,13 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     if (!catTag) return null
     const tag = TAG_ALIAS[catTag] ?? catTag
     const notifName = RF_COACHING_DEFAULTS[tag]?.[rfKey] ?? null
+    if (!notifName) return null
+    return notifications.find(n => n.name === notifName)?.id ?? null
+  }
+
+  function getFnCoachingDefault(systemLevel: string | null): string | null {
+    if (!systemLevel) return null
+    const notifName = UL_FN_COACHING_DEFAULTS[systemLevel as SystemLevel] ?? null
     if (!notifName) return null
     return notifications.find(n => n.name === notifName)?.id ?? null
   }
@@ -650,6 +662,9 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
 
               const { rowKey, label: lbl, sectionId } = item
               const cc = colorClasses(lbl.color)
+              const defaultCoaching = sectionId === 'ul_fn'
+                ? getFnCoachingDefault(lbl.system_level ?? null)
+                : null
               return (
                 <tr key={rowKey} className={rowBg}>
                   <td className="px-5 py-3">
@@ -658,7 +673,7 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
                       <span className={cn('text-sm font-semibold', cc.text)}>{lbl.name}</span>
                     </div>
                   </td>
-                  {renderCell(rowKey, getDefault(sectionId, lbl, selectedCat?.system_tag ?? null))}
+                  {renderCell(rowKey, getDefault(sectionId, lbl, selectedCat?.system_tag ?? null), defaultCoaching)}
                 </tr>
               )
             })}
