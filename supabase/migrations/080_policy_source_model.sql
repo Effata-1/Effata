@@ -25,6 +25,16 @@ UPDATE org_genai_policies
   WHERE policy_source = 'custom';
 
 -- ── Replace policy_source check constraint ────────────────────────────────────
+-- Safety net: re-run the value migration immediately before adding the constraint
+-- so partial re-runs (e.g. after a failure mid-script) are safe.
+UPDATE org_genai_policies
+  SET policy_source = 'recommended'
+  WHERE policy_source IN ('predefined', 'matrix');
+
+UPDATE org_genai_policies
+  SET policy_source = 'manual'
+  WHERE policy_source = 'custom';
+
 ALTER TABLE org_genai_policies
   DROP CONSTRAINT IF EXISTS org_genai_policies_policy_source_check;
 
