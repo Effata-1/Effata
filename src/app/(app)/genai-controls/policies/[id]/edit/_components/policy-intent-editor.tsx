@@ -1084,32 +1084,33 @@ export function PolicyIntentEditor({
         readOnly={isRecommended}
         tooltip={isRecommended ? 'Decision is governed by the Control Matrix. Change detection settings in the Control Matrix to update.' : undefined}
       >
-        <div className="px-5 py-4 space-y-4">
-          {npj?.decision ? (
-            <DecisionFlags decision={npj.decision} />
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className={cn('inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-semibold', ACTION_CHIP[policy.fallback_action ?? ''] ?? 'bg-muted/50 text-muted-foreground border-border')}>
-                {policy.fallback_action ?? 'not-set'}
-              </span>
-              <span className="text-[10px] text-amber-400/70">(legacy field)</span>
+        {!isRecommended && (
+          <div className="px-5 py-4 space-y-4">
+            {npj?.decision ? (
+              <DecisionFlags decision={npj.decision} />
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className={cn('inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-semibold', ACTION_CHIP[policy.fallback_action ?? ''] ?? 'bg-muted/50 text-muted-foreground border-border')}>
+                  {policy.fallback_action ?? 'not-set'}
+                </span>
+                <span className="text-[10px] text-amber-400/70">(legacy field)</span>
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 block mb-1.5">Coaching Template</label>
+              <select
+                value={formCoachTemplate}
+                onChange={e => setFormCoachTemplate(e.target.value)}
+                className="block w-full max-w-xs rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong"
+              >
+                <option value="">None</option>
+                {coachingTemplates.map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
             </div>
-          )}
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 block mb-1.5">Coaching Template</label>
-            <select
-              value={formCoachTemplate}
-              onChange={e => setFormCoachTemplate(e.target.value)}
-              disabled={isRecommended}
-              className="block w-full max-w-xs rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <option value="">None</option>
-              {coachingTemplates.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
           </div>
-        </div>
+        )}
         {isRecommended && (() => {
           const actionsByCategory = (rawNpj as Record<string, unknown>)?.actions_by_category as Record<string, string> | undefined
           const coachingByCategory = (rawNpj as Record<string, unknown>)?.coaching_by_category as Record<string, string | null> | undefined
@@ -1117,9 +1118,11 @@ export function PolicyIntentEditor({
           const ORDER = ['Approved & Supported', 'Approved with Conditions', 'Restricted', 'Prohibited']
           return (
             <>
-              <div className="border-t border-border/50 px-5 py-2.5 bg-muted/5 flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Actions by Category</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-md border border-blue-500/25 bg-blue-500/8 text-blue-400 font-medium">Control Matrix</span>
+              {/* Column headers */}
+              <div className="grid grid-cols-[1fr_120px_200px] px-5 py-2 border-b border-border/50 bg-muted/5">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Category</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Action</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Coaching</span>
               </div>
               <div className="divide-y divide-border/40">
                 {Object.entries(actionsByCategory)
@@ -1130,21 +1133,23 @@ export function PolicyIntentEditor({
                     const ib = ORDER.findIndex(p => nameB.includes(p))
                     return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib)
                   })
-                  .map(([cat, action]) => (
-                    <div key={cat} className="flex items-center justify-between px-5 py-3">
-                      <span className="text-xs text-foreground/70">{TAG_DISPLAY_NAMES[cat] ?? cat.replace(/_/g, ' ')}</span>
-                      <div className="flex items-center gap-2">
-                        <span className={cn('inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-semibold', ACTION_CHIP[action] ?? 'bg-muted/50 text-muted-foreground border-border')}>
+                  .map(([cat, action]) => {
+                    const tpl = coachingByCategory?.[cat]
+                      ? coachingTemplates.find(t => t.id === coachingByCategory[cat])
+                      : undefined
+                    const coachName = tpl ? (tpl.coach_label ?? tpl.name) : null
+                    return (
+                      <div key={cat} className="grid grid-cols-[1fr_120px_200px] items-center px-5 py-3">
+                        <span className="text-xs text-foreground/70">{TAG_DISPLAY_NAMES[cat] ?? cat.replace(/_/g, ' ')}</span>
+                        <span className={cn('inline-flex items-center w-fit px-2.5 py-1 rounded-lg border text-xs font-semibold', ACTION_CHIP[action] ?? 'bg-muted/50 text-muted-foreground border-border')}>
                           {action}
                         </span>
-                        {coachingByCategory?.[cat] && (() => {
-                          const tpl = coachingTemplates.find(t => t.id === coachingByCategory[cat])
-                          const coachName = tpl?.coach_label ?? tpl?.name ?? 'coaching set'
-                          return <span className="text-[10px] text-muted-foreground/50">{coachName}</span>
-                        })()}
+                        <span className="text-xs text-muted-foreground/60">
+                          {coachName ?? <span className="text-muted-foreground/30 italic">None</span>}
+                        </span>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
               </div>
             </>
           )
