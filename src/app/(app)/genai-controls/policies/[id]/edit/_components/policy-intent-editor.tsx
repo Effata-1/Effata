@@ -162,12 +162,19 @@ const ACTION_RANK: Record<string, number> = {
 }
 
 const INTENT_CHIP: Record<string, string> = {
-  prevent_data_exfiltration: 'bg-red-500/10 text-red-400 border-red-500/20',
-  govern_app_access:         'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  allow_approved_use:        'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  monitor_and_alert:         'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  coach_user_behavior:       'bg-orange-500/10 text-orange-400 border-orange-500/20',
-  detect_classification_label: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  // legacy keys
+  prevent_data_exfiltration:    'bg-red-500/10 text-red-400 border-red-500/20',
+  monitor_and_alert:            'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  coach_user_behavior:          'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  detect_classification_label:  'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  // canonical NPJ keys
+  prevent_exfiltration:         'bg-red-500/10 text-red-400 border-red-500/20',
+  detect_only:                  'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  coach_user:                   'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  allow_approved_use:           'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  govern_app_access:            'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  label_or_classify:            'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  govern_data_at_rest:          'bg-zinc-500/10 text-zinc-400 border-zinc-500/20',
 }
 
 const TRANSLATION_CHIP: Record<string, string> = {
@@ -189,17 +196,58 @@ const APPROVAL_OPTIONS: ApprovalStatus[] = ['draft', 'under-review', 'approved',
 const TEST_STATUS_OPTIONS = ['untested', 'in-progress', 'passed', 'failed'] as const
 
 const INTENT_LABELS: Record<string, string> = {
+  // legacy keys
   prevent_data_exfiltration:   'Prevent Data Exfiltration',
-  govern_app_access:           'Control App Access',
-  allow_approved_use:          'Allow Approved Use',
   monitor_and_alert:           'Monitor & Alert',
   coach_user_behavior:         'Coach User Behavior',
   detect_classification_label: 'Detect Classification Label',
+  // canonical NPJ keys
+  prevent_exfiltration:        'Prevent Exfiltration',
+  detect_only:                 'Detect Only',
+  coach_user:                  'Coach User',
+  allow_approved_use:          'Allow Approved Use',
+  govern_app_access:           'Govern App Access',
+  label_or_classify:           'Label / Classify',
+  govern_data_at_rest:         'Govern Data at Rest',
+}
+
+const POLICY_FAMILY_LABELS: Record<string, string> = {
+  genai_content_detection: 'GenAI Content Detection',
+  genai_app_access:        'GenAI App Access',
+  genai_label_detection:   'GenAI Label Detection',
+  genai_filename:          'Filename Detection',
+  saas_data_protection:    'SaaS Data Protection',
+}
+
+const GENERATED_FROM_LABELS: Record<string, string> = {
+  predefined:        'Predefined (RF Matrix)',
+  'governance-matrix': 'Governance Matrix',
+  'policy-pack-agent': 'Policy Pack Agent',
+  'ai-assisted':     'AI Policy Assistant',
+  manual:            'Manual',
+  'legacy-backfill': 'Legacy Backfill',
+}
+
+const RF_DISPLAY_NAMES: Record<string, string> = {
+  credentials_keys_secrets:     'Credentials, Keys & Secrets',
+  regulated_data:               'Regulated Data',
+  source_code:                  'Source Code',
+  intellectual_property:        'Intellectual Property',
+  customer_employee_data:       'Customer & Employee Data',
+  financial_commercial_data:    'Financial & Commercial Data',
+  legal_contractual_data:       'Legal & Contractual Data',
+  security_infrastructure_data: 'Security & Infrastructure Data',
+  public_low_risk_data:         'Public & Low-Risk Data',
+  bulk_data:                    'Bulk Data / Large Dataset',
+  large_file_upload:            'Large File Upload',
+  general_usage_reminder:       'General Usage Reminder',
 }
 
 const ACTIVITY_DISPLAY: Record<string, string> = {
-  post_prompt: 'Prompt', upload: 'Upload', download: 'Download',
-  response: 'Response', browse: 'Browse', post: 'Post',
+  prompt_submit: 'Prompt Submit', post_prompt: 'Prompt', upload: 'Upload',
+  download: 'Download', response: 'Response', browse: 'Browse',
+  login: 'Login', post: 'Post', share: 'Share', copy_paste: 'Copy / Paste',
+  print: 'Print', email_send: 'Email Send',
 }
 
 const APPROVAL_CHIP_LABELS: Record<string, string> = {
@@ -676,7 +724,9 @@ export function PolicyIntentEditor({
             </span>
           </NpjRow>
           <NpjRow label="Policy Family">
-            <span className="text-sm text-foreground/80">{npj.policy_family ?? policy.policy_family ?? '—'}</span>
+            <span className="text-sm text-foreground/80">
+              {(() => { const pf = npj.policy_family ?? policy.policy_family; return pf ? (POLICY_FAMILY_LABELS[pf] ?? pf) : '—' })()}
+            </span>
           </NpjRow>
           {(npj.scope?.users?.length ?? 0) > 0 && (
             <NpjRow label="Users">
@@ -718,8 +768,7 @@ export function PolicyIntentEditor({
                     return <Chip key={i} label={meta?.label ?? c.sensitivity} color={meta?.color ?? 'zinc'} />
                   }
                   if (c.risk_family) {
-                    const label = c.risk_family.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
-                    return <Chip key={i} label={label} color="zinc" />
+                    return <Chip key={i} label={RF_DISPLAY_NAMES[c.risk_family] ?? c.risk_family} color="zinc" />
                   }
                 }
                 if (c.type === 'classification_label') return <Chip key={i} label={c.label_name ?? 'label'} color="amber" />
@@ -730,7 +779,9 @@ export function PolicyIntentEditor({
             </div>
           </NpjRow>
           <NpjRow label="Source">
-            <span className="text-xs text-muted-foreground/70">{npj.provenance?.generated_from ?? policy.generated_from ?? '—'}</span>
+            <span className="text-xs text-muted-foreground/70">
+              {(() => { const gf = npj.provenance?.generated_from ?? policy.generated_from; return gf ? (GENERATED_FROM_LABELS[gf] ?? gf) : '—' })()}
+            </span>
           </NpjRow>
         </SectionCard>
       )}
@@ -909,7 +960,7 @@ export function PolicyIntentEditor({
                         })()}
                         {!cond.sensitivity && cond.risk_family && (
                           <span className="text-xs font-medium text-foreground/80">
-                            {cond.risk_family.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                            {RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family}
                           </span>
                         )}
                         {cond.confidence && (
