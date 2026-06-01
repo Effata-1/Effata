@@ -973,10 +973,10 @@ export function PolicyIntentEditor({
         {npj?.content?.conditions && npj.content.conditions.length > 0 ? (
           <div className="space-y-2 px-5 py-4">
             {npj.content.conditions.map((cond, i) => (
-              <div key={i} className="rounded-lg border border-border bg-muted/20 px-4 py-3">
+              <div key={i} className="rounded-lg border border-border bg-muted/20 overflow-hidden">
                 {cond.type === 'data_type' && (
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
+                  <>
+                    <div className="px-4 py-3">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-[10px] font-mono text-muted-foreground/50 uppercase">data type</span>
                         {cond.sensitivity && (() => {
@@ -1009,15 +1009,17 @@ export function PolicyIntentEditor({
                       })()}
                     </div>
                     {cond.risk_family && CATALOG_RF_IDS.has(cond.risk_family) && (
-                      <Link
-                        href={`/policies/data-catalog?rf=${encodeURIComponent(RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family)}`}
-                        className="shrink-0 flex items-center gap-1 text-[11px] text-muted-foreground/50 hover:text-foreground/80 transition-colors"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        View in Data Catalog
-                      </Link>
+                      <div className="border-t border-border/40 px-4 py-2 bg-muted/10 flex justify-end">
+                        <Link
+                          href={`/policies/data-catalog?rf=${encodeURIComponent(RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family)}`}
+                          className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground/60 hover:text-foreground/90 transition-colors"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          View in Data Catalog
+                        </Link>
+                      </div>
                     )}
-                  </div>
+                  </>
                 )}
                 {cond.type === 'classification_label' && (
                   <div>
