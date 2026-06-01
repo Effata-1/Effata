@@ -5,10 +5,10 @@ import { TestDataGenerator } from './_components/test-data-generator'
 export default async function TestDataPage({
   searchParams,
 }: {
-  searchParams: Promise<{ name?: string; prompt?: string }>
+  searchParams: Promise<{ name?: string; prompt?: string; tab?: string; filePrompt?: string }>
 }) {
   const { datasets } = await getDatasets()
-  const { name, prompt } = await searchParams
+  const { name, prompt, tab, filePrompt } = await searchParams
 
   return (
     <div>
@@ -20,6 +20,8 @@ export default async function TestDataPage({
         <TestDataGenerator
           initialDatasets={datasets}
           prefill={name ? { name, prompt } : undefined}
+          initialTab={tab === 'file' ? 'file' : 'data'}
+          filePrompt={filePrompt}
         />
       </Suspense>
     </div>

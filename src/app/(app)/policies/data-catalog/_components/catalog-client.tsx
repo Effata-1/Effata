@@ -8,7 +8,7 @@ import { colorClasses, SYSTEM_LEVEL_META, RISK_FAMILIES, RISK_FAMILY_META } from
 import type { OrgClassificationLabel, SystemLevel, RiskFamily } from '@/lib/data-catalog/types'
 import { FilterSelect, MultiFilterSelect } from '@/components/ui/filter-select'
 import { FILENAME_DETECTION_ENTRIES } from '@/lib/data-catalog/filename-keywords'
-import type { FilenameDetectionEntry } from '@/lib/data-catalog/filename-keywords'
+import type { FilenameDetectionEntry, FilenameKeywordGroup } from '@/lib/data-catalog/filename-keywords'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -702,6 +702,74 @@ function ClassificationSection({
 
 // ─── Filename Detection Signal section ───────────────────────────────────────
 
+function FilenameGroupRow({
+  group,
+  entry,
+}: {
+  group: FilenameKeywordGroup
+  entry: FilenameDetectionEntry
+}) {
+  const [collapsed, setCollapsed] = useState(true)
+
+  const filePrompt = `Generate a synthetic test file for DLP filename detection testing in the ${group.category} category. The filename should contain one of these patterns: ${group.keywords.slice(0, 3).join(', ')}. The file should have realistic-looking but entirely fake content — not real credentials or sensitive data.`
+
+  return (
+    <div className="border-b border-border/40 last:border-0">
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        className="w-full flex items-center justify-between px-5 py-2.5 hover:bg-muted/20 transition-colors text-left"
+      >
+        <div className="flex items-center gap-2">
+          {collapsed
+            ? <ChevronRight className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+            : <ChevronDown className="w-3 h-3 text-muted-foreground/60 shrink-0" />}
+          <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-widest">
+            {group.category}
+          </p>
+          <span className={cn(
+            'text-[9px] font-semibold px-1 py-0.5 rounded border',
+            group.confidence === 'high'
+              ? 'text-muted-foreground/60 border-border-strong bg-muted/40'
+              : 'text-muted-foreground/40 border-border bg-transparent',
+          )}>
+            {group.confidence}
+          </span>
+        </div>
+        <span className="text-[10px] text-muted-foreground/40">{group.keywords.length}</span>
+      </button>
+
+      {!collapsed && (
+        <div className="px-8 pb-3">
+          <div className="flex flex-wrap gap-1 mb-2.5">
+            {group.keywords.map(kw => (
+              <span
+                key={kw}
+                className={cn(
+                  'text-[10px] font-mono px-1.5 py-0.5 rounded border',
+                  group.confidence === 'high' ? entry.chipColorHigh : entry.chipColorMedium,
+                )}
+              >
+                {kw}
+              </span>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <FlaskConical className="w-3 h-3 text-violet-400 shrink-0" />
+            <a
+              href={`/tools/test-data?${new URLSearchParams({ tab: 'file', filePrompt }).toString()}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] font-medium text-violet-400 hover:text-violet-300 transition-colors"
+            >
+              Generate test file for &ldquo;{group.category}&rdquo; →
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function FilenamePatternSection({ entry }: { entry: FilenameDetectionEntry }) {
   const [collapsed, setCollapsed] = useState(true)
 
@@ -732,41 +800,16 @@ function FilenamePatternSection({ entry }: { entry: FilenameDetectionEntry }) {
       </button>
 
       {!collapsed && (
-        <div className="border-t border-border px-5 py-4 space-y-4">
-          <p className="text-xs text-muted-foreground/70 leading-relaxed">{entry.description}</p>
-          <div className="space-y-4">
+        <>
+          <div className="border-t border-border px-5 py-3">
+            <p className="text-xs text-muted-foreground/70 leading-relaxed">{entry.description}</p>
+          </div>
+          <div className="divide-y-0">
             {entry.groups.map(group => (
-              <div key={group.category}>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">
-                    {group.category}
-                  </p>
-                  <span className={cn(
-                    'text-[9px] font-semibold px-1 py-0.5 rounded border',
-                    group.confidence === 'high'
-                      ? 'text-muted-foreground/60 border-border-strong bg-muted/40'
-                      : 'text-muted-foreground/40 border-border bg-transparent',
-                  )}>
-                    {group.confidence}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {group.keywords.map(kw => (
-                    <span
-                      key={kw}
-                      className={cn(
-                        'text-[10px] font-mono px-1.5 py-0.5 rounded border',
-                        group.confidence === 'high' ? entry.chipColorHigh : entry.chipColorMedium,
-                      )}
-                    >
-                      {kw}
-                    </span>
-                  ))}
-                </div>
-              </div>
+              <FilenameGroupRow key={group.category} group={group} entry={entry} />
             ))}
           </div>
-        </div>
+        </>
       )}
     </div>
   )

@@ -430,10 +430,12 @@ const ROW_COUNT_TPL_OPTIONS = [5, 10, 25, 50, 100, 250, 500]
 interface Props {
   initialDatasets: SavedDataset[]
   prefill?: { name?: string; prompt?: string }
+  initialTab?: 'data' | 'file'
+  filePrompt?: string
 }
 
-export function TestDataGenerator({ initialDatasets, prefill }: Props) {
-  const [activeTab,       setActiveTab]       = useState<'data' | 'file'>('data')
+export function TestDataGenerator({ initialDatasets, prefill, initialTab, filePrompt }: Props) {
+  const [activeTab,       setActiveTab]       = useState<'data' | 'file'>(initialTab ?? 'data')
   const [generatedData,   setGeneratedData]   = useState<GeneratedData | null>(null)
   const [aiPrompt,        setAiPrompt]        = useState(prefill?.prompt ?? '')
   const [aiRowCount,      setAiRowCount]      = useState(25)
@@ -578,7 +580,7 @@ export function TestDataGenerator({ initialDatasets, prefill }: Props) {
         </button>
       </div>
 
-      {activeTab === 'file' && <FileFormatGenerator />}
+      {activeTab === 'file' && <FileFormatGenerator prefillPrompt={filePrompt ?? ''} />}
 
       {activeTab === 'data' && <div className="grid grid-cols-3 gap-5">
 

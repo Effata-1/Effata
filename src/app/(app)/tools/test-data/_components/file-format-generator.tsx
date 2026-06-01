@@ -302,8 +302,8 @@ const TEMPLATE_GROUPS: { title: string; color: string; cards: TplCard[] }[] = [
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function FileFormatGenerator() {
-  const [aiPrompt, setAiPrompt]   = useState('')
+export function FileFormatGenerator({ prefillPrompt = '' }: { prefillPrompt?: string }) {
+  const [aiPrompt, setAiPrompt]   = useState(prefillPrompt)
   const [isPending, startTransition] = useTransition()
   const [result, setResult]       = useState<GeneratedFileResult | null>(null)
   const [aiError, setAiError]     = useState<string | null>(null)
