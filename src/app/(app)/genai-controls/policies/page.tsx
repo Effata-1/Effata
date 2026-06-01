@@ -11,7 +11,7 @@ export default async function GenAIPoliciesPage() {
   const user     = await requireRole('analyst')
   const supabase = await createClient()
 
-  await seedPredefinedPolicies()
+  try { await seedPredefinedPolicies() } catch (e) { console.error('[policies/page] seed error:', e) }
 
   const [
     policyResult,
