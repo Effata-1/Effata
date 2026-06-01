@@ -74,6 +74,10 @@ export async function updateCategoryAccessPosture(
 
   if (error) return { error: error.message }
   revalidatePath('/genai-controls/control-matrix')
+
+  // Changing posture may add or remove app-block policies
+  try { await syncRecommendedPolicies() } catch (e) { console.error('[control-matrix] posture sync error:', e) }
+
   return {}
 }
 

@@ -525,7 +525,7 @@ export async function syncRecommendedPolicies(): Promise<void> {
       .select('data_type, category_id, action_code, coaching_notification_id')
       .eq('org_id', user.orgId),
     supabase.from('org_genai_governance_categories')
-      .select('id, system_tag, name').eq('org_id', user.orgId).eq('active', true).order('priority'),
+      .select('id, system_tag, name, access_posture').eq('org_id', user.orgId).eq('active', true).order('priority'),
     supabase.from('org_coaching_notifications')
       .select('id, name').eq('org_id', user.orgId),
     supabase.from('org_genai_policies')
@@ -555,6 +555,10 @@ export async function syncRecommendedPolicies(): Promise<void> {
     let   hasOverride = false
 
     for (const cat of categories ?? []) {
+      // Skip categories with block access posture — they get their own govern_app_access policy
+      // and don't need content-detection controls (network access is blocked entirely)
+      if ((cat as Record<string, unknown>).access_posture === 'block') continue
+
       const tag    = TAG_ALIAS[cat.system_tag ?? ''] ?? cat.system_tag ?? ''
       const rowKey = `pp|rf:${rfKey}`
       const ov     = overrideMap.get(`${rowKey}::${cat.id}`)
@@ -625,11 +629,15 @@ export async function syncRecommendedPolicies(): Promise<void> {
     if (error) console.error(`[syncRecommendedPolicies] ${policy_key}:`, error.message)
   }
 
-  // ── 2. Prohibited app block — single govern_app_access policy ────────────────
-  {
-    const policy_key          = 'rf:prohibited_app_block'
-    const actions_by_category = { prohibited: 'block' }
-    const coaching_by_category: Record<string, string | null> = { prohibited: null }
+  // ── 2. App access block policies — one per category with access_posture === 'block' ──
+  // Policy key format: rf:{tag}_app_block (e.g. rf:prohibited_app_block for prohibited)
+  // This replaces the old hardcoded prohibited-only block — now driven by posture configuration.
+  for (const cat of (categories ?? []).filter(c => (c as Record<string, unknown>).access_posture === 'block')) {
+    const tag        = TAG_ALIAS[cat.system_tag ?? ''] ?? cat.system_tag ?? ''
+    const policy_key = `rf:${tag}_app_block`
+
+    const actions_by_category:  Record<string, string>       = { [tag]: 'block' }
+    const coaching_by_category: Record<string, string | null> = { [tag]: null }
 
     const npj = {
       schema_version: '1.0',
@@ -637,7 +645,7 @@ export async function syncRecommendedPolicies(): Promise<void> {
       policy_family:  'genai_app_access',
       scope: {
         activities:     ['browse', 'login'],
-        app_categories: [{ system_tag: 'prohibited', name: 'Prohibited GenAI' }],
+        app_categories: [{ system_tag: cat.system_tag, name: cat.name }],
       },
       content:  { operator: 'any', conditions: [] },
       decision: { mode: 'block', require_acknowledgement: false, require_justification: false },
@@ -655,8 +663,8 @@ export async function syncRecommendedPolicies(): Promise<void> {
       policy_source:        'recommended',
       matrix_basis:         'default',
       last_synced_from_matrix_at: now,
-      name:                 'Prohibited GenAI App Block',
-      description:          'Blocks access to all GenAI apps classified as Prohibited.',
+      name:                 `${cat.name} App Block`,
+      description:          `Blocks network access to all GenAI apps classified as ${cat.name}.`,
       generated_from:       'recommended',
       is_active:            isNew ? true : existing.is_active,
       approval_status:      'approved',
@@ -673,7 +681,7 @@ export async function syncRecommendedPolicies(): Promise<void> {
       updated_at: now,
     }, { onConflict: 'org_id,policy_key' })
 
-    if (error) console.error('[syncRecommendedPolicies] prohibited_app_block:', error.message)
+    if (error) console.error(`[syncRecommendedPolicies] ${policy_key}:`, error.message)
   }
 
   revalidatePath('/genai-controls/policies')
