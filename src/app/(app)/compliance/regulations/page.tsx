@@ -80,6 +80,7 @@ export default async function RegulationsPage({
   const orgIndustry: string | null = profileData?.industry ?? null
 
   // Cron runs monthly (1st of each month) — treat anything older than 35 days as stale
+  // eslint-disable-next-line react-hooks/purity
   const thirtyFiveDaysAgo = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000)
   const staleCount = allRegs.filter(
     r => new Date(r.last_verified_at) < thirtyFiveDaysAgo

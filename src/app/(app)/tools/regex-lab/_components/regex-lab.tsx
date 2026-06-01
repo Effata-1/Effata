@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useTransition, useCallback, useRef, useEffect } from 'react'
+import { useState, useMemo, useTransition, useCallback, useRef } from 'react'
 import { Loader2, Trash2, Copy, Check, Sparkles, Search, FileDown, FileText, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { generateRegex, savePattern, deletePattern } from '../actions'
@@ -720,7 +720,7 @@ export function RegexLab({ initialPatterns, prefill }: Props) {
         }
       }
     })
-  }, [aiPrompt, contextKeywords, testData])
+  }, [aiPrompt, contextKeywords])
 
   // ── Save ──────────────────────────────────────────────────────────────────
   const handleSave = useCallback(() => {

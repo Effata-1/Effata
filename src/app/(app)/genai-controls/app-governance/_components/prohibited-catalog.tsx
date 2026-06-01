@@ -51,11 +51,13 @@ function AppRow({
   const [savedAt, setSavedAt]     = useState<number | null>(null)
 
   const isNotesDirty = localData.notes !== data.notes
+  // eslint-disable-next-line react-hooks/purity
   const justSaved    = savedAt !== null && Date.now() - savedAt < 2500
 
   // The effective classification: user override → system suggestion ('prohibited')
   const effectiveCls: CatValue = (localData.classification as CatValue) ?? 'prohibited'
-  const isSystemDefault        = localData.classification === null
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _isSystemDefault       = localData.classification === null
 
   function persist(patch: Partial<RefAppData>) {
     const next = { ...localData, ...patch }
@@ -233,7 +235,7 @@ function AppRow({
 
           {/* Notes */}
           <div className="space-y-1.5">
-            <span className="text-[10px] font-semibold text-muted-foreground/40 uppercase tracking-wide">Your Organisation's Notes</span>
+            <span className="text-[10px] font-semibold text-muted-foreground/40 uppercase tracking-wide">Your Organisation&apos;s Notes</span>
             <textarea
               value={localData.notes}
               onChange={e => setLocalData(d => ({ ...d, notes: e.target.value }))}

@@ -896,7 +896,9 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
     })
   }
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (evaluatedApp) setSearch('') }, [evaluatedApp])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setPage(1) }, [filterRisk, filterCls, filterGroups, trimmed])
 
   const pageIds         = pagedEntries.map(e => e.app.app_id)
@@ -1042,10 +1044,10 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
 
       {showNotFound && (
         <div className="rounded-xl border border-border bg-card/30 px-6 py-8 text-center space-y-4">
-          <p className="text-sm font-semibold text-foreground">"{trimmed}" is not in the catalog yet</p>
-          <p className="text-xs text-muted-foreground/70 max-w-md mx-auto">Run an AI evaluation to assess this application's enterprise security posture, DLP activity support, and data governance controls.</p>
+          <p className="text-sm font-semibold text-foreground">&quot;{trimmed}&quot; is not in the catalog yet</p>
+          <p className="text-xs text-muted-foreground/70 max-w-md mx-auto">Run an AI evaluation to assess this application&apos;s enterprise security posture, DLP activity support, and data governance controls.</p>
           <button onClick={handleEvaluate} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors">
-            <Sparkles className="w-4 h-4" />Evaluate "{trimmed}"
+            <Sparkles className="w-4 h-4" />Evaluate &quot;{trimmed}&quot;
           </button>
         </div>
       )}

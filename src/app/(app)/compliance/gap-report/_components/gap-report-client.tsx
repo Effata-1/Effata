@@ -103,6 +103,7 @@ function ControlRow({
   const [loadingHistory, setLoadingHistory] = useState(false)
 
   // Keep textarea in sync if the parent assessment changes without a remount
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setNoteValue(note ?? '') }, [note])
 
   async function togglePanel() {

@@ -308,7 +308,8 @@ interface VendorTabProps {
 function VendorTabContent({ vendorId, translation, policyId }: VendorTabProps) {
   const [isPending, startTransition] = useTransition()
   const [actionError, setActionError] = useState<string | null>(null)
-  const [retranslateJobId, setRetranslateJobId] = useState<string | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_retranslateJobId, setRetranslateJobId] = useState<string | null>(null)
   const [retranslating, setRetranslating] = useState(false)
   const [expandedPolicies, setExpandedPolicies] = useState<Set<number>>(new Set([0]))
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -1106,10 +1107,10 @@ function NetskopeImplementationGuide({ policy }: { policy: Record<string, unknow
 // ── Generic card — fallback for Purview / Forcepoint / Skyhigh ─────────────────
 
 function NativePolicyCard({ policy }: { policy: Record<string, unknown> }) {
+  const [showRaw, setShowRaw] = useState(false)
+
   // Detect Netskope v2 format by presence of profile_action
   if ('profile_action' in policy) return <NetskopeCard policy={policy} />
-
-  const [showRaw, setShowRaw] = useState(false)
 
   const action      = policy.action as string | undefined
   const severity    = policy.severity as string | undefined

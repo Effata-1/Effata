@@ -251,7 +251,7 @@ export function AddToolDialog({ onAdded, onClose }: Props) {
                   </button>
                 </div>
                 {modules.length === 0 && (
-                  <p className="text-[11px] text-muted-foreground/40 italic">No modules — click "Add module" to define licences</p>
+                  <p className="text-[11px] text-muted-foreground/40 italic">No modules — click &quot;Add module&quot; to define licences</p>
                 )}
                 {modules.map((mod, idx) => (
                   <div key={mod.id} className="flex gap-2 items-start">

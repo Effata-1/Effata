@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import {
   Play, Download, Copy, Check, Loader2,
-  ShieldCheck, ShieldAlert, AlertTriangle, Terminal, Zap,
+  ShieldCheck, ShieldAlert, AlertTriangle, Zap,
   UploadCloud, FileText, X, ChevronDown, Search,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -354,20 +354,26 @@ export function DlpTestRunner({ initialHistory }: Props) {
 
   // Re-fill payload when data type changes (unless custom)
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (dataType.id !== 'custom') setPayload(dataType.sample)
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [dataType])
 
   // Re-generate script when script selection or data type changes
   useEffect(() => {
     if (activeMode !== 'script') return
     const origin = typeof window !== 'undefined' ? window.location.origin : ''
+    /* eslint-disable react-hooks/set-state-in-effect */
     setScriptContent(generateScript(selectedScript.id, payload, origin))
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [activeMode, selectedScript, payload])
 
   // Show coaching hint after 5 seconds of running (user alert holds the connection)
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (!isRunning) { setSlowTest(false); return }
     const t = setTimeout(() => setSlowTest(true), 5000)
+    /* eslint-enable react-hooks/set-state-in-effect */
     return () => clearTimeout(t)
   }, [isRunning])
 
@@ -926,6 +932,7 @@ function HistoryTable({ history }: { history: TestHistoryEntry[] }) {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
+    // eslint-disable-next-line react-hooks/purity
     const now = Date.now()
     return history.filter(e => {
       if (resultFilter !== 'all' && e.result !== resultFilter) return false

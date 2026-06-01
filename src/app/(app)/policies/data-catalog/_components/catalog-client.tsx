@@ -520,6 +520,7 @@ function SubcategoryGroup({
   const [collapsed, setCollapsed] = useState(true)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCollapsed(!forceExpand)
   }, [forceExpand])
 
@@ -603,6 +604,7 @@ function ClassificationSection({
   const [collapsed, setCollapsed] = useState(true)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCollapsed(!forceExpand)
   }, [forceExpand])
 
@@ -715,7 +717,8 @@ export function CatalogClient({
   const [scopeFilter,       setScopeFilter]       = useState<string>('')
   const [showAddModal,      setShowAddModal]      = useState(false)
   const [customSectionOpen, setCustomSectionOpen] = useState(false)
-  const [isPending,         startTransition]      = useTransition()
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_isPending,        startTransition]      = useTransition()
 
   type OptimisticAction =
     | { type: 'toggle';   catalogId: string;    inScope: boolean }

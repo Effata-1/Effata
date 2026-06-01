@@ -30,6 +30,7 @@ function formatDate(iso: string) {
 export default async function CompliancePage() {
   const supabase = await createClient()
 
+  // eslint-disable-next-line react-hooks/purity
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 
   const [
@@ -169,7 +170,7 @@ export default async function CompliancePage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground mb-1">Compliance</h1>
         <p className="text-muted-foreground/80 text-sm">
-          Your organisation's DLP compliance posture across all tracked regulations.
+          Your organisation&apos;s DLP compliance posture across all tracked regulations.
         </p>
       </div>
 

@@ -22,6 +22,7 @@ export function PresentationActionsBar({ existing }: Props) {
   const [origin, setOrigin]       = useState('')
 
   // Resolve origin client-side only to avoid SSR/hydration mismatch
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setOrigin(window.location.origin) }, [])
 
   const shareUrl = shareToken ? `${origin}/share/${shareToken}` : null

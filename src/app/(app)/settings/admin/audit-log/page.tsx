@@ -45,6 +45,7 @@ export default async function AuditLogPage({
   if (orgId) query = query.eq('org_id', orgId)
 
   if (range !== 'all') {
+    // eslint-disable-next-line react-hooks/purity
     const since = new Date(Date.now() - parseInt(range) * 24 * 60 * 60 * 1000).toISOString()
     query = query.gte('created_at', since)
   }

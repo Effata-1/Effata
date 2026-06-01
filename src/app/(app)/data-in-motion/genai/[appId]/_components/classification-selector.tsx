@@ -75,7 +75,7 @@ export function ClassificationSelector({ appId, orgId, currentClassification }: 
         {saved && <span className="text-xs text-green-400 self-center">Saved</span>}
       </div>
       {!orgId && (
-        <p className="text-xs text-muted-foreground/60 mt-2">Sign in to set your organisation's classification.</p>
+        <p className="text-xs text-muted-foreground/60 mt-2">Sign in to set your organisation&apos;s classification.</p>
       )}
     </div>
   )

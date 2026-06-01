@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useTransition, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Search, Pencil, Trash2, Plus, X, Download, Eye,
-  Copy, EyeOff, ChevronDown, Sparkles, AlertTriangle, FileText,
+  Copy, ChevronDown, Sparkles, AlertTriangle, FileText,
   MoreVertical, RotateCcw, Power,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'

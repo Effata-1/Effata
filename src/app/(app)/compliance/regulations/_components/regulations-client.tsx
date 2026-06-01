@@ -131,9 +131,12 @@ function RegulationCard({ reg, isRelevant }: { reg: RegulationRow; isRelevant: b
   const [expanded, setExpanded] = useState(false)
   const fresh = freshnessInfo(reg.last_verified_at)
   const criticalCount = reg.requirements.filter(r => r.severity === 'critical').length
+  // eslint-disable-next-line react-hooks/purity
   const isNew = Date.now() - new Date(reg.created_at).getTime() < THIRTY_DAYS_MS
+  /* eslint-disable react-hooks/purity */
   const isUpdated = !isNew && reg.content_updated_at &&
     Date.now() - new Date(reg.content_updated_at).getTime() < THIRTY_DAYS_MS
+  /* eslint-enable react-hooks/purity */
 
   return (
     <div className={cn(

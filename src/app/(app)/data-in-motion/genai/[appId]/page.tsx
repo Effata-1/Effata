@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, AlertTriangle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { computeTrustScore, FIELD_LABELS, DLP_ACTIVITY_LABELS, VALUE_DISPLAY, CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
+import { computeTrustScore, FIELD_LABELS, VALUE_DISPLAY, CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
 import { cn } from '@/lib/utils'
 import type { GenAIApp, GenAIAppProfile, AppFields, DLPActivities, BreachInfo, CustomerClass } from '@/lib/genai/types'
 import { ClassificationSelector } from './_components/classification-selector'
@@ -182,7 +182,7 @@ export default async function GenAIAppProfilePage({
       <div className="rounded-xl border border-border bg-card/50 p-5 shadow-sm">
         <h2 className="text-sm font-semibold text-foreground mb-1">Your Classification</h2>
         <p className="text-xs text-muted-foreground/80 mb-4">
-          This overrides the system suggestion in your organisation's DLP policy matrix. The system score does not change.
+          This overrides the system suggestion in your organisation&apos;s DLP policy matrix. The system score does not change.
         </p>
         <ClassificationSelector
           appId={appId}

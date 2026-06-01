@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import type { ChannelSubchannel } from '@/lib/channel-taxonomy'
 
 export function SubchannelList({ subchannels }: { subchannels: ChannelSubchannel[] }) {

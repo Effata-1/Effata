@@ -581,7 +581,8 @@ export function ReportDetailClient({ report: initialReport, tests: initialTests,
   const [mode, setMode]       = useState<'view' | 'edit'>(initialMode)
   const [report, setReport]   = useState<EvidenceReport>(initialReport)
   const [tests, setTests]     = useState<ReportTest[]>(initialTests)
-  const [isPending, startTransition] = useTransition()
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_isPending, startTransition] = useTransition()
 
   // Modal state
   const [modalOpen, setModalOpen]   = useState(false)

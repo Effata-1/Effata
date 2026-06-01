@@ -145,7 +145,7 @@ function DraftPreview({
           <div className="flex items-center gap-2 px-3 py-2.5 bg-card/50 border border-border rounded-lg">
             <AlertCircle className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
             <p className="text-[10px] text-muted-foreground/60">
-              Keep describing your tests — the Create button will appear when there's enough to build the report.
+              Keep describing your tests — the Create button will appear when there&apos;s enough to build the report.
             </p>
           </div>
         )}

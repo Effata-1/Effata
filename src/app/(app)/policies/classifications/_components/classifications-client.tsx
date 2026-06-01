@@ -249,7 +249,7 @@ function LabelsTab({
   function toggleExpand(labelId: string) {
     setExpanded(prev => {
       const next = new Set(prev)
-      next.has(labelId) ? next.delete(labelId) : next.add(labelId)
+      if (next.has(labelId)) { next.delete(labelId) } else { next.add(labelId) }
       return next
     })
   }
@@ -469,7 +469,7 @@ function DestinationsTab({
   function toggleExpand(labelId: string) {
     setExpanded(prev => {
       const next = new Set(prev)
-      next.has(labelId) ? next.delete(labelId) : next.add(labelId)
+      if (next.has(labelId)) { next.delete(labelId) } else { next.add(labelId) }
       return next
     })
   }

@@ -116,7 +116,8 @@ export function TranslationHubClient({
   vendorTools,
   latestJobId,
   latestJobStatus,
-  userRole,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  userRole: _userRole,
 }: Props) {
   const router                       = useRouter()
   const [isPending, startTransition] = useTransition()

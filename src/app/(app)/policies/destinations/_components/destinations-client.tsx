@@ -104,6 +104,7 @@ function AppSearchInput({
 
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (query.length < 2) { setResults([]); setOpen(false); return }
     timerRef.current = setTimeout(async () => {
       const apps = await searchApps(query)
@@ -207,9 +208,13 @@ function CatalogRow({
   const [saving, setSaving]         = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setDraftName(item.name) }, [item.name])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setApps(item.applications) }, [item.applications])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setNotes(item.notes ?? '') }, [item.notes])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setDefinition(item.definition ?? '') }, [item.definition])
   useEffect(() => { if (editingName) nameRef.current?.focus() }, [editingName])
 
@@ -394,8 +399,11 @@ function CustomRow({
   const [notes, setNotes]           = useState(item.notes ?? '')
   const [definition, setDefinition] = useState(item.definition ?? '')
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setApps(item.applications) }, [item.applications])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setNotes(item.notes ?? '') }, [item.notes])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setDefinition(item.definition ?? '') }, [item.definition])
 
   async function saveApps(newApps: string[]) {

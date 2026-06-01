@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useActionState, useMemo } from 'react'
 import { cn } from '@/lib/utils'
-import { UserPlus, Trash2, Loader2, X, Check, Search, ChevronDown, MoreHorizontal, Shield, Users, Lock } from 'lucide-react'
+import { UserPlus, Loader2, X, Check, Search, ChevronDown, MoreHorizontal, Shield, Users, Lock } from 'lucide-react'
 import { inviteTeamMember, updateMemberRole, removeMember } from '../actions'
 import type { TeamMember, UserRole } from '../actions'
 
