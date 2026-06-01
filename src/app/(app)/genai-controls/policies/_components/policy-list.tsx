@@ -325,20 +325,6 @@ function DestCell({ policy, apps, categories }: { policy: GenAIPolicy; apps: App
     )
   }
 
-  // Recommended content policies have no app_categories in scope (they apply to all categories
-  // with per-category actions) — show all org categories so the column isn't blank
-  if (policy.policy_source === 'recommended' && categories.length > 0) {
-    return (
-      <div className="flex gap-1 flex-wrap">
-        {categories.map(cat => (
-          <span key={cat.id} className={cn('text-[9px] px-1.5 py-0.5 rounded border font-medium', CAT_COLOR_CHIP[cat.color] ?? CAT_COLOR_CHIP.zinc)}>
-            {cat.name}
-          </span>
-        ))}
-      </div>
-    )
-  }
-
   return <span className="text-[11px] text-muted-foreground/40 italic">All GenAI apps</span>
 }
 

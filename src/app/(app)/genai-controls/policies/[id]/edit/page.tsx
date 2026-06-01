@@ -22,7 +22,7 @@ export default async function EditPolicyPage({ params }: { params: Promise<{ id:
     supabase.from('org_genai_policies').select('*').eq('id', id).eq('org_id', user.orgId).single(),
     supabase.from('genai_apps').select('app_id, app_name, vendor, app_type, logo_letter, logo_bg').order('app_name'),
     supabase.from('org_genai_governance_categories').select('id, system_tag, name, color').eq('org_id', user.orgId).eq('active', true).order('priority'),
-    ensureClassificationLabels(),
+    ensureClassificationLabels().catch(() => []),
     supabase.from('org_coaching_notifications').select('id, name, coach_label').eq('org_id', user.orgId).order('name'),
     supabase.from('org_genai_policies').select('id, name').eq('org_id', user.orgId).order('priority'),
     supabase.from('org_vendor_translations').select('id, vendor_id, status, neutral_policy_hash').eq('policy_id', id).eq('org_id', user.orgId),
