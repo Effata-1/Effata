@@ -143,6 +143,7 @@ export interface PolicyIntentEditorProps {
   coachingTemplates:     CoachingTemplateRow[]
   allPolicies:           PolicyBrief[]
   translations:          TranslationRow[]
+  catalogDataTypes:      Array<{ id: string; name: string; risk_family: string | null }>
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -395,6 +396,7 @@ export function PolicyIntentEditor({
   coachingTemplates,
   allPolicies,
   translations,
+  catalogDataTypes,
 }: PolicyIntentEditorProps) {
   const router   = useRouter()
   const npj      = isValidNpj(policy.neutral_policy_json) ? (policy.neutral_policy_json as NeutralPolicyJson) : null
@@ -959,7 +961,7 @@ export function PolicyIntentEditor({
                           return <Chip label={meta?.label ?? cond.sensitivity} color={meta?.color ?? 'zinc'} />
                         })()}
                         {!cond.sensitivity && cond.risk_family && (
-                          <span className="text-xs font-medium text-foreground/80">
+                          <span className="text-xs font-semibold text-foreground/80">
                             {RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family}
                           </span>
                         )}
@@ -968,6 +970,19 @@ export function PolicyIntentEditor({
                         )}
                       </div>
                       {cond.name && <p className="text-xs text-foreground/70">{cond.name}</p>}
+                      {cond.risk_family && (() => {
+                        const types = catalogDataTypes.filter(t => t.risk_family === cond.risk_family)
+                        if (types.length === 0) return null
+                        return (
+                          <div className="mt-2.5 flex flex-wrap gap-1.5">
+                            {types.map(t => (
+                              <span key={t.id} className="text-[10px] px-1.5 py-0.5 rounded border border-border/50 bg-muted/40 text-muted-foreground/60">
+                                {t.name}
+                              </span>
+                            ))}
+                          </div>
+                        )
+                      })()}
                     </div>
                   </div>
                 )}

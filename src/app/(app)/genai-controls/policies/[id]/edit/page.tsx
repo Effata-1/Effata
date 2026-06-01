@@ -17,6 +17,7 @@ export default async function EditPolicyPage({ params }: { params: Promise<{ id:
     coachingTemplatesResult,
     allPoliciesResult,
     translationsResult,
+    catalogTypesResult,
   ] = await Promise.all([
     supabase.from('org_genai_policies').select('*').eq('id', id).eq('org_id', user.orgId).single(),
     supabase.from('genai_apps').select('app_id, app_name, vendor, app_type, logo_letter, logo_bg').order('app_name'),
@@ -25,6 +26,7 @@ export default async function EditPolicyPage({ params }: { params: Promise<{ id:
     supabase.from('org_coaching_notifications').select('id, name, coach_label').eq('org_id', user.orgId).order('name'),
     supabase.from('org_genai_policies').select('id, name').eq('org_id', user.orgId).order('priority'),
     supabase.from('org_vendor_translations').select('id, vendor_id, status, neutral_policy_hash').eq('policy_id', id).eq('org_id', user.orgId),
+    supabase.from('catalog_data_types').select('id, name, risk_family').eq('active', true).order('priority').order('name'),
   ])
 
   if (!policyResult.data) notFound()
@@ -35,6 +37,7 @@ export default async function EditPolicyPage({ params }: { params: Promise<{ id:
   const coachingTemplates = coachingTemplatesResult.data ?? []
   const allPolicies       = allPoliciesResult.data       ?? []
   const translations      = translationsResult.data      ?? []
+  const catalogDataTypes  = (catalogTypesResult.data ?? []) as Array<{ id: string; name: string; risk_family: string | null }>
 
   return (
     <PolicyIntentEditor
@@ -71,6 +74,7 @@ export default async function EditPolicyPage({ params }: { params: Promise<{ id:
       coachingTemplates={coachingTemplates}
       allPolicies={allPolicies}
       translations={translations}
+      catalogDataTypes={catalogDataTypes}
     />
   )
 }
