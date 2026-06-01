@@ -971,7 +971,8 @@ export function PolicyIntentEditor({
                       </div>
                       {cond.name && <p className="text-xs text-foreground/70">{cond.name}</p>}
                       {cond.risk_family && (() => {
-                        const types = catalogDataTypes.filter(t => t.risk_family === cond.risk_family)
+                        const dbRfName = RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family
+                        const types = catalogDataTypes.filter(t => t.risk_family === dbRfName)
                         if (types.length === 0) return null
                         return (
                           <div className="mt-2.5 flex flex-wrap gap-1.5">
