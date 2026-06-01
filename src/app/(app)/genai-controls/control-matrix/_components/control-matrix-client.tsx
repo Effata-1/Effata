@@ -80,14 +80,14 @@ const CONTENT_DETECTION_ROWS = [
   'Regulated Data',
   'Source Code',
   'Intellectual Property',
+  'Security & Infrastructure Data',
   'Customer & Employee Data',
   'Financial & Commercial Data',
   'Legal & Contractual Data',
-  'Security & Infrastructure Data',
-  'Public & Low-Risk Data',
   'Bulk Data / Large Dataset',
   'Large File Upload',
   'General Usage Reminder',
+  'Public & Low-Risk Data',
 ] as const
 
 // ── Extra meta for rows outside RISK_FAMILY_META ─────────────────────────────
