@@ -36,7 +36,7 @@ export default async function GenAIControlsPage() {
       .from('org_genai_policies')
       .select('id', { count: 'exact', head: true })
       .eq('org_id', user.orgId)
-      .eq('generated_from', 'policy-pack-agent'),
+      .eq('generated_from', 'governance-matrix'),
 
     supabase
       .from('genai_policy_chats')

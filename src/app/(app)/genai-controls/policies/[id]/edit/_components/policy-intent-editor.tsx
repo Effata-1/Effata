@@ -221,12 +221,10 @@ const POLICY_FAMILY_LABELS: Record<string, string> = {
 }
 
 const GENERATED_FROM_LABELS: Record<string, string> = {
-  predefined:        'Predefined (RF Matrix)',
+  predefined:          'Predefined (RF Matrix)',
   'governance-matrix': 'Governance Matrix',
-  'policy-pack-agent': 'Policy Pack Agent',
-  'ai-assisted':     'AI Policy Assistant',
-  manual:            'Manual',
-  'legacy-backfill': 'Legacy Backfill',
+  'ai-assisted':       'AI Policy Assistant',
+  manual:              'Manual',
 }
 
 const RF_DISPLAY_NAMES: Record<string, string> = {

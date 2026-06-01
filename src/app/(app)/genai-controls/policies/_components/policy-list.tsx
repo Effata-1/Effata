@@ -153,9 +153,7 @@ const FILTER_DEFS: FilterDef[] = [
     staticOptions: [
       { value: 'predefined',        label: 'Predefined (RF Matrix)' },
       { value: 'governance-matrix', label: 'Governance Matrix'      },
-      { value: 'policy-pack-agent', label: 'Policy Pack Agent'      },
       { value: 'manual',            label: 'Manual'                  },
-      { value: 'legacy-backfill',   label: 'Legacy Backfill'        },
     ],
   },
   {
