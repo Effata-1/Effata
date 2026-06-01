@@ -9,10 +9,13 @@ ALTER TABLE org_genai_policies
   ADD COLUMN IF NOT EXISTS policy_key     TEXT;
 
 -- ── Unique index for upsert conflict-target ───────────────────────────────────
--- Normal (non-partial) index required for Supabase .upsert({ onConflict: 'org_id,policy_key' }).
--- Postgres allows multiple NULLs in a non-partial unique index, so Manual
+-- Migration 079 created a PARTIAL index (WHERE policy_key IS NOT NULL) with this name.
+-- Supabase upsert needs a NON-PARTIAL index for ON CONFLICT (org_id, policy_key) to work.
+-- Drop the old partial index first, then create a non-partial one.
+-- Postgres allows multiple NULLs in a non-partial unique index, so manual
 -- policies with policy_key = null remain safe.
-CREATE UNIQUE INDEX IF NOT EXISTS org_genai_policies_org_key_uidx
+DROP INDEX IF EXISTS org_genai_policies_org_key_uidx;
+CREATE UNIQUE INDEX org_genai_policies_org_key_uidx
   ON org_genai_policies (org_id, policy_key);
 
 -- ── Replace policy_source check constraint ────────────────────────────────────

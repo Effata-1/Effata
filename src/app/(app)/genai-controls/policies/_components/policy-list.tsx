@@ -838,11 +838,18 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
 
   function confirmDelete() {
     if (!deleteTarget) return
-    const { id } = deleteTarget
+    const { id, name } = deleteTarget
+    const snapshot = policies.find(p => p.id === id)
     setDeleteTarget(null)
     setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n })
     setPolicies(ps => ps.filter(p => p.id !== id))
-    startTransition(async () => { await deletePolicy(id) })
+    startTransition(async () => {
+      const result = await deletePolicy(id)
+      if (result?.error) {
+        if (snapshot) setPolicies(ps => [...ps, snapshot])
+        alert(`Failed to delete "${name}": ${result.error}`)
+      }
+    })
   }
 
   async function handleGenerate() {
