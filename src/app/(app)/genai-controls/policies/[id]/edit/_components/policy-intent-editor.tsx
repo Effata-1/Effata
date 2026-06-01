@@ -984,18 +984,9 @@ export function PolicyIntentEditor({
                           return <Chip label={meta?.label ?? cond.sensitivity} color={meta?.color ?? 'zinc'} />
                         })()}
                         {!cond.sensitivity && cond.risk_family && (
-                          CATALOG_RF_IDS.has(cond.risk_family) ? (
-                            <Link
-                              href={`/policies/data-catalog?rf=${encodeURIComponent(RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family)}`}
-                              className="text-xs font-semibold text-foreground/80 hover:text-foreground hover:underline underline-offset-2 transition-colors"
-                            >
-                              {RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family}
-                            </Link>
-                          ) : (
-                            <span className="text-xs font-semibold text-foreground/80">
-                              {RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family}
-                            </span>
-                          )
+                          <span className="text-xs font-semibold text-foreground/80">
+                            {RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family}
+                          </span>
                         )}
                         {cond.confidence && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-muted/30 text-muted-foreground/60 uppercase">{cond.confidence}</span>
@@ -1017,6 +1008,15 @@ export function PolicyIntentEditor({
                         )
                       })()}
                     </div>
+                    {cond.risk_family && CATALOG_RF_IDS.has(cond.risk_family) && (
+                      <Link
+                        href={`/policies/data-catalog?rf=${encodeURIComponent(RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family)}`}
+                        className="shrink-0 flex items-center gap-1 text-[11px] text-muted-foreground/50 hover:text-foreground/80 transition-colors"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        View in Data Catalog
+                      </Link>
+                    )}
                   </div>
                 )}
                 {cond.type === 'classification_label' && (
