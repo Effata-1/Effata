@@ -538,13 +538,67 @@ function getScopeActivities(rfKey: string): string[] {
   return ['prompt_submit', 'upload', 'post']
 }
 
+// decision.mode is the strictest-posture fallback summary — NOT the primary enforcement rule.
+// actions_by_category is the authoritative source. Translators must NOT apply decision.mode
+// globally — Approved & Supported may be 'alert' even when restricted categories are 'block'.
 function computeFallbackMode(actions: Record<string, string>): string {
-  // Normalize UI-only codes to canonical NPJ decision.mode values before ranking
   const vals = Object.values(actions).map(a =>
     a === 'coach-ack' || a === 'coach-just' ? 'coach' : a,
   )
   const ORDER = ['block', 'coach', 'alert', 'monitor', 'allow']
   return ORDER.find(a => vals.includes(a)) ?? 'block'
+}
+
+// Categories with access_posture='block' are omitted from actions_by_category because their
+// traffic is blocked at the app-access layer, before content inspection runs.
+function buildExcludedCategories(
+  cats: Array<Record<string, unknown>>,
+): Record<string, { reason: string; action: string }> {
+  const out: Record<string, { reason: string; action: string }> = {}
+  for (const cat of cats) {
+    if (cat.access_posture === 'block') {
+      const tag = TAG_ALIAS[cat.system_tag as string ?? ''] ?? (cat.system_tag as string) ?? ''
+      if (tag) out[tag] = { reason: 'handled_by_access_control_policy', action: 'block' }
+    }
+  }
+  return out
+}
+
+// Resolves coaching UUID references → full template content so translators don't need a second query.
+function resolveCoachingTemplates(
+  coaching_by_category: Record<string, string | null>,
+  notifById: Map<string, Record<string, unknown>>,
+): Record<string, { name: string; title: string; message: string; control_type: string; requires_justification: boolean }> {
+  const out: Record<string, { name: string; title: string; message: string; control_type: string; requires_justification: boolean }> = {}
+  for (const id of Object.values(coaching_by_category)) {
+    if (!id || out[id]) continue
+    const tpl = notifById.get(id)
+    if (!tpl) continue
+    out[id] = {
+      name:                  tpl.name    as string,
+      title:                 tpl.title   as string,
+      message:               tpl.message as string,
+      control_type:          tpl.control_type as string,
+      requires_justification: tpl.control_type === 'coach_justification',
+    }
+  }
+  return out
+}
+
+// Flags that tell vendor translators what capabilities this policy requires.
+function computeTranslationHints(
+  actions: Record<string, string>,
+  policyFamily: string,
+): { requires_content_inspection: boolean; requires_filename_inspection: boolean; requires_label_detection: boolean; requires_app_category_mapping: boolean; requires_user_notification: boolean; requires_justification_capture: boolean } {
+  const vals = Object.values(actions)
+  return {
+    requires_content_inspection:    policyFamily === 'genai_content_detection',
+    requires_filename_inspection:   policyFamily === 'genai_filename',
+    requires_label_detection:       policyFamily === 'genai_label_detection',
+    requires_app_category_mapping:  true,
+    requires_user_notification:     vals.some(a => ['coach', 'coach-ack', 'coach-just', 'alert'].includes(a)),
+    requires_justification_capture: vals.some(a => a === 'coach-just'),
+  }
 }
 
 export async function syncRecommendedPolicies(): Promise<void> {
@@ -571,7 +625,7 @@ export async function syncRecommendedPolicies(): Promise<void> {
     supabase.from('org_genai_governance_categories')
       .select('id, system_tag, name, access_posture').eq('org_id', user.orgId).eq('active', true).order('priority'),
     supabase.from('org_coaching_notifications')
-      .select('id, name').eq('org_id', user.orgId),
+      .select('id, name, coach_label, title, message, control_type').eq('org_id', user.orgId),
     supabase.from('org_genai_policies')
       .select('policy_key, is_active, neutral_policy_json, vendor_translation_status, test_status')
       .eq('org_id', user.orgId)
@@ -591,6 +645,7 @@ export async function syncRecommendedPolicies(): Promise<void> {
 
   const overrideMap = buildOverrideMap(overrides ?? [])
   const notifMap    = new Map((notifications ?? []).map(n => [n.name as string, n.id as string]))
+  const notifById   = new Map((notifications ?? []).map(n => [n.id as string, n]))
   const now         = new Date().toISOString()
 
   // ── 1. Content detection rows — derived from CONTENT_DETECTION_ROWS ──────────
@@ -623,7 +678,10 @@ export async function syncRecommendedPolicies(): Promise<void> {
       }
     }
 
+    const policyName = `${RF_POLICY_BASE[rfKey] ?? `GenAI - ${rowLabel}`} ${computePolicySuffix(rfKey, actions_by_category)}`
     const npj = {
+      policy_id:      policy_key,
+      policy_name:    policyName,
       schema_version: '1.0',
       intent:         'prevent_exfiltration',
       policy_family:  'genai_content_detection',
@@ -632,17 +690,22 @@ export async function syncRecommendedPolicies(): Promise<void> {
         operator:   'any',
         conditions: [{
           type:            'data_type',
-          risk_family_key: rfKey,      // stable slug — used for internal logic
-          risk_family:     rowLabel,   // display name — used for human-readable output
+          risk_family_key: rfKey,
+          risk_family:     rowLabel,
         }],
       },
       decision: {
+        role:                    'fallback_summary',
         mode:                    computeFallbackMode(actions_by_category),
         require_acknowledgement: false,
         require_justification:   false,
       },
       actions_by_category,
       coaching_by_category,
+      excluded_categories:  buildExcludedCategories((categories ?? []) as Array<Record<string, unknown>>),
+      coaching_templates:   resolveCoachingTemplates(coaching_by_category, notifById),
+      app_governance_source: { type: 'current_org_app_governance', version: 'active' },
+      translation_hints:    computeTranslationHints(actions_by_category, 'genai_content_detection'),
     }
 
     // If every active category allows this data type, no enforcement policy is needed
@@ -661,7 +724,7 @@ export async function syncRecommendedPolicies(): Promise<void> {
       policy_source:        'recommended',
       matrix_basis,
       last_synced_from_matrix_at: now,
-      name:                 `${RF_POLICY_BASE[rfKey] ?? `GenAI - ${rowLabel}`} ${computePolicySuffix(rfKey, actions_by_category)}`,
+      name:                 policyName,
       description:          `Detects and enforces controls for ${rowLabel} data across all GenAI apps.`,
       generated_from:       'recommended',
       is_active:            isNew ? true : existing.is_active,
@@ -708,7 +771,10 @@ export async function syncRecommendedPolicies(): Promise<void> {
       }
     }
 
+    const fnPolicyName = `GenAI - ${lbl.name} Filename ${computePolicySuffix('', actions_by_category)}`
     const npj = {
+      policy_id:      policy_key,
+      policy_name:    fnPolicyName,
       schema_version: '1.0',
       intent:         'prevent_exfiltration',
       policy_family:  'genai_filename',
@@ -718,12 +784,17 @@ export async function syncRecommendedPolicies(): Promise<void> {
         conditions: [{ type: 'classification_label', label_id: lbl.id, label_name: lbl.name, system_level: lbl.system_level }],
       },
       decision: {
+        role:                    'fallback_summary',
         mode:                    computeFallbackMode(actions_by_category),
         require_acknowledgement: false,
         require_justification:   false,
       },
       actions_by_category,
       coaching_by_category,
+      excluded_categories:  buildExcludedCategories((categories ?? []) as Array<Record<string, unknown>>),
+      coaching_templates:   resolveCoachingTemplates(coaching_by_category, notifById),
+      app_governance_source: { type: 'current_org_app_governance', version: 'active' },
+      translation_hints:    computeTranslationHints(actions_by_category, 'genai_filename'),
     }
 
     // If every active category allows this classification level, no enforcement policy is needed
@@ -742,7 +813,7 @@ export async function syncRecommendedPolicies(): Promise<void> {
       policy_source:        'recommended',
       matrix_basis,
       last_synced_from_matrix_at: now,
-      name:                 `GenAI - ${lbl.name} Filename ${computePolicySuffix('', actions_by_category)}`,
+      name:                 fnPolicyName,
       description:          `Controls uploads with ${lbl.name}-classified filename patterns across all GenAI apps.`,
       generated_from:       'recommended',
       is_active:            isNew ? true : existing.is_active,
@@ -788,29 +859,37 @@ export async function syncRecommendedPolicies(): Promise<void> {
       }
     }
 
+    const displayName    = (clbl as Record<string, unknown>).display_name as string
+    const dcPolicyName   = `GenAI - ${displayName} Label ${computePolicySuffix('', actions_by_category)}`
     const npj = {
+      policy_id:      policy_key,
+      policy_name:    dcPolicyName,
       schema_version: '1.0',
       intent:         'prevent_exfiltration',
       policy_family:  'genai_label_detection',
       scope: { activities: ['upload'] },
       content: {
         operator:   'any',
-        conditions: [{ type: 'classification_label', label_id: clbl.id, label_name: (clbl as Record<string, unknown>).display_name as string }],
+        conditions: [{ type: 'classification_label', label_id: clbl.id, label_name: displayName }],
       },
       decision: {
+        role:                    'fallback_summary',
         mode:                    computeFallbackMode(actions_by_category),
         require_acknowledgement: false,
         require_justification:   false,
       },
       actions_by_category,
       coaching_by_category,
+      excluded_categories:  buildExcludedCategories((categories ?? []) as Array<Record<string, unknown>>),
+      coaching_templates:   resolveCoachingTemplates(coaching_by_category, notifById),
+      app_governance_source: { type: 'current_org_app_governance', version: 'active' },
+      translation_hints:    computeTranslationHints(actions_by_category, 'genai_label_detection'),
     }
 
     // If every active category allows this label, no enforcement policy is needed
     const dcVals = Object.values(actions_by_category)
     if (dcVals.length > 0 && dcVals.every(a => a === 'allow')) continue
 
-    const displayName = (clbl as Record<string, unknown>).display_name as string
     const matrix_basis = (hasOverride ? 'customized' : 'default') as 'default' | 'customized'
     const existing     = existingMap.get(policy_key)
     const isNew        = !existing
@@ -822,7 +901,7 @@ export async function syncRecommendedPolicies(): Promise<void> {
       policy_source:        'recommended',
       matrix_basis,
       last_synced_from_matrix_at: now,
-      name:                 `GenAI - ${displayName} Label ${computePolicySuffix('', actions_by_category)}`,
+      name:                 dcPolicyName,
       description:          `Controls uploads classified as ${displayName} across all GenAI apps.`,
       generated_from:       'recommended',
       is_active:            isNew ? true : existing.is_active,
