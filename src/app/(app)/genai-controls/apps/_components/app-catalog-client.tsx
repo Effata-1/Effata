@@ -953,7 +953,7 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
             ) : (
               <><span className="w-1.5 h-1.5 rounded-full bg-accent" /><span>No refresh runs yet</span></>
             )}
-            <Link href="/genai-controls/refresh-logs" className="underline hover:text-muted-foreground/80 ml-1">Logs →</Link>
+            <Link href="/settings/admin/refresh-logs" className="underline hover:text-muted-foreground/80 ml-1">Logs →</Link>
           </div>
         </div>
       </div>

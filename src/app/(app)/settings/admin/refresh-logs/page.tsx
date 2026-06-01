@@ -1,8 +1,7 @@
-import Link from 'next/link'
 import { requireRole } from '@/lib/auth'
 import { callData } from '@/lib/api-client.server'
 import { cn } from '@/lib/utils'
-import { ArrowLeft, CheckCircle2, XCircle, Loader2, AlertTriangle, Clock, GitCompare } from 'lucide-react'
+import { CheckCircle2, XCircle, Loader2, AlertTriangle, Clock, GitCompare } from 'lucide-react'
 
 interface FieldChange {
   app_id: string
@@ -80,7 +79,7 @@ function FieldLabel({ field }: { field: string }) {
   )
 }
 
-export default async function GenAIRefreshLogsPage() {
+export default async function RefreshLogsPage() {
   await requireRole('analyst')
 
   const allRuns: ResearchRun[] = await callData<ResearchRun[]>('/api/data/genai-research-runs').catch(() => [])
@@ -91,9 +90,6 @@ export default async function GenAIRefreshLogsPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <Link href="/genai-controls/apps" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/80 hover:text-foreground/70 transition-colors mb-2">
-            <ArrowLeft className="w-3 h-3" />Back to App Catalog
-          </Link>
           <h1 className="text-xl font-bold text-foreground">Research Run Logs</h1>
           <p className="text-sm text-muted-foreground/80 mt-1">
             Weekly auto-refresh — discovers new apps, re-evaluates all profiles, logs field changes.

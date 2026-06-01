@@ -14,9 +14,10 @@ const GENERAL_ITEMS = [
 ]
 
 const ADMIN_ITEMS = [
-  { label: 'Audit Log', href: '/settings/admin/audit-log' },
-  { label: 'Cron Runs', href: '/settings/admin/cron-runs' },
-  { label: 'AI Logs',   href: '/settings/admin/ai-logs'   },
+  { label: 'Audit Log',    href: '/settings/admin/audit-log'    },
+  { label: 'Refresh Logs', href: '/settings/admin/refresh-logs' },
+  { label: 'Cron Runs',    href: '/settings/admin/cron-runs'    },
+  { label: 'AI Logs',      href: '/settings/admin/ai-logs'      },
 ]
 
 export function SettingsSidebar({ role }: { role: string }) {

@@ -443,7 +443,7 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
                           <p className="text-xs font-medium">Label detection disabled — no sensitivity labels configured</p>
                           <p className="text-[11px] mt-0.5">
                             Add your MIP or custom sensitivity labels to enable this control.{' '}
-                            <a href="/genai-controls/sensitivity-labels" className="text-primary/60 hover:text-primary transition-colors inline-flex items-center gap-0.5">
+                            <a href="/policies/sensitivity-labels" className="text-primary/60 hover:text-primary transition-colors inline-flex items-center gap-0.5">
                               Manage Sensitivity Labels <ArrowRight className="w-3 h-3" />
                             </a>
                           </p>
