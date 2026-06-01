@@ -17,6 +17,7 @@ import {
   duplicatePolicyAsManual,
 } from '../../../actions'
 import { TAG_DISPLAY_NAMES } from '@/lib/genai/control-matrix-rows'
+import { RISK_FAMILIES } from '@/lib/shared/risk-families'
 import type { ApprovalStatus } from '@/lib/genai/types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -225,12 +226,9 @@ const GENERATED_FROM_LABELS: Record<string, string> = {
   manual:      'Manual',
 }
 
-// rf keys that map to Data Catalog risk families — linking is valid for these
-const CATALOG_RF_IDS = new Set([
-  'credentials_keys_secrets', 'regulated_data', 'source_code', 'intellectual_property',
-  'security_infrastructure_data', 'customer_employee_data', 'financial_commercial_data',
-  'legal_contractual_data', 'business_operations_internal_data', 'public_low_risk_data',
-])
+// cond.risk_family stores the display name (e.g. 'Regulated Data'), not the slug.
+// This set is used to decide whether the 'View in Data Catalog' link should render.
+const CATALOG_RF_LABELS: Set<string> = new Set(RISK_FAMILIES.map(rf => rf.label))
 
 const RF_DISPLAY_NAMES: Record<string, string> = {
   credentials_keys_secrets:          'Credentials, Keys & Secrets',
@@ -1008,10 +1006,10 @@ export function PolicyIntentEditor({
                         )
                       })()}
                     </div>
-                    {cond.risk_family && CATALOG_RF_IDS.has(cond.risk_family) && (
+                    {cond.risk_family && CATALOG_RF_LABELS.has(cond.risk_family) && (
                       <div className="border-t border-border/50 px-4 py-2.5 flex justify-end">
                         <Link
-                          href={`/policies/data-catalog?rf=${encodeURIComponent(RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family)}`}
+                          href={`/policies/data-catalog?rf=${encodeURIComponent(cond.risk_family)}`}
                           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border text-[11px] font-medium text-foreground/70 bg-muted/40 hover:bg-muted/70 hover:text-foreground transition-colors"
                         >
                           <ExternalLink className="h-3 w-3" />
@@ -1156,7 +1154,23 @@ export function PolicyIntentEditor({
         })()}
       </SectionCard>
 
-      {/* ── 7. Exceptions Section ────────────────────────────────────────── */}
+      {/* ── 7. Control Matrix Settings banner (Recommended) ─────────────── */}
+      {isRecommended && (
+        <div className="rounded-xl border border-border bg-card/50 px-4 py-3.5 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-medium text-foreground">Control Matrix Settings</p>
+            <p className="text-[10px] text-muted-foreground/50 mt-0.5">Edit actions in the Control Matrix to update this policy. Changes sync automatically.</p>
+          </div>
+          <Link
+            href="/genai-controls/control-matrix"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/30 text-xs font-medium text-foreground/80 hover:bg-muted/50 transition-colors shrink-0"
+          >
+            <ExternalLink className="h-3 w-3" /> Open Control Matrix
+          </Link>
+        </div>
+      )}
+
+      {/* ── 8. Exceptions Section ────────────────────────────────────────── */}
       <SectionCard
         title="Exceptions"
         readOnly={isRecommended}
@@ -1177,22 +1191,6 @@ export function PolicyIntentEditor({
           <p className="px-5 py-4 text-xs text-muted-foreground/40 italic">None — no exceptions configured.</p>
         )}
       </SectionCard>
-
-      {/* ── 8b. Control Matrix link (Recommended) ───────────────────────── */}
-      {isRecommended && (
-        <div className="rounded-xl border border-border bg-card/50 px-4 py-3.5 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-medium text-foreground">Change detection settings</p>
-            <p className="text-[10px] text-muted-foreground/50 mt-0.5">Edit actions in the Control Matrix to update this policy. Changes sync automatically.</p>
-          </div>
-          <Link
-            href="/genai-controls/control-matrix"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/30 text-xs font-medium text-foreground/80 hover:bg-muted/50 transition-colors shrink-0"
-          >
-            <ExternalLink className="h-3 w-3" /> Open Control Matrix
-          </Link>
-        </div>
-      )}
 
       {/* ── 9. Neutral Policy Preview ────────────────────────────────────── */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
