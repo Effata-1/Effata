@@ -4,8 +4,9 @@ import { CatalogClient } from './_components/catalog-client'
 export default async function DataCatalogPage({
   searchParams,
 }: {
-  searchParams: { rf?: string }
+  searchParams: Promise<{ rf?: string }>
 }) {
+  const { rf } = await searchParams
   const { catalog, orgTypes, labels, mappings } = await getCatalogPageData()
 
   // Build lookup: catalogDataTypeId → org selection + classification
@@ -42,7 +43,7 @@ export default async function DataCatalogPage({
       catalog={enrichedCatalog}
       customTypes={customTypes}
       labels={labels}
-      initialRfFilter={searchParams.rf ?? ''}
+      initialRfFilter={rf ?? ''}
     />
   )
 }

@@ -1022,6 +1022,7 @@ export function CatalogClient({
   }, [])
 
   useEffect(() => {
+    if (initialRfFilter) return  // don't overwrite user's saved view preference on deep links
     localStorage.setItem('dataCatalogViewMode', viewMode)
   }, [viewMode])
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

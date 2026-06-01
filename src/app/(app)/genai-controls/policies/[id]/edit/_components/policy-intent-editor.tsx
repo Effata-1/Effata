@@ -225,6 +225,13 @@ const GENERATED_FROM_LABELS: Record<string, string> = {
   manual:      'Manual',
 }
 
+// rf keys that map to Data Catalog risk families — linking is valid for these
+const CATALOG_RF_IDS = new Set([
+  'credentials_keys_secrets', 'regulated_data', 'source_code', 'intellectual_property',
+  'security_infrastructure_data', 'customer_employee_data', 'financial_commercial_data',
+  'legal_contractual_data', 'business_operations_internal_data', 'public_low_risk_data',
+])
+
 const RF_DISPLAY_NAMES: Record<string, string> = {
   credentials_keys_secrets:          'Credentials, Keys & Secrets',
   regulated_data:                    'Regulated Data',
@@ -977,12 +984,18 @@ export function PolicyIntentEditor({
                           return <Chip label={meta?.label ?? cond.sensitivity} color={meta?.color ?? 'zinc'} />
                         })()}
                         {!cond.sensitivity && cond.risk_family && (
-                          <Link
-                            href={`/policies/data-catalog?rf=${encodeURIComponent(RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family)}`}
-                            className="text-xs font-semibold text-foreground/80 hover:text-foreground hover:underline underline-offset-2 transition-colors"
-                          >
-                            {RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family}
-                          </Link>
+                          CATALOG_RF_IDS.has(cond.risk_family) ? (
+                            <Link
+                              href={`/policies/data-catalog?rf=${encodeURIComponent(RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family)}`}
+                              className="text-xs font-semibold text-foreground/80 hover:text-foreground hover:underline underline-offset-2 transition-colors"
+                            >
+                              {RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family}
+                            </Link>
+                          ) : (
+                            <span className="text-xs font-semibold text-foreground/80">
+                              {RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family}
+                            </span>
+                          )
                         )}
                         {cond.confidence && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-muted/30 text-muted-foreground/60 uppercase">{cond.confidence}</span>
