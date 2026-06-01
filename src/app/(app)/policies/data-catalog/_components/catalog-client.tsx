@@ -7,6 +7,8 @@ import { toggleInScope, setClassification, addCustomDataType, batchToggleInScope
 import { colorClasses, SYSTEM_LEVEL_META, RISK_FAMILIES, RISK_FAMILY_META } from '@/lib/data-catalog/types'
 import type { OrgClassificationLabel, SystemLevel, RiskFamily } from '@/lib/data-catalog/types'
 import { FilterSelect, MultiFilterSelect } from '@/components/ui/filter-select'
+import { FILENAME_DETECTION_ENTRIES } from '@/lib/data-catalog/filename-keywords'
+import type { FilenameDetectionEntry } from '@/lib/data-catalog/filename-keywords'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -698,6 +700,78 @@ function ClassificationSection({
   )
 }
 
+// ─── Filename Detection Signal section ───────────────────────────────────────
+
+function FilenamePatternSection({ entry }: { entry: FilenameDetectionEntry }) {
+  const [collapsed, setCollapsed] = useState(true)
+
+  return (
+    <div className={cn('rounded-xl border overflow-hidden transition-colors', collapsed ? 'border-border' : 'border-border-strong')}>
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        className={cn(
+          'w-full flex items-center gap-4 px-5 py-4 text-left transition-colors',
+          collapsed ? 'bg-card/50 hover:bg-card/80' : 'bg-card/80',
+        )}
+      >
+        <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', entry.dotColor)} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 mb-0.5">
+            <span className={cn('text-sm font-bold tracking-wider', entry.textColor)}>
+              {entry.label.toUpperCase()}
+            </span>
+            <span className="text-xs text-muted-foreground/60">{entry.totalCount} patterns</span>
+          </div>
+          {collapsed && (
+            <p className="text-xs text-muted-foreground/60 truncate">{entry.description}</p>
+          )}
+        </div>
+        {collapsed
+          ? <ChevronRight className="w-4 h-4 text-muted-foreground/60 shrink-0" />
+          : <ChevronDown className="w-4 h-4 text-muted-foreground/80 shrink-0" />}
+      </button>
+
+      {!collapsed && (
+        <div className="border-t border-border px-5 py-4 space-y-4">
+          <p className="text-xs text-muted-foreground/70 leading-relaxed">{entry.description}</p>
+          <div className="space-y-4">
+            {entry.groups.map(group => (
+              <div key={group.category}>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">
+                    {group.category}
+                  </p>
+                  <span className={cn(
+                    'text-[9px] font-semibold px-1 py-0.5 rounded border',
+                    group.confidence === 'high'
+                      ? 'text-muted-foreground/60 border-border-strong bg-muted/40'
+                      : 'text-muted-foreground/40 border-border bg-transparent',
+                  )}>
+                    {group.confidence}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {group.keywords.map(kw => (
+                    <span
+                      key={kw}
+                      className={cn(
+                        'text-[10px] font-mono px-1.5 py-0.5 rounded border',
+                        group.confidence === 'high' ? entry.chipColorHigh : entry.chipColorMedium,
+                      )}
+                    >
+                      {kw}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export function CatalogClient({
@@ -943,6 +1017,25 @@ export function CatalogClient({
           />
           )
         })}
+
+        {/* Filename Detection Signals */}
+        <div className="pt-4">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest whitespace-nowrap">
+              Filename Detection Signals
+            </span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+          <p className="text-xs text-muted-foreground/50 text-center mb-3">
+            Used by filename detection policies in your Control Matrix
+          </p>
+          <div className="space-y-2">
+            {FILENAME_DETECTION_ENTRIES.map(entry => (
+              <FilenamePatternSection key={entry.id} entry={entry} />
+            ))}
+          </div>
+        </div>
 
         {/* Custom types */}
         {customTypes.length > 0 && (
