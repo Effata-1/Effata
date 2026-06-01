@@ -125,13 +125,17 @@ Return a JSON object with exactly this structure:
 }`,
     }],
   })
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
-  const parsed = JSON.parse(text)
+  const raw = response.content[0].type === 'text' ? response.content[0].text : ''
+  // Strip markdown code fences and extract the outermost JSON object
+  const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+  const match    = stripped.match(/\{[\s\S]*\}/)
+  if (!match) throw new Error(`No JSON object in response. Raw (first 200): ${raw.slice(0, 200)}`)
+  const parsed = JSON.parse(match[0])
   return {
-    fields:      parseFields(parsed.fields),
-    dlp:         parseDLP(parsed.dlp),
-    breach_info: parseBreach(parsed.breach_info),
-    notes:       typeof parsed.notes === 'string' ? parsed.notes : '',
+    fields:      parseFields(parsed.fields      ?? {}),
+    dlp:         parseDLP(parsed.dlp            ?? {}),
+    breach_info: parseBreach(parsed.breach_info ?? {}),
+    notes:       typeof parsed.notes === 'string' ? parsed.notes.slice(0, 2000) : '',
   }
 }
 
@@ -155,8 +159,10 @@ Return a JSON array (may be empty if nothing significant to add):
 Only include apps with significant enterprise adoption or strong growth trajectory. Return JSON only.`,
     }],
   })
-  const text = response.content[0].type === 'text' ? response.content[0].text : '[]'
-  const parsed: unknown[] = JSON.parse(text)
+  const raw      = response.content[0].type === 'text' ? response.content[0].text : '[]'
+  const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+  const match    = stripped.match(/\[[\s\S]*\]/)
+  const parsed: unknown[] = JSON.parse(match ? match[0] : '[]')
   return parsed
     .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
     .filter(item => typeof item.app_id === 'string' && typeof item.app_name === 'string' && !existingAppIds.includes(item.app_id as string))
