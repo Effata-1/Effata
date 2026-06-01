@@ -998,15 +998,17 @@ export function CatalogClient({
   catalog,
   customTypes,
   labels,
+  initialRfFilter = '',
 }: {
-  catalog:     EnrichedCatalogType[]
-  customTypes: CustomType[]
-  labels:      OrgClassificationLabel[]
+  catalog:          EnrichedCatalogType[]
+  customTypes:      CustomType[]
+  labels:           OrgClassificationLabel[]
+  initialRfFilter?: string
 }) {
   const [search,            setSearch]            = useState('')
   const [levelFilter,       setLevelFilter]       = useState<string[]>([])
   const [subcatFilter,      setSubcatFilter]      = useState<string>('')
-  const [riskFamilyFilter,  setRiskFamilyFilter]  = useState<string>('')
+  const [riskFamilyFilter,  setRiskFamilyFilter]  = useState<string>(initialRfFilter)
   const [complianceFilter,  setComplianceFilter]  = useState<string[]>([])
   const [scopeFilter,       setScopeFilter]       = useState<string>('')
   const [showAddModal,      setShowAddModal]      = useState(false)
@@ -1014,6 +1016,7 @@ export function CatalogClient({
   const [viewMode,          setViewMode]          = useState<'risk_family' | 'classification'>('risk_family')
 
   useEffect(() => {
+    if (initialRfFilter) return  // URL param takes priority over localStorage
     const saved = localStorage.getItem('dataCatalogViewMode')
     if (saved === 'risk_family' || saved === 'classification') setViewMode(saved)
   }, [])

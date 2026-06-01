@@ -226,18 +226,19 @@ const GENERATED_FROM_LABELS: Record<string, string> = {
 }
 
 const RF_DISPLAY_NAMES: Record<string, string> = {
-  credentials_keys_secrets:     'Credentials, Keys & Secrets',
-  regulated_data:               'Regulated Data',
-  source_code:                  'Source Code',
-  intellectual_property:        'Intellectual Property',
-  customer_employee_data:       'Customer & Employee Data',
-  financial_commercial_data:    'Financial & Commercial Data',
-  legal_contractual_data:       'Legal & Contractual Data',
-  security_infrastructure_data: 'Security & Infrastructure Data',
-  public_low_risk_data:         'Public & Low-Risk Data',
-  bulk_data:                    'Bulk Data / Large Dataset',
-  large_file_upload:            'Large File Upload',
-  general_usage_reminder:       'General Usage Reminder',
+  credentials_keys_secrets:          'Credentials, Keys & Secrets',
+  regulated_data:                    'Regulated Data',
+  source_code:                       'Source Code',
+  intellectual_property:             'Intellectual Property',
+  customer_employee_data:            'Customer & Employee Data',
+  financial_commercial_data:         'Financial & Commercial Data',
+  legal_contractual_data:            'Legal & Contractual Data',
+  security_infrastructure_data:      'Security & Infrastructure Data',
+  business_operations_internal_data: 'Business Operations & Internal Data',
+  public_low_risk_data:              'Public & Low-Risk Data',
+  bulk_data:                         'Bulk Data / Large Dataset',
+  large_file_upload:                 'Large File Upload',
+  general_usage_reminder:            'General Usage Reminder',
 }
 
 const ACTIVITY_DISPLAY: Record<string, string> = {
@@ -976,9 +977,12 @@ export function PolicyIntentEditor({
                           return <Chip label={meta?.label ?? cond.sensitivity} color={meta?.color ?? 'zinc'} />
                         })()}
                         {!cond.sensitivity && cond.risk_family && (
-                          <span className="text-xs font-semibold text-foreground/80">
+                          <Link
+                            href={`/policies/data-catalog?rf=${encodeURIComponent(RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family)}`}
+                            className="text-xs font-semibold text-foreground/80 hover:text-foreground hover:underline underline-offset-2 transition-colors"
+                          >
                             {RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family}
-                          </span>
+                          </Link>
                         )}
                         {cond.confidence && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-muted/30 text-muted-foreground/60 uppercase">{cond.confidence}</span>
