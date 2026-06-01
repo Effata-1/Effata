@@ -210,7 +210,7 @@ export const PREDEFINED_RF_POLICIES: PredefinedRFPolicy[] = [
       content: { operator: 'any', conditions: [{ type: 'data_type', risk_family: 'security_infrastructure_data' }] },
       decision: { mode: 'block', require_acknowledgement: false, require_justification: false },
       actions_by_category: {
-        approved_supported: 'allow', approved_with_conditions: 'block',
+        approved_supported: 'alert', approved_with_conditions: 'block',
         restricted_unassessed: 'block', prohibited: 'block',
       },
       coaching_by_category: {
@@ -256,7 +256,7 @@ export const PREDEFINED_RF_POLICIES: PredefinedRFPolicy[] = [
       content: { operator: 'any', conditions: [{ type: 'data_type', risk_family: 'bulk_data' }] },
       decision: { mode: 'block', require_acknowledgement: false, require_justification: false },
       actions_by_category: {
-        approved_supported: 'allow', approved_with_conditions: 'block',
+        approved_supported: 'allow', approved_with_conditions: 'coach-just',
         restricted_unassessed: 'block', prohibited: 'block',
       },
       coaching_by_category: {
@@ -279,7 +279,7 @@ export const PREDEFINED_RF_POLICIES: PredefinedRFPolicy[] = [
       content: { operator: 'any', conditions: [{ type: 'data_type', risk_family: 'large_file_upload' }] },
       decision: { mode: 'block', require_acknowledgement: false, require_justification: false },
       actions_by_category: {
-        approved_supported: 'allow', approved_with_conditions: 'block',
+        approved_supported: 'allow', approved_with_conditions: 'coach-just',
         restricted_unassessed: 'block', prohibited: 'block',
       },
       coaching_by_category: {

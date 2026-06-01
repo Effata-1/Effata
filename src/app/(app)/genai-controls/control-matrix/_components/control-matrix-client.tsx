@@ -109,7 +109,7 @@ const RF_DEFAULTS: Record<string, Partial<Record<string, ActionCode>>> = {
     customer_employee_data:       'allow',
     financial_commercial_data:    'allow',
     legal_contractual_data:       'allow',
-    security_infrastructure_data: 'allow',
+    security_infrastructure_data: 'alert',
     public_low_risk_data:         'allow',
     bulk_data:                    'allow',
     large_file_upload:            'allow',
@@ -125,8 +125,8 @@ const RF_DEFAULTS: Record<string, Partial<Record<string, ActionCode>>> = {
     legal_contractual_data:       'coach-just',
     security_infrastructure_data: 'block',
     public_low_risk_data:         'allow',
-    bulk_data:                    'block',
-    large_file_upload:            'block',
+    bulk_data:                    'coach-just',
+    large_file_upload:            'coach-just',
     general_usage_reminder:       'coach-ack',
   },
   restricted_unassessed: {
@@ -232,8 +232,8 @@ const UL_DC_DEFAULTS: Record<string, LevelMap> = {
 }
 
 const UL_FN_DEFAULTS: Record<string, LevelMap> = {
-  'enterprise-approved':        { highly_confidential: 'monitor',   secret: 'block' },
-  'approved-with-conditions':   { highly_confidential: 'coach-ack', secret: 'block' },
+  'enterprise-approved':        { highly_confidential: 'allow',     secret: 'allow' },
+  'approved-with-conditions':   { highly_confidential: 'coach-ack', secret: 'coach-just' },
   'permitted-with-restriction': { highly_confidential: 'block',     secret: 'block' },
   'prohibited':                 { highly_confidential: 'block',     secret: 'block' },
 }
