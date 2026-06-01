@@ -983,7 +983,7 @@ export function PolicyIntentEditor({
                         })()}
                         {!cond.sensitivity && cond.risk_family && (
                           <span className="text-xs font-semibold text-foreground/80">
-                            {RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family}
+                            {cond.risk_family}
                           </span>
                         )}
                         {cond.confidence && (
@@ -992,8 +992,7 @@ export function PolicyIntentEditor({
                       </div>
                       {cond.name && <p className="text-xs text-foreground/70">{cond.name}</p>}
                       {cond.risk_family && (() => {
-                        const dbRfName = RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family
-                        const types = catalogDataTypes.filter(t => t.risk_family === dbRfName)
+                        const types = catalogDataTypes.filter(t => t.risk_family === cond.risk_family)
                         if (types.length === 0) return null
                         return (
                           <div className="mt-2.5 flex flex-wrap gap-1.5">
@@ -1020,7 +1019,7 @@ export function PolicyIntentEditor({
                   </>
                 )}
                 {cond.type === 'classification_label' && (
-                  <div>
+                  <div className="px-4 py-3">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-[10px] font-mono text-muted-foreground/50 uppercase">
                         {npj?.policy_family === 'genai_filename' ? 'filename pattern' : 'label'}
@@ -1044,7 +1043,7 @@ export function PolicyIntentEditor({
                   </div>
                 )}
                 {cond.type === 'filename' && (
-                  <div>
+                  <div className="px-4 py-3">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-[10px] font-mono text-muted-foreground/50 uppercase">filename</span>
                     </div>
@@ -1053,7 +1052,9 @@ export function PolicyIntentEditor({
                   </div>
                 )}
                 {cond.type === 'govern_app_access' && (
-                  <span className="text-xs text-muted-foreground/60 italic">No content inspection — app-level access control policy</span>
+                  <div className="px-4 py-3">
+                    <span className="text-xs text-muted-foreground/60 italic">No content inspection — app-level access control policy</span>
+                  </div>
                 )}
               </div>
             ))}

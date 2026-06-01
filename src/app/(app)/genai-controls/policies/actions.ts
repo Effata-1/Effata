@@ -568,16 +568,17 @@ function buildExcludedCategories(
 function resolveCoachingTemplates(
   coaching_by_category: Record<string, string | null>,
   notifById: Map<string, Record<string, unknown>>,
-): Record<string, { name: string; title: string; message: string; control_type: string; requires_justification: boolean }> {
-  const out: Record<string, { name: string; title: string; message: string; control_type: string; requires_justification: boolean }> = {}
+): Record<string, { name: string; coach_label: string | null; title: string; message: string; control_type: string; requires_justification: boolean }> {
+  const out: Record<string, { name: string; coach_label: string | null; title: string; message: string; control_type: string; requires_justification: boolean }> = {}
   for (const id of Object.values(coaching_by_category)) {
     if (!id || out[id]) continue
     const tpl = notifById.get(id)
     if (!tpl) continue
     out[id] = {
-      name:                  tpl.name    as string,
-      title:                 tpl.title   as string,
-      message:               tpl.message as string,
+      name:                  tpl.name        as string,
+      coach_label:           (tpl.coach_label as string | null) ?? null,
+      title:                 tpl.title        as string,
+      message:               tpl.message      as string,
       control_type:          tpl.control_type as string,
       requires_justification: tpl.control_type === 'coach_justification',
     }

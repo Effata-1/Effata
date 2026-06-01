@@ -7,7 +7,7 @@ export default async function DataCatalogPage({
   searchParams: Promise<{ rf?: string }>
 }) {
   const { rf } = await searchParams
-  const { catalog, orgTypes, labels, mappings } = await getCatalogPageData()
+  const { catalog, orgTypes, labels, mappings, rfPolicies } = await getCatalogPageData()
 
   // Build lookup: catalogDataTypeId → org selection + classification
   const orgTypeMap = new Map(orgTypes.map(t => [t.catalog_data_type_id, t]))
@@ -44,6 +44,7 @@ export default async function DataCatalogPage({
       customTypes={customTypes}
       labels={labels}
       initialRfFilter={rf ?? ''}
+      rfPolicies={rfPolicies}
     />
   )
 }

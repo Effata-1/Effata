@@ -377,14 +377,30 @@ export async function getCatalogPageData() {
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
-  const [{ data: catalog }, { data: orgTypes }, { data: labels }, { data: mappings }] = await Promise.all([
+  const [{ data: catalog }, { data: orgTypes }, { data: labels }, { data: mappings }, { data: policies }] = await Promise.all([
     supabase.from('catalog_data_types').select('*').eq('active', true).order('priority').order('subcategory').order('name'),
     supabase.from('org_data_types').select('*').eq('org_id', user.orgId),
     supabase.from('org_classification_labels').select('*').eq('org_id', user.orgId).eq('active', true).order('priority'),
     supabase.from('org_data_type_classifications').select('*').eq('org_id', user.orgId),
+    supabase.from('org_genai_policies').select('id, name, neutral_policy_json').eq('org_id', user.orgId).eq('policy_family', 'genai_content_detection').eq('is_active', true),
   ])
 
-  return { catalog: catalog ?? [], orgTypes: orgTypes ?? [], labels: labels ?? [], mappings: mappings ?? [], orgId: user.orgId }
+  // Build risk_family display name → linked policies map
+  const rfPolicies: Record<string, { id: string; name: string }[]> = {}
+  for (const pol of policies ?? []) {
+    const npj = pol.neutral_policy_json as { content?: { conditions?: Array<Record<string, unknown>> } }
+    const conditions = npj.content?.conditions ?? []
+    for (const cond of conditions) {
+      const rf = typeof cond.risk_family === 'string' ? cond.risk_family : undefined
+      if (!rf) continue
+      if (!rfPolicies[rf]) rfPolicies[rf] = []
+      if (!rfPolicies[rf].some(p => p.id === pol.id)) {
+        rfPolicies[rf].push({ id: pol.id, name: pol.name })
+      }
+    }
+  }
+
+  return { catalog: catalog ?? [], orgTypes: orgTypes ?? [], labels: labels ?? [], mappings: mappings ?? [], orgId: user.orgId, rfPolicies }
 }
 
 export async function getClassificationsPageData() {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useTransition, useOptimistic, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { Search, X, Plus, ChevronDown, ChevronRight, Info, AlertTriangle, Wand2, FlaskConical, Check } from 'lucide-react'
 import { toggleInScope, setClassification, addCustomDataType, batchToggleInScope } from '@/lib/data-catalog/actions'
@@ -914,6 +915,7 @@ function RiskFamilySection({
   onToggle,
   onClassify,
   forceExpand,
+  policies = [],
 }: {
   rf:          RiskFamilySectionMeta
   items:       EnrichedCatalogType[]
@@ -921,6 +923,7 @@ function RiskFamilySection({
   onToggle:    (id: string, inScope: boolean) => void
   onClassify:  (orgDataTypeId: string, labelId: string) => void
   forceExpand: boolean
+  policies?:   { id: string; name: string }[]
 }) {
   const [collapsed, setCollapsed] = useState(true)
 
@@ -937,32 +940,46 @@ function RiskFamilySection({
 
   return (
     <div className={cn('rounded-xl border overflow-hidden transition-colors', collapsed ? 'border-border' : 'border-border-strong')}>
-      <button
-        onClick={() => setCollapsed(c => !c)}
-        className={cn('w-full flex items-center gap-4 px-5 py-4 text-left transition-colors', collapsed ? 'bg-card/50 hover:bg-card/80' : 'bg-card/80')}
-      >
-        <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', cc.dot)} />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 mb-0.5">
-            <span className={cn('text-sm font-bold tracking-wider', cc.text)}>{rf.label.toUpperCase()}</span>
-            <span className="text-xs text-muted-foreground/60">{items.length} types</span>
-            {inScope > 0 && (
-              <>
-                <span className="text-muted-foreground/40 text-xs">·</span>
-                <span className={cn('text-xs font-semibold', cc.text)}>{inScope} in scope</span>
-              </>
+      <div className={cn('flex items-center transition-colors', collapsed ? 'bg-card/50 hover:bg-card/80' : 'bg-card/80')}>
+        <button
+          onClick={() => setCollapsed(c => !c)}
+          className="flex-1 flex items-center gap-4 px-5 py-4 text-left"
+        >
+          <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', cc.dot)} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 mb-0.5">
+              <span className={cn('text-sm font-bold tracking-wider', cc.text)}>{rf.label.toUpperCase()}</span>
+              <span className="text-xs text-muted-foreground/60">{items.length} types</span>
+              {inScope > 0 && (
+                <>
+                  <span className="text-muted-foreground/40 text-xs">·</span>
+                  <span className={cn('text-xs font-semibold', cc.text)}>{inScope} in scope</span>
+                </>
+              )}
+            </div>
+            {collapsed && distribution.length > 0 && (
+              <p className="text-[10px] text-muted-foreground/50">
+                {distribution.map(d => `${d.label} ${d.count}`).join('  ·  ')}
+              </p>
             )}
           </div>
-          {collapsed && distribution.length > 0 && (
-            <p className="text-[10px] text-muted-foreground/50">
-              {distribution.map(d => `${d.label} ${d.count}`).join('  ·  ')}
-            </p>
-          )}
-        </div>
-        {collapsed
-          ? <ChevronRight className="w-4 h-4 text-muted-foreground/60 shrink-0" />
-          : <ChevronDown className="w-4 h-4 text-muted-foreground/80 shrink-0" />}
-      </button>
+          {collapsed
+            ? <ChevronRight className="w-4 h-4 text-muted-foreground/60 shrink-0" />
+            : <ChevronDown className="w-4 h-4 text-muted-foreground/80 shrink-0" />}
+        </button>
+        {policies.length > 0 && (
+          <Link
+            href={
+              policies.length === 1
+                ? `/genai-controls/policies/${policies[0].id}/edit`
+                : '/genai-controls/policies'
+            }
+            className="px-4 shrink-0 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 transition-colors whitespace-nowrap"
+          >
+            {policies.length} linked {policies.length === 1 ? 'policy' : 'policies'}
+          </Link>
+        )}
+      </div>
       {!collapsed && (
         <>
           <div className="grid grid-cols-[1fr_theme(spacing.44)_theme(spacing.32)] border-b border-border bg-background/60">
@@ -999,11 +1016,13 @@ export function CatalogClient({
   customTypes,
   labels,
   initialRfFilter = '',
+  rfPolicies = {},
 }: {
   catalog:          EnrichedCatalogType[]
   customTypes:      CustomType[]
   labels:           OrgClassificationLabel[]
   initialRfFilter?: string
+  rfPolicies?:      Record<string, { id: string; name: string }[]>
 }) {
   const [search,            setSearch]            = useState('')
   const [levelFilter,       setLevelFilter]       = useState<string[]>([])
@@ -1136,7 +1155,11 @@ export function CatalogClient({
             <span>Policies</span><span>›</span><span className="text-muted-foreground">Data Catalog</span>
           </div>
           <h1 className="text-2xl font-bold text-foreground mb-1">Data Catalog</h1>
-          <p className="text-muted-foreground/80 text-sm">Mark which data types your organisation handles and assign your classification labels.</p>
+          <p className="text-sm text-muted-foreground/70">
+            Use this catalog to define the data types your organization wants to protect.{' '}
+            View by <span className="font-medium text-foreground/80">Risk Family</span> for business/data-risk review,
+            or by <span className="font-medium text-foreground/80">Classification</span> for DLP policy mapping.
+          </p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
@@ -1270,6 +1293,7 @@ export function CatalogClient({
                         onToggle={handleToggle}
                         onClassify={handleClassify}
                         forceExpand={anyFilterActive}
+                        policies={rfPolicies[rf.label] ?? []}
                       />
                     )
                   })}
