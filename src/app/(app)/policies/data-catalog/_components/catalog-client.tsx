@@ -709,9 +709,12 @@ function FilenameGroupRow({
   group: FilenameKeywordGroup
   entry: FilenameDetectionEntry
 }) {
-  const [collapsed, setCollapsed] = useState(true)
+  const [collapsed,        setCollapsed]        = useState(true)
+  const [selectedKeyword,  setSelectedKeyword]  = useState<string | null>(null)
 
-  const filePrompt = `Generate a synthetic test file for DLP filename detection testing in the ${group.category} category. The filename should contain one of these patterns: ${group.keywords.slice(0, 3).join(', ')}. The file should have realistic-looking but entirely fake content — not real credentials or sensitive data.`
+  const filePrompt = selectedKeyword
+    ? `Generate a synthetic test file named ${selectedKeyword} for DLP filename detection testing. The file should have realistic-looking but entirely fake content — not real credentials or sensitive data.`
+    : ''
 
   return (
     <div className="border-b border-border/40 last:border-0">
@@ -740,29 +743,40 @@ function FilenameGroupRow({
 
       {!collapsed && (
         <div className="px-8 pb-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-[10px] text-muted-foreground/40">Select a pattern to generate a test file</p>
+          </div>
           <div className="flex flex-wrap gap-1 mb-2.5">
             {group.keywords.map(kw => (
-              <span
+              <button
                 key={kw}
+                type="button"
+                onClick={e => { e.stopPropagation(); setSelectedKeyword(selectedKeyword === kw ? null : kw) }}
                 className={cn(
-                  'text-[10px] font-mono px-1.5 py-0.5 rounded border',
-                  group.confidence === 'high' ? entry.chipColorHigh : entry.chipColorMedium,
+                  'text-[10px] font-mono px-1.5 py-0.5 rounded border transition-all',
+                  selectedKeyword === kw
+                    ? 'text-violet-400 bg-violet-500/20 border-violet-500/50 shadow-[0_0_6px_rgba(139,92,246,0.35)]'
+                    : group.confidence === 'high' ? entry.chipColorHigh : entry.chipColorMedium,
                 )}
               >
                 {kw}
-              </span>
+              </button>
             ))}
           </div>
-          <div className="flex items-center gap-2">
-            <FlaskConical className="w-3 h-3 text-violet-400 shrink-0" />
-            <a
-              href={`/tools/test-data?${new URLSearchParams({ tab: 'file', filePrompt }).toString()}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[11px] font-medium text-violet-400 hover:text-violet-300 transition-colors"
-            >
-              Generate test file for &ldquo;{group.category}&rdquo; →
-            </a>
+          <div className="flex items-center gap-2 min-h-[22px]">
+            <FlaskConical className={cn('w-3 h-3 shrink-0 transition-colors', selectedKeyword ? 'text-violet-400' : 'text-muted-foreground/40')} />
+            {selectedKeyword ? (
+              <a
+                href={`/tools/test-data?${new URLSearchParams({ tab: 'file', filePrompt }).toString()}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[11px] font-medium text-violet-400 hover:text-violet-300 transition-colors"
+              >
+                Generate test file for &ldquo;{selectedKeyword}&rdquo; →
+              </a>
+            ) : (
+              <span className="text-[11px] text-muted-foreground/40 select-none">Generate test file</span>
+            )}
           </div>
         </div>
       )}
