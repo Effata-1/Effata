@@ -9,10 +9,32 @@ export interface PredefinedRFPolicy {
   description: string
   risk_family: string
   rfKey:       string
+  priority?:   number
   npj:         Record<string, unknown>
 }
 
 export const PREDEFINED_RF_POLICIES: PredefinedRFPolicy[] = [
+  {
+    policy_key:  'rf:prohibited_app_block',
+    name:        'GenAI - Prohibited App Block',
+    description: 'Blocks all access to prohibited GenAI apps across all users.',
+    risk_family: 'Prohibited App Access',
+    rfKey:       'prohibited_app_block',
+    priority:    10,
+    npj: {
+      schema_version: '1.0',
+      intent:         'govern_app_access',
+      policy_family:  'genai_app_access',
+      scope: {
+        activities:     ['browse', 'login'],
+        app_categories: [{ system_tag: 'prohibited', name: 'Prohibited GenAI' }],
+      },
+      content:  { operator: 'any', conditions: [] },
+      decision: { mode: 'block', require_acknowledgement: false, require_justification: false },
+      actions_by_category: { prohibited: 'block' },
+      coaching_by_category: { prohibited: 'GenAI Application Blocked' },
+    },
+  },
   {
     policy_key:  'rf:credentials_keys_secrets',
     name:        'GenAI - Credential Sharing Block',

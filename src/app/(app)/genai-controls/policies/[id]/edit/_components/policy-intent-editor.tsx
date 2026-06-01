@@ -23,6 +23,7 @@ import type { ApprovalStatus, ActionCode } from '@/lib/genai/types'
 interface NpjCondition {
   type:             string
   sensitivity?:     string
+  risk_family?:     string
   name?:            string
   confidence?:      string
   label_name?:      string
@@ -900,6 +901,11 @@ export function PolicyIntentEditor({
                           const meta = SYSTEM_LEVEL_META[cond.sensitivity as keyof typeof SYSTEM_LEVEL_META]
                           return <Chip label={meta?.label ?? cond.sensitivity} color={meta?.color ?? 'zinc'} />
                         })()}
+                        {!cond.sensitivity && cond.risk_family && (
+                          <span className="text-xs font-medium text-foreground/80">
+                            {cond.risk_family.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                          </span>
+                        )}
                         {cond.confidence && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-muted/30 text-muted-foreground/60 uppercase">{cond.confidence}</span>
                         )}
