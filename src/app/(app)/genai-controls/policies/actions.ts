@@ -645,6 +645,10 @@ export async function syncRecommendedPolicies(): Promise<void> {
       coaching_by_category,
     }
 
+    // If every active category allows this data type, no enforcement policy is needed
+    const actionVals = Object.values(actions_by_category)
+    if (actionVals.length > 0 && actionVals.every(a => a === 'allow')) continue
+
     const matrix_basis      = (hasOverride ? 'customized' : 'default') as 'default' | 'customized'
     const defaultCoachingId = coaching_by_category['restricted_unassessed'] ?? null
     const existing          = existingMap.get(policy_key)
@@ -722,6 +726,10 @@ export async function syncRecommendedPolicies(): Promise<void> {
       coaching_by_category,
     }
 
+    // If every active category allows this classification level, no enforcement policy is needed
+    const fnVals = Object.values(actions_by_category)
+    if (fnVals.length > 0 && fnVals.every(a => a === 'allow')) continue
+
     const matrix_basis      = (hasOverride ? 'customized' : 'default') as 'default' | 'customized'
     const defaultCoachingId = Object.values(coaching_by_category).find(v => v != null) ?? null
     const existing          = existingMap.get(policy_key)
@@ -797,6 +805,10 @@ export async function syncRecommendedPolicies(): Promise<void> {
       actions_by_category,
       coaching_by_category,
     }
+
+    // If every active category allows this label, no enforcement policy is needed
+    const dcVals = Object.values(actions_by_category)
+    if (dcVals.length > 0 && dcVals.every(a => a === 'allow')) continue
 
     const displayName = (clbl as Record<string, unknown>).display_name as string
     const matrix_basis = (hasOverride ? 'customized' : 'default') as 'default' | 'customized'
