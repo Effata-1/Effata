@@ -712,9 +712,15 @@ export function PolicyIntentEditor({
           <NpjRow label="Content Inspection">
             <div className="flex flex-wrap gap-1.5">
               {(npj.content?.conditions ?? []).map((c, i) => {
-                if (c.type === 'data_type' && c.sensitivity) {
-                  const meta = SYSTEM_LEVEL_META[c.sensitivity as keyof typeof SYSTEM_LEVEL_META]
-                  return <Chip key={i} label={meta?.label ?? c.sensitivity} color={meta?.color ?? 'zinc'} />
+                if (c.type === 'data_type') {
+                  if (c.sensitivity) {
+                    const meta = SYSTEM_LEVEL_META[c.sensitivity as keyof typeof SYSTEM_LEVEL_META]
+                    return <Chip key={i} label={meta?.label ?? c.sensitivity} color={meta?.color ?? 'zinc'} />
+                  }
+                  if (c.risk_family) {
+                    const label = c.risk_family.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+                    return <Chip key={i} label={label} color="zinc" />
+                  }
                 }
                 if (c.type === 'classification_label') return <Chip key={i} label={c.label_name ?? 'label'} color="amber" />
                 if (c.type === 'filename') return <Chip key={i} label="filename pattern" color="blue" />
