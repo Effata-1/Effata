@@ -152,7 +152,7 @@ function AddCustomModal({ labels, onClose }: { labels: OrgClassificationLabel[];
               className="w-full bg-muted border border-border-strong rounded-lg px-3 py-2.5 text-sm text-foreground/70 focus:outline-none focus:border-blue-500"
             >
               <option value="">— None —</option>
-              {RISK_FAMILIES.map(f => <option key={f} value={f}>{f}</option>)}
+              {RISK_FAMILIES.map(rf => <option key={rf.id} value={rf.label}>{rf.label}</option>)}
             </select>
           </div>
           {error && <p className="text-xs text-red-400">{error}</p>}
@@ -522,8 +522,7 @@ function SubcategoryGroup({
   const [collapsed, setCollapsed] = useState(true)
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setCollapsed(!forceExpand)
+    if (forceExpand) setCollapsed(false)
   }, [forceExpand])
 
   const inScopeCount  = items.filter(i => i.is_in_scope).length
@@ -606,8 +605,7 @@ function ClassificationSection({
   const [collapsed, setCollapsed] = useState(true)
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setCollapsed(!forceExpand)
+    if (forceExpand) setCollapsed(false)
   }, [forceExpand])
 
   const meta       = SYSTEM_LEVEL_META[level]
@@ -615,7 +613,6 @@ function ClassificationSection({
   const cc         = orgLabel ? colorClasses(orgLabel.color) : colorClasses(meta.color)
   const inScope    = items.filter(i => i.is_in_scope).length
   const pct        = items.length > 0 ? Math.round((inScope / items.length) * 100) : 0
-  const subcats    = [...new Set(items.map(i => i.subcategory ?? 'General'))]
   const labelName  = orgLabel?.name ?? meta.label
 
   if (items.length === 0) return null
@@ -679,20 +676,40 @@ function ClassificationSection({
             ))}
           </div>
 
-          {/* Subcategory groups */}
+          {/* Risk family groups */}
           <div className="divide-y divide-border/30">
-            {subcats.map(subcat => (
-              <SubcategoryGroup
-                key={subcat}
-                subcat={subcat}
-                items={items.filter(i => (i.subcategory ?? 'General') === subcat)}
-                labels={labels}
-                onToggle={onToggle}
-                onClassify={onClassify}
-                onBulkToggle={onBulkToggle}
-                forceExpand={forceExpand}
-              />
-            ))}
+            {RISK_FAMILIES.map(rf => {
+              const groupItems = items.filter(i => i.risk_family === rf.label)
+              if (groupItems.length === 0) return null
+              return (
+                <SubcategoryGroup
+                  key={rf.id}
+                  subcat={rf.label}
+                  items={groupItems}
+                  labels={labels}
+                  onToggle={onToggle}
+                  onClassify={onClassify}
+                  onBulkToggle={onBulkToggle}
+                  forceExpand={forceExpand}
+                />
+              )
+            })}
+            {(() => {
+              const uncatItems = items.filter(i => !i.risk_family)
+              if (uncatItems.length === 0) return null
+              return (
+                <SubcategoryGroup
+                  key="Uncategorized"
+                  subcat="Uncategorized"
+                  items={uncatItems}
+                  labels={labels}
+                  onToggle={onToggle}
+                  onClassify={onClassify}
+                  onBulkToggle={onBulkToggle}
+                  forceExpand={forceExpand}
+                />
+              )
+            })()}
           </div>
         </>
       )}
@@ -829,6 +846,152 @@ function FilenamePatternSection({ entry }: { entry: FilenameDetectionEntry }) {
   )
 }
 
+// ─── Risk Family view components ─────────────────────────────────────────────
+
+type RiskFamilySectionMeta = {
+  id:    string
+  label: string
+  color: string
+  order: number
+}
+
+const UNCATEGORIZED_RF: RiskFamilySectionMeta = {
+  id:    'uncategorized',
+  label: 'Uncategorized',
+  color: 'gray',
+  order: 99,
+}
+
+function ClassificationGroup({
+  level,
+  items,
+  labels,
+  onToggle,
+  onClassify,
+}: {
+  level:      SystemLevel
+  items:      EnrichedCatalogType[]
+  labels:     OrgClassificationLabel[]
+  onToggle:   (id: string, inScope: boolean) => void
+  onClassify: (orgDataTypeId: string, labelId: string) => void
+}) {
+  const [collapsed, setCollapsed] = useState(false)
+  const meta = SYSTEM_LEVEL_META[level]
+  const cc   = colorClasses(meta.color)
+
+  return (
+    <div>
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        className="w-full flex items-center justify-between px-5 py-2 bg-background/50 hover:bg-background/70 transition-colors text-left"
+      >
+        <div className="flex items-center gap-2">
+          {collapsed
+            ? <ChevronRight className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+            : <ChevronDown className="w-3 h-3 text-muted-foreground/60 shrink-0" />}
+          <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', cc.dot)} />
+          <p className={cn('text-[10px] font-semibold uppercase tracking-widest', cc.text)}>{meta.label}</p>
+        </div>
+        <span className="text-[10px] text-muted-foreground/40">{items.length}</span>
+      </button>
+      {!collapsed && (
+        <table className="w-full">
+          <tbody>
+            {items.map(item => (
+              <DataTypeRow key={item.id} item={item} labels={labels} onToggle={onToggle} onClassify={onClassify} />
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
+function RiskFamilySection({
+  rf,
+  items,
+  labels,
+  onToggle,
+  onClassify,
+  forceExpand,
+}: {
+  rf:          RiskFamilySectionMeta
+  items:       EnrichedCatalogType[]
+  labels:      OrgClassificationLabel[]
+  onToggle:    (id: string, inScope: boolean) => void
+  onClassify:  (orgDataTypeId: string, labelId: string) => void
+  forceExpand: boolean
+}) {
+  const [collapsed, setCollapsed] = useState(true)
+
+  useEffect(() => {
+    if (forceExpand) setCollapsed(false)
+  }, [forceExpand])
+
+  const cc      = colorClasses(rf.color)
+  const inScope = items.filter(i => i.is_in_scope).length
+  const LEVELS: SystemLevel[] = ['secret', 'highly_confidential', 'confidential', 'internal', 'public']
+  const distribution = LEVELS
+    .map(l => ({ label: SYSTEM_LEVEL_META[l].label, count: items.filter(i => i.system_level === l).length }))
+    .filter(d => d.count > 0)
+
+  return (
+    <div className={cn('rounded-xl border overflow-hidden transition-colors', collapsed ? 'border-border' : 'border-border-strong')}>
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        className={cn('w-full flex items-center gap-4 px-5 py-4 text-left transition-colors', collapsed ? 'bg-card/50 hover:bg-card/80' : 'bg-card/80')}
+      >
+        <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', cc.dot)} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 mb-0.5">
+            <span className={cn('text-sm font-bold tracking-wider', cc.text)}>{rf.label.toUpperCase()}</span>
+            <span className="text-xs text-muted-foreground/60">{items.length} types</span>
+            {inScope > 0 && (
+              <>
+                <span className="text-muted-foreground/40 text-xs">·</span>
+                <span className={cn('text-xs font-semibold', cc.text)}>{inScope} in scope</span>
+              </>
+            )}
+          </div>
+          {collapsed && distribution.length > 0 && (
+            <p className="text-[10px] text-muted-foreground/50">
+              {distribution.map(d => `${d.label} ${d.count}`).join('  ·  ')}
+            </p>
+          )}
+        </div>
+        {collapsed
+          ? <ChevronRight className="w-4 h-4 text-muted-foreground/60 shrink-0" />
+          : <ChevronDown className="w-4 h-4 text-muted-foreground/80 shrink-0" />}
+      </button>
+      {!collapsed && (
+        <>
+          <div className="grid grid-cols-[1fr_theme(spacing.44)_theme(spacing.32)] border-b border-border bg-background/60">
+            {(['Data Type', 'Your Classification', ''] as const).map((h, i) => (
+              <div key={i} className={cn('text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest py-2.5', i === 0 ? 'px-5' : 'px-4', i === 2 ? 'text-right pr-5' : '')}>{h}</div>
+            ))}
+          </div>
+          <div className="divide-y divide-border/30">
+            {LEVELS.map(level => {
+              const levelItems = items.filter(i => i.system_level === level)
+              if (levelItems.length === 0) return null
+              return (
+                <ClassificationGroup
+                  key={level}
+                  level={level}
+                  items={levelItems}
+                  labels={labels}
+                  onToggle={onToggle}
+                  onClassify={onClassify}
+                />
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export function CatalogClient({
@@ -848,6 +1011,16 @@ export function CatalogClient({
   const [scopeFilter,       setScopeFilter]       = useState<string>('')
   const [showAddModal,      setShowAddModal]      = useState(false)
   const [customSectionOpen, setCustomSectionOpen] = useState(false)
+  const [viewMode,          setViewMode]          = useState<'risk_family' | 'classification'>('risk_family')
+
+  useEffect(() => {
+    const saved = localStorage.getItem('dataCatalogViewMode')
+    if (saved === 'risk_family' || saved === 'classification') setViewMode(saved)
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem('dataCatalogViewMode', viewMode)
+  }, [viewMode])
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_isPending,        startTransition]      = useTransition()
 
@@ -915,7 +1088,7 @@ export function CatalogClient({
 
   const riskFamilyOptions = useMemo(() => [
     { value: 'all', label: 'All risk families' },
-    ...RISK_FAMILIES.map(f => ({ value: f, label: f })),
+    ...RISK_FAMILIES.map(rf => ({ value: rf.label, label: rf.label })),
   ], [])
 
   const filtered = useMemo(() => {
@@ -1055,25 +1228,81 @@ export function CatalogClient({
         </span>
       </div>
 
-      {/* Classification sections */}
+      {/* View toggle */}
+      <div className="flex gap-1 bg-card/50 border border-border rounded-xl p-1 w-fit shadow-sm">
+        {(['risk_family', 'classification'] as const).map(mode => (
+          <button
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            className={cn(
+              'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+              viewMode === mode
+                ? 'bg-muted text-foreground'
+                : 'text-muted-foreground/70 hover:text-foreground/70 hover:bg-card',
+            )}
+          >
+            {mode === 'risk_family' ? 'Risk Family' : 'Classification'}
+          </button>
+        ))}
+      </div>
+
+      {/* Sections */}
       <div className="space-y-2">
-        {levels.map(level => {
-          const sectionItems = filtered.filter(i => i.system_level === level)
-          const anyFilterActive = search.length > 0 || subcatFilter !== '' || riskFamilyFilter !== '' || complianceFilter.length > 0 || levelFilter.length > 0 || scopeFilter !== ''
-          const forceExpand = anyFilterActive && sectionItems.length > 0
-          return (
-          <ClassificationSection
-            key={level}
-            level={level}
-            items={sectionItems}
-            labels={labels}
-            onToggle={handleToggle}
-            onClassify={handleClassify}
-            onBulkToggle={handleBulkToggle}
-            forceExpand={forceExpand}
-          />
-          )
-        })}
+        {viewMode === 'risk_family' ? (
+          <>
+            {(() => {
+              const anyFilterActive = search.length > 0 || subcatFilter !== '' || riskFamilyFilter !== '' || complianceFilter.length > 0 || levelFilter.length > 0 || scopeFilter !== ''
+              return (
+                <>
+                  {RISK_FAMILIES.map(rf => {
+                    const rfItems = filtered.filter(i => i.risk_family === rf.label)
+                    if (rfItems.length === 0) return null
+                    return (
+                      <RiskFamilySection
+                        key={rf.id}
+                        rf={rf}
+                        items={rfItems}
+                        labels={labels}
+                        onToggle={handleToggle}
+                        onClassify={handleClassify}
+                        forceExpand={anyFilterActive}
+                      />
+                    )
+                  })}
+                  {filtered.filter(i => !i.risk_family).length > 0 && (
+                    <RiskFamilySection
+                      key="uncategorized"
+                      rf={UNCATEGORIZED_RF}
+                      items={filtered.filter(i => !i.risk_family)}
+                      labels={labels}
+                      onToggle={handleToggle}
+                      onClassify={handleClassify}
+                      forceExpand={anyFilterActive}
+                    />
+                  )}
+                </>
+              )
+            })()}
+          </>
+        ) : (
+          levels.map(level => {
+            const sectionItems = filtered.filter(i => i.system_level === level)
+            const anyFilterActive = search.length > 0 || subcatFilter !== '' || riskFamilyFilter !== '' || complianceFilter.length > 0 || levelFilter.length > 0 || scopeFilter !== ''
+            const forceExpand = anyFilterActive && sectionItems.length > 0
+            return (
+              <ClassificationSection
+                key={level}
+                level={level}
+                items={sectionItems}
+                labels={labels}
+                onToggle={handleToggle}
+                onClassify={handleClassify}
+                onBulkToggle={handleBulkToggle}
+                forceExpand={forceExpand}
+              />
+            )
+          })
+        )}
 
         {/* Filename Detection Signals */}
         <div className="pt-4">

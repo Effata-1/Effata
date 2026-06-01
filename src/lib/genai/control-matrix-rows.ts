@@ -1,23 +1,20 @@
 // Shared constants for the GenAI Control Matrix.
 // No 'use client' — importable by both client components and server actions.
 
+import { RISK_FAMILIES } from '@/lib/shared/risk-families'
+
 // ── Display name → stable rfKey slug ─────────────────────────────────────────
 // rfKey values become policy_key suffixes (e.g. 'rf:credentials_keys_secrets').
 // Never rename an existing rfKey — it would orphan DB rows.
+// The 9 shared risk families are derived from the single source of truth.
 
 export const RF_KEY: Record<string, string> = {
-  'Credentials, Keys & Secrets':    'credentials_keys_secrets',
-  'Regulated Data':                 'regulated_data',
-  'Source Code':                    'source_code',
-  'Intellectual Property':          'intellectual_property',
-  'Customer & Employee Data':       'customer_employee_data',
-  'Financial & Commercial Data':    'financial_commercial_data',
-  'Legal & Contractual Data':       'legal_contractual_data',
-  'Security & Infrastructure Data': 'security_infrastructure_data',
-  'Public & Low-Risk Data':         'public_low_risk_data',
-  'Bulk Data / Large Dataset':      'bulk_data',
-  'Large File Upload':              'large_file_upload',
-  'General Usage Reminder':         'general_usage_reminder',
+  // 9 shared entries — derived from src/lib/shared/risk-families.ts
+  ...Object.fromEntries(RISK_FAMILIES.map(rf => [rf.label, rf.id])),
+  // 3 GenAI-only rows — no data catalog equivalent
+  'Bulk Data / Large Dataset': 'bulk_data',
+  'Large File Upload':         'large_file_upload',
+  'General Usage Reminder':    'general_usage_reminder',
 }
 
 // ── Matrix row order — source of truth for both UI and recommended policies ───

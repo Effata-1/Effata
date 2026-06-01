@@ -137,31 +137,7 @@ export const COLOR_OPTIONS = [
   { value: 'zinc',    label: 'Grey',    class: 'bg-accent' },
 ]
 
-export const RISK_FAMILIES = [
-  'Credentials, Keys & Secrets',
-  'Regulated Data',
-  'Source Code',
-  'Intellectual Property',
-  'Customer & Employee Data',
-  'Financial & Commercial Data',
-  'Legal & Contractual Data',
-  'Security & Infrastructure Data',
-  'Public & Low-Risk Data',
-] as const
-
-export type RiskFamily = typeof RISK_FAMILIES[number]
-
-export const RISK_FAMILY_META: Record<RiskFamily, { color: string }> = {
-  'Credentials, Keys & Secrets':    { color: 'red'     },
-  'Regulated Data':                 { color: 'red'     },
-  'Source Code':                    { color: 'red'     },
-  'Intellectual Property':          { color: 'red'     },
-  'Customer & Employee Data':       { color: 'orange'  },
-  'Financial & Commercial Data':    { color: 'amber'   },
-  'Legal & Contractual Data':       { color: 'amber'   },
-  'Security & Infrastructure Data': { color: 'orange'  },
-  'Public & Low-Risk Data':         { color: 'green'   },
-}
+export { RISK_FAMILIES, RISK_FAMILY_META, type RiskFamily, type RiskFamilyId } from '@/lib/shared/risk-families'
 
 export function colorClasses(color: string) {
   const map: Record<string, { text: string; bg: string; border: string; dot: string }> = {
@@ -175,6 +151,7 @@ export function colorClasses(color: string) {
     blue:    { text: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/25',    dot: 'bg-blue-400' },
     purple:  { text: 'text-purple-400',  bg: 'bg-purple-500/10',  border: 'border-purple-500/25',  dot: 'bg-purple-400' },
     zinc:    { text: 'text-muted-foreground',    bg: 'bg-accent/40',    border: 'border-border-strong',       dot: 'bg-accent' },
+    gray:    { text: 'text-muted-foreground/60', bg: 'bg-muted/40',     border: 'border-border-strong',       dot: 'bg-muted-foreground/40' },
   }
   return map[color] ?? map['zinc']
 }
