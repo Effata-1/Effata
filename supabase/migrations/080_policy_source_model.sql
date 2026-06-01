@@ -15,28 +15,20 @@ ALTER TABLE org_genai_policies
 CREATE UNIQUE INDEX IF NOT EXISTS org_genai_policies_org_key_uidx
   ON org_genai_policies (org_id, policy_key);
 
--- ── Migrate existing policy_source values to new enum ────────────────────────
-UPDATE org_genai_policies
-  SET policy_source = 'recommended'
-  WHERE policy_source IN ('predefined', 'matrix');
-
-UPDATE org_genai_policies
-  SET policy_source = 'manual'
-  WHERE policy_source = 'custom';
-
 -- ── Replace policy_source check constraint ────────────────────────────────────
--- Safety net: re-run the value migration immediately before adding the constraint
--- so partial re-runs (e.g. after a failure mid-script) are safe.
-UPDATE org_genai_policies
-  SET policy_source = 'recommended'
-  WHERE policy_source IN ('predefined', 'matrix');
-
-UPDATE org_genai_policies
-  SET policy_source = 'manual'
-  WHERE policy_source = 'custom';
-
+-- Drop the old constraint FIRST — it may only allow ('predefined','matrix','custom'),
+-- which would block the UPDATE below from setting values to 'recommended'.
 ALTER TABLE org_genai_policies
   DROP CONSTRAINT IF EXISTS org_genai_policies_policy_source_check;
+
+-- Migrate existing values (idempotent — safe to re-run)
+UPDATE org_genai_policies
+  SET policy_source = 'recommended'
+  WHERE policy_source IN ('predefined', 'matrix');
+
+UPDATE org_genai_policies
+  SET policy_source = 'manual'
+  WHERE policy_source = 'custom';
 
 ALTER TABLE org_genai_policies
   ADD CONSTRAINT org_genai_policies_policy_source_check
