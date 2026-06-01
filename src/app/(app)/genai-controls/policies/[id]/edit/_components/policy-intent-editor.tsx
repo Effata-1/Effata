@@ -734,9 +734,34 @@ export function PolicyIntentEditor({
             </ReadOnlyTooltip>
           </NpjRow>
           <NpjRow label="Enforcement">
-            {npj.decision
-              ? <DecisionFlags decision={npj.decision} />
-              : <span className="text-xs text-muted-foreground/40 italic">—</span>}
+            {npj.decision ? (
+              (() => {
+                if (isRecommended) {
+                  const abc = (rawNpj as Record<string, unknown>)?.actions_by_category as Record<string, string> | undefined
+                  const unique = abc ? [...new Set(Object.values(abc))] : []
+                  if (unique.length > 1) {
+                    return (
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg border border-muted/50 bg-muted/20 text-xs font-semibold text-muted-foreground/70">
+                          Varies by category
+                        </span>
+                        <span className="text-[10px] text-muted-foreground/40">See Actions by Category below</span>
+                      </div>
+                    )
+                  }
+                  if (unique.length === 1) {
+                    return (
+                      <span className={cn('inline-flex items-center px-2.5 py-1 rounded-lg border text-sm font-bold', ACTION_CHIP[unique[0]] ?? 'bg-muted/50 text-muted-foreground border-border')}>
+                        {unique[0]}
+                      </span>
+                    )
+                  }
+                }
+                return <DecisionFlags decision={npj.decision} />
+              })()
+            ) : (
+              <span className="text-xs text-muted-foreground/40 italic">—</span>
+            )}
           </NpjRow>
           <NpjRow label="Content Inspection">
             <div className="flex flex-wrap gap-1.5">
@@ -1090,21 +1115,32 @@ export function PolicyIntentEditor({
               <span className="text-[10px] px-2 py-0.5 rounded-md border border-blue-500/25 bg-blue-500/8 text-blue-400 font-medium">Control Matrix</span>
             </div>
             <div className="divide-y divide-border/40">
-              {Object.entries(actionsByCategory).map(([cat, action]) => (
-                <div key={cat} className="flex items-center justify-between px-5 py-3">
-                  <span className="text-xs text-foreground/70">{TAG_DISPLAY_NAMES[cat] ?? cat.replace(/_/g, ' ')}</span>
-                  <div className="flex items-center gap-2">
-                    <span className={cn('inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-semibold', ACTION_CHIP[action] ?? 'bg-muted/50 text-muted-foreground border-border')}>
-                      {action}
-                    </span>
-                    {coachingByCategory?.[cat] && (() => {
-                      const tpl = coachingTemplates.find(t => t.id === coachingByCategory[cat])
-                      const coachName = tpl?.coach_label ?? tpl?.name ?? 'coaching set'
-                      return <span className="text-[10px] text-muted-foreground/50">{coachName}</span>
-                    })()}
-                  </div>
-                </div>
-              ))}
+              {(() => {
+                const ORDER = ['Approved & Supported', 'Approved with Conditions', 'Restricted', 'Prohibited']
+                return Object.entries(actionsByCategory)
+                  .sort(([a], [b]) => {
+                    const nameA = TAG_DISPLAY_NAMES[a] ?? a
+                    const nameB = TAG_DISPLAY_NAMES[b] ?? b
+                    const ia = ORDER.findIndex(p => nameA.includes(p))
+                    const ib = ORDER.findIndex(p => nameB.includes(p))
+                    return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib)
+                  })
+                  .map(([cat, action]) => (
+                    <div key={cat} className="flex items-center justify-between px-5 py-3">
+                      <span className="text-xs text-foreground/70">{TAG_DISPLAY_NAMES[cat] ?? cat.replace(/_/g, ' ')}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={cn('inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-semibold', ACTION_CHIP[action] ?? 'bg-muted/50 text-muted-foreground border-border')}>
+                          {action}
+                        </span>
+                        {coachingByCategory?.[cat] && (() => {
+                          const tpl = coachingTemplates.find(t => t.id === coachingByCategory[cat])
+                          const coachName = tpl?.coach_label ?? tpl?.name ?? 'coaching set'
+                          return <span className="text-[10px] text-muted-foreground/50">{coachName}</span>
+                        })()}
+                      </div>
+                    </div>
+                  ))
+              })()}
             </div>
           </div>
         )
@@ -1228,32 +1264,34 @@ export function PolicyIntentEditor({
       </div>
 
       {/* ── 10. Lifecycle & Metadata ─────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className={!isRecommended ? 'grid grid-cols-1 lg:grid-cols-2 gap-5' : undefined}>
 
-        {/* Policy Metadata (read-only) */}
-        <SectionCard title="Policy Metadata">
-          <div>
-            <NpjRow label="Policy Key">
-              <span className="text-xs font-mono text-foreground/70">{policy.policy_key ?? '—'}</span>
-            </NpjRow>
-            <NpjRow label="Family">
-              <span className="text-xs text-foreground/80">{policy.policy_family ?? '—'}</span>
-            </NpjRow>
-            <NpjRow label="Generated From">
-              <span className="text-xs text-foreground/80">{policy.generated_from ?? '—'}</span>
-            </NpjRow>
-            {npj?.provenance?.generated_at && (
-              <NpjRow label="Generated At">
-                <span className="text-xs text-muted-foreground/70">{new Date(npj.provenance.generated_at).toLocaleString()}</span>
+        {/* Policy Metadata (read-only) — hidden for recommended */}
+        {!isRecommended && (
+          <SectionCard title="Policy Metadata">
+            <div>
+              <NpjRow label="Policy Key">
+                <span className="text-xs font-mono text-foreground/70">{policy.policy_key ?? '—'}</span>
               </NpjRow>
-            )}
-            {npj?.provenance?.compiler_version && (
-              <NpjRow label="Compiler Version">
-                <span className="text-xs font-mono text-muted-foreground/70">{npj.provenance.compiler_version}</span>
+              <NpjRow label="Family">
+                <span className="text-xs text-foreground/80">{policy.policy_family ?? '—'}</span>
               </NpjRow>
-            )}
-          </div>
-        </SectionCard>
+              <NpjRow label="Generated From">
+                <span className="text-xs text-foreground/80">{policy.generated_from ?? '—'}</span>
+              </NpjRow>
+              {npj?.provenance?.generated_at && (
+                <NpjRow label="Generated At">
+                  <span className="text-xs text-muted-foreground/70">{new Date(npj.provenance.generated_at).toLocaleString()}</span>
+                </NpjRow>
+              )}
+              {npj?.provenance?.compiler_version && (
+                <NpjRow label="Compiler Version">
+                  <span className="text-xs font-mono text-muted-foreground/70">{npj.provenance.compiler_version}</span>
+                </NpjRow>
+              )}
+            </div>
+          </SectionCard>
+        )}
 
         {/* Translation Status (state machine) */}
         <SectionCard title="Translation Status">
@@ -1367,8 +1405,8 @@ export function PolicyIntentEditor({
         </SectionCard>
       </div>
 
-      {/* Basic Details */}
-      <SectionCard title="Basic Details" readOnly={isRecommended}>
+      {/* Basic Details — hidden for recommended (name/active shown in header; fields all read-only) */}
+      {!isRecommended && <SectionCard title="Basic Details" readOnly={isRecommended}>
         <div className="space-y-3 px-5 py-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             <div>
@@ -1400,7 +1438,7 @@ export function PolicyIntentEditor({
             />
           </div>
         </div>
-      </SectionCard>
+      </SectionCard>}
 
       {/* ── Save Section — hidden for recommended ────────────────────────── */}
       {!isRecommended && (
@@ -1429,8 +1467,8 @@ export function PolicyIntentEditor({
         </div>
       )}
 
-      {/* ── 11. Advanced JSON ────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
+      {/* ── 11. Advanced JSON — hidden for recommended ───────────────────── */}
+      {!isRecommended && <div className="rounded-xl border border-border bg-card overflow-hidden">
         <button
           type="button"
           onClick={() => setAdvancedOpen(o => !o)}
@@ -1463,7 +1501,7 @@ export function PolicyIntentEditor({
             </pre>
           </div>
         )}
-      </div>
+      </div>}
 
     </div>
   )
