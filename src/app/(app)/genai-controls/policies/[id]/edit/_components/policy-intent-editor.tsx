@@ -1009,10 +1009,10 @@ export function PolicyIntentEditor({
                       })()}
                     </div>
                     {cond.risk_family && CATALOG_RF_IDS.has(cond.risk_family) && (
-                      <div className="border-t border-border/40 px-4 py-2 bg-muted/10 flex justify-end">
+                      <div className="border-t border-border/50 px-4 py-2.5 flex justify-end">
                         <Link
                           href={`/policies/data-catalog?rf=${encodeURIComponent(RF_DISPLAY_NAMES[cond.risk_family] ?? cond.risk_family)}`}
-                          className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground/60 hover:text-foreground/90 transition-colors"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border text-[11px] font-medium text-foreground/70 bg-muted/40 hover:bg-muted/70 hover:text-foreground transition-colors"
                         >
                           <ExternalLink className="h-3 w-3" />
                           View in Data Catalog
