@@ -206,8 +206,6 @@ export function validatePolicyProposal(proposal: unknown): ProposalValidationRes
 // ── generated_from registry ────────────────────────────────────────────────────
 
 export const GENERATED_FROM_LABELS: Record<string, string> = {
-  'predefined':         'Predefined (RF Matrix)',
-  'governance-matrix':  'Governance Matrix',
-  'ai-assisted':        'AI Policy Assistant',
-  'manual':             'Manual (Blank Wizard)',
+  'recommended': 'Recommended',
+  'manual':      'Manual',
 }

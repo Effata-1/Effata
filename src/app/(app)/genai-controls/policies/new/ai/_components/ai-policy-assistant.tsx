@@ -302,10 +302,12 @@ function PolicyProposalCard({
 
   // When a new proposal arrives (re-generate), reset edit state and coverage override
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     setDraft(proposal)
     setEditing(false)
     setEditErrors([])
     setForceCreate(false)
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [proposal])
 
   function handleSave() {
@@ -803,7 +805,7 @@ function PolicyProposalCard({
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export function AiPolicyAssistant({ apps: _apps, categories, ruleItems, vendors = [] }: Props) {
+export function AiPolicyAssistant({ categories, ruleItems, vendors = [] }: Props) {
   const router = useRouter()
   const [input, setInput]                   = useState('')
   const [streaming, setStreaming]           = useState(false)

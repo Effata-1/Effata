@@ -172,10 +172,14 @@ export interface GenAIPolicy {
   test_status:               'untested' | 'in-progress' | 'passed' | 'failed'
   created_at:       string
   updated_at:       string
-  // migration 079 — predefined policy provenance
-  policy_source: 'predefined' | 'matrix' | 'custom'
-  is_customized: boolean
-  policy_key:    string | null
+  // migration 079–080 — policy source model
+  policy_source:              'recommended' | 'manual'
+  is_customized:              boolean        // kept for DB compat, no longer used in UI
+  policy_key:                 string | null
+  matrix_basis:               'default' | 'customized' | null
+  last_synced_from_matrix_at: string | null  // ISO timestamp
+  // neutral policy JSON (migration 079)
+  neutral_policy_json: Record<string, unknown> | null
 }
 
 export type CustomerClass =

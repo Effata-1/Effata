@@ -62,6 +62,9 @@ export default async function EditPolicyPage({ params }: { params: Promise<{ id:
         policy_key:                (policy as Record<string, unknown>).policy_key as string | null ?? null,
         neutral_policy_hash:       (policy as Record<string, unknown>).neutral_policy_hash as string | null ?? null,
         updated_at:                policy.updated_at,
+        policy_source:             ((policy as Record<string, unknown>).policy_source as 'recommended' | 'manual') ?? 'manual',
+        matrix_basis:              ((policy as Record<string, unknown>).matrix_basis as 'default' | 'customized' | null) ?? null,
+        last_synced_from_matrix_at: ((policy as Record<string, unknown>).last_synced_from_matrix_at as string | null) ?? null,
       }}
       apps={apps}
       categories={categories}

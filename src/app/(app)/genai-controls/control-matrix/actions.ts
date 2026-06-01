@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import { upsertLabel, deleteLabel } from '@/lib/data-catalog/actions'
+import { syncRecommendedPolicies } from '@/app/(app)/genai-controls/policies/actions'
 
 export async function upsertControlMatrixCell(
   dataType: string,
@@ -30,6 +31,10 @@ export async function upsertControlMatrixCell(
 
   if (error) return { error: error.message }
   revalidatePath('/genai-controls/control-matrix')
+
+  // Keep recommended policies live-updated when matrix changes
+  try { await syncRecommendedPolicies() } catch (e) { console.error('[control-matrix] sync error:', e) }
+
   return {}
 }
 

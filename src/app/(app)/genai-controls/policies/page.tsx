@@ -2,7 +2,7 @@ import { requireRole } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { ensureClassificationLabels } from '@/lib/data-catalog/actions'
 import { getIdentityPageData } from '@/app/(app)/policies/identity/actions'
-import { seedPredefinedPolicies } from './actions'
+import { syncRecommendedPolicies } from './actions'
 import { PolicyList } from './_components/policy-list'
 import type { GenAIPolicy } from '@/lib/genai/types'
 import type { RuleItem } from './new/_components/policy-builder'
@@ -11,7 +11,7 @@ export default async function GenAIPoliciesPage() {
   const user     = await requireRole('analyst')
   const supabase = await createClient()
 
-  try { await seedPredefinedPolicies() } catch (e) { console.error('[policies/page] seed error:', e) }
+  try { await syncRecommendedPolicies() } catch (e) { console.error('[policies/page] sync error:', e) }
 
   const [
     policyResult,

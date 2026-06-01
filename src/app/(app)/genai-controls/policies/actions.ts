@@ -8,7 +8,10 @@ import { callData } from '@/lib/api-client.server'
 import { logAuditEvent } from '@/lib/audit'
 import { validateNeutralPolicy } from '@/lib/genai/npj-schema'
 import type { ApprovalStatus, PolicyType, PolicyRule, ActionCode } from '@/lib/genai/types'
-import { PREDEFINED_RF_POLICIES } from '@/lib/genai/predefined-rf-policies'
+import {
+  CONTENT_DETECTION_ROWS, RF_KEY, TAG_ALIAS,
+  RF_DEFAULTS, RF_COACHING_DEFAULTS,
+} from '@/lib/genai/control-matrix-rows'
 
 function sortedStringify(obj: unknown): string {
   if (obj === null || typeof obj !== 'object') return JSON.stringify(obj)
@@ -54,10 +57,12 @@ export interface PolicyFields {
   neutral_policy_json?:       Record<string, unknown>
   neutral_policy_hash?:       string | null
   neutral_policy_version?:    string | null
-  // migration 079 — predefined policy provenance
-  policy_source?:  'predefined' | 'matrix' | 'custom'
-  is_customized?:  boolean
-  policy_key?:     string | null
+  // migration 079–080 — policy source model
+  policy_source?:              'recommended' | 'manual'
+  is_customized?:              boolean
+  policy_key?:                 string | null
+  matrix_basis?:               'default' | 'customized' | null
+  last_synced_from_matrix_at?: string | null
 }
 
 export async function upsertPolicy(
@@ -314,10 +319,11 @@ export async function duplicatePolicy(id: string): Promise<{ error?: string }> {
       name:            `${String(rest.name ?? '')} (copy)`,
       approval_status: 'draft',
       is_active:       false,
-      // Reset provenance — the copy is a custom policy, not predefined
-      policy_source:   'custom',
+      // Reset provenance — the copy is a manual policy
+      policy_source:   'manual',
       is_customized:   false,
       policy_key:      null,
+      matrix_basis:    null,
       updated_at:      new Date().toISOString(),
     })
 
@@ -429,7 +435,7 @@ const ALLOWED_DIFF_KEYS: Set<keyof PolicyFields> = new Set([
   'fallback_action', 'coaching_template_id', 'vendor_translation_status',
   'required_dependencies', 'test_status', 'review_date', 'next_review_date',
   'effective_date', 'neutral_policy_json', 'neutral_policy_hash', 'neutral_policy_version',
-  'policy_source', 'is_customized', 'policy_key',
+  'policy_source', 'is_customized', 'policy_key', 'matrix_basis', 'last_synced_from_matrix_at',
 ])
 
 export async function applyPolicyDiff(diff: {
@@ -449,7 +455,12 @@ export async function applyPolicyDiff(diff: {
   if (fetchErr) return { error: fetchErr.message }
   if (!policy)  return { error: 'Policy not found.' }
 
-  if (policy.approval_status === 'approved' && policy.policy_source !== 'predefined') {
+  // Recommended policies are read-only — managed by the Control Matrix
+  if ((policy as Record<string, unknown>).policy_source === 'recommended') {
+    return { error: 'Recommended policies are managed by the Control Matrix. Use "Refresh from Matrix" or "Duplicate as Manual" to make changes.' }
+  }
+
+  if (policy.approval_status === 'approved') {
     return { error: 'Cannot edit an approved policy. Create a new draft instead.' }
   }
 
@@ -462,11 +473,6 @@ export async function applyPolicyDiff(diff: {
 
   if (Object.keys(sanitized).length === 0) {
     return { error: 'No valid fields to apply.' }
-  }
-
-  // Mark predefined policies as customized when any field is edited
-  if ((policy as Record<string, unknown>).policy_source === 'predefined') {
-    sanitized.is_customized = true
   }
 
   const result = await upsertPolicy(diff.policyId, sanitized)
@@ -484,122 +490,237 @@ export async function applyPolicyDiff(diff: {
   return {}
 }
 
-// ── Predefined policy seeding ─────────────────────────────────────────────────
+// ── Recommended policy sync ───────────────────────────────────────────────────
 
-export async function seedPredefinedPolicies(): Promise<void> {
-  const user     = await requireRole('analyst')
-  const supabase = await createClient()
-
-  const { data: existing } = await supabase
-    .from('org_genai_policies')
-    .select('policy_key')
-    .eq('org_id', user.orgId)
-    .not('policy_key', 'is', null)
-
-  const existingKeys = new Set((existing ?? []).map(r => r.policy_key as string))
-  const toInsert     = PREDEFINED_RF_POLICIES.filter(p => !existingKeys.has(p.policy_key))
-  if (toInsert.length === 0) return
-
-  const { data: notifications } = await supabase
-    .from('org_coaching_notifications')
-    .select('id, name')
-    .eq('org_id', user.orgId)
-
-  const notifMap = new Map((notifications ?? []).map(n => [n.name as string, n.id as string]))
-
-  const errors: string[] = []
-  for (const p of toInsert) {
-    const catMap     = (p.npj.coaching_by_category as Record<string, string | null> | undefined) ?? {}
-    const coachingId = catMap.restricted_unassessed
-      ? (notifMap.get(catMap.restricted_unassessed) ?? null)
-      : null
-
-    const { error } = await supabase
-      .from('org_genai_policies')
-      .upsert(
-        {
-          org_id:               user.orgId,
-          name:                 p.name,
-          description:          p.description,
-          policy_type:          'data-handling',
-          policy_key:           p.policy_key,
-          policy_source:        'predefined',
-          is_customized:        false,
-          generated_from:       'predefined',
-          is_active:            true,
-          approval_status:      'approved',
-          policy_family:        (p.npj.intent === 'govern_app_access' ? 'genai_app_access' : 'genai_content_detection'),
-          coaching_template_id: coachingId,
-          neutral_policy_json:  p.npj,
-          scope_all_apps:       p.npj.intent !== 'govern_app_access',
-          scope_app_ids:        [],
-          rules:                [],
-          priority:             p.priority ?? 100,
-          required_dependencies: [],
-          vendor_translation_status: 'pending',
-          test_status:          'untested',
-          updated_at:           new Date().toISOString(),
-        },
-        { onConflict: 'org_id,policy_key', ignoreDuplicates: true },
-      )
-    if (error) errors.push(`${p.policy_key}: ${error.message}`)
-  }
-
-  if (errors.length > 0) {
-    console.error('[seedPredefinedPolicies] insert errors:', errors)
-  }
-  if (errors.length < toInsert.length) {
-    revalidatePath('/genai-controls/policies')
-  }
+function buildOverrideMap(overrides: { data_type: string; category_id: string; action_code: string; coaching_notification_id: string | null }[]) {
+  return new Map(overrides.map(o => [`${o.data_type}::${o.category_id}`, o]))
 }
 
-export async function resetPolicyToDefault(policyId: string): Promise<{ error?: string }> {
+function getScopeActivities(rfKey: string): string[] {
+  if (rfKey === 'large_file_upload')      return ['upload']
+  if (rfKey === 'general_usage_reminder') return ['browse', 'login', 'prompt_submit', 'upload']
+  return ['prompt_submit', 'upload', 'post']
+}
+
+function computeFallbackMode(actions: Record<string, string>): string {
+  // Normalize UI-only codes to canonical NPJ decision.mode values before ranking
+  const vals = Object.values(actions).map(a =>
+    a === 'coach-ack' || a === 'coach-just' ? 'coach' : a,
+  )
+  const ORDER = ['block', 'coach', 'alert', 'monitor', 'allow']
+  return ORDER.find(a => vals.includes(a)) ?? 'block'
+}
+
+export async function syncRecommendedPolicies(): Promise<void> {
   const user     = await requireRole('analyst')
   const supabase = await createClient()
 
-  const { data: policy } = await supabase
-    .from('org_genai_policies')
-    .select('policy_key, policy_source')
-    .eq('id', policyId)
-    .eq('org_id', user.orgId)
-    .maybeSingle()
+  const [
+    { data: overrides },
+    { data: categories },
+    { data: notifications },
+    { data: existingPolicies },
+  ] = await Promise.all([
+    supabase.from('org_control_matrix_overrides')
+      .select('data_type, category_id, action_code, coaching_notification_id')
+      .eq('org_id', user.orgId),
+    supabase.from('org_genai_governance_categories')
+      .select('id, system_tag, name').eq('org_id', user.orgId).eq('active', true).order('priority'),
+    supabase.from('org_coaching_notifications')
+      .select('id, name').eq('org_id', user.orgId),
+    supabase.from('org_genai_policies')
+      .select('policy_key, is_active, neutral_policy_json, vendor_translation_status, test_status')
+      .eq('org_id', user.orgId)
+      .eq('policy_source', 'recommended'),
+  ])
 
-  const policyKey    = (policy as Record<string, unknown> | null)?.policy_key    as string | null | undefined
-  const policySource = (policy as Record<string, unknown> | null)?.policy_source as string | undefined
+  const existingMap = new Map(
+    (existingPolicies ?? [])
+      .filter((p): p is typeof p & { policy_key: string } => p.policy_key != null)
+      .map(p => [p.policy_key, p])
+  )
 
-  if (!policy || policySource !== 'predefined' || !policyKey) {
-    return { error: 'Only predefined policies can be reset.' }
+  const overrideMap = buildOverrideMap(overrides ?? [])
+  const notifMap    = new Map((notifications ?? []).map(n => [n.name as string, n.id as string]))
+  const now         = new Date().toISOString()
+
+  // ── 1. Content detection rows — derived from CONTENT_DETECTION_ROWS ──────────
+  for (const rowLabel of CONTENT_DETECTION_ROWS) {
+    const rfKey = RF_KEY[rowLabel]
+    if (!rfKey) continue
+    const policy_key = `rf:${rfKey}`
+
+    const actions_by_category:  Record<string, string>       = {}
+    const coaching_by_category: Record<string, string | null> = {}
+    let   hasOverride = false
+
+    for (const cat of categories ?? []) {
+      const tag    = TAG_ALIAS[cat.system_tag ?? ''] ?? cat.system_tag ?? ''
+      const rowKey = `pp|rf:${rfKey}`
+      const ov     = overrideMap.get(`${rowKey}::${cat.id}`)
+
+      if (ov) {
+        hasOverride = true
+        actions_by_category[tag]  = ov.action_code
+        coaching_by_category[tag] = ov.coaching_notification_id ?? null
+      } else {
+        actions_by_category[tag]  = RF_DEFAULTS[tag]?.[rfKey] ?? 'allow'
+        const coachName = RF_COACHING_DEFAULTS[tag]?.[rfKey] ?? null
+        coaching_by_category[tag] = coachName ? (notifMap.get(coachName) ?? null) : null
+      }
+    }
+
+    const npj = {
+      schema_version: '1.0',
+      intent:         'prevent_exfiltration',
+      policy_family:  'genai_content_detection',
+      scope: { activities: getScopeActivities(rfKey) },
+      content: {
+        operator:   'any',
+        conditions: [{
+          type:            'data_type',
+          risk_family_key: rfKey,      // stable slug — used for internal logic
+          risk_family:     rowLabel,   // display name — used for human-readable output
+        }],
+      },
+      decision: {
+        mode:                    computeFallbackMode(actions_by_category),
+        require_acknowledgement: false,
+        require_justification:   false,
+      },
+      actions_by_category,
+      coaching_by_category,
+    }
+
+    const matrix_basis      = (hasOverride ? 'customized' : 'default') as 'default' | 'customized'
+    const defaultCoachingId = coaching_by_category['restricted_unassessed'] ?? null
+    const existing          = existingMap.get(policy_key)
+    const isNew             = !existing
+    const npjChanged        = isNew || JSON.stringify(existing.neutral_policy_json) !== JSON.stringify(npj)
+
+    const { error } = await supabase.from('org_genai_policies').upsert({
+      org_id:               user.orgId,
+      policy_key,
+      policy_source:        'recommended',
+      matrix_basis,
+      last_synced_from_matrix_at: now,
+      name:                 `${rowLabel} Policy`,
+      description:          `Detects and enforces controls for ${rowLabel} data across all GenAI apps.`,
+      generated_from:       'recommended',
+      is_active:            isNew ? true : existing.is_active,
+      approval_status:      'approved',
+      policy_family:        'genai_content_detection',
+      coaching_template_id: defaultCoachingId,
+      neutral_policy_json:  npj,
+      scope_all_apps:       true,
+      scope_app_ids:        [],
+      rules:                [],
+      priority:             100,
+      required_dependencies: [],
+      vendor_translation_status: npjChanged ? 'pending'  : (existing?.vendor_translation_status ?? 'pending'),
+      test_status:               npjChanged ? 'untested' : (existing?.test_status               ?? 'untested'),
+      updated_at: now,
+    }, { onConflict: 'org_id,policy_key' })
+
+    if (error) console.error(`[syncRecommendedPolicies] ${policy_key}:`, error.message)
   }
 
-  const def = PREDEFINED_RF_POLICIES.find(p => p.policy_key === policyKey)
-  if (!def) return { error: 'Predefined policy definition not found.' }
+  // ── 2. Prohibited app block — single govern_app_access policy ────────────────
+  {
+    const policy_key          = 'rf:prohibited_app_block'
+    const actions_by_category = { prohibited: 'block' }
+    const coaching_by_category: Record<string, string | null> = { prohibited: null }
 
-  // Re-resolve coaching notification ID so coaching_template_id is also restored
-  const { data: notifications } = await supabase
-    .from('org_coaching_notifications')
-    .select('id, name')
-    .eq('org_id', user.orgId)
+    const npj = {
+      schema_version: '1.0',
+      intent:         'govern_app_access',
+      policy_family:  'genai_app_access',
+      scope: {
+        activities:     ['browse', 'login'],
+        app_categories: [{ system_tag: 'prohibited', name: 'Prohibited GenAI' }],
+      },
+      content:  { operator: 'any', conditions: [] },
+      decision: { mode: 'block', require_acknowledgement: false, require_justification: false },
+      actions_by_category,
+      coaching_by_category,
+    }
 
-  const notifMap   = new Map((notifications ?? []).map(n => [n.name as string, n.id as string]))
-  const catMap     = (def.npj.coaching_by_category as Record<string, string | null> | undefined) ?? {}
-  const coachingId = catMap.restricted_unassessed
-    ? (notifMap.get(catMap.restricted_unassessed) ?? null)
-    : null
+    const existing   = existingMap.get(policy_key)
+    const isNew      = !existing
+    const npjChanged = isNew || JSON.stringify(existing.neutral_policy_json) !== JSON.stringify(npj)
 
-  const { error } = await supabase
+    const { error } = await supabase.from('org_genai_policies').upsert({
+      org_id:               user.orgId,
+      policy_key,
+      policy_source:        'recommended',
+      matrix_basis:         'default',
+      last_synced_from_matrix_at: now,
+      name:                 'Prohibited GenAI App Block',
+      description:          'Blocks access to all GenAI apps classified as Prohibited.',
+      generated_from:       'recommended',
+      is_active:            isNew ? true : existing.is_active,
+      approval_status:      'approved',
+      policy_family:        'genai_app_access',
+      coaching_template_id: null,
+      neutral_policy_json:  npj,
+      scope_all_apps:       false,
+      scope_app_ids:        [],
+      rules:                [],
+      priority:             10,
+      required_dependencies: [],
+      vendor_translation_status: npjChanged ? 'pending'  : (existing?.vendor_translation_status ?? 'pending'),
+      test_status:               npjChanged ? 'untested' : (existing?.test_status               ?? 'untested'),
+      updated_at: now,
+    }, { onConflict: 'org_id,policy_key' })
+
+    if (error) console.error('[syncRecommendedPolicies] prohibited_app_block:', error.message)
+  }
+
+  revalidatePath('/genai-controls/policies')
+}
+
+// policyId kept for API contract — future optimization could sync only that policy
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function refreshPolicyFromMatrix(policyId: string): Promise<{ error?: string }> {
+  await syncRecommendedPolicies()
+  return {}
+}
+
+export async function duplicatePolicyAsManual(policyId: string): Promise<{ newPolicyId?: string; error?: string }> {
+  const user     = await requireRole('analyst')
+  const supabase = await createClient()
+
+  const { data, error: fetchErr } = await supabase
     .from('org_genai_policies')
-    .update({
-      name:                 def.name,
-      description:          def.description,
-      neutral_policy_json:  def.npj,
-      coaching_template_id: coachingId,
-      is_customized:        false,
-      updated_at:           new Date().toISOString(),
-    })
+    .select('*')
     .eq('id', policyId)
     .eq('org_id', user.orgId)
+    .single()
+
+  if (fetchErr || !data) return { error: fetchErr?.message ?? 'Not found' }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { id: _id, created_at: _ca, updated_at: _ua, ...rest } = data as Record<string, unknown>
+
+  const { data: newRow, error } = await supabase
+    .from('org_genai_policies')
+    .insert({
+      ...rest,
+      org_id:          user.orgId,
+      name:            `Copy of ${String(rest.name ?? '')}`,
+      policy_source:   'manual',
+      policy_key:      null,
+      matrix_basis:    null,
+      last_synced_from_matrix_at: null,
+      is_customized:   false,
+      is_active:       false,
+      approval_status: 'draft',
+      updated_at:      new Date().toISOString(),
+    })
+    .select('id')
+    .single()
 
   if (error) return { error: error.message }
   revalidatePath('/genai-controls/policies')
-  return {}
+  return { newPolicyId: (newRow as { id: string }).id }
 }

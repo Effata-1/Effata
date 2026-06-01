@@ -3,10 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { colorClasses, SYSTEM_LEVEL_META } from '@/lib/data-catalog/types'
+import { colorClasses } from '@/lib/data-catalog/types'
 import {
   VALID_INTENTS, INTENT_LABELS, INTENT_CHIP,
-  VALID_DECISION_MODES,
   ACTIVITY_LABELS, GENAI_ACTIVITIES, APP_ACCESS_ACTIVITIES,
   UI_ACTION_CODES,
   uiActionToNpjMode, uiActionToFlags,

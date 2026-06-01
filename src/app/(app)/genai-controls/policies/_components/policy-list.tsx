@@ -8,7 +8,7 @@ import {
   Pencil, Plus, RotateCcw, Search, Settings, ShieldAlert, ShieldCheck, Sparkles, Trash2, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { deletePolicy, duplicatePolicy, generatePoliciesFromGovernance, getPolicyPackJobStatus, resetPolicyToDefault, togglePolicyActive } from '../actions'
+import { deletePolicy, duplicatePolicy, duplicatePolicyAsManual, generatePoliciesFromGovernance, getPolicyPackJobStatus, refreshPolicyFromMatrix, togglePolicyActive } from '../actions'
 import { PolicyChatPanel } from './policy-chat-panel'
 import type { GenAIPolicy, ApprovalStatus, ActionCode, PolicyRule } from '@/lib/genai/types'
 import { lintAllPolicies, SEVERITY_STYLES, type LintIssue } from '@/lib/genai/lint'
@@ -151,9 +151,8 @@ const FILTER_DEFS: FilterDef[] = [
   {
     key: 'generated_from', label: 'Source',
     staticOptions: [
-      { value: 'predefined',        label: 'Predefined (RF Matrix)' },
-      { value: 'governance-matrix', label: 'Governance Matrix'      },
-      { value: 'manual',            label: 'Manual'                  },
+      { value: 'recommended', label: 'Recommended' },
+      { value: 'manual',      label: 'Manual'       },
     ],
   },
   {
@@ -326,9 +325,9 @@ function DestCell({ policy, apps, categories }: { policy: GenAIPolicy; apps: App
     )
   }
 
-  // Predefined content policies have no app_categories in scope (they apply to all categories
+  // Recommended content policies have no app_categories in scope (they apply to all categories
   // with per-category actions) — show all org categories so the column isn't blank
-  if (policy.policy_source === 'predefined' && categories.length > 0) {
+  if (policy.policy_source === 'recommended' && categories.length > 0) {
     return (
       <div className="flex gap-1 flex-wrap">
         {categories.map(cat => (
@@ -364,7 +363,7 @@ function getNpjActivities(npj: Record<string, unknown>): string[] {
 
 const NPJ_ACT_LABELS: Record<string, string> = {
   browse: 'Browse', login: 'Login', post: 'Post', post_prompt: 'Prompt',
-  upload: 'Upload', download: 'Download', response: 'Response',
+  prompt_submit: 'Prompt', upload: 'Upload', download: 'Download', response: 'Response',
   share: 'Share', copy_paste: 'Copy/Paste', print: 'Print', email_send: 'Email Send',
 }
 
@@ -578,6 +577,7 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
   const [policies, setPolicies]               = useState<GenAIPolicy[]>(initialPolicies)
 
   // Sync local state when server re-renders with fresh data (e.g. after generate)
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setPolicies(initialPolicies) }, [initialPolicies])
   const [filters, setFilters]                 = useState<Map<FilterKey, Set<string>>>(new Map())
   const [filterPickerOpen, setFilterPickerOpen] = useState(false)
@@ -610,10 +610,11 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
     return () => window.removeEventListener('keydown', onKey)
   }, [showNewModal])
 
-  // Hydrate column visibility from localStorage after mount
+  // Hydrate column visibility from localStorage after mount (useEffect required — avoids hydration mismatch)
   useEffect(() => {
     try {
       const saved = localStorage.getItem(LS_COL_KEY)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (saved) setVisibleCols(new Set(JSON.parse(saved) as ColumnId[]))
     } catch { /* ignore */ }
   }, [])
@@ -741,11 +742,15 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
   }
 
   async function handleBulkDelete() {
-    const ids = [...selectedIds]
+    // Recommended policies cannot be deleted (sync recreates them); skip them silently
+    const deletable = [...selectedIds].filter(id => {
+      const p = policies.find(pol => pol.id === id)
+      return p?.policy_source !== 'recommended'
+    })
     setBulkDeleteConfirm(false)
     setSelectedIds(new Set()); setSelectMode(false)
-    setPolicies(ps => ps.filter(p => !ids.includes(p.id)))
-    await Promise.all(ids.map(id => deletePolicy(id)))
+    setPolicies(ps => ps.filter(p => !deletable.includes(p.id)))
+    await Promise.all(deletable.map(id => deletePolicy(id)))
   }
 
   function openBulkAI() {
@@ -759,9 +764,16 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
     setChatOpen(true)
   }
 
-  function handleResetToDefault(id: string) {
-    setPolicies(ps => ps.map(p => p.id === id ? { ...p, is_customized: false } : p))
-    startTransition(async () => { await resetPolicyToDefault(id) })
+  function handleRefreshFromMatrix(id: string) {
+    startTransition(async () => {
+      await refreshPolicyFromMatrix(id)
+      router.refresh()
+    })
+  }
+
+  async function handleDuplicateAsManual(id: string) {
+    const result = await duplicatePolicyAsManual(id)
+    if (result.newPolicyId) router.push(`/genai-controls/policies/${result.newPolicyId}/edit`)
   }
 
   const visible = policies.filter(p => {
@@ -784,8 +796,9 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
           break
         }
         case 'generated_from': {
-          const gf = ((p as unknown as Record<string, unknown>).generated_from as string) ?? 'manual'
-          if (!vals.has(gf)) return false
+          // Filter on policy_source (recommended / manual)
+          const src = p.policy_source ?? 'manual'
+          if (!vals.has(src)) return false
           break
         }
         case 'test_status':
@@ -1447,19 +1460,36 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                       <Link href={`/genai-controls/policies/${policy.id}/edit`} className="group">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <p className="font-semibold text-foreground/90 leading-tight truncate group-hover:text-foreground transition-colors">{policy.name}</p>
-                          {policy.policy_source === 'predefined' && !policy.is_customized && (
-                            <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-blue-500/10 text-blue-400 border-blue-500/20">
-                              Predefined
+                          {/* Type badge */}
+                          {policy.policy_source === 'recommended' ? (
+                            <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                              Recommended
+                            </span>
+                          ) : (
+                            <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-zinc-500/10 text-zinc-400 border-zinc-500/20">
+                              Manual
                             </span>
                           )}
-                          {policy.policy_source === 'predefined' && policy.is_customized && (
+                          {/* Basis badge — only for recommended policies */}
+                          {policy.policy_source === 'recommended' && policy.matrix_basis === 'default' && (
+                            <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-blue-500/10 text-blue-400 border-blue-500/20">
+                              Default Matrix
+                            </span>
+                          )}
+                          {policy.policy_source === 'recommended' && policy.matrix_basis === 'customized' && (
                             <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/20">
-                              Modified
+                              Customized Matrix
                             </span>
                           )}
                         </div>
                         {policy.description && (
                           <p className="text-muted-foreground/50 mt-0.5 truncate text-[10px]">{policy.description}</p>
+                        )}
+                        {/* Last synced — only for recommended policies */}
+                        {policy.policy_source === 'recommended' && policy.last_synced_from_matrix_at && (
+                          <p className="text-[9px] text-muted-foreground/40 mt-0.5">
+                            Synced {new Date(policy.last_synced_from_matrix_at).toLocaleDateString()}
+                          </p>
                         )}
                       </Link>
                     </td>
@@ -1520,66 +1550,98 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                         </button>
                         {openMenuId === policy.id && (
                           <div
-                            className="fixed z-50 bg-card border border-border rounded-lg shadow-xl py-1 min-w-[160px]"
+                            className="fixed z-50 bg-card border border-border rounded-lg shadow-xl py-1 min-w-[180px]"
                             style={{ top: menuPos.top, right: menuPos.right }}
                           >
-                            <Link
-                              href={`/genai-controls/policies/${policy.id}/edit`}
-                              onClick={() => setOpenMenuId(null)}
-                              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
-                            >
-                              <Pencil className="w-3.5 h-3.5 text-muted-foreground/60" />
-                              Edit
-                            </Link>
-                            <button
-                              type="button"
-                              onClick={() => { setOpenMenuId(null); openChat(policy.id) }}
-                              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
-                            >
-                              <MessageSquare className="w-3.5 h-3.5 text-muted-foreground/60" />
-                              Refine with AI
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => { setOpenMenuId(null); duplicatePolicy(policy.id).then(() => router.refresh()) }}
-                              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
-                            >
-                              <Copy className="w-3.5 h-3.5 text-muted-foreground/60" />
-                              Duplicate
-                            </button>
-                            <div className="my-1 border-t border-border/40" />
-                            <button
-                              type="button"
-                              onClick={() => { setOpenMenuId(null); handleToggle(policy.id, policy.is_active) }}
-                              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
-                            >
-                              {policy.is_active
-                                ? <><ShieldAlert className="w-3.5 h-3.5 text-amber-400" />Disable</>
-                                : <><ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />Activate</>
-                              }
-                            </button>
-                            {policy.policy_source === 'predefined' && policy.is_customized && (
+                            {policy.policy_source === 'recommended' ? (
+                              // ── Recommended policy menu (read-only — no Edit, no Delete) ──
                               <>
+                                <Link
+                                  href={`/genai-controls/policies/${policy.id}/edit`}
+                                  onClick={() => setOpenMenuId(null)}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
+                                >
+                                  <Pencil className="w-3.5 h-3.5 text-muted-foreground/60" />
+                                  View
+                                </Link>
                                 <div className="my-1 border-t border-border/40" />
                                 <button
                                   type="button"
-                                  onClick={() => { setOpenMenuId(null); handleResetToDefault(policy.id) }}
-                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-amber-400 hover:bg-amber-500/10 transition-colors"
+                                  onClick={() => { setOpenMenuId(null); handleToggle(policy.id, policy.is_active) }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
                                 >
-                                  <RotateCcw className="w-3.5 h-3.5" />
-                                  Reset to Default
+                                  {policy.is_active
+                                    ? <><ShieldAlert className="w-3.5 h-3.5 text-amber-400" />Disable</>
+                                    : <><ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />Enable</>
+                                  }
+                                </button>
+                                <div className="my-1 border-t border-border/40" />
+                                <button
+                                  type="button"
+                                  onClick={() => { setOpenMenuId(null); handleRefreshFromMatrix(policy.id) }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5 text-muted-foreground/60" />
+                                  Refresh from Matrix
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setOpenMenuId(null); void handleDuplicateAsManual(policy.id) }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
+                                >
+                                  <Copy className="w-3.5 h-3.5 text-muted-foreground/60" />
+                                  Duplicate as Manual
+                                </button>
+                              </>
+                            ) : (
+                              // ── Manual policy menu (full options) ─────────────────────────
+                              <>
+                                <Link
+                                  href={`/genai-controls/policies/${policy.id}/edit`}
+                                  onClick={() => setOpenMenuId(null)}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
+                                >
+                                  <Pencil className="w-3.5 h-3.5 text-muted-foreground/60" />
+                                  Edit
+                                </Link>
+                                <button
+                                  type="button"
+                                  onClick={() => { setOpenMenuId(null); openChat(policy.id) }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
+                                >
+                                  <MessageSquare className="w-3.5 h-3.5 text-muted-foreground/60" />
+                                  Refine with AI
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setOpenMenuId(null); duplicatePolicy(policy.id).then(() => router.refresh()) }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
+                                >
+                                  <Copy className="w-3.5 h-3.5 text-muted-foreground/60" />
+                                  Duplicate
+                                </button>
+                                <div className="my-1 border-t border-border/40" />
+                                <button
+                                  type="button"
+                                  onClick={() => { setOpenMenuId(null); handleToggle(policy.id, policy.is_active) }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-muted/40 transition-colors"
+                                >
+                                  {policy.is_active
+                                    ? <><ShieldAlert className="w-3.5 h-3.5 text-amber-400" />Disable</>
+                                    : <><ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />Enable</>
+                                  }
+                                </button>
+                                <div className="my-1 border-t border-border/40" />
+                                <button
+                                  type="button"
+                                  onClick={() => { setOpenMenuId(null); handleDelete(policy.id, policy.name) }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  Delete
                                 </button>
                               </>
                             )}
-                            <div className="my-1 border-t border-border/40" />
-                            <button
-                              type="button"
-                              onClick={() => { setOpenMenuId(null); handleDelete(policy.id, policy.name) }}
-                              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              Delete
-                            </button>
                           </div>
                         )}
                       </div>

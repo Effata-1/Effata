@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   ChevronLeft, AlertTriangle, CheckCircle2, RefreshCw, Loader2,
-  Lock, ExternalLink, Copy, Check, ChevronDown, ChevronRight, Info,
+  Lock, ExternalLink, Copy, Check, Info,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { colorClasses, SYSTEM_LEVEL_META } from '@/lib/data-catalog/types'
@@ -13,10 +13,11 @@ import {
   upsertPolicy,
   generatePoliciesFromGovernance,
   getPolicyPackJobStatus,
-  logPolicyChangeEvent,
+  refreshPolicyFromMatrix,
+  duplicatePolicyAsManual,
 } from '../../../actions'
-import { upsertControlMatrixCell } from '@/app/(app)/genai-controls/control-matrix/actions'
-import type { ApprovalStatus, ActionCode } from '@/lib/genai/types'
+import { TAG_DISPLAY_NAMES } from '@/lib/genai/control-matrix-rows'
+import type { ApprovalStatus } from '@/lib/genai/types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -136,6 +137,9 @@ export interface PolicyIntentEditorProps {
     policy_key:                string | null
     neutral_policy_hash:       string | null
     updated_at:                string
+    policy_source:             'recommended' | 'manual'
+    matrix_basis:              'default' | 'customized' | null
+    last_synced_from_matrix_at: string | null
   }
   apps:                  AppRow[]
   categories:            CategoryRow[]
@@ -156,10 +160,6 @@ const ACTION_CHIP: Record<string, string> = {
   'coach-ack':  'bg-orange-500/15 text-orange-300 border-orange-500/30',
   'coach-just': 'bg-amber-600/15 text-amber-300 border-amber-600/25',
   block:      'bg-red-500/10 text-red-400 border-red-500/20',
-}
-
-const ACTION_RANK: Record<string, number> = {
-  allow: 0, monitor: 1, alert: 2, coach: 3, 'coach-ack': 4, 'coach-just': 5, block: 6,
 }
 
 const INTENT_CHIP: Record<string, string> = {
@@ -221,10 +221,8 @@ const POLICY_FAMILY_LABELS: Record<string, string> = {
 }
 
 const GENERATED_FROM_LABELS: Record<string, string> = {
-  predefined:          'Predefined (RF Matrix)',
-  'governance-matrix': 'Governance Matrix',
-  'ai-assisted':       'AI Policy Assistant',
-  manual:              'Manual',
+  recommended: 'Recommended',
+  manual:      'Manual',
 }
 
 const RF_DISPLAY_NAMES: Record<string, string> = {
@@ -258,8 +256,6 @@ const NPJ_STATUS_LABELS: Record<string, string> = {
   current: 'Up to date', outdated: 'NPJ Outdated', legacy: 'Legacy', invalid: 'Invalid NPJ',
 }
 
-type ChangeType = 'action' | 'activities' | 'add-data-types' | 'add-customer-label' | 'change-app-scope' | 'add-exception' | 'change-evidence-incident'
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function isValidNpj(npj: unknown): npj is NeutralPolicyJson {
@@ -274,17 +270,6 @@ function npjStatus(npj: unknown, updatedAt: string): 'current' | 'outdated' | 'l
   const generatedAt = (npj as NeutralPolicyJson).provenance?.generated_at
   if (generatedAt && generatedAt < updatedAt) return 'outdated'
   return 'current'
-}
-
-function riskLabel(fromMode: string, toMode: string): { level: string; text: string } {
-  const from = ACTION_RANK[fromMode] ?? 0
-  const to   = ACTION_RANK[toMode]   ?? 0
-  const delta = to - from
-  if (to === 0) return { level: 'high', text: 'Removes DLP protection — all access allowed' }
-  if (from === ACTION_RANK.block && delta < 0) return { level: 'high', text: 'Softens a blocking policy — users may now bypass enforcement' }
-  if (to === ACTION_RANK.block)  return { level: 'high', text: 'Hardens to blocking — may disrupt user workflows' }
-  if (Math.abs(delta) <= 1)      return { level: 'low',  text: 'Minor change — notification level only' }
-  return { level: 'medium', text: 'Changes DLP enforcement behaviour for all users' }
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -389,18 +374,16 @@ function ReadOnlyTooltip({ children, tip }: { children: React.ReactNode; tip: st
 export function PolicyIntentEditor({
   policy,
   apps,
-  categories,
-  classificationLabels,
   coachingTemplates,
   allPolicies,
   translations,
   catalogDataTypes,
 }: PolicyIntentEditorProps) {
-  const router   = useRouter()
-  const npj      = isValidNpj(policy.neutral_policy_json) ? (policy.neutral_policy_json as NeutralPolicyJson) : null
-  const rawNpj   = policy.neutral_policy_json
-  const status   = npjStatus(rawNpj, policy.updated_at)
-  const isGovMatrix = policy.generated_from === 'governance-matrix'
+  const router        = useRouter()
+  const npj           = isValidNpj(policy.neutral_policy_json) ? (policy.neutral_policy_json as NeutralPolicyJson) : null
+  const rawNpj        = policy.neutral_policy_json
+  const status        = npjStatus(rawNpj, policy.updated_at)
+  const isRecommended = policy.policy_source === 'recommended'
 
   // ── form state (safe-field edits) ──────────────────────────────────────────
   const [formName,             setFormName]             = useState(policy.name)
@@ -417,17 +400,8 @@ export function PolicyIntentEditor({
   const [saveSuccess,          setSaveSuccess]          = useState(false)
 
   // ── compile state ──────────────────────────────────────────────────────────
-  const [compiling,      setCompiling]      = useState(false)
-  const [compileJobId,   setCompileJobId]   = useState<string | null>(null)
-  const [compileError,   setCompileError]   = useState('')
-  const [compileSuccess, setCompileSuccess] = useState(false)
-
-  // ── change assistant state ─────────────────────────────────────────────────
-  const [changeType,    setChangeType]    = useState<ChangeType | ''>('')
-  const [proposedAction, setProposedAction] = useState<string>('')
-  const [applying,      setApplying]      = useState(false)
-  const [applyError,    setApplyError]    = useState('')
-  const [applySuccess,  setApplySuccess]  = useState(false)
+  const [compiling,    setCompiling]    = useState(false)
+  const [compileJobId, setCompileJobId] = useState<string | null>(null)
 
   // ── collapsible panels ─────────────────────────────────────────────────────
   const [sourceOpen,    setSourceOpen]    = useState(false)
@@ -435,6 +409,9 @@ export function PolicyIntentEditor({
   const [npjJsonOpen,   setNpjJsonOpen]   = useState(false)
   const [advancedOpen,  setAdvancedOpen]  = useState(false)
   const [jsonCopied,    setJsonCopied]    = useState(false)
+  const [refreshing,    setRefreshing]    = useState(false)
+  const [refreshError,  setRefreshError]  = useState('')
+  const [duplicating,   setDuplicating]   = useState(false)
 
   // ── poll compile job ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -445,19 +422,17 @@ export function PolicyIntentEditor({
         if (s.status === 'completed') {
           clearInterval(interval)
           setCompiling(false)
-          setCompileSuccess(true)
           setCompileJobId(null)
           router.refresh()
         } else if (s.status === 'failed') {
           clearInterval(interval)
           setCompiling(false)
-          setCompileError(s.error ?? 'Compile job failed.')
+          setSaveError(s.error ?? 'Compile job failed.')
         }
       } catch {
-        // auth error (analyst can't poll admin-only endpoint) — stop polling, suggest refresh
+        // auth error (analyst can't poll admin-only endpoint) — stop polling, treat as success
         clearInterval(interval)
         setCompiling(false)
-        setCompileSuccess(true)
         setCompileJobId(null)
       }
     }, 2500)
@@ -465,6 +440,23 @@ export function PolicyIntentEditor({
   }, [compileJobId, compiling, router])
 
   // ── handlers ──────────────────────────────────────────────────────────────
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    setRefreshError('')
+    const res = await refreshPolicyFromMatrix(policy.id)
+    setRefreshing(false)
+    if (res.error) { setRefreshError(res.error); return }
+    router.refresh()
+  }
+
+  async function handleDuplicateAsManual() {
+    setDuplicating(true)
+    const res = await duplicatePolicyAsManual(policy.id)
+    setDuplicating(false)
+    if (res.error) { setSaveError(res.error); return }
+    if (res.newPolicyId) router.push(`/genai-controls/policies/${res.newPolicyId}/edit`)
+  }
 
   async function handleSave() {
     setSaving(true)
@@ -499,11 +491,9 @@ export function PolicyIntentEditor({
 
   async function handleCompile() {
     setCompiling(true)
-    setCompileError('')
-    setCompileSuccess(false)
     const res = await generatePoliciesFromGovernance()
     if (res.error) {
-      setCompileError(res.error)
+      setSaveError(res.error)
       setCompiling(false)
       return
     }
@@ -511,59 +501,7 @@ export function PolicyIntentEditor({
       setCompileJobId(res.jobId)
     } else {
       setCompiling(false)
-      setCompileSuccess(true)
       router.refresh()
-    }
-  }
-
-  async function handleApplyActionChange() {
-    if (!proposedAction) return
-    setApplying(true)
-    setApplyError('')
-
-    const sourceCells = npj?.provenance?.source_cells ?? []
-    const ppCells = sourceCells.filter(c => c.startsWith('pp|'))
-
-    for (const cell of ppCells) {
-      const parts     = cell.split('|')
-      const sysLevel  = parts[1]
-      const catTagOrId = parts[2]
-      const labelId   = classificationLabels.find(l => l.system_level === sysLevel)?.id
-      const categoryId = categories.find(c => c.system_tag === catTagOrId || c.id === catTagOrId)?.id
-      if (!labelId || !categoryId) continue
-      const res = await upsertControlMatrixCell(`pp|${labelId}`, categoryId, proposedAction)
-      if (res.error) {
-        setApplyError(res.error)
-        setApplying(false)
-        return
-      }
-    }
-
-    // Audit log via server action
-    await logPolicyChangeEvent({
-      policyId:       policy.id,
-      changeType:     'action',
-      sourceLayer:    'control_matrix',
-      proposedChange: { from: npj?.decision?.mode ?? null, to: proposedAction },
-      affectedCells:  ppCells,
-      oldHash:        policy.neutral_policy_hash,
-      compileJobId:   null,
-    })
-
-    setApplying(false)
-    setApplySuccess(true)
-    setChangeType('')
-    setProposedAction('')
-
-    // Trigger compile
-    const compileRes = await generatePoliciesFromGovernance()
-    if (compileRes.error) {
-      setCompileError(compileRes.error)
-      return
-    }
-    if (compileRes.jobId) {
-      setCompileJobId(compileRes.jobId)
-      setCompiling(true)
     }
   }
 
@@ -576,12 +514,7 @@ export function PolicyIntentEditor({
   }
 
   // ── computed ──────────────────────────────────────────────────────────────
-  const sourceCells = npj?.provenance?.source_cells ?? []
-  const ppCells     = sourceCells.filter(c => c.startsWith('pp|'))
   const verifiedTranslations = translations.filter(t => t.status === 'verified').length
-  const risk = proposedAction && npj?.decision?.mode
-    ? riskLabel(npj.decision.mode, proposedAction)
-    : null
 
   function toggleAppId(appId: string) {
     setFormAppIds(ids =>
@@ -684,6 +617,52 @@ export function PolicyIntentEditor({
           </div>
         </div>
       </div>
+
+      {/* ── Recommended Policy Banner ────────────────────────────────────── */}
+      {isRecommended && (
+        <div className="rounded-xl border border-blue-500/25 bg-blue-500/6 overflow-hidden">
+          <div className="flex items-start justify-between gap-4 px-4 py-3.5">
+            <div className="space-y-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-semibold text-foreground">Recommended Policy</span>
+                {policy.matrix_basis === 'default' && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-blue-500/30 bg-blue-500/10 text-[10px] font-medium text-blue-400">Default Matrix</span>
+                )}
+                {policy.matrix_basis === 'customized' && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-amber-500/30 bg-amber-500/10 text-[10px] font-medium text-amber-400">Customized Matrix</span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground/60">
+                This policy is managed by the Control Matrix and updated automatically when you change detection settings.
+                {policy.last_synced_from_matrix_at && (
+                  <> Last synced {new Date(policy.last_synced_from_matrix_at).toLocaleString()}.</>
+                )}
+              </p>
+              {refreshError && <p className="text-xs text-red-400 mt-1">{refreshError}</p>}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 text-xs font-medium text-blue-400 hover:bg-blue-500/15 transition-colors disabled:opacity-50"
+              >
+                {refreshing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                Refresh from Matrix
+              </button>
+              <button
+                type="button"
+                onClick={handleDuplicateAsManual}
+                disabled={duplicating}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/30 text-xs font-medium text-muted-foreground/70 hover:bg-muted/50 hover:text-foreground/80 transition-colors disabled:opacity-50"
+              >
+                {duplicating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Copy className="h-3 w-3" />}
+                Duplicate as Manual
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Logic Warnings ───────────────────────────────────────────────── */}
       {warnings.length > 0 && (
@@ -814,18 +793,25 @@ export function PolicyIntentEditor({
         </button>
         {sourceOpen && (
           <div className="border-t border-border divide-y divide-border/40">
-            <NpjRow label="Generated From">
-              <span className="text-xs text-foreground/80">{isGovMatrix ? 'Governance Matrix' : policy.generated_from ?? '—'}</span>
+            <NpjRow label="Source">
+              <span className="text-xs text-foreground/80">{isRecommended ? 'Recommended (Control Matrix)' : 'Manual'}</span>
             </NpjRow>
-            {isGovMatrix && (
+            {isRecommended && (
               <>
                 <NpjRow label="Decision Source"><span className="text-xs text-foreground/80">Control Matrix</span></NpjRow>
                 <NpjRow label="Detection Source"><span className="text-xs text-foreground/80">Data Catalog</span></NpjRow>
                 <NpjRow label="App Categories"><span className="text-xs text-foreground/80">App Governance</span></NpjRow>
-                <NpjRow label="Label Detection"><span className="text-xs text-foreground/80">Customer Sensitivity Labels</span></NpjRow>
+                <NpjRow label="Matrix Basis">
+                  <span className="text-xs text-foreground/80">{policy.matrix_basis === 'customized' ? 'Customized (org overrides applied)' : 'Default'}</span>
+                </NpjRow>
+                {policy.last_synced_from_matrix_at && (
+                  <NpjRow label="Last Synced">
+                    <span className="text-xs text-muted-foreground/60">{new Date(policy.last_synced_from_matrix_at).toLocaleString()}</span>
+                  </NpjRow>
+                )}
               </>
             )}
-            {!isGovMatrix && (
+            {!isRecommended && (
               <NpjRow label="Note">
                 <span className="text-xs text-muted-foreground/60">Direct edits allowed — this policy is not governed by the Control Matrix.</span>
               </NpjRow>
@@ -842,7 +828,7 @@ export function PolicyIntentEditor({
       {/* ── 4. Scope Section ─────────────────────────────────────────────── */}
       <SectionCard
         title="Scope"
-        tooltip={isGovMatrix ? 'App categories, channels, and activities are compiler-owned. Use Policy Change Assistant to change.' : undefined}
+        tooltip={isRecommended ? 'App categories, channels, and activities are derived from the Control Matrix. Edit detection settings there to change them.' : undefined}
       >
         <div className="space-y-5 px-5 py-4">
           {npj?.scope?.app_categories && npj.scope.app_categories.length > 0 && (
@@ -884,46 +870,48 @@ export function PolicyIntentEditor({
               </div>
             </div>
           )}
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-2">Specific Apps (optional override)</p>
-            <div className="flex flex-wrap gap-1.5">
-              {formAppIds.map(id => {
-                const app = apps.find(a => a.app_id === id)
-                if (!app) return null
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => toggleAppId(id)}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-blue-500/30 bg-blue-500/10 text-xs text-blue-400 hover:bg-blue-500/15 transition-colors"
-                  >
-                    {app.app_name} <span className="text-blue-400/60 hover:text-blue-400">×</span>
-                  </button>
-                )
-              })}
-              {formAppIds.length === 0 && <span className="text-xs text-muted-foreground/40 italic">All apps in category</span>}
+          {!isRecommended && (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-2">Specific Apps (optional override)</p>
+              <div className="flex flex-wrap gap-1.5">
+                {formAppIds.map(id => {
+                  const app = apps.find(a => a.app_id === id)
+                  if (!app) return null
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => toggleAppId(id)}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-blue-500/30 bg-blue-500/10 text-xs text-blue-400 hover:bg-blue-500/15 transition-colors"
+                    >
+                      {app.app_name} <span className="text-blue-400/60 hover:text-blue-400">×</span>
+                    </button>
+                  )
+                })}
+                {formAppIds.length === 0 && <span className="text-xs text-muted-foreground/40 italic">All apps in category</span>}
+              </div>
+              {apps.length > 0 && (
+                <details className="mt-2">
+                  <summary className="text-xs text-muted-foreground/60 cursor-pointer hover:text-muted-foreground/80 transition-colors select-none">
+                    + Add specific app
+                  </summary>
+                  <div className="mt-2 grid grid-cols-2 gap-1 max-h-40 overflow-y-auto border border-border rounded-lg p-2">
+                    {apps.map(app => (
+                      <label key={app.app_id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/30 cursor-pointer text-xs text-foreground/80 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={formAppIds.includes(app.app_id)}
+                          onChange={() => toggleAppId(app.app_id)}
+                          className="accent-blue-500 w-3 h-3"
+                        />
+                        {app.app_name}
+                      </label>
+                    ))}
+                  </div>
+                </details>
+              )}
             </div>
-            {apps.length > 0 && (
-              <details className="mt-2">
-                <summary className="text-xs text-muted-foreground/60 cursor-pointer hover:text-muted-foreground/80 transition-colors select-none">
-                  + Add specific app
-                </summary>
-                <div className="mt-2 grid grid-cols-2 gap-1 max-h-40 overflow-y-auto border border-border rounded-lg p-2">
-                  {apps.map(app => (
-                    <label key={app.app_id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/30 cursor-pointer text-xs text-foreground/80 transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={formAppIds.includes(app.app_id)}
-                        onChange={() => toggleAppId(app.app_id)}
-                        className="accent-blue-500 w-3 h-3"
-                      />
-                      {app.app_name}
-                    </label>
-                  ))}
-                </div>
-              </details>
-            )}
-          </div>
+          )}
           {(policy.identity_context ?? []).length > 0 && (
             <div>
               <p className="text-xs font-medium text-muted-foreground/60 mb-2 flex items-center gap-1">
@@ -942,8 +930,8 @@ export function PolicyIntentEditor({
       {/* ── 5. Detection Section ─────────────────────────────────────────── */}
       <SectionCard
         title="Detection"
-        readOnly={isGovMatrix}
-        tooltip={isGovMatrix ? 'Detection conditions are generated from your Data Catalog and Customer Labels. Use Policy Change Assistant to change.' : undefined}
+        readOnly={isRecommended}
+        tooltip={isRecommended ? 'Detection conditions are generated from your Data Catalog and Customer Labels.' : undefined}
       >
         {npj?.content?.conditions && npj.content.conditions.length > 0 ? (
           <div className="space-y-2 px-5 py-4">
@@ -1037,8 +1025,8 @@ export function PolicyIntentEditor({
       {/* ── 6. Decision Section ──────────────────────────────────────────── */}
       <SectionCard
         title="Decision"
-        readOnly={isGovMatrix}
-        tooltip={isGovMatrix ? 'Decision is governed by the Control Matrix. Use Policy Change Assistant below to propose a change.' : undefined}
+        readOnly={isRecommended}
+        tooltip={isRecommended ? 'Decision is governed by the Control Matrix. Change detection settings in the Control Matrix to update.' : undefined}
       >
         <div className="px-5 py-4 space-y-4">
           {npj?.decision ? (
@@ -1056,7 +1044,8 @@ export function PolicyIntentEditor({
             <select
               value={formCoachTemplate}
               onChange={e => setFormCoachTemplate(e.target.value)}
-              className="block w-full max-w-xs rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong"
+              disabled={isRecommended}
+              className="block w-full max-w-xs rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="">None</option>
               {coachingTemplates.map(t => (
@@ -1070,8 +1059,8 @@ export function PolicyIntentEditor({
       {/* ── 7. Exceptions Section ────────────────────────────────────────── */}
       <SectionCard
         title="Exceptions"
-        readOnly={isGovMatrix}
-        tooltip={isGovMatrix ? 'Exceptions are compiler-managed. Use Policy Change Assistant to propose an exception.' : undefined}
+        readOnly={isRecommended}
+        tooltip={isRecommended ? 'Exceptions are not applicable to Recommended policies.' : undefined}
       >
         {npj?.exceptions && npj.exceptions.length > 0 ? (
           <div className="px-5 py-4 space-y-2">
@@ -1083,193 +1072,57 @@ export function PolicyIntentEditor({
                 <span className="text-xs text-foreground/75">{ex.reason}</span>
               </div>
             ))}
-            {isGovMatrix && <p className="text-[10px] text-muted-foreground/40 mt-2">Exceptions are compiler-managed. Use Policy Change Assistant to propose an exception.</p>}
           </div>
         ) : (
           <p className="px-5 py-4 text-xs text-muted-foreground/40 italic">None — no exceptions configured.</p>
         )}
       </SectionCard>
 
-      {/* ── 8. Policy Change Assistant ──────────────────────────────────── */}
-      {isGovMatrix && (
-        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 overflow-hidden">
-          <div className="px-4 py-3 border-b border-blue-500/15 bg-blue-500/8">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-foreground">Policy Change Assistant</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-md border border-blue-500/30 bg-blue-500/10 text-blue-400">Governance Matrix</span>
+      {/* ── 8. Per-Category Actions (Recommended policies only) ──────────── */}
+      {isRecommended && (() => {
+        const actionsByCategory = (rawNpj as Record<string, unknown>)?.actions_by_category as Record<string, string> | undefined
+        const coachingByCategory = (rawNpj as Record<string, unknown>)?.coaching_by_category as Record<string, string | null> | undefined
+        if (!actionsByCategory || Object.keys(actionsByCategory).length === 0) return null
+        return (
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-border/50 bg-muted/5 flex items-center gap-2">
+              <span className="text-sm font-bold text-foreground">Actions by Category</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-md border border-blue-500/25 bg-blue-500/8 text-blue-400 font-medium">Control Matrix</span>
             </div>
-            <p className="text-xs text-muted-foreground/60 mt-0.5">Changes route to the correct source layer. The compiler regenerates this policy automatically.</p>
-          </div>
-          <div className="px-4 py-4 space-y-4">
-            {applySuccess && (
-              <div className="flex items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/8 px-3 py-2 text-xs text-emerald-400">
-                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                Change applied — compiler is regenerating this policy.
-              </div>
-            )}
-            {compileSuccess && !compiling && (
-              <div className="flex items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/8 px-3 py-2 text-xs text-emerald-400">
-                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                Policies regenerated. Refresh to see updated results.
-              </div>
-            )}
-            {compiling && (
-              <div className="flex items-center gap-2 rounded-lg border border-blue-500/25 bg-blue-500/8 px-3 py-2 text-xs text-blue-400">
-                <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
-                Compiling policies… this may take a few seconds.
-              </div>
-            )}
-            {compileError && (
-              <div className="flex items-center gap-2 rounded-lg border border-red-500/25 bg-red-500/8 px-3 py-2 text-xs text-red-400">
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                {compileError}
-              </div>
-            )}
-
-            {/* Change type selector */}
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 block mb-2">What do you want to change?</label>
-              <div className="flex flex-wrap gap-1.5">
-                {([
-                  { value: 'action',                   label: 'Change Action' },
-                  { value: 'activities',               label: 'Change Activities' },
-                  { value: 'add-data-types',           label: 'Data Types' },
-                  { value: 'add-customer-label',       label: 'Customer Label' },
-                  { value: 'change-app-scope',         label: 'App Category Scope' },
-                  { value: 'add-exception',            label: 'Add Exception' },
-                  { value: 'change-evidence-incident', label: 'Evidence / Incident' },
-                ] as { value: ChangeType; label: string }[]).map(opt => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => { setChangeType(changeType === opt.value ? '' : opt.value); setProposedAction(''); setApplyError(''); setApplySuccess(false) }}
-                    className={cn(
-                      'inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors',
-                      changeType === opt.value
-                        ? 'bg-blue-500/15 border-blue-500/40 text-blue-400'
-                        : 'bg-muted/30 border-border/60 text-muted-foreground/70 hover:bg-muted/50 hover:text-foreground/80',
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Change type: action (inline) */}
-            {changeType === 'action' && (
-              <div className="space-y-3 rounded-lg border border-border bg-card/60 p-3">
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 block mb-2">Select new action</label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(['allow', 'monitor', 'alert', 'coach', 'coach-ack', 'coach-just', 'block'] as ActionCode[]).map(a => (
-                      <button
-                        key={a}
-                        type="button"
-                        onClick={() => setProposedAction(a === proposedAction ? '' : a)}
-                        className={cn(
-                          'inline-flex items-center px-3 py-1 rounded-lg border text-xs font-semibold transition-colors',
-                          proposedAction === a
-                            ? cn(ACTION_CHIP[a] ?? 'bg-muted/50 text-muted-foreground border-border', 'ring-1 ring-offset-1 ring-offset-card', a === 'block' ? 'ring-red-500/40' : a.startsWith('coach') ? 'ring-orange-500/40' : a === 'allow' ? 'ring-emerald-500/40' : 'ring-blue-500/40')
-                            : 'bg-muted/20 border-border/50 text-muted-foreground/60 hover:bg-muted/40 hover:text-foreground/80',
-                        )}
-                      >
-                        {a}
-                      </button>
-                    ))}
+            <div className="divide-y divide-border/40">
+              {Object.entries(actionsByCategory).map(([cat, action]) => (
+                <div key={cat} className="flex items-center justify-between px-5 py-3">
+                  <span className="text-xs text-foreground/70">{TAG_DISPLAY_NAMES[cat] ?? cat.replace(/_/g, ' ')}</span>
+                  <div className="flex items-center gap-2">
+                    <span className={cn('inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-semibold', ACTION_CHIP[action] ?? 'bg-muted/50 text-muted-foreground border-border')}>
+                      {action}
+                    </span>
+                    {coachingByCategory?.[cat] && (() => {
+                      const tpl = coachingTemplates.find(t => t.id === coachingByCategory[cat])
+                      const coachName = tpl?.coach_label ?? tpl?.name ?? 'coaching set'
+                      return <span className="text-[10px] text-muted-foreground/50">{coachName}</span>
+                    })()}
                   </div>
                 </div>
-                {proposedAction && (
-                  <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
-                    <p className="text-xs font-semibold text-foreground/80">Impact Preview</p>
-                    <div className="space-y-1 text-xs text-muted-foreground/70">
-                      {ppCells.length > 0 ? (
-                        <p>✦ {ppCells.length} Control Matrix {ppCells.length === 1 ? 'cell' : 'cells'} will be updated</p>
-                      ) : (
-                        <p className="text-amber-400/70">No source cells found in npj — regenerate policies first to enable matrix-level change.</p>
-                      )}
-                      <p>✦ {translations.length} vendor {translations.length === 1 ? 'translation' : 'translations'} will be marked outdated</p>
-                      {verifiedTranslations > 0 && (
-                        <p className="text-amber-400">⚠ {verifiedTranslations} verified {verifiedTranslations === 1 ? 'translation' : 'translations'} will require re-verification</p>
-                      )}
-                      {risk && (
-                        <p className={risk.level === 'high' ? 'text-red-400' : risk.level === 'medium' ? 'text-amber-400' : 'text-muted-foreground/70'}>
-                          ⚠ Risk: {risk.level.charAt(0).toUpperCase() + risk.level.slice(1)} — {risk.text}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {applyError && (
-                  <p className="text-xs text-red-400">{applyError}</p>
-                )}
-                {ppCells.length > 0 && proposedAction && (
-                  <button
-                    type="button"
-                    onClick={handleApplyActionChange}
-                    disabled={applying || compiling}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-foreground text-background text-xs font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-                  >
-                    {applying ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
-                    Approve & Apply
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Navigate-type changes */}
-            {changeType === 'activities' && (
-              <div className="rounded-lg border border-border bg-card/60 p-3 space-y-2">
-                <p className="text-xs text-foreground/80">Activities are determined by policy family in the compiler. To change the scope of enforcement (e.g. prompt-only → upload-only), the policy family must be changed.</p>
-                <p className="text-xs text-muted-foreground/60">This change type is currently managed via the Control Matrix. Contact your Effata admin to adjust the policy family, then regenerate.</p>
-              </div>
-            )}
-            {changeType === 'add-data-types' && (
-              <div className="rounded-lg border border-border bg-card/60 p-3 space-y-3">
-                <p className="text-xs text-foreground/80">Data types are managed in the Data Catalog. Adding or removing in-scope data types will cause this policy to be recompiled with updated detection conditions.</p>
-                <Link
-                  href="/policies/data-catalog"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted/40 transition-colors"
-                >
-                  <ExternalLink className="h-3 w-3" /> Go to Data Catalog
-                </Link>
-              </div>
-            )}
-            {changeType === 'add-customer-label' && (
-              <div className="rounded-lg border border-border bg-card/60 p-3 space-y-3">
-                <p className="text-xs text-foreground/80">Customer sensitivity labels (MIP, TITUS, etc.) are managed in Sensitivity Labels. Adding a new label will generate a dedicated label-detection policy in the next compile.</p>
-                <Link
-                  href="/genai-controls/sensitivity-labels"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted/40 transition-colors"
-                >
-                  <ExternalLink className="h-3 w-3" /> Go to Sensitivity Labels
-                </Link>
-              </div>
-            )}
-            {changeType === 'change-app-scope' && (
-              <div className="rounded-lg border border-border bg-card/60 p-3 space-y-3">
-                <p className="text-xs text-foreground/80">App category scope is managed in App Governance. Moving an app between categories (e.g. Approved → Restricted) changes which compiled policies apply to it.</p>
-                <Link
-                  href="/genai-controls/app-governance"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted/40 transition-colors"
-                >
-                  <ExternalLink className="h-3 w-3" /> Go to App Governance
-                </Link>
-              </div>
-            )}
-            {changeType === 'add-exception' && (
-              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-400/80 space-y-1">
-                <p className="font-medium">Exception support is planned.</p>
-                <p>Compiler-managed exceptions are on the roadmap. Contact support to discuss workarounds.</p>
-              </div>
-            )}
-            {changeType === 'change-evidence-incident' && (
-              <div className="rounded-lg border border-border bg-card/60 p-3 text-xs text-muted-foreground/70 space-y-1">
-                <p>Evidence and incident flags are currently set by the compiler based on action severity.</p>
-                <p>Support for explicit evidence/incident overrides is planned for a future compiler update. Regenerate policies after any source layer change to apply updated defaults.</p>
-              </div>
-            )}
+              ))}
+            </div>
           </div>
+        )
+      })()}
+
+      {/* ── 8b. Control Matrix link (Recommended) ───────────────────────── */}
+      {isRecommended && (
+        <div className="rounded-xl border border-border bg-card/50 px-4 py-3.5 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-medium text-foreground">Change detection settings</p>
+            <p className="text-[10px] text-muted-foreground/50 mt-0.5">Edit actions in the Control Matrix to update this policy. Changes sync automatically.</p>
+          </div>
+          <Link
+            href="/genai-controls/control-matrix"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/30 text-xs font-medium text-foreground/80 hover:bg-muted/50 transition-colors shrink-0"
+          >
+            <ExternalLink className="h-3 w-3" /> Open Control Matrix
+          </Link>
         </div>
       )}
 
@@ -1455,14 +1308,15 @@ export function PolicyIntentEditor({
 
       {/* Lifecycle (approval, test status) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <SectionCard title="Lifecycle">
+        <SectionCard title="Lifecycle" readOnly={isRecommended}>
           <div className="space-y-4 px-5 py-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground/60 block mb-1.5">Approval Status</label>
               <select
                 value={formApproval}
                 onChange={e => setFormApproval(e.target.value as ApprovalStatus)}
-                className="block w-full rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong"
+                disabled={isRecommended}
+                className="block w-full rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {APPROVAL_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -1472,7 +1326,8 @@ export function PolicyIntentEditor({
               <select
                 value={formTestStatus}
                 onChange={e => setFormTestStatus(e.target.value)}
-                className="block w-full rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong"
+                disabled={isRecommended}
+                className="block w-full rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {TEST_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -1513,7 +1368,7 @@ export function PolicyIntentEditor({
       </div>
 
       {/* Basic Details */}
-      <SectionCard title="Basic Details">
+      <SectionCard title="Basic Details" readOnly={isRecommended}>
         <div className="space-y-3 px-5 py-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             <div>
@@ -1522,13 +1377,14 @@ export function PolicyIntentEditor({
                 type="text"
                 value={formName}
                 onChange={e => setFormName(e.target.value)}
-                className="block w-full rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong"
+                disabled={isRecommended}
+                className="block w-full rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground/60 block mb-1.5">Active</label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={formActive} onChange={e => setFormActive(e.target.checked)} className="accent-blue-500 w-4 h-4" />
+              <label className={cn('flex items-center gap-2', isRecommended ? 'cursor-default' : 'cursor-pointer')}>
+                <input type="checkbox" checked={formActive} onChange={e => setFormActive(e.target.checked)} disabled={isRecommended} className="accent-blue-500 w-4 h-4 disabled:opacity-50" />
                 <span className="text-xs text-foreground/80">{formActive ? 'Enabled' : 'Disabled'}</span>
               </label>
             </div>
@@ -1539,36 +1395,39 @@ export function PolicyIntentEditor({
               value={formDesc}
               onChange={e => setFormDesc(e.target.value)}
               rows={2}
-              className="block w-full rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong resize-none"
+              disabled={isRecommended}
+              className="block w-full rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong resize-none disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
         </div>
       </SectionCard>
 
-      {/* ── Save Section ─────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card px-4 py-3">
-        <div>
-          <p className="text-xs font-medium text-foreground">Save Changes</p>
-          <p className="text-[10px] text-muted-foreground/50 mt-0.5">Saves name, description, active toggle, approval status, test status, coaching template, scope apps, and related policies. Decision changes use the Change Assistant above.</p>
+      {/* ── Save Section — hidden for recommended ────────────────────────── */}
+      {!isRecommended && (
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card px-4 py-3">
+          <div>
+            <p className="text-xs font-medium text-foreground">Save Changes</p>
+            <p className="text-[10px] text-muted-foreground/50 mt-0.5">Saves name, description, active toggle, approval status, test status, coaching template, scope apps, and related policies.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {saveError && <p className="text-xs text-red-400">{saveError}</p>}
+            {saveSuccess && (
+              <span className="flex items-center gap-1 text-xs text-emerald-400">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Saved
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-foreground text-background text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+              Save
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {saveError && <p className="text-xs text-red-400">{saveError}</p>}
-          {saveSuccess && (
-            <span className="flex items-center gap-1 text-xs text-emerald-400">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Saved
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-foreground text-background text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
-          >
-            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-            Save
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* ── 11. Advanced JSON ────────────────────────────────────────────── */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">

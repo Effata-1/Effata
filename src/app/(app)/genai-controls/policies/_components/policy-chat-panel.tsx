@@ -268,7 +268,7 @@ export function PolicyChatPanel({ policies, initialPolicyId, onClose }: Props) {
           {messages.length === 0 && (
             <div className="text-center py-8 space-y-1">
               <p className="text-sm text-muted-foreground">Ask Claude to review, improve, or explain your policies.</p>
-              <p className="text-xs text-muted-foreground/50">Suggested: "Review my prohibited policies" or "Add a policy for source code protection"</p>
+              <p className="text-xs text-muted-foreground/50">Suggested: &quot;Review my prohibited policies&quot; or &quot;Add a policy for source code protection&quot;</p>
             </div>
           )}
           {messages.map((msg, i) => (
