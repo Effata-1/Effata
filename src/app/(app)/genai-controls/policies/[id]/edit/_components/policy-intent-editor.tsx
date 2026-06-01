@@ -775,7 +775,11 @@ export function PolicyIntentEditor({
                     return <Chip key={i} label={RF_DISPLAY_NAMES[c.risk_family] ?? c.risk_family} color="zinc" />
                   }
                 }
-                if (c.type === 'classification_label') return <Chip key={i} label={c.label_name ?? 'label'} color="amber" />
+                if (c.type === 'classification_label') {
+                  if (npj.policy_family === 'genai_filename')
+                    return <Chip key={i} label={`${c.label_name ?? ''} Filename`} color="zinc" />
+                  return <Chip key={i} label={c.label_name ?? 'label'} color="amber" />
+                }
                 if (c.type === 'filename') return <Chip key={i} label="filename pattern" color="blue" />
                 return null
               })}
@@ -1001,16 +1005,24 @@ export function PolicyIntentEditor({
                 {cond.type === 'classification_label' && (
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[10px] font-mono text-muted-foreground/50 uppercase">label</span>
+                      <span className="text-[10px] font-mono text-muted-foreground/50 uppercase">
+                        {npj?.policy_family === 'genai_filename' ? 'filename pattern' : 'label'}
+                      </span>
                       <span className="text-xs font-medium text-foreground/80">{cond.label_name}</span>
                       {cond.label_source && <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-muted/30 text-muted-foreground/60">{cond.label_source}</span>}
                     </div>
-                    <p className="text-xs text-muted-foreground/60">
-                      {cond.metadata_key
-                        ? <span className="font-mono">{cond.metadata_key} = {cond.metadata_value}</span>
-                        : <span className="italic">No key configured</span>
-                      }
-                    </p>
+                    {npj?.policy_family === 'genai_filename' ? (
+                      <p className="text-xs text-muted-foreground/60">
+                        Matches uploads where the filename indicates {cond.label_name?.toLowerCase()} content
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground/60">
+                        {cond.metadata_key
+                          ? <span className="font-mono">{cond.metadata_key} = {cond.metadata_value}</span>
+                          : <span className="italic">No key configured</span>
+                        }
+                      </p>
+                    )}
                     <p className="text-[10px] text-muted-foreground/40 mt-1">Upload only</p>
                   </div>
                 )}
