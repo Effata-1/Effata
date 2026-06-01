@@ -11,7 +11,11 @@ import type { ApprovalStatus, PolicyType, PolicyRule, ActionCode } from '@/lib/g
 import {
   CONTENT_DETECTION_ROWS, RF_KEY, TAG_ALIAS,
   RF_DEFAULTS, RF_COACHING_DEFAULTS,
+  FILENAME_DETECTION_LEVELS, type FilenameDetectionLevel,
+  UL_FN_DEFAULTS, UL_FN_COACHING_DEFAULTS,
+  UL_DC_DEFAULTS,
 } from '@/lib/genai/control-matrix-rows'
+import { ensureClassificationLabels } from '@/lib/data-catalog/actions'
 
 function sortedStringify(obj: unknown): string {
   if (obj === null || typeof obj !== 'object') return JSON.stringify(obj)
@@ -492,6 +496,38 @@ export async function applyPolicyDiff(diff: {
 
 // ── Recommended policy sync ───────────────────────────────────────────────────
 
+// Base name per risk family — suffix is computed dynamically from live actions
+const RF_POLICY_BASE: Record<string, string> = {
+  credentials_keys_secrets:     'GenAI - Credential Sharing',
+  regulated_data:               'GenAI - Regulated Data',
+  source_code:                  'GenAI - Source Code',
+  intellectual_property:        'GenAI - Intellectual Property',
+  security_infrastructure_data: 'GenAI - Security Data',
+  customer_employee_data:       'GenAI - Customer & Employee Data',
+  financial_commercial_data:    'GenAI - Financial & Commercial Data',
+  legal_contractual_data:       'GenAI - Legal & Contractual Data',
+  bulk_data:                    'GenAI - Bulk Data',
+  large_file_upload:            'GenAI - Large File Upload',
+  general_usage_reminder:       'GenAI - General Usage',
+  public_low_risk_data:         'GenAI - Public Data',
+}
+
+// Suffix rules:
+//   all block          → Block
+//   all monitor/alert  → Monitor
+//   fixed (reminder)   → Reminder
+//   anything else      → Control
+function computePolicySuffix(rfKey: string, actions: Record<string, string>): string {
+  if (rfKey === 'general_usage_reminder') return 'Reminder'
+  const vals = Object.values(actions).map(a =>
+    a === 'coach-ack' || a === 'coach-just' ? 'coach' : a,
+  )
+  if (vals.length === 0)                                      return 'Control'
+  if (vals.every(a => a === 'block'))                         return 'Block'
+  if (vals.every(a => a === 'monitor' || a === 'alert'))      return 'Monitor'
+  return 'Control'
+}
+
 function buildOverrideMap(overrides: { data_type: string; category_id: string; action_code: string; coaching_notification_id: string | null }[]) {
   return new Map(overrides.map(o => [`${o.data_type}::${o.category_id}`, o]))
 }
@@ -515,11 +551,19 @@ export async function syncRecommendedPolicies(): Promise<void> {
   const user     = await requireRole('analyst')
   const supabase = await createClient()
 
+  // Ensure system classification labels are seeded before parallel fetch
+  // (first-time orgs may not have visited the Control Matrix yet)
+  const allClassificationLabels = await ensureClassificationLabels()
+  const filenameLabels = allClassificationLabels.filter(
+    l => l.system_level && FILENAME_DETECTION_LEVELS.includes(l.system_level as FilenameDetectionLevel),
+  )
+
   const [
     { data: overrides },
     { data: categories },
     { data: notifications },
     { data: existingPolicies },
+    { data: customerLabels },
   ] = await Promise.all([
     supabase.from('org_control_matrix_overrides')
       .select('data_type, category_id, action_code, coaching_notification_id')
@@ -532,6 +576,11 @@ export async function syncRecommendedPolicies(): Promise<void> {
       .select('policy_key, is_active, neutral_policy_json, vendor_translation_status, test_status')
       .eq('org_id', user.orgId)
       .eq('policy_source', 'recommended'),
+    supabase.from('org_customer_sensitivity_labels')
+      .select('id, display_name, system_level')
+      .eq('org_id', user.orgId)
+      .eq('active', true)
+      .order('priority'),
   ])
 
   const existingMap = new Map(
@@ -608,7 +657,7 @@ export async function syncRecommendedPolicies(): Promise<void> {
       policy_source:        'recommended',
       matrix_basis,
       last_synced_from_matrix_at: now,
-      name:                 `${rowLabel} Policy`,
+      name:                 `${RF_POLICY_BASE[rfKey] ?? `GenAI - ${rowLabel}`} ${computePolicySuffix(rfKey, actions_by_category)}`,
       description:          `Detects and enforces controls for ${rowLabel} data across all GenAI apps.`,
       generated_from:       'recommended',
       is_active:            isNew ? true : existing.is_active,
@@ -629,7 +678,160 @@ export async function syncRecommendedPolicies(): Promise<void> {
     if (error) console.error(`[syncRecommendedPolicies] ${policy_key}:`, error.message)
   }
 
-  // ── 2. App access block policies — one per category with access_posture === 'block' ──
+  // ── 2. Filename detection (ul_fn) — one policy per system classification level ─
+  for (const lbl of (filenameLabels ?? [])) {
+    if (!lbl.system_level) continue
+    const policy_key = `ul:fn:${lbl.system_level}`
+
+    const actions_by_category:  Record<string, string>       = {}
+    const coaching_by_category: Record<string, string | null> = {}
+    let   hasOverride = false
+
+    for (const cat of categories ?? []) {
+      if ((cat as Record<string, unknown>).access_posture === 'block') continue
+      const tag    = TAG_ALIAS[cat.system_tag ?? ''] ?? cat.system_tag ?? ''
+      const rowKey = `ul|fn|${lbl.id}`
+      const ov     = overrideMap.get(`${rowKey}::${cat.id}`)
+
+      if (ov) {
+        hasOverride = true
+        actions_by_category[tag]  = ov.action_code
+        coaching_by_category[tag] = ov.coaching_notification_id ?? null
+      } else {
+        actions_by_category[tag]  = UL_FN_DEFAULTS[tag]?.[lbl.system_level] ?? 'allow'
+        const coachName = UL_FN_COACHING_DEFAULTS[lbl.system_level] ?? null
+        coaching_by_category[tag] = coachName ? (notifMap.get(coachName) ?? null) : null
+      }
+    }
+
+    const npj = {
+      schema_version: '1.0',
+      intent:         'prevent_exfiltration',
+      policy_family:  'genai_filename',
+      scope: { activities: ['upload'] },
+      content: {
+        operator:   'any',
+        conditions: [{ type: 'classification_label', label_id: lbl.id, label_name: lbl.name, system_level: lbl.system_level }],
+      },
+      decision: {
+        mode:                    computeFallbackMode(actions_by_category),
+        require_acknowledgement: false,
+        require_justification:   false,
+      },
+      actions_by_category,
+      coaching_by_category,
+    }
+
+    const matrix_basis      = (hasOverride ? 'customized' : 'default') as 'default' | 'customized'
+    const defaultCoachingId = Object.values(coaching_by_category).find(v => v != null) ?? null
+    const existing          = existingMap.get(policy_key)
+    const isNew             = !existing
+    const npjChanged        = isNew || JSON.stringify(existing.neutral_policy_json) !== JSON.stringify(npj)
+
+    const { error } = await supabase.from('org_genai_policies').upsert({
+      org_id:               user.orgId,
+      policy_key,
+      policy_source:        'recommended',
+      matrix_basis,
+      last_synced_from_matrix_at: now,
+      name:                 `GenAI - ${lbl.name} Filename ${computePolicySuffix('', actions_by_category)}`,
+      description:          `Controls uploads with ${lbl.name}-classified filename patterns across all GenAI apps.`,
+      generated_from:       'recommended',
+      is_active:            isNew ? true : existing.is_active,
+      approval_status:      'approved',
+      policy_family:        'genai_filename',
+      coaching_template_id: defaultCoachingId,
+      neutral_policy_json:  npj,
+      scope_all_apps:       true,
+      scope_app_ids:        [],
+      rules:                [],
+      priority:             90,
+      required_dependencies: [],
+      vendor_translation_status: npjChanged ? 'pending'  : (existing?.vendor_translation_status ?? 'pending'),
+      test_status:               npjChanged ? 'untested' : (existing?.test_status               ?? 'untested'),
+      updated_at: now,
+    }, { onConflict: 'org_id,policy_key' })
+
+    if (error) console.error(`[syncRecommendedPolicies] ${policy_key}:`, error.message)
+  }
+
+  // ── 3. Data classification label detection (ul_dc) — one policy per customer label ──
+  for (const clbl of (customerLabels ?? [])) {
+    const policy_key = `ul:dc:${clbl.id}`
+
+    const actions_by_category:  Record<string, string>       = {}
+    const coaching_by_category: Record<string, string | null> = {}
+    let   hasOverride = false
+
+    for (const cat of categories ?? []) {
+      if ((cat as Record<string, unknown>).access_posture === 'block') continue
+      const tag    = TAG_ALIAS[cat.system_tag ?? ''] ?? cat.system_tag ?? ''
+      const rowKey = `ul|dc|clabel:${clbl.id}`
+      const ov     = overrideMap.get(`${rowKey}::${cat.id}`)
+
+      if (ov) {
+        hasOverride = true
+        actions_by_category[tag]  = ov.action_code
+        coaching_by_category[tag] = ov.coaching_notification_id ?? null
+      } else {
+        const sysLevel = (clbl as Record<string, unknown>).system_level as string | null ?? ''
+        actions_by_category[tag]  = UL_DC_DEFAULTS[tag]?.[sysLevel] ?? 'allow'
+        coaching_by_category[tag] = null
+      }
+    }
+
+    const npj = {
+      schema_version: '1.0',
+      intent:         'prevent_exfiltration',
+      policy_family:  'genai_label_detection',
+      scope: { activities: ['upload'] },
+      content: {
+        operator:   'any',
+        conditions: [{ type: 'classification_label', label_id: clbl.id, label_name: (clbl as Record<string, unknown>).display_name as string }],
+      },
+      decision: {
+        mode:                    computeFallbackMode(actions_by_category),
+        require_acknowledgement: false,
+        require_justification:   false,
+      },
+      actions_by_category,
+      coaching_by_category,
+    }
+
+    const displayName = (clbl as Record<string, unknown>).display_name as string
+    const matrix_basis = (hasOverride ? 'customized' : 'default') as 'default' | 'customized'
+    const existing     = existingMap.get(policy_key)
+    const isNew        = !existing
+    const npjChanged   = isNew || JSON.stringify(existing.neutral_policy_json) !== JSON.stringify(npj)
+
+    const { error } = await supabase.from('org_genai_policies').upsert({
+      org_id:               user.orgId,
+      policy_key,
+      policy_source:        'recommended',
+      matrix_basis,
+      last_synced_from_matrix_at: now,
+      name:                 `GenAI - ${displayName} Label ${computePolicySuffix('', actions_by_category)}`,
+      description:          `Controls uploads classified as ${displayName} across all GenAI apps.`,
+      generated_from:       'recommended',
+      is_active:            isNew ? true : existing.is_active,
+      approval_status:      'approved',
+      policy_family:        'genai_label_detection',
+      coaching_template_id: null,
+      neutral_policy_json:  npj,
+      scope_all_apps:       true,
+      scope_app_ids:        [],
+      rules:                [],
+      priority:             80,
+      required_dependencies: [],
+      vendor_translation_status: npjChanged ? 'pending'  : (existing?.vendor_translation_status ?? 'pending'),
+      test_status:               npjChanged ? 'untested' : (existing?.test_status               ?? 'untested'),
+      updated_at: now,
+    }, { onConflict: 'org_id,policy_key' })
+
+    if (error) console.error(`[syncRecommendedPolicies] ${policy_key}:`, error.message)
+  }
+
+  // ── 4. App access block policies — one per category with access_posture === 'block' ──
   // Policy key format: rf:{tag}_app_block (e.g. rf:prohibited_app_block for prohibited)
   // This replaces the old hardcoded prohibited-only block — now driven by posture configuration.
   for (const cat of (categories ?? []).filter(c => (c as Record<string, unknown>).access_posture === 'block')) {
@@ -663,7 +865,7 @@ export async function syncRecommendedPolicies(): Promise<void> {
       policy_source:        'recommended',
       matrix_basis:         'default',
       last_synced_from_matrix_at: now,
-      name:                 `${cat.name} App Block`,
+      name:                 `GenAI - ${cat.name} App Block`,
       description:          `Blocks network access to all GenAI apps classified as ${cat.name}.`,
       generated_from:       'recommended',
       is_active:            isNew ? true : existing.is_active,

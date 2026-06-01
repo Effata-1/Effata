@@ -128,6 +128,32 @@ export const RF_DEFAULTS: Record<string, Partial<Record<string, string>>> = {
   },
 }
 
+// ── Filename detection levels — only Highly Confidential and Secret trigger ───
+
+export const FILENAME_DETECTION_LEVELS = ['highly_confidential', 'secret'] as const
+export type FilenameDetectionLevel = typeof FILENAME_DETECTION_LEVELS[number]
+
+// Upload — Filename Detection defaults (internal keys, consistent with RF_DEFAULTS)
+export const UL_FN_DEFAULTS: Record<string, Partial<Record<string, string>>> = {
+  approved_supported:       { highly_confidential: 'allow',     secret: 'allow' },
+  approved_with_conditions: { highly_confidential: 'coach-ack', secret: 'coach-just' },
+  restricted_unassessed:    { highly_confidential: 'block',     secret: 'block' },
+  prohibited:               { highly_confidential: 'block',     secret: 'block' },
+}
+
+export const UL_FN_COACHING_DEFAULTS: Partial<Record<string, string | null>> = {
+  highly_confidential: 'Sensitive File Name Detected',
+  secret:              'Sensitive File Name Detected',
+}
+
+// Upload — Data Classification Label Detection defaults (internal keys)
+export const UL_DC_DEFAULTS: Record<string, Partial<Record<string, string>>> = {
+  approved_supported:       { public: 'allow',   internal: 'monitor', confidential: 'alert',  highly_confidential: 'coach-ack', secret: 'block' },
+  approved_with_conditions: { public: 'allow',   internal: 'monitor', confidential: 'coach',  highly_confidential: 'block',     secret: 'block' },
+  restricted_unassessed:    { public: 'monitor', internal: 'coach',   confidential: 'block',  highly_confidential: 'block',     secret: 'block' },
+  prohibited:               { public: 'block',   internal: 'block',   confidential: 'block',  highly_confidential: 'block',     secret: 'block' },
+}
+
 // ── RF_COACHING_DEFAULTS: default coaching notification name per cell ─────────
 
 export const RF_COACHING_DEFAULTS: Record<string, Partial<Record<string, string | null>>> = {

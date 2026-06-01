@@ -98,6 +98,14 @@ const VENDOR_LABELS: Record<string, string> = {
   'not-applicable': 'N/A',
 }
 
+const POLICY_FAMILY_LABELS: Record<string, string> = {
+  genai_content_detection: 'Content Detection',
+  genai_app_access:        'App Access',
+  genai_label_detection:   'Label Detection',
+  genai_filename:          'Filename Detection',
+  saas_data_protection:    'SaaS Data Protection',
+}
+
 type ColumnId = 'source' | 'destination' | 'data' | 'activities' | 'family' | 'test' | 'vendor'
 
 const COLUMN_DEFS: { id: ColumnId; label: string }[] = [
@@ -676,7 +684,7 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
     if (key === 'category') return categories.map(c => ({ value: c.id, label: c.name }))
     if (key === 'family') {
       const families = [...new Set(policies.map(p => p.policy_family).filter((f): f is string => Boolean(f)))]
-      return families.map(f => ({ value: f, label: f }))
+      return families.map(f => ({ value: f, label: POLICY_FAMILY_LABELS[f] ?? f }))
     }
     return []
   }
