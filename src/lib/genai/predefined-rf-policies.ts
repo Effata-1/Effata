@@ -222,7 +222,7 @@ export const PREDEFINED_RF_POLICIES: PredefinedRFPolicy[] = [
   {
     policy_key:  'rf:public_low_risk_data',
     name:        'GenAI - Public & Low-Risk Data Control',
-    description: 'Allows for approved apps; prompts acknowledgement for restricted; blocks for prohibited.',
+    description: 'Allows for approved and restricted apps; blocks for prohibited.',
     risk_family: 'Public & Low-Risk Data',
     rfKey:       'public_low_risk_data',
     npj: {
@@ -234,11 +234,11 @@ export const PREDEFINED_RF_POLICIES: PredefinedRFPolicy[] = [
       decision: { mode: 'coach', require_acknowledgement: true, require_justification: false },
       actions_by_category: {
         approved_supported: 'allow', approved_with_conditions: 'allow',
-        restricted_unassessed: 'coach-ack', prohibited: 'block',
+        restricted_unassessed: 'allow', prohibited: 'block',
       },
       coaching_by_category: {
         approved_supported: null, approved_with_conditions: null,
-        restricted_unassessed: 'GenAI Usage Reminder', prohibited: 'GenAI Application Blocked',
+        restricted_unassessed: null, prohibited: 'GenAI Application Blocked',
       },
     },
   },
