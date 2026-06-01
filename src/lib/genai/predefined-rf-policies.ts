@@ -130,7 +130,7 @@ export const PREDEFINED_RF_POLICIES: PredefinedRFPolicy[] = [
   {
     policy_key:  'rf:customer_employee_data',
     name:        'GenAI - Customer & Employee Data Control',
-    description: 'Alerts for approved apps, requires justification for conditional apps, blocks for restricted and prohibited.',
+    description: 'Allows for approved apps; requires justification for conditional apps; blocks for restricted and prohibited.',
     risk_family: 'Customer & Employee Data',
     rfKey:       'customer_employee_data',
     npj: {
@@ -141,7 +141,7 @@ export const PREDEFINED_RF_POLICIES: PredefinedRFPolicy[] = [
       content: { operator: 'any', conditions: [{ type: 'data_type', risk_family: 'customer_employee_data' }] },
       decision: { mode: 'block', require_acknowledgement: false, require_justification: false },
       actions_by_category: {
-        approved_supported: 'alert', approved_with_conditions: 'coach-just',
+        approved_supported: 'allow', approved_with_conditions: 'coach-just',
         restricted_unassessed: 'block', prohibited: 'block',
       },
       coaching_by_category: {
@@ -153,7 +153,7 @@ export const PREDEFINED_RF_POLICIES: PredefinedRFPolicy[] = [
   {
     policy_key:  'rf:financial_commercial_data',
     name:        'GenAI - Financial & Commercial Data Control',
-    description: 'Alerts for approved apps, requires justification for conditional apps, blocks for restricted and prohibited.',
+    description: 'Allows for approved apps; requires justification for conditional apps; blocks for restricted and prohibited.',
     risk_family: 'Financial & Commercial Data',
     rfKey:       'financial_commercial_data',
     npj: {
@@ -164,7 +164,7 @@ export const PREDEFINED_RF_POLICIES: PredefinedRFPolicy[] = [
       content: { operator: 'any', conditions: [{ type: 'data_type', risk_family: 'financial_commercial_data' }] },
       decision: { mode: 'block', require_acknowledgement: false, require_justification: false },
       actions_by_category: {
-        approved_supported: 'alert', approved_with_conditions: 'coach-just',
+        approved_supported: 'allow', approved_with_conditions: 'coach-just',
         restricted_unassessed: 'block', prohibited: 'block',
       },
       coaching_by_category: {
@@ -176,7 +176,7 @@ export const PREDEFINED_RF_POLICIES: PredefinedRFPolicy[] = [
   {
     policy_key:  'rf:legal_contractual_data',
     name:        'GenAI - Legal & Contractual Data Control',
-    description: 'Alerts for approved apps, requires justification for conditional apps, blocks for restricted and prohibited.',
+    description: 'Allows for approved apps; requires justification for conditional apps; blocks for restricted and prohibited.',
     risk_family: 'Legal & Contractual Data',
     rfKey:       'legal_contractual_data',
     npj: {
@@ -187,7 +187,7 @@ export const PREDEFINED_RF_POLICIES: PredefinedRFPolicy[] = [
       content: { operator: 'any', conditions: [{ type: 'data_type', risk_family: 'legal_contractual_data' }] },
       decision: { mode: 'block', require_acknowledgement: false, require_justification: false },
       actions_by_category: {
-        approved_supported: 'alert', approved_with_conditions: 'coach-just',
+        approved_supported: 'allow', approved_with_conditions: 'coach-just',
         restricted_unassessed: 'block', prohibited: 'block',
       },
       coaching_by_category: {
@@ -199,7 +199,7 @@ export const PREDEFINED_RF_POLICIES: PredefinedRFPolicy[] = [
   {
     policy_key:  'rf:security_infrastructure_data',
     name:        'GenAI - Security & Infrastructure Data Control',
-    description: 'Requires justification for approved apps; blocks for conditional, restricted, and prohibited.',
+    description: 'Allows for approved apps; blocks for conditional, restricted, and prohibited.',
     risk_family: 'Security & Infrastructure Data',
     rfKey:       'security_infrastructure_data',
     npj: {
@@ -210,11 +210,11 @@ export const PREDEFINED_RF_POLICIES: PredefinedRFPolicy[] = [
       content: { operator: 'any', conditions: [{ type: 'data_type', risk_family: 'security_infrastructure_data' }] },
       decision: { mode: 'block', require_acknowledgement: false, require_justification: false },
       actions_by_category: {
-        approved_supported: 'coach-just', approved_with_conditions: 'block',
+        approved_supported: 'allow', approved_with_conditions: 'block',
         restricted_unassessed: 'block', prohibited: 'block',
       },
       coaching_by_category: {
-        approved_supported: 'Sensitive Data Blocked', approved_with_conditions: 'Sensitive Data Blocked',
+        approved_supported: null, approved_with_conditions: 'Sensitive Data Blocked',
         restricted_unassessed: 'Sensitive Data Blocked', prohibited: 'GenAI Application Blocked',
       },
     },
@@ -245,7 +245,7 @@ export const PREDEFINED_RF_POLICIES: PredefinedRFPolicy[] = [
   {
     policy_key:  'rf:bulk_data',
     name:        'GenAI - Bulk Data / Large Dataset Control',
-    description: 'Requires justification for approved apps; blocks for conditional, restricted, and prohibited.',
+    description: 'Allows bulk data sharing for approved apps; blocks for conditional, restricted, and prohibited.',
     risk_family: 'Bulk Data / Large Dataset',
     rfKey:       'bulk_data',
     npj: {
@@ -256,11 +256,11 @@ export const PREDEFINED_RF_POLICIES: PredefinedRFPolicy[] = [
       content: { operator: 'any', conditions: [{ type: 'data_type', risk_family: 'bulk_data' }] },
       decision: { mode: 'block', require_acknowledgement: false, require_justification: false },
       actions_by_category: {
-        approved_supported: 'coach-just', approved_with_conditions: 'block',
+        approved_supported: 'allow', approved_with_conditions: 'block',
         restricted_unassessed: 'block', prohibited: 'block',
       },
       coaching_by_category: {
-        approved_supported: 'Bulk Data Sharing Detected', approved_with_conditions: 'Bulk Data Sharing Detected',
+        approved_supported: null, approved_with_conditions: 'Bulk Data Sharing Detected',
         restricted_unassessed: 'Bulk Data Sharing Detected', prohibited: 'GenAI Application Blocked',
       },
     },
@@ -268,7 +268,7 @@ export const PREDEFINED_RF_POLICIES: PredefinedRFPolicy[] = [
   {
     policy_key:  'rf:large_file_upload',
     name:        'GenAI - Large File Upload Block',
-    description: 'Blocks files exceeding size thresholds from being uploaded to any GenAI app.',
+    description: 'Allows large file uploads for approved apps; blocks for conditional, restricted, and prohibited.',
     risk_family: 'Large File Upload',
     rfKey:       'large_file_upload',
     npj: {
@@ -279,11 +279,11 @@ export const PREDEFINED_RF_POLICIES: PredefinedRFPolicy[] = [
       content: { operator: 'any', conditions: [{ type: 'data_type', risk_family: 'large_file_upload' }] },
       decision: { mode: 'block', require_acknowledgement: false, require_justification: false },
       actions_by_category: {
-        approved_supported: 'block', approved_with_conditions: 'block',
+        approved_supported: 'allow', approved_with_conditions: 'block',
         restricted_unassessed: 'block', prohibited: 'block',
       },
       coaching_by_category: {
-        approved_supported: 'Large File Upload Blocked', approved_with_conditions: 'Large File Upload Blocked',
+        approved_supported: null, approved_with_conditions: 'Large File Upload Blocked',
         restricted_unassessed: 'Large File Upload Blocked', prohibited: 'GenAI Application Blocked',
       },
     },
@@ -291,7 +291,7 @@ export const PREDEFINED_RF_POLICIES: PredefinedRFPolicy[] = [
   {
     policy_key:  'rf:general_usage_reminder',
     name:        'GenAI - General Usage Reminder',
-    description: 'Monitors for approved apps, coaches with acknowledgement for conditional and restricted, blocks for prohibited.',
+    description: 'Allows for approved apps; coaches with acknowledgement for conditional and restricted; blocks for prohibited.',
     risk_family: 'General Usage Reminder',
     rfKey:       'general_usage_reminder',
     npj: {
@@ -302,7 +302,7 @@ export const PREDEFINED_RF_POLICIES: PredefinedRFPolicy[] = [
       content: { operator: 'any', conditions: [] },
       decision: { mode: 'coach', require_acknowledgement: true, require_justification: false },
       actions_by_category: {
-        approved_supported: 'monitor', approved_with_conditions: 'coach-ack',
+        approved_supported: 'allow', approved_with_conditions: 'coach-ack',
         restricted_unassessed: 'coach-ack', prohibited: 'block',
       },
       coaching_by_category: {
