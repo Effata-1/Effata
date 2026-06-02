@@ -948,6 +948,7 @@ export function BlankPolicyWizard({ apps, categories, ruleItems, coachingTemplat
       approval_status:           'draft',
       vendor_translation_status: 'pending',
       generated_from:            'manual',
+      policy_source:             'manual',
       policy_family:             state.policyFamily || null,
       coaching_template_id:      state.coachTemplateId || null,
       scope_app_ids:             [...state.specificAppIds],

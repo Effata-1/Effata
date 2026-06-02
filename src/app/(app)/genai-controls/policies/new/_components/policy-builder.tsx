@@ -1058,6 +1058,7 @@ export function PolicyBuilder({ apps, categories, classifications, identityField
         name:             name.trim(),
         description:      description || undefined,
         policy_type:      'usage',
+        policy_source:    'manual',
         approval_status:  approvalStatus,
         is_active:        isActive,
         scope_all_apps:   selectedAppIds.size === 0,
