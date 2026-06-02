@@ -4,6 +4,7 @@ import { validateNeutralPolicy, isTranslationReady } from '@/lib/genai/npj-schem
 import { extractAlwaysBlockProfiles, transposeNpjs } from '@/lib/genai/netskope/transpose'
 import { buildTopology } from '@/lib/genai/netskope/topology'
 import { LIMITATIONS, INLINE_FILE_SIZE_LIMIT_MB } from '@/lib/genai/netskope/limitations'
+import { TAG_ALIAS } from '@/lib/genai/control-matrix-rows'
 import type { NpjInput } from '@/lib/genai/netskope/transpose'
 import type { SkippedPolicy } from '@/lib/genai/netskope/types'
 import { RecommendationClient } from './_components/recommendation-client'
@@ -139,11 +140,19 @@ export default async function NetskopeRecommendationPage() {
   // ── Step 5–9: Build topology ───────────────────────────────────────────────
   const prohibitedCategory = (categories ?? []).find(c => c.system_tag === 'prohibited') ?? null
 
+  // Build system_tag → display name map so custom category policies get readable names
+  const categoryNameMap: Record<string, string> = Object.fromEntries(
+    (categories ?? [])
+      .filter(c => c.system_tag)
+      .map(c => [TAG_ALIAS[c.system_tag as string] ?? c.system_tag as string, c.name as string])
+  )
+
   const partial = buildTopology({
     buckets,
     alwaysBlockNpjs,
     prohibitedCategory,
     skippedCount: skipped.length,
+    categoryNameMap,
   })
 
   const recommendation = {

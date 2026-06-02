@@ -23,7 +23,8 @@ export interface TransposedProfile {
   coaching_template_id: string | null
 }
 
-export type CategoryBuckets = Record<NetskopeCategory, TransposedProfile[]>
+// The 3 standard keys are always present; additional keys are custom categories.
+export type CategoryBuckets = Record<string, TransposedProfile[]>
 
 // ── Netskope policy types ─────────────────────────────────────────────────────
 

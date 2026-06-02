@@ -64,9 +64,20 @@ export function transposeNpjs(
     const profileType = FAMILY_TO_PROFILE_TYPE[npj.policy_family]
     if (!profileType) continue
 
-    for (const cat of CATEGORIES) {
+    // All categories present in this NPJ (standard + custom). Custom ones are any
+    // key that isn't one of the 3 standard categories and isn't 'prohibited'.
+    const allCats = [
+      ...CATEGORIES,
+      ...Object.keys(npj.actions_by_category).filter(
+        k => !(CATEGORIES as readonly string[]).includes(k) && k !== 'prohibited'
+      ),
+    ]
+
+    for (const cat of allCats) {
       const action = npj.actions_by_category[cat]
       if (!action || action === 'allow') continue
+
+      if (!buckets[cat]) buckets[cat] = []
 
       const profile: TransposedProfile = {
         risk_family_key:      npj.risk_family_key,

@@ -144,10 +144,11 @@ export interface BuildTopologyInput {
   alwaysBlockNpjs:      NpjInput[]
   prohibitedCategory:   { id: string; name: string; system_tag: string } | null
   skippedCount:         number
+  categoryNameMap?:     Record<string, string>  // system_tag → display name for custom categories
 }
 
 export function buildTopology(input: BuildTopologyInput): Omit<NetskopeRecommendation, 'skipped_policies' | 'limitations' | 'inline_file_size_limit_mb'> {
-  const { buckets, alwaysBlockNpjs, prohibitedCategory, skippedCount } = input
+  const { buckets, alwaysBlockNpjs, prohibitedCategory, skippedCount, categoryNameMap = {} } = input
   const policies: NetskopePolicy[] = []
   const issues: RecommendationIssue[] = []
   const whySelected: string[] = []
@@ -273,6 +274,48 @@ export function buildTopology(input: BuildTopologyInput): Omit<NetskopeRecommend
       description: 'Restricted / Unassessed fallback policy has no enforcement profiles. All risk families may be set to Allow for this category.',
       fix:         'Review the Control Matrix restricted_unassessed column. Consider setting sensitive risk families to Block.',
     })
+  }
+
+  // ── Custom category policies (sit between AwC and R/U catch-all) ──────────
+  const STANDARD_CATS = new Set(['approved_supported', 'approved_with_conditions', 'restricted_unassessed'])
+  const customCatKeys = Object.keys(buckets).filter(k => !STANDARD_CATS.has(k))
+  let customPriority = 450
+  for (const catKey of customCatKeys) {
+    const profilesForCat = buckets[catKey] ?? []
+    if (profilesForCat.length === 0) continue
+
+    const catDisplayName = categoryNameMap[catKey]
+      ?? catKey.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+
+    const profiles: NetskopeProfileEntry[] = sortProfiles(
+      profilesForCat.map(p => ({
+        profile:           p.risk_family_label,
+        profile_type:      p.profile_type,
+        profile_action:    p.action,
+        coaching_template: p.coaching_template_id,
+      }))
+    )
+
+    policies.push({
+      priority:    customPriority,
+      policy_key:  `netskope:custom:${catKey}`,
+      name:        `GenAI — ${catDisplayName} — Content Protection`,
+      policy_type: 'realtime_protection',
+      destination: {
+        strategy:        'app_tag',
+        tag_or_category: `${catDisplayName} GenAI`,
+        note:            'Custom CCI app tag — verify this tag exists in your Netskope tenant',
+      },
+      source:          { type: 'all_users', value: null },
+      activities:      ['post', 'upload', 'prompt_submit'],
+      profiles,
+      no_match_action: 'alert',
+      continue_policy_evaluation: buildContinuePolicyEvaluation(profiles),
+      notification:    null,
+    })
+    customPriority += 10
+
+    whySelected.push(`Custom category "${catDisplayName}" has enforcement controls and is included as a dedicated policy before the Restricted / Unassessed catch-all.`)
   }
 
   whySelected.push('Category policies use CCI App Tags for approved categories and Generative AI category as a fallback for Restricted / Unassessed.')

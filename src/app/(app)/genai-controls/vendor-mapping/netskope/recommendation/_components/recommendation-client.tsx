@@ -36,12 +36,13 @@ const PROFILE_TYPE_DOT: Record<NpjProfileType, string> = {
   filetype_detection:   'bg-teal-400',
 }
 
-const PRIORITY_BADGE: Record<number, string> = {
-  100: 'bg-red-500/15 text-red-400 border-red-500/25',
-  200: 'bg-red-500/10 text-red-300/80 border-red-500/15',
-  300: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  400: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  500: 'bg-muted/60 text-muted-foreground/70 border-border/60',
+function priorityBadgeClass(p: number): string {
+  if (p === 100) return 'bg-red-500/15 text-red-400 border-red-500/25'
+  if (p === 200) return 'bg-red-500/10 text-red-300/80 border-red-500/15'
+  if (p === 300) return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+  if (p === 400) return 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+  if (p >= 450 && p < 500) return 'bg-blue-500/10 text-blue-400 border-blue-500/20' // custom categories
+  return 'bg-muted/60 text-muted-foreground/70 border-border/60' // 500 = R/U fallback
 }
 
 const CONFIDENCE_CHIP: Record<string, string> = {
@@ -97,13 +98,14 @@ function NativePolicyCard({ policy }: { policy: NetskopePolicy }) {
   }
   const typesPresent = Object.keys(profilesByType) as NpjProfileType[]
 
-  const policyGroupLabel = `${policy.priority / 100}. ${
-    policy.priority === 100 ? 'Header Policies' :
-    policy.priority === 200 ? 'Global DLP Block' :
-    policy.priority === 300 ? 'Approved Category Policies' :
-    policy.priority === 400 ? 'Conditional Category Policies' :
-    'Fallback Policies'
-  }`
+  const policyGroupLabel = (() => {
+    if (policy.priority === 100) return '1. Header Policies'
+    if (policy.priority === 200) return '2. Global DLP Block'
+    if (policy.priority === 300) return '3. Approved Category Policies'
+    if (policy.priority === 400) return '4. Conditional Category Policies'
+    if (policy.priority >= 450 && policy.priority < 500) return `${policy.priority}. Custom Category Policies`
+    return '5. Fallback Policies'
+  })()
 
   const noMatchText = policy.no_match_action
     ? policy.no_match_action.charAt(0).toUpperCase() + policy.no_match_action.slice(1)
@@ -132,7 +134,7 @@ function NativePolicyCard({ policy }: { policy: NetskopePolicy }) {
       {/* Title bar */}
       <div className="flex items-center justify-between px-6 py-3.5 bg-muted/10 border-b border-border/50">
         <div className="flex items-center gap-2.5">
-          <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-bold', PRIORITY_BADGE[policy.priority] ?? 'bg-muted/50 text-muted-foreground border-border')}>
+          <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-bold', priorityBadgeClass(policy.priority))}>
             P{policy.priority}
           </span>
           <span className="text-sm font-bold text-foreground">{policy.name}</span>
