@@ -6,20 +6,20 @@ import { cn } from '@/lib/utils'
 import { AlertTriangle, CheckCircle2, Info, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
 import type {
   NetskopeRecommendation, NetskopePolicy, NetskopeProfileEntry,
-  NpjProfileType, LimitationEntry, ValidationItem, RecommendationIssue, SkippedPolicy,
+  NpjProfileType, RecommendationIssue,
 } from '@/lib/genai/netskope/types'
 import { FILE_SIZE_LIMIT_SOURCE } from '@/lib/genai/netskope/limitations'
 
 // ── Chips ─────────────────────────────────────────────────────────────────────
 
 const ACTION_CHIP: Record<string, string> = {
-  allow:        'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  monitor:      'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  alert:        'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  coach:        'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  allow:        'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
+  monitor:      'bg-blue-500/15 text-blue-400 border-blue-500/25',
+  alert:        'bg-amber-500/15 text-amber-400 border-amber-500/25',
+  coach:        'bg-orange-500/15 text-orange-400 border-orange-500/25',
   'coach-ack':  'bg-orange-500/15 text-orange-300 border-orange-500/30',
   'coach-just': 'bg-amber-600/15 text-amber-300 border-amber-600/25',
-  block:        'bg-red-500/10 text-red-400 border-red-500/20',
+  block:        'bg-red-500/15 text-red-400 border-red-500/25',
 }
 
 const PROFILE_TYPE_LABEL: Record<NpjProfileType, string> = {
@@ -29,16 +29,16 @@ const PROFILE_TYPE_LABEL: Record<NpjProfileType, string> = {
   filetype_detection:   'Filetype Detection',
 }
 
-const PROFILE_TYPE_COLOR: Record<NpjProfileType, string> = {
-  content_detection:    'text-blue-400',
-  classification_label: 'text-amber-400',
-  filename_detection:   'text-purple-400',
-  filetype_detection:   'text-teal-400',
+const PROFILE_TYPE_DOT: Record<NpjProfileType, string> = {
+  content_detection:    'bg-blue-400',
+  classification_label: 'bg-amber-400',
+  filename_detection:   'bg-purple-400',
+  filetype_detection:   'bg-teal-400',
 }
 
 const PRIORITY_BADGE: Record<number, string> = {
-  100: 'bg-red-500/10 text-red-400 border-red-500/20',
-  200: 'bg-red-500/8 text-red-300/80 border-red-500/15',
+  100: 'bg-red-500/15 text-red-400 border-red-500/25',
+  200: 'bg-red-500/10 text-red-300/80 border-red-500/15',
   300: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   400: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
   500: 'bg-muted/60 text-muted-foreground/70 border-border/60',
@@ -50,155 +50,265 @@ const CONFIDENCE_CHIP: Record<string, string> = {
   low:    'bg-red-500/10 text-red-400 border-red-500/20',
 }
 
-const ISSUE_SEVERITY_ICON = {
+const ISSUE_ICON = {
   error:   <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />,
   warning: <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />,
   info:    <Info className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />,
 }
 
-// ── Helper components ─────────────────────────────────────────────────────────
-
 function ActionChip({ action }: { action: string }) {
   return (
-    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-semibold', ACTION_CHIP[action] ?? 'bg-muted/50 text-muted-foreground border-border')}>
+    <span className={cn('inline-flex items-center px-2.5 py-0.5 rounded-md border text-[11px] font-semibold capitalize', ACTION_CHIP[action] ?? 'bg-muted/50 text-muted-foreground border-border')}>
       {action}
     </span>
   )
 }
 
-function SectionCard({ title, children, accent }: { title: string; children: React.ReactNode; accent?: string }) {
+// ── Netskope-style field row ──────────────────────────────────────────────────
+
+function PolicyRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
-      <div className={cn('px-5 py-3.5 border-b border-border/50', accent ?? 'bg-muted/5')}>
-        <span className="text-sm font-bold text-foreground">{title}</span>
-      </div>
-      <div>{children}</div>
+    <div className="grid grid-cols-[140px_1fr] gap-4 px-6 py-3.5 border-b border-border/30 last:border-0">
+      <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/40 pt-0.5">{label}</span>
+      <div className="min-w-0">{children}</div>
     </div>
   )
 }
 
-// ── Policy stack card ─────────────────────────────────────────────────────────
+function SubField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2 mb-1.5 last:mb-0">
+      <span className="text-xs text-muted-foreground/50 shrink-0 pt-px">{label} =</span>
+      <div className="flex flex-wrap gap-1">{children}</div>
+    </div>
+  )
+}
 
-function PolicyCard({ policy }: { policy: NetskopePolicy }) {
-  const [open, setOpen] = useState(false)
+// ── Netskope-style native policy card ─────────────────────────────────────────
+
+function NativePolicyCard({ policy }: { policy: NetskopePolicy }) {
+  const [implOpen, setImplOpen] = useState(false)
+  const [jsonOpen, setJsonOpen] = useState(false)
 
   const profilesByType: Partial<Record<NpjProfileType, NetskopeProfileEntry[]>> = {}
   for (const p of policy.profiles) {
     if (!profilesByType[p.profile_type]) profilesByType[p.profile_type] = []
     profilesByType[p.profile_type]!.push(p)
   }
+  const typesPresent = Object.keys(profilesByType) as NpjProfileType[]
 
-  const typesPresent = (Object.keys(profilesByType) as NpjProfileType[])
+  const policyGroupLabel = `${policy.priority / 100}. ${
+    policy.priority === 100 ? 'Header Policies' :
+    policy.priority === 200 ? 'Global DLP Block' :
+    policy.priority === 300 ? 'Approved Category Policies' :
+    policy.priority === 400 ? 'Conditional Category Policies' :
+    'Fallback Policies'
+  }`
+
+  const implementNote = policy.policy_type === 'access_control'
+    ? `Create a Real-time Protection policy in Netskope. Set destination to ${policy.destination.strategy === 'app_tag' ? `App Tag: "${policy.destination.tag_or_category}"` : `Category: "${policy.destination.tag_or_category}"`}. Set action to Block. No DLP profile required.`
+    : `Create a Real-time Protection policy in Netskope. Set destination to ${policy.destination.strategy === 'app_tag' ? `App Tag: "${policy.destination.tag_or_category}"` : `Category: "${policy.destination.tag_or_category}"`}. Add the listed DLP profiles with their respective per-profile actions. Set the no-match action to ${policy.no_match_action ?? 'Allow'}.`
+
+  const rawJson = {
+    policy_key:     policy.policy_key,
+    name:           policy.name,
+    priority:       policy.priority,
+    policy_type:    policy.policy_type,
+    destination:    policy.destination,
+    source:         policy.source,
+    activities:     policy.activities,
+    profiles:       policy.profiles,
+    no_match_action: policy.no_match_action,
+    continue_policy_evaluation: policy.continue_policy_evaluation,
+  }
 
   return (
-    <div className="rounded-xl border border-border overflow-hidden">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 px-4 py-3.5 text-left bg-card/50 hover:bg-card/80 transition-colors"
-      >
-        <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-bold shrink-0', PRIORITY_BADGE[policy.priority] ?? 'bg-muted/50 text-muted-foreground border-border')}>
-          P{policy.priority}
-        </span>
-        <div className="flex-1 min-w-0">
-          <span className="text-sm font-semibold text-foreground truncate block">{policy.name}</span>
-          <span className="text-[10px] text-muted-foreground/50">
-            {policy.policy_type === 'access_control' ? 'Access Control' : 'Real-time Protection'}
-            {' · '}{policy.destination.tag_or_category}
+    <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+
+      {/* Title bar */}
+      <div className="flex items-center justify-between px-6 py-3.5 bg-muted/10 border-b border-border/50">
+        <div className="flex items-center gap-2.5">
+          <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-bold', PRIORITY_BADGE[policy.priority] ?? 'bg-muted/50 text-muted-foreground border-border')}>
+            P{policy.priority}
           </span>
+          <span className="text-sm font-bold text-foreground">{policy.name}</span>
         </div>
-        {open ? <ChevronDown className="w-4 h-4 text-muted-foreground/60 shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground/60 shrink-0" />}
-      </button>
+        <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-medium',
+          policy.policy_type === 'access_control'
+            ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+            : 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+        )}>
+          {policy.policy_type === 'access_control' ? 'Access Control' : 'Real-time Protection'}
+        </span>
+      </div>
 
-      {open && (
-        <div className="border-t border-border/50 divide-y divide-border/30">
+      {/* Field rows */}
+      <div className="divide-y divide-border/20">
 
-          {/* Destination + activities */}
-          <div className="px-5 py-3 grid grid-cols-2 gap-4 text-xs">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-1">Destination</p>
-              <p className="text-foreground/70">{policy.destination.tag_or_category}</p>
-              <p className="text-muted-foreground/50">{policy.destination.strategy.replace(/_/g, ' ')}</p>
-              {policy.destination.note && <p className="text-muted-foreground/40 mt-0.5 text-[10px]">{policy.destination.note}</p>}
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-1">Activities</p>
-              <div className="flex flex-wrap gap-1">
-                {policy.activities.map(a => (
-                  <span key={a} className="px-1.5 py-0.5 rounded bg-muted/40 border border-border/50 text-[10px] text-muted-foreground/70 font-mono">{a}</span>
-                ))}
+        <PolicyRow label="Source">
+          <SubField label="User">
+            <span className="text-xs text-foreground/70">{policy.source.value ?? 'All Users'}</span>
+          </SubField>
+        </PolicyRow>
+
+        <PolicyRow label="Destination">
+          <SubField label="Category">
+            <span className="text-xs text-foreground/70">{policy.destination.tag_or_category}</span>
+            {policy.destination.note && (
+              <span className="text-[10px] text-muted-foreground/40 ml-1">({policy.destination.note})</span>
+            )}
+          </SubField>
+          {policy.activities.length > 0 && (
+            <SubField label="Activities">
+              {policy.activities.map(a => (
+                <span key={a} className="px-2 py-0.5 rounded bg-muted/50 border border-border/50 text-[11px] text-foreground/60 font-medium capitalize">
+                  {a.replace(/_/g, ' ')}
+                </span>
+              ))}
+            </SubField>
+          )}
+        </PolicyRow>
+
+        <PolicyRow label="Profile &amp; Action">
+          {policy.profiles.length === 0 ? (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground/50">Action:</span>
+                <ActionChip action={policy.policy_type === 'access_control' ? 'block' : (policy.no_match_action ?? 'allow')} />
               </div>
+              <p className="text-[11px] text-muted-foreground/40 italic">
+                {policy.policy_type === 'access_control'
+                  ? 'No DLP profile — access blocked at app/category level.'
+                  : 'No DLP profile — action applies to all content.'}
+              </p>
             </div>
-          </div>
-
-          {/* DLP profiles grouped by type */}
-          {policy.profiles.length > 0 ? (
-            <div className="px-5 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-2">DLP Profiles</p>
-              <div className="space-y-3">
-                {typesPresent.map(pt => (
-                  <div key={pt}>
-                    <p className={cn('text-[10px] font-semibold mb-1', PROFILE_TYPE_COLOR[pt])}>
+          ) : (
+            <div className="space-y-3">
+              {typesPresent.map(pt => (
+                <div key={pt}>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', PROFILE_TYPE_DOT[pt])} />
+                    <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">
                       {PROFILE_TYPE_LABEL[pt]}
-                    </p>
+                    </span>
+                  </div>
+                  <div className="rounded-lg border border-border/40 overflow-hidden">
                     <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-muted/20 border-b border-border/30">
+                          <th className="px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Profile</th>
+                          <th className="px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 w-32">Action</th>
+                          <th className="px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Coaching</th>
+                        </tr>
+                      </thead>
                       <tbody className="divide-y divide-border/20">
                         {profilesByType[pt]!.map((p, i) => (
-                          <tr key={i}>
-                            <td className="py-1 pr-3 text-foreground/70 w-1/2">{p.profile}</td>
-                            <td className="py-1 pr-3 w-28"><ActionChip action={p.profile_action} /></td>
-                            <td className="py-1 text-muted-foreground/50 text-[10px]">{p.coaching_template ?? '—'}</td>
+                          <tr key={i} className="hover:bg-muted/10">
+                            <td className="px-3 py-2 text-foreground/70">{p.profile}</td>
+                            <td className="px-3 py-2"><ActionChip action={p.profile_action} /></td>
+                            <td className="px-3 py-2 text-muted-foreground/50">{p.coaching_template ?? '—'}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="px-5 py-3">
-              <p className="text-xs text-muted-foreground/40 italic">
-                {policy.policy_type === 'access_control'
-                  ? 'Access control policy — no content inspection profiles.'
-                  : 'No enforcement profiles — all actions are Allow for this category.'}
-              </p>
-            </div>
-          )}
-
-          {/* No-match + continue policy eval */}
-          {policy.no_match_action && (
-            <div className="px-5 py-3 flex items-center gap-3 text-xs">
-              <span className="text-muted-foreground/50 shrink-0">No DLP match:</span>
-              <ActionChip action={policy.no_match_action} />
+                </div>
+              ))}
+              {/* No-match row */}
+              {policy.no_match_action && (
+                <div className="flex items-center gap-2 text-xs pt-1">
+                  <span className="text-muted-foreground/40">No DLP profile match:</span>
+                  <ActionChip action={policy.no_match_action} />
+                </div>
+              )}
             </div>
           )}
-
+          {/* Continue policy evaluation */}
           {policy.continue_policy_evaluation?.recommended && (
-            <div className="px-5 py-3 space-y-1">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Continue Policy Evaluation</p>
-              <p className="text-xs text-blue-400/80">Recommended — {policy.continue_policy_evaluation.applies_when}</p>
-              <p className="text-[10px] text-muted-foreground/50">{policy.continue_policy_evaluation.limitation}</p>
+            <div className="mt-2 rounded-md border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-[11px] text-blue-400/80">
+              Continue Policy Evaluation recommended — {policy.continue_policy_evaluation.applies_when}
             </div>
           )}
+        </PolicyRow>
 
-        </div>
-      )}
+        <PolicyRow label="Policy Name">
+          <p className="text-sm font-semibold text-foreground/80 mb-0.5">{policy.name}</p>
+          <p className="text-[11px] text-muted-foreground/50 mb-1">Group = {policyGroupLabel}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-0.5">Policy Description</p>
+          <p className="text-xs text-muted-foreground/60">
+            {policy.policy_type === 'access_control'
+              ? `Blocks access to ${policy.destination.tag_or_category} apps at the network layer before content inspection.`
+              : `Enforces DLP controls for ${policy.destination.tag_or_category} GenAI apps. No-match action: ${policy.no_match_action ?? 'Allow'}.`
+            }
+          </p>
+        </PolicyRow>
+
+        <PolicyRow label="Status">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="w-2 h-2 rounded-full bg-amber-400/80 shrink-0" />
+            <span className="text-xs font-medium text-amber-400/80">Draft — Not Deployed</span>
+          </div>
+          <p className="text-[11px] text-muted-foreground/50">
+            Configure in Netskope console. Set priority to <span className="font-mono">{policy.priority}</span> when deploying.
+          </p>
+        </PolicyRow>
+
+      </div>
+
+      {/* Expandable sections */}
+      <div className="border-t border-border/30">
+        <button
+          onClick={() => setImplOpen(o => !o)}
+          className="w-full flex items-center gap-2 px-6 py-3 text-left hover:bg-muted/20 transition-colors"
+        >
+          {implOpen ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground/50" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50" />}
+          <span className="text-xs text-muted-foreground/60">How to implement in Netskope</span>
+        </button>
+        {implOpen && (
+          <div className="px-6 pb-4 text-xs text-foreground/60 leading-relaxed border-t border-border/20 pt-3">
+            {implementNote}
+            {policy.continue_policy_evaluation && (
+              <p className="mt-2 text-muted-foreground/50">
+                <strong>Limitation:</strong> {policy.continue_policy_evaluation.limitation}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-border/30">
+        <button
+          onClick={() => setJsonOpen(o => !o)}
+          className="w-full flex items-center gap-2 px-6 py-3 text-left hover:bg-muted/20 transition-colors"
+        >
+          {jsonOpen ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground/50" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50" />}
+          <span className="text-xs text-muted-foreground/60">View raw JSON</span>
+        </button>
+        {jsonOpen && (
+          <div className="px-6 pb-4 border-t border-border/20 pt-3">
+            <pre className="text-[11px] text-muted-foreground/70 bg-muted/30 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-words font-mono border border-border/40">
+              {JSON.stringify(rawJson, null, 2)}
+            </pre>
+          </div>
+        )}
+      </div>
+
     </div>
   )
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
-const TABS = ['Summary', 'Policy Stack', 'Required Objects', 'Limitations'] as const
+const TABS = ['Native Policies', 'Required Objects', 'Limitations'] as const
 type Tab = typeof TABS[number]
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export function RecommendationClient({ recommendation: r }: { recommendation: NetskopeRecommendation }) {
-  const [tab, setTab] = useState<Tab>('Summary')
+  const [tab, setTab] = useState<Tab>('Native Policies')
 
   return (
-    <div className="space-y-5 max-w-5xl">
+    <div className="space-y-5 max-w-4xl">
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
@@ -211,7 +321,7 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
           </Link>
           <h1 className="text-xl font-bold text-foreground">Netskope Policy Recommendation</h1>
           <p className="text-sm text-muted-foreground/60 mt-0.5">
-            Hybrid category-based topology · Generated from {r.recommended_policies.length} policies
+            Hybrid category-based topology · {r.recommended_policies.length} native {r.recommended_policies.length === 1 ? 'policy' : 'policies'}
             {r.is_partial && <span className="ml-2 text-amber-400/80">· Partial</span>}
           </p>
         </div>
@@ -225,12 +335,25 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
         </div>
       </div>
 
-      {/* Issues + skipped policies banners */}
+      {/* Why selected */}
+      <div className="rounded-xl border border-border bg-card/50 px-5 py-3.5">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-2">Why this topology was selected</p>
+        <ul className="space-y-1.5">
+          {r.why_selected.map((w, i) => (
+            <li key={i} className="flex items-start gap-2 text-xs text-foreground/60">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+              {w}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Issues */}
       {r.issues.length > 0 && (
         <div className="space-y-2">
           {r.issues.map(issue => (
             <div key={issue.code} className="flex items-start gap-2.5 rounded-lg border border-amber-500/25 bg-amber-500/8 px-4 py-2.5">
-              {ISSUE_SEVERITY_ICON[issue.severity]}
+              {ISSUE_ICON[issue.severity]}
               <div className="space-y-0.5">
                 <p className="text-xs text-foreground/80">{issue.description}</p>
                 {issue.fix && <p className="text-[10px] text-muted-foreground/60">Fix: {issue.fix}</p>}
@@ -240,15 +363,18 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
         </div>
       )}
 
+      {/* Skipped policies */}
       {r.skipped_policies.length > 0 && (
         <div className="rounded-xl border border-amber-500/25 bg-amber-500/6 px-4 py-3 space-y-1.5">
-          <p className="text-xs font-semibold text-amber-400">{r.skipped_policies.length} {r.skipped_policies.length === 1 ? 'policy was' : 'policies were'} skipped — NPJ not ready</p>
+          <p className="text-xs font-semibold text-amber-400">
+            {r.skipped_policies.length} {r.skipped_policies.length === 1 ? 'policy was' : 'policies were'} skipped — NPJ not ready
+          </p>
           {r.skipped_policies.map(sp => (
             <div key={sp.policy_id} className="flex items-start justify-between gap-3 text-xs">
               <span className="text-foreground/70">{sp.policy_name}</span>
-              <div className="text-right shrink-0">
+              <div className="text-right shrink-0 space-x-1">
                 <span className="text-muted-foreground/50">{sp.reason}</span>
-                <span className="text-muted-foreground/40"> · </span>
+                <span className="text-muted-foreground/30">·</span>
                 <Link
                   href={`/genai-controls/policies/${sp.policy_id}/edit`}
                   className="text-blue-400/70 hover:text-blue-400 transition-colors inline-flex items-center gap-0.5"
@@ -279,29 +405,15 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
         ))}
       </div>
 
-      {/* Tab: Summary */}
-      {tab === 'Summary' && (
-        <SectionCard title="Why this topology was selected">
-          <ul className="px-5 py-4 space-y-2">
-            {r.why_selected.map((w, i) => (
-              <li key={i} className="flex items-start gap-2.5 text-sm text-foreground/70">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                {w}
-              </li>
-            ))}
-          </ul>
-        </SectionCard>
-      )}
-
-      {/* Tab: Policy Stack */}
-      {tab === 'Policy Stack' && (
-        <div className="space-y-3">
+      {/* Tab: Native Policies */}
+      {tab === 'Native Policies' && (
+        <div className="space-y-4">
           {r.recommended_policies.length === 0 ? (
             <div className="rounded-xl border border-border bg-card px-5 py-8 text-center">
               <p className="text-sm text-muted-foreground/60">No valid policies found. Resolve NPJ issues in the Policy Editor before generating a recommendation.</p>
             </div>
           ) : (
-            r.recommended_policies.map(p => <PolicyCard key={p.policy_key} policy={p} />)
+            r.recommended_policies.map(p => <NativePolicyCard key={p.policy_key} policy={p} />)
           )}
         </div>
       )}
@@ -310,28 +422,29 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
       {tab === 'Required Objects' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {([
-            ['DLP Profiles',          r.required_objects.dlp_profiles],
-            ['Classification Labels', r.required_objects.classification_label_profiles],
-            ['Filename Profiles',     r.required_objects.filename_profiles],
-            ['Filetype Profiles',     r.required_objects.filetype_profiles],
-            ['Notification Templates', r.required_objects.notification_templates],
-            ['CCI App Tags',          r.required_objects.cci_app_tags],
-            ['App Categories',        r.required_objects.app_categories],
-            ['Policy Order',          r.required_objects.policy_order],
-          ] as [string, string[]][]).map(([label, items]) => (
-            items.length > 0 ? (
-              <div key={label} className="rounded-xl border border-border bg-card overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-border/50 bg-muted/5">
-                  <span className="text-xs font-semibold text-foreground/70">{label}</span>
-                  <span className="ml-2 text-[10px] text-muted-foreground/40">{items.length}</span>
-                </div>
-                <ul className="px-4 py-2 space-y-1">
-                  {items.map((item, i) => (
-                    <li key={i} className="text-xs text-foreground/60">{item}</li>
-                  ))}
-                </ul>
+            ['DLP Profiles',             r.required_objects.dlp_profiles],
+            ['Classification Labels',    r.required_objects.classification_label_profiles],
+            ['Filename Profiles',        r.required_objects.filename_profiles],
+            ['Filetype Profiles',        r.required_objects.filetype_profiles],
+            ['Notification Templates',   r.required_objects.notification_templates],
+            ['CCI App Tags',             r.required_objects.cci_app_tags],
+            ['App Categories',           r.required_objects.app_categories],
+            ['Policy Order',             r.required_objects.policy_order],
+          ] as [string, string[]][]).filter(([, items]) => items.length > 0).map(([label, items]) => (
+            <div key={label} className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-border/50 bg-muted/5 flex items-center justify-between">
+                <span className="text-xs font-semibold text-foreground/70">{label}</span>
+                <span className="text-[10px] text-muted-foreground/40">{items.length}</span>
               </div>
-            ) : null
+              <ul className="px-4 py-3 space-y-1">
+                {items.map((item, i) => (
+                  <li key={i} className="text-xs text-foreground/60 flex items-start gap-2">
+                    <span className="w-1 h-1 rounded-full bg-muted-foreground/30 shrink-0 mt-1.5" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
         </div>
       )}
@@ -339,24 +452,26 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
       {/* Tab: Limitations */}
       {tab === 'Limitations' && (
         <div className="space-y-5">
-
-          <SectionCard title="Known Limitations & Risk Acceptance">
+          <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+            <div className="px-5 py-3.5 border-b border-border/50 bg-muted/5">
+              <span className="text-sm font-bold text-foreground">Known Limitations &amp; Risk Acceptance</span>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-border/50">
+                  <tr className="border-b border-border/40 bg-muted/10">
                     {['Area', 'Limitation', 'Practical Impact', 'Risk'].map(h => (
                       <th key={h} className="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border/30">
+                <tbody className="divide-y divide-border/20">
                   {r.limitations.map((l, i) => (
-                    <tr key={i}>
-                      <td className="px-4 py-3 font-medium text-foreground/70 whitespace-nowrap">{l.area}</td>
-                      <td className="px-4 py-3 text-muted-foreground/70">{l.limitation}</td>
-                      <td className="px-4 py-3 text-muted-foreground/60">{l.practical_impact}</td>
-                      <td className="px-4 py-3">
+                    <tr key={i} className="hover:bg-muted/5">
+                      <td className="px-4 py-3 font-medium text-foreground/70 whitespace-nowrap align-top">{l.area}</td>
+                      <td className="px-4 py-3 text-muted-foreground/70 align-top">{l.limitation}</td>
+                      <td className="px-4 py-3 text-muted-foreground/60 align-top">{l.practical_impact}</td>
+                      <td className="px-4 py-3 align-top">
                         <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-medium',
                           l.risk_acceptance === 'Known'
                             ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
@@ -370,14 +485,17 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
                 </tbody>
               </table>
             </div>
-            <div className="px-4 py-3 border-t border-border/50 text-[10px] text-muted-foreground/50">
-              Inline inspection file size limit: {r.inline_file_size_limit_mb} MB ({FILE_SIZE_LIMIT_SOURCE.replace(/_/g, ' ')}).
+            <div className="px-4 py-3 border-t border-border/30 text-[11px] text-muted-foreground/50">
+              Inline inspection file size limit: <strong>{r.inline_file_size_limit_mb} MB</strong> ({FILE_SIZE_LIMIT_SOURCE.replace(/_/g, ' ')}).
               Confirm in the customer Netskope tenant before enforcement.
             </div>
-          </SectionCard>
+          </div>
 
-          <SectionCard title="Validation Checklist">
-            <ul className="px-5 py-4 space-y-2">
+          <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+            <div className="px-5 py-3.5 border-b border-border/50 bg-muted/5">
+              <span className="text-sm font-bold text-foreground">Validation Checklist</span>
+            </div>
+            <ul className="px-5 py-4 space-y-2.5">
               {r.validation_checklist.map(item => (
                 <li key={item.id} className="flex items-start gap-2.5 text-xs">
                   <span className={cn('inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 mt-0.5',
@@ -391,8 +509,7 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
                 </li>
               ))}
             </ul>
-          </SectionCard>
-
+          </div>
         </div>
       )}
 

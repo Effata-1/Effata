@@ -10,6 +10,7 @@ const ITEMS = [
   { label: 'Policy Library',     href: '/genai-controls/policies' },
   { label: 'Coaching Templates', href: '/genai-controls/notifications' },
   { label: 'Translation',        href: '/genai-controls/translation' },
+  { label: 'Vendor Mapping',     href: '/genai-controls/vendor-mapping/netskope' },
   { label: 'Presentation',       href: '/genai-controls/presentation' },
 ]
 

@@ -20,7 +20,7 @@ export default async function NetskopeRecommendationPage() {
   const supabase = await createClient()
 
   // ── Step 1: Fetch data in parallel ─────────────────────────────────────────
-  const [{ data: policies, error: policiesError }, { data: categories }] = await Promise.all([
+  const [{ data: policies, error: policiesError }, { data: categories }, { data: coachingTemplates }] = await Promise.all([
     supabase
       .from('org_genai_policies')
       .select('id, name, policy_family, neutral_policy_json')
@@ -33,7 +33,20 @@ export default async function NetskopeRecommendationPage() {
       .select('id, name, system_tag')
       .eq('org_id', user.orgId)
       .eq('active', true),
+    supabase
+      .from('org_coaching_notifications')
+      .select('id, name, coach_label')
+      .eq('org_id', user.orgId)
+      .eq('is_active', true),
   ])
+
+  // UUID → display name map for coaching templates
+  const coachingNameMap = new Map<string, string>(
+    (coachingTemplates ?? []).map(t => [
+      t.id as string,
+      (t.coach_label as string | null) ?? (t.name as string),
+    ])
+  )
 
   if (policiesError) {
     return (
@@ -96,6 +109,17 @@ export default async function NetskopeRecommendationPage() {
       continue
     }
 
+    // Resolve coaching UUID → display name before passing to engine
+    const rawCoaching = npj.coaching_by_category as Record<string, string | null> | undefined
+    const resolvedCoaching: Record<string, string | null> | undefined = rawCoaching
+      ? Object.fromEntries(
+          Object.entries(rawCoaching).map(([cat, id]) => [
+            cat,
+            id ? (coachingNameMap.get(id) ?? id) : null,
+          ])
+        )
+      : undefined
+
     validNpjs.push({
       policy_id:           p.id,
       policy_name:         p.name,
@@ -103,7 +127,7 @@ export default async function NetskopeRecommendationPage() {
       risk_family_key:     rfKey,
       risk_family_label:   rfLabel,
       actions_by_category: abc,
-      coaching_by_category: npj.coaching_by_category as Record<string, string | null> | undefined,
+      coaching_by_category: resolvedCoaching,
     })
   }
 
