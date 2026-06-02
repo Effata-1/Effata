@@ -1127,6 +1127,7 @@ export function PolicyIntentEditor({
               </div>
               <div className="divide-y divide-border/40">
                 {Object.entries(actionsByCategory)
+                  .filter(([cat]) => cat !== '')  // skip null-system_tag categories
                   .sort(([a], [b]) => {
                     const nameA = TAG_DISPLAY_NAMES[a] ?? a
                     const nameB = TAG_DISPLAY_NAMES[b] ?? b
@@ -1141,7 +1142,9 @@ export function PolicyIntentEditor({
                     const coachName = tpl ? (tpl.coach_label ?? tpl.name) : null
                     return (
                       <div key={cat} className="grid grid-cols-[1fr_120px_200px] items-center px-5 py-3">
-                        <span className="text-xs text-foreground/70">{TAG_DISPLAY_NAMES[cat] ?? cat.replace(/_/g, ' ')}</span>
+                        <span className="text-xs text-foreground/70">
+                          {TAG_DISPLAY_NAMES[cat] ?? cat.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                        </span>
                         <span className={cn('inline-flex items-center w-fit px-2.5 py-1 rounded-lg border text-xs font-semibold', ACTION_CHIP[action] ?? 'bg-muted/50 text-muted-foreground border-border')}>
                           {action}
                         </span>

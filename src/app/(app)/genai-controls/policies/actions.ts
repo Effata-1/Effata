@@ -708,6 +708,7 @@ export async function syncRecommendedPolicies(): Promise<void> {
       if ((cat as Record<string, unknown>).access_posture === 'block') continue
 
       const tag    = TAG_ALIAS[cat.system_tag ?? ''] ?? cat.system_tag ?? ''
+      if (!tag) continue // skip categories without a system_tag (misconfigured custom categories)
       const rowKey = `pp|rf:${rfKey}`
       const ov     = overrideMap.get(`${rowKey}::${cat.id}`)
 
@@ -817,6 +818,7 @@ export async function syncRecommendedPolicies(): Promise<void> {
     for (const cat of categories ?? []) {
       if ((cat as Record<string, unknown>).access_posture === 'block') continue
       const tag    = TAG_ALIAS[cat.system_tag ?? ''] ?? cat.system_tag ?? ''
+      if (!tag) continue
       const rowKey = `ul|fn|${lbl.id}`
       const ov     = overrideMap.get(`${rowKey}::${cat.id}`)
 
@@ -922,6 +924,7 @@ export async function syncRecommendedPolicies(): Promise<void> {
     for (const cat of categories ?? []) {
       if ((cat as Record<string, unknown>).access_posture === 'block') continue
       const tag    = TAG_ALIAS[cat.system_tag ?? ''] ?? cat.system_tag ?? ''
+      if (!tag) continue
       const rowKey = `ul|dc|clabel:${clbl.id}`
       const ov     = overrideMap.get(`${rowKey}::${cat.id}`)
 

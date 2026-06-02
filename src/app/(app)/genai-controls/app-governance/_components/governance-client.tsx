@@ -552,7 +552,8 @@ export function GovernanceClient({ categories, appsByCategoryTag, userRole, init
             .filter(cat => {
               const hasApps = (appsByCategoryTag[cat.system_tag ?? cat.id] ?? []).length > 0
               const isProhibited = cat.system_tag === 'prohibited'
-              return hasApps || isProhibited
+              const isCustom = !cat.is_system
+              return hasApps || isProhibited || isCustom
             })
             .map(cat => (
               <CategorySection

@@ -106,9 +106,13 @@ export async function upsertGenAICategory(
       .eq('org_id', user.orgId)
     if (error) return { error: error.message }
   } else {
+    const system_tag = fields.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
     const { error } = await supabase
       .from('org_genai_governance_categories')
-      .insert({ org_id: user.orgId, ...fields, is_system: false })
+      .insert({ org_id: user.orgId, ...fields, is_system: false, system_tag })
     if (error) return { error: error.message }
   }
 
