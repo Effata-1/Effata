@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import { checkNetskopeReadiness } from './_lib/readiness'
@@ -98,6 +99,22 @@ export default async function NetskopeVendorMappingPage() {
           </ul>
         </div>
       )}
+
+      {/* Recommendation engine link */}
+      <div className="flex items-center justify-between rounded-xl border border-border bg-card/50 px-5 py-3.5">
+        <div>
+          <p className="text-sm font-semibold text-foreground">Policy Recommendation Engine</p>
+          <p className="text-xs text-muted-foreground/60 mt-0.5">
+            Generate the recommended Netskope 5-policy hybrid topology from your active control matrix.
+          </p>
+        </div>
+        <Link
+          href="/genai-controls/vendor-mapping/netskope/recommendation"
+          className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-blue-500/30 bg-blue-500/10 text-xs font-medium text-blue-400 hover:bg-blue-500/15 transition-colors"
+        >
+          View Recommendation →
+        </Link>
+      </div>
 
       <NetskopeVendorMappingClient
         mappings={mappings}
