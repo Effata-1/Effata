@@ -221,14 +221,16 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     return UL_DC_DEFAULTS[catTag]?.[clbl.system_level as SystemLevel] ?? null
   }
 
-  function handleAction(rowKey: string, action: ActionCode) {
+  function handleAction(rowKey: string, action: ActionCode, rowDefaultCoachingId: string | null = null) {
     if (!selectedCat) return
     const existingOverride = localOverrides[`${rowKey}::${selectedCat.id}`]
     const rfKey = rowKey.startsWith('pp|rf:') ? rowKey.slice('pp|rf:'.length) : null
 
+    // Resolve current coaching: prefer saved override, then RF default, then row default
+    // (rowDefaultCoachingId covers filename/label rows that have no rfKey)
     const currentCoachingId = existingOverride !== undefined
       ? existingOverride.coachingId
-      : (rfKey ? getRfCoachingDefault(rfKey, selectedCat.system_tag) : null)
+      : (rfKey ? getRfCoachingDefault(rfKey, selectedCat.system_tag) : rowDefaultCoachingId)
 
     // Compute compatible types for the new action
     const compatibleTypes = COMPATIBLE_CONTROL_TYPES[action] ?? []
@@ -279,7 +281,7 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
           <div className={cn('rounded-md border px-3 py-1.5', meta.cell)}>
             <select
               value={effectiveAction}
-              onChange={e => handleAction(rowKey, e.target.value as ActionCode)}
+              onChange={e => handleAction(rowKey, e.target.value as ActionCode, defaultCoachingId)}
               className={cn('w-full appearance-none bg-transparent text-[12px] font-semibold focus:outline-none cursor-pointer', meta.text)}
             >
               {(Object.entries(ACTIONS) as [ActionCode, typeof ACTIONS[ActionCode]][])

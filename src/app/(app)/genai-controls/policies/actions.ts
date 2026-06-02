@@ -16,6 +16,7 @@ import {
   UL_DC_DEFAULTS, UL_DC_COACHING_DEFAULTS,
 } from '@/lib/genai/control-matrix-rows'
 import { ensureClassificationLabels } from '@/lib/data-catalog/actions'
+import { ensureDefaultCoachingTemplates } from '@/app/(app)/genai-controls/notifications/actions'
 import { validateActionTemplate } from '@/lib/genai/coaching-validation'
 import type { ControlType } from '@/lib/genai/types'
 
@@ -592,26 +593,30 @@ function resolveCoachingTemplates(
       }
       continue
     }
-    if (templates[id]) continue
     const tpl = notifById.get(id)
     if (!tpl) {
       warnings.push(`Category '${cat}': coaching template '${id}' not found.`)
       translation_ready = false
       continue
     }
-    // Validate action/template compatibility
+    // Validate action/template compatibility for every category — deduplication is only
+    // for template storage, not validation (two categories can share a template ID but
+    // have different actions, e.g. via manual overrides).
     const check = validateActionTemplate(action ?? 'allow', tpl.control_type as ControlType)
     if (!check.valid) {
       warnings.push(`Category '${cat}': ${check.reason}`)
       translation_ready = false
     }
-    templates[id] = {
-      name:                  tpl.name        as string,
-      coach_label:           (tpl.coach_label as string | null) ?? null,
-      title:                 tpl.title        as string,
-      message:               tpl.message      as string,
-      control_type:          tpl.control_type as string,
-      requires_justification: tpl.control_type === 'coach_justification',
+    // Only store the template object once (avoids duplicate entries)
+    if (!templates[id]) {
+      templates[id] = {
+        name:                  tpl.name        as string,
+        coach_label:           (tpl.coach_label as string | null) ?? null,
+        title:                 tpl.title        as string,
+        message:               tpl.message      as string,
+        control_type:          tpl.control_type as string,
+        requires_justification: tpl.control_type === 'coach_justification',
+      }
     }
   }
   return { templates, warnings, translation_ready }
@@ -638,6 +643,11 @@ function computeTranslationHints(
 export async function syncRecommendedPolicies(): Promise<void> {
   const user     = await requireRole('analyst')
   const supabase = await createClient()
+
+  // Ensure all default coaching templates are seeded before building notifMap.
+  // Without this, new templates added to seeds.ts would resolve to null in notifMap
+  // until the notifications page is visited, marking policies translation_ready: false.
+  await ensureDefaultCoachingTemplates(user.orgId)
 
   // Ensure system classification labels are seeded before parallel fetch
   // (first-time orgs may not have visited the Control Matrix yet)

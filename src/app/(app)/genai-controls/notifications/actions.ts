@@ -4,7 +4,50 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import type { ControlType, CoachingTone } from '@/lib/genai/types'
-import { SEED_BY_KEY } from './_data/seeds'
+import { SEED_DEFAULTS, SEED_BY_KEY } from './_data/seeds'
+
+// Idempotent seed of all default coaching templates for an org.
+// Called at the start of syncRecommendedPolicies so templates are always available
+// without requiring a visit to the notifications page first.
+export async function ensureDefaultCoachingTemplates(orgId: string): Promise<void> {
+  try {
+    const supabase = await createClient()
+
+    const { data: existing } = await supabase
+      .from('org_coaching_notifications')
+      .select('template_key')
+      .eq('org_id', orgId)
+      .not('template_key', 'is', null)
+
+    const existingKeys = new Set((existing ?? []).map((r: { template_key: string | null }) => r.template_key))
+    const missing = SEED_DEFAULTS.filter(t => !existingKeys.has(t.template_key))
+    if (missing.length === 0) return
+
+    const rows = missing.map(t => ({
+      org_id:              orgId,
+      template_key:        t.template_key,
+      name:                t.name,
+      description:         t.description,
+      control_type:        t.control_type,
+      title:               t.title,
+      subtitle:            t.subtitle,
+      message:             t.message,
+      show_exception_line: t.show_exception_line,
+      show_details:        t.show_details,
+      recommended_for:     t.recommended_for,
+      tokens_used:         extractTokens(t.title, t.subtitle, t.message),
+      action_code:         t.action_code,
+      tone:                t.tone,
+      is_default:          true,
+      is_active:           true,
+      updated_at:          new Date().toISOString(),
+    }))
+
+    await supabase.from('org_coaching_notifications').insert(rows)
+  } catch {
+    // Table may not exist yet (migration pending) — fail silently
+  }
+}
 
 export interface NotificationFields {
   name?:                string
