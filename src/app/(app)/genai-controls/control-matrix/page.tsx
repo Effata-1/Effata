@@ -59,12 +59,12 @@ export default async function ControlMatrixPage() {
 
   const { data: notifRows } = await supabase
     .from('org_coaching_notifications')
-    .select('id, name, coach_label')
+    .select('id, name, coach_label, control_type')
     .eq('org_id', user.orgId)
     .eq('is_active', true)
     .order('created_at')
 
-  const notifications = (notifRows ?? []) as { id: string; name: string; coach_label: string | null }[]
+  const notifications = (notifRows ?? []) as { id: string; name: string; coach_label: string | null; control_type: string }[]
 
   return (
     <div className="space-y-6">

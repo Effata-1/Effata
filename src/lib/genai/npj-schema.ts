@@ -112,6 +112,15 @@ export type NpjConditionType = typeof VALID_CONDITION_TYPES[number]
 export const VALID_OPERATORS = ['any', 'all'] as const
 export type NpjOperator = typeof VALID_OPERATORS[number]
 
+// ── translation_ready flag ────────────────────────────────────────────────────
+// Top-level field on NPJ (not inside decision or translation_hints).
+// Set to false by resolveCoachingTemplates if any action/template pair is incompatible.
+// Defaults to true when not present (absence = valid for older NPJ records).
+export function isTranslationReady(npj: Record<string, unknown>): boolean {
+  if ('translation_ready' in npj) return npj.translation_ready !== false
+  return true
+}
+
 // ── Validation ─────────────────────────────────────────────────────────────────
 
 export interface NpjValidationResult {

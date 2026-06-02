@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import { upsertLabel, deleteLabel } from '@/lib/data-catalog/actions'
 import { syncRecommendedPolicies } from '@/app/(app)/genai-controls/policies/actions'
+import { validateActionTemplate } from '@/lib/genai/coaching-validation'
+import type { ControlType } from '@/lib/genai/types'
 
 export async function upsertControlMatrixCell(
   dataType: string,
@@ -14,6 +16,25 @@ export async function upsertControlMatrixCell(
 ): Promise<{ error?: string }> {
   const user = await requireRole('analyst')
   const supabase = await createClient()
+
+  // Pass 1: validate null template — rejects block/coach-ack/coach-just with no template
+  if (!coachingNotificationId) {
+    const check = validateActionTemplate(actionCode, null)
+    if (!check.valid) return { error: check.reason }
+  }
+
+  // Pass 2: validate template compatibility when one is provided
+  if (coachingNotificationId) {
+    const { data: tpl } = await supabase
+      .from('org_coaching_notifications')
+      .select('control_type')
+      .eq('id', coachingNotificationId)
+      .eq('org_id', user.orgId)
+      .maybeSingle()
+    if (!tpl) return { error: 'Coaching template not found or does not belong to this organisation.' }
+    const check = validateActionTemplate(actionCode, tpl.control_type as ControlType)
+    if (!check.valid) return { error: check.reason }
+  }
 
   const { error } = await supabase
     .from('org_control_matrix_overrides')

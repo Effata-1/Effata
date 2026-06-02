@@ -13,9 +13,11 @@ import {
   RF_DEFAULTS, RF_COACHING_DEFAULTS,
   FILENAME_DETECTION_LEVELS, type FilenameDetectionLevel,
   UL_FN_DEFAULTS, UL_FN_COACHING_DEFAULTS,
-  UL_DC_DEFAULTS,
+  UL_DC_DEFAULTS, UL_DC_COACHING_DEFAULTS,
 } from '@/lib/genai/control-matrix-rows'
 import { ensureClassificationLabels } from '@/lib/data-catalog/actions'
+import { validateActionTemplate } from '@/lib/genai/coaching-validation'
+import type { ControlType } from '@/lib/genai/types'
 
 function sortedStringify(obj: unknown): string {
   if (obj === null || typeof obj !== 'object') return JSON.stringify(obj)
@@ -565,16 +567,45 @@ function buildExcludedCategories(
 }
 
 // Resolves coaching UUID references → full template content so translators don't need a second query.
+// Also validates action/template compatibility. Returns warnings for any mismatches.
 function resolveCoachingTemplates(
   coaching_by_category: Record<string, string | null>,
+  actions_by_category:  Record<string, string>,
   notifById: Map<string, Record<string, unknown>>,
-): Record<string, { name: string; coach_label: string | null; title: string; message: string; control_type: string; requires_justification: boolean }> {
-  const out: Record<string, { name: string; coach_label: string | null; title: string; message: string; control_type: string; requires_justification: boolean }> = {}
-  for (const id of Object.values(coaching_by_category)) {
-    if (!id || out[id]) continue
+): {
+  templates:        Record<string, { name: string; coach_label: string | null; title: string; message: string; control_type: string; requires_justification: boolean }>
+  warnings:         string[]
+  translation_ready: boolean
+} {
+  const templates: Record<string, { name: string; coach_label: string | null; title: string; message: string; control_type: string; requires_justification: boolean }> = {}
+  const warnings: string[] = []
+  let translation_ready = true
+
+  for (const [cat, id] of Object.entries(coaching_by_category)) {
+    const action = actions_by_category[cat]
+    if (!id) {
+      // Validate null template against action — catches block/coach-ack/coach-just with no template
+      const check = validateActionTemplate(action ?? 'allow', null)
+      if (!check.valid) {
+        warnings.push(`Category '${cat}': ${check.reason}`)
+        translation_ready = false
+      }
+      continue
+    }
+    if (templates[id]) continue
     const tpl = notifById.get(id)
-    if (!tpl) continue
-    out[id] = {
+    if (!tpl) {
+      warnings.push(`Category '${cat}': coaching template '${id}' not found.`)
+      translation_ready = false
+      continue
+    }
+    // Validate action/template compatibility
+    const check = validateActionTemplate(action ?? 'allow', tpl.control_type as ControlType)
+    if (!check.valid) {
+      warnings.push(`Category '${cat}': ${check.reason}`)
+      translation_ready = false
+    }
+    templates[id] = {
       name:                  tpl.name        as string,
       coach_label:           (tpl.coach_label as string | null) ?? null,
       title:                 tpl.title        as string,
@@ -583,7 +614,7 @@ function resolveCoachingTemplates(
       requires_justification: tpl.control_type === 'coach_justification',
     }
   }
-  return out
+  return { templates, warnings, translation_ready }
 }
 
 // Flags that tell vendor translators what capabilities this policy requires.
@@ -597,7 +628,9 @@ function computeTranslationHints(
     requires_filename_inspection:   policyFamily === 'genai_filename',
     requires_label_detection:       policyFamily === 'genai_label_detection',
     requires_app_category_mapping:  true,
-    requires_user_notification:     vals.some(a => ['coach', 'coach-ack', 'coach-just', 'alert'].includes(a)),
+    // alert is admin-only; block always shows a notification to the user.
+    // Bare 'coach' is legacy — treat as coach-ack for hint purposes.
+    requires_user_notification:     vals.some(a => ['coach', 'coach-ack', 'coach-just', 'block'].includes(a)),
     requires_justification_capture: vals.some(a => a === 'coach-just'),
   }
 }
@@ -704,9 +737,18 @@ export async function syncRecommendedPolicies(): Promise<void> {
       actions_by_category,
       coaching_by_category,
       excluded_categories:  buildExcludedCategories((categories ?? []) as Array<Record<string, unknown>>),
-      coaching_templates:   resolveCoachingTemplates(coaching_by_category, notifById),
       app_governance_source: { type: 'current_org_app_governance', version: 'active' },
       translation_hints:    computeTranslationHints(actions_by_category, 'genai_content_detection'),
+    }
+    const { templates: coaching_templates, warnings: coachWarnings, translation_ready } =
+      resolveCoachingTemplates(coaching_by_category, actions_by_category, notifById)
+    const fullNpj = {
+      ...npj,
+      coaching_templates,
+      ...(coachWarnings.length > 0 && {
+        translation_ready,
+        provenance: { warnings: coachWarnings },
+      }),
     }
 
     // If every active category allows this data type, no enforcement policy is needed.
@@ -724,7 +766,7 @@ export async function syncRecommendedPolicies(): Promise<void> {
     const defaultCoachingId = coaching_by_category['restricted_unassessed'] ?? null
     const existing          = existingMap.get(policy_key)
     const isNew             = !existing
-    const npjChanged        = isNew || JSON.stringify(existing.neutral_policy_json) !== JSON.stringify(npj)
+    const npjChanged        = isNew || JSON.stringify(existing.neutral_policy_json) !== JSON.stringify(fullNpj)
 
     const { error } = await supabase.from('org_genai_policies').upsert({
       org_id:               user.orgId,
@@ -739,7 +781,7 @@ export async function syncRecommendedPolicies(): Promise<void> {
       approval_status:      'approved',
       policy_family:        'genai_content_detection',
       coaching_template_id: defaultCoachingId,
-      neutral_policy_json:  npj,
+      neutral_policy_json:  fullNpj,
       scope_all_apps:       true,
       scope_app_ids:        [],
       rules:                [],
@@ -774,13 +816,14 @@ export async function syncRecommendedPolicies(): Promise<void> {
         coaching_by_category[tag] = ov.coaching_notification_id ?? null
       } else {
         actions_by_category[tag]  = UL_FN_DEFAULTS[tag]?.[lbl.system_level] ?? 'allow'
-        const coachName = UL_FN_COACHING_DEFAULTS[lbl.system_level] ?? null
+        // 2D lookup: catTag × sysLevel (was 1D level-only)
+        const coachName = UL_FN_COACHING_DEFAULTS[tag]?.[lbl.system_level] ?? null
         coaching_by_category[tag] = coachName ? (notifMap.get(coachName) ?? null) : null
       }
     }
 
     const fnPolicyName = `GenAI - ${lbl.name} Filename ${computePolicySuffix('', actions_by_category)}`
-    const npj = {
+    const fnNpj = {
       policy_id:      policy_key,
       policy_name:    fnPolicyName,
       schema_version: '1.0',
@@ -800,9 +843,18 @@ export async function syncRecommendedPolicies(): Promise<void> {
       actions_by_category,
       coaching_by_category,
       excluded_categories:  buildExcludedCategories((categories ?? []) as Array<Record<string, unknown>>),
-      coaching_templates:   resolveCoachingTemplates(coaching_by_category, notifById),
       app_governance_source: { type: 'current_org_app_governance', version: 'active' },
       translation_hints:    computeTranslationHints(actions_by_category, 'genai_filename'),
+    }
+    const { templates: fnCoachingTemplates, warnings: fnWarnings, translation_ready: fnReady } =
+      resolveCoachingTemplates(coaching_by_category, actions_by_category, notifById)
+    const fullFnNpj = {
+      ...fnNpj,
+      coaching_templates: fnCoachingTemplates,
+      ...(fnWarnings.length > 0 && {
+        translation_ready: fnReady,
+        provenance: { warnings: fnWarnings },
+      }),
     }
 
     // If every active category allows this classification level, no enforcement policy is needed.
@@ -820,7 +872,7 @@ export async function syncRecommendedPolicies(): Promise<void> {
     const defaultCoachingId = Object.values(coaching_by_category).find(v => v != null) ?? null
     const existing          = existingMap.get(policy_key)
     const isNew             = !existing
-    const npjChanged        = isNew || JSON.stringify(existing.neutral_policy_json) !== JSON.stringify(npj)
+    const npjChanged        = isNew || JSON.stringify(existing.neutral_policy_json) !== JSON.stringify(fullFnNpj)
 
     const { error } = await supabase.from('org_genai_policies').upsert({
       org_id:               user.orgId,
@@ -835,7 +887,7 @@ export async function syncRecommendedPolicies(): Promise<void> {
       approval_status:      'approved',
       policy_family:        'genai_filename',
       coaching_template_id: defaultCoachingId,
-      neutral_policy_json:  npj,
+      neutral_policy_json:  fullFnNpj,
       scope_all_apps:       true,
       scope_app_ids:        [],
       rules:                [],
@@ -870,13 +922,15 @@ export async function syncRecommendedPolicies(): Promise<void> {
       } else {
         const sysLevel = (clbl as Record<string, unknown>).system_level as string | null ?? ''
         actions_by_category[tag]  = UL_DC_DEFAULTS[tag]?.[sysLevel] ?? 'allow'
-        coaching_by_category[tag] = null
+        // Now uses UL_DC_COACHING_DEFAULTS (was always null)
+        const dcCoachName = UL_DC_COACHING_DEFAULTS[tag]?.[sysLevel] ?? null
+        coaching_by_category[tag] = dcCoachName ? (notifMap.get(dcCoachName) ?? null) : null
       }
     }
 
     const displayName    = (clbl as Record<string, unknown>).display_name as string
     const dcPolicyName   = `GenAI - ${displayName} Label ${computePolicySuffix('', actions_by_category)}`
-    const npj = {
+    const dcNpj = {
       policy_id:      policy_key,
       policy_name:    dcPolicyName,
       schema_version: '1.0',
@@ -896,9 +950,18 @@ export async function syncRecommendedPolicies(): Promise<void> {
       actions_by_category,
       coaching_by_category,
       excluded_categories:  buildExcludedCategories((categories ?? []) as Array<Record<string, unknown>>),
-      coaching_templates:   resolveCoachingTemplates(coaching_by_category, notifById),
       app_governance_source: { type: 'current_org_app_governance', version: 'active' },
       translation_hints:    computeTranslationHints(actions_by_category, 'genai_label_detection'),
+    }
+    const { templates: dcCoachingTemplates, warnings: dcWarnings, translation_ready: dcReady } =
+      resolveCoachingTemplates(coaching_by_category, actions_by_category, notifById)
+    const fullDcNpj = {
+      ...dcNpj,
+      coaching_templates: dcCoachingTemplates,
+      ...(dcWarnings.length > 0 && {
+        translation_ready: dcReady,
+        provenance: { warnings: dcWarnings },
+      }),
     }
 
     // If every active category allows this label, no enforcement policy is needed.
@@ -912,10 +975,11 @@ export async function syncRecommendedPolicies(): Promise<void> {
       continue
     }
 
+    const defaultDcCoachingId = Object.values(coaching_by_category).find(v => v != null) ?? null
     const matrix_basis = (hasOverride ? 'customized' : 'default') as 'default' | 'customized'
     const existing     = existingMap.get(policy_key)
     const isNew        = !existing
-    const npjChanged   = isNew || JSON.stringify(existing.neutral_policy_json) !== JSON.stringify(npj)
+    const npjChanged   = isNew || JSON.stringify(existing.neutral_policy_json) !== JSON.stringify(fullDcNpj)
 
     const { error } = await supabase.from('org_genai_policies').upsert({
       org_id:               user.orgId,
@@ -929,8 +993,8 @@ export async function syncRecommendedPolicies(): Promise<void> {
       is_active:            isNew ? true : existing.is_active,
       approval_status:      'approved',
       policy_family:        'genai_label_detection',
-      coaching_template_id: null,
-      neutral_policy_json:  npj,
+      coaching_template_id: defaultDcCoachingId,
+      neutral_policy_json:  fullDcNpj,
       scope_all_apps:       true,
       scope_app_ids:        [],
       rules:                [],

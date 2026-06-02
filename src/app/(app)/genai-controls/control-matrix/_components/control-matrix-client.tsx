@@ -10,6 +10,8 @@ import {
   RF_KEY, CONTENT_DETECTION_ROWS, TAG_ALIAS, TAG_DISPLAY_NAMES,
   RF_DEFAULTS, RF_COACHING_DEFAULTS,
 } from '@/lib/genai/control-matrix-rows'
+import { COMPATIBLE_CONTROL_TYPES } from '@/lib/genai/coaching-validation'
+import type { ControlType } from '@/lib/genai/types'
 
 // ── Action registry ───────────────────────────────────────────────────────────
 
@@ -49,10 +51,10 @@ const EXTRA_ROW_META: Record<string, { color: string }> = {
 type LevelMap = Partial<Record<SystemLevel, ActionCode>>
 
 const UL_DC_DEFAULTS: Record<string, LevelMap> = {
-  'enterprise-approved':        { public: 'allow',   internal: 'monitor', confidential: 'alert',     highly_confidential: 'coach-ack', secret: 'block' },
-  'approved-with-conditions':   { public: 'allow',   internal: 'monitor', confidential: 'coach',     highly_confidential: 'block',     secret: 'block' },
-  'permitted-with-restriction': { public: 'monitor', internal: 'coach',   confidential: 'block',     highly_confidential: 'block',     secret: 'block' },
-  'prohibited':                 { public: 'block',   internal: 'block',   confidential: 'block',     highly_confidential: 'block',     secret: 'block' },
+  'enterprise-approved':        { public: 'allow',   internal: 'monitor',    confidential: 'alert',     highly_confidential: 'coach-ack', secret: 'block' },
+  'approved-with-conditions':   { public: 'allow',   internal: 'monitor',    confidential: 'coach-ack', highly_confidential: 'block',     secret: 'block' },
+  'permitted-with-restriction': { public: 'monitor', internal: 'coach-ack',  confidential: 'block',     highly_confidential: 'block',     secret: 'block' },
+  'prohibited':                 { public: 'block',   internal: 'block',      confidential: 'block',     highly_confidential: 'block',     secret: 'block' },
 }
 
 const UL_FN_DEFAULTS: Record<string, LevelMap> = {
@@ -64,9 +66,11 @@ const UL_FN_DEFAULTS: Record<string, LevelMap> = {
 
 const FILENAME_LEVELS: SystemLevel[] = ['highly_confidential', 'secret']
 
-const UL_FN_COACHING_DEFAULTS: Partial<Record<SystemLevel, string>> = {
-  highly_confidential: 'Sensitive File Name Detected',
-  secret:              'Sensitive File Name Detected',
+// 2D: catTag × sysLevel → coaching template name
+const UL_FN_COACHING_DEFAULTS: Record<string, Partial<Record<string, string | null>>> = {
+  'enterprise-approved':        { highly_confidential: null, secret: null },
+  'approved-with-conditions':   { highly_confidential: 'Sensitive File Name Detected', secret: 'Sensitive Filename Justification Required' },
+  'permitted-with-restriction': { highly_confidential: 'Highly Confidential Upload Blocked', secret: 'Secret File Upload Blocked' },
 }
 
 export const SYSTEM_TAG_ORDER = [
@@ -106,7 +110,7 @@ interface Props {
   overrides:      MatrixOverride[]
   labels:         OrgClassificationLabel[]
   customerLabels: CustomerLabel[]
-  notifications:  { id: string; name: string; coach_label: string | null }[]
+  notifications:  { id: string; name: string; coach_label: string | null; control_type: string }[]
 }
 
 type CellOverride = { action: ActionCode; coachingId: string | null }
@@ -199,9 +203,9 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     return notifications.find(n => n.name === notifName)?.id ?? null
   }
 
-  function getFnCoachingDefault(systemLevel: string | null): string | null {
-    if (!systemLevel) return null
-    const notifName = UL_FN_COACHING_DEFAULTS[systemLevel as SystemLevel] ?? null
+  function getFnCoachingDefault(systemLevel: string | null, catTag: string | null): string | null {
+    if (!systemLevel || !catTag) return null
+    const notifName = UL_FN_COACHING_DEFAULTS[catTag]?.[systemLevel] ?? null
     if (!notifName) return null
     return notifications.find(n => n.name === notifName)?.id ?? null
   }
@@ -221,11 +225,23 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     if (!selectedCat) return
     const existingOverride = localOverrides[`${rowKey}::${selectedCat.id}`]
     const rfKey = rowKey.startsWith('pp|rf:') ? rowKey.slice('pp|rf:'.length) : null
-    const coachingId = existingOverride !== undefined
+
+    const currentCoachingId = existingOverride !== undefined
       ? existingOverride.coachingId
       : (rfKey ? getRfCoachingDefault(rfKey, selectedCat.system_tag) : null)
-    setLocalOverrides(prev => ({ ...prev, [`${rowKey}::${selectedCat.id}`]: { action, coachingId } }))
-    startTransition(async () => { await upsertControlMatrixCell(rowKey, selectedCat.id, action, coachingId) })
+
+    // Compute compatible types for the new action
+    const compatibleTypes = COMPATIBLE_CONTROL_TYPES[action] ?? []
+    const currentTemplate = notifications.find(n => n.id === currentCoachingId)
+    const templateIncompatible =
+      compatibleTypes.length === 0 ||
+      (currentTemplate && !compatibleTypes.includes(currentTemplate.control_type as ControlType))
+
+    // Atomically clear coaching if incompatible with new action
+    const newCoachingId = templateIncompatible ? null : currentCoachingId
+
+    setLocalOverrides(prev => ({ ...prev, [`${rowKey}::${selectedCat.id}`]: { action, coachingId: newCoachingId } }))
+    startTransition(async () => { await upsertControlMatrixCell(rowKey, selectedCat.id, action, newCoachingId) })
   }
 
   function handleCoaching(rowKey: string, coachingId: string | null, effectiveAction: ActionCode) {
@@ -267,42 +283,65 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
               className={cn('w-full appearance-none bg-transparent text-[12px] font-semibold focus:outline-none cursor-pointer', meta.text)}
             >
               {(Object.entries(ACTIONS) as [ActionCode, typeof ACTIONS[ActionCode]][])
-                .filter(([code]) => code !== 'not-set' || effectiveAction === 'not-set')
+                // 'coach' is legacy-only — not selectable; 'not-set' shown only when already set
+                .filter(([code]) => code !== 'coach' && (code !== 'not-set' || effectiveAction === 'not-set'))
                 .map(([code, m]) => (
                   <option key={code} value={code} className="bg-card text-foreground">{m.label}</option>
                 ))}
             </select>
           </div>
 
-          {/* Coaching row + reset icon */}
-          <div className="flex items-center gap-1.5">
-            {selectedNotif?.coach_label && (
-              <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
-                {selectedNotif.coach_label}
-              </span>
-            )}
-            <select
-              value={effectiveCoaching ?? ''}
-              onChange={e => handleCoaching(rowKey, e.target.value || null, effectiveAction)}
-              className="flex-1 min-w-0 appearance-none bg-transparent text-[10px] text-muted-foreground/40 hover:text-muted-foreground/70 focus:outline-none cursor-pointer transition-colors"
-            >
-              <option value="" className="bg-card text-foreground">— No coaching —</option>
-              {notifications.map(n => (
-                <option key={n.id} value={n.id} className="bg-card text-foreground">
-                  {n.coach_label ? `${n.coach_label} — ${n.name}` : n.name}
-                </option>
-              ))}
-            </select>
-            {isOverride && defaultAction && (
+          {/* Reset button for allow/monitor/alert cells (no coaching row shown) */}
+          {(COMPATIBLE_CONTROL_TYPES[effectiveAction] ?? []).length === 0 && isOverride && defaultAction && (
+            <div className="flex justify-end">
               <button
                 onClick={() => handleReset(rowKey)}
                 title={`Reset to default (${ACTIONS[defaultAction].label})`}
-                className="shrink-0 text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
+                className="text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
               >
                 <RotateCcw className="w-3 h-3" />
               </button>
-            )}
-          </div>
+            </div>
+          )}
+
+          {/* Coaching row — hidden for allow/monitor/alert/not-set (no template needed) */}
+          {(() => {
+            const compatibleTypes = COMPATIBLE_CONTROL_TYPES[effectiveAction] ?? []
+            if (compatibleTypes.length === 0) return null
+            const compatibleNotifs = notifications.filter(n =>
+              compatibleTypes.includes(n.control_type as ControlType)
+            )
+            return (
+              <div className="flex items-center gap-1.5">
+                {selectedNotif?.coach_label && (
+                  <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                    {selectedNotif.coach_label}
+                  </span>
+                )}
+                <select
+                  value={effectiveCoaching ?? ''}
+                  onChange={e => handleCoaching(rowKey, e.target.value || null, effectiveAction)}
+                  className="flex-1 min-w-0 appearance-none bg-transparent text-[10px] text-muted-foreground/40 hover:text-muted-foreground/70 focus:outline-none cursor-pointer transition-colors"
+                >
+                  <option value="" className="bg-card text-foreground">— No coaching —</option>
+                  {compatibleNotifs.map(n => (
+                    <option key={n.id} value={n.id} className="bg-card text-foreground">
+                      {n.coach_label ? `${n.coach_label} — ${n.name}` : n.name}
+                    </option>
+                  ))}
+                </select>
+                {isOverride && defaultAction && (
+                  <button
+                    onClick={() => handleReset(rowKey)}
+                    title={`Reset to default (${ACTIONS[defaultAction].label})`}
+                    className="shrink-0 text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            )
+          })()}
 
         </div>
       </td>
@@ -497,7 +536,7 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
               const { rowKey, label: lbl, sectionId } = item
               const cc = colorClasses(lbl.color)
               const defaultCoaching = sectionId === 'ul_fn'
-                ? getFnCoachingDefault(lbl.system_level ?? null)
+                ? getFnCoachingDefault(lbl.system_level ?? null, selectedCat?.system_tag ?? null)
                 : null
               return (
                 <tr key={rowKey} className={rowBg}>

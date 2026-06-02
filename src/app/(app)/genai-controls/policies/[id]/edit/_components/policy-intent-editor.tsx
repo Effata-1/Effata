@@ -273,6 +273,8 @@ function isValidNpj(npj: unknown): npj is NeutralPolicyJson {
 function npjStatus(npj: unknown, updatedAt: string): 'current' | 'outdated' | 'legacy' | 'invalid' {
   if (!npj || (typeof npj === 'object' && Object.keys(npj as object).length === 0)) return 'legacy'
   if (!isValidNpj(npj)) return 'invalid'
+  // translation_ready: false means action/template conflicts exist — mark invalid
+  if ((npj as Record<string, unknown>).translation_ready === false) return 'invalid'
   const generatedAt = (npj as NeutralPolicyJson).provenance?.generated_at
   if (generatedAt && generatedAt < updatedAt) return 'outdated'
   return 'current'
