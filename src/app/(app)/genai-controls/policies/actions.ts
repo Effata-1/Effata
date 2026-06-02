@@ -709,9 +709,16 @@ export async function syncRecommendedPolicies(): Promise<void> {
       translation_hints:    computeTranslationHints(actions_by_category, 'genai_content_detection'),
     }
 
-    // If every active category allows this data type, no enforcement policy is needed
+    // If every active category allows this data type, no enforcement policy is needed.
+    // Delete any existing policy for this key — stale policies must not persist.
     const actionVals = Object.values(actions_by_category)
-    if (actionVals.length > 0 && actionVals.every(a => a === 'allow')) continue
+    if (actionVals.length > 0 && actionVals.every(a => a === 'allow')) {
+      if (existingMap.has(policy_key)) {
+        await supabase.from('org_genai_policies')
+          .delete().eq('org_id', user.orgId).eq('policy_key', policy_key)
+      }
+      continue
+    }
 
     const matrix_basis      = (hasOverride ? 'customized' : 'default') as 'default' | 'customized'
     const defaultCoachingId = coaching_by_category['restricted_unassessed'] ?? null
@@ -798,9 +805,16 @@ export async function syncRecommendedPolicies(): Promise<void> {
       translation_hints:    computeTranslationHints(actions_by_category, 'genai_filename'),
     }
 
-    // If every active category allows this classification level, no enforcement policy is needed
+    // If every active category allows this classification level, no enforcement policy is needed.
+    // Delete any existing policy for this key — stale policies must not persist.
     const fnVals = Object.values(actions_by_category)
-    if (fnVals.length > 0 && fnVals.every(a => a === 'allow')) continue
+    if (fnVals.length > 0 && fnVals.every(a => a === 'allow')) {
+      if (existingMap.has(policy_key)) {
+        await supabase.from('org_genai_policies')
+          .delete().eq('org_id', user.orgId).eq('policy_key', policy_key)
+      }
+      continue
+    }
 
     const matrix_basis      = (hasOverride ? 'customized' : 'default') as 'default' | 'customized'
     const defaultCoachingId = Object.values(coaching_by_category).find(v => v != null) ?? null
@@ -887,9 +901,16 @@ export async function syncRecommendedPolicies(): Promise<void> {
       translation_hints:    computeTranslationHints(actions_by_category, 'genai_label_detection'),
     }
 
-    // If every active category allows this label, no enforcement policy is needed
+    // If every active category allows this label, no enforcement policy is needed.
+    // Delete any existing policy for this key — stale policies must not persist.
     const dcVals = Object.values(actions_by_category)
-    if (dcVals.length > 0 && dcVals.every(a => a === 'allow')) continue
+    if (dcVals.length > 0 && dcVals.every(a => a === 'allow')) {
+      if (existingMap.has(policy_key)) {
+        await supabase.from('org_genai_policies')
+          .delete().eq('org_id', user.orgId).eq('policy_key', policy_key)
+      }
+      continue
+    }
 
     const matrix_basis = (hasOverride ? 'customized' : 'default') as 'default' | 'customized'
     const existing     = existingMap.get(policy_key)
