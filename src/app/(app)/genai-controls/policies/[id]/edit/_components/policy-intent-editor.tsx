@@ -402,6 +402,12 @@ export function PolicyIntentEditor({
   const [formCoachTemplate,    setFormCoachTemplate]    = useState(policy.coaching_template_id ?? '')
   const [formRelatedPolicies,  setFormRelatedPolicies]  = useState<string[]>(policy.required_dependencies)
   const [formAppIds,           setFormAppIds]           = useState<string[]>(policy.scope_app_ids)
+  const [formUsers,            setFormUsers]            = useState<string[]>(() => {
+    const u = (rawNpj as Record<string, unknown>)?.scope as Record<string, unknown> | undefined
+    const arr = u?.users as string[] | undefined
+    return (arr && arr.length > 0) ? arr : ['All Users']
+  })
+  const [formUserInput,        setFormUserInput]        = useState('')
   const [translationStatus,    setTranslationStatus]    = useState(policy.vendor_translation_status)
   const [saving,               setSaving]               = useState(false)
   const [saveError,            setSaveError]            = useState('')
@@ -479,6 +485,22 @@ export function PolicyIntentEditor({
       coaching_template_id: formCoachTemplate || null,
       required_dependencies: formRelatedPolicies,
       scope_app_ids:        formAppIds,
+    }
+    // If users changed and there's a valid NPJ, persist the update into scope.users
+    const currentNpjUsers: string[] = (() => {
+      const u = (rawNpj as Record<string, unknown>)?.scope as Record<string, unknown> | undefined
+      const arr = u?.users as string[] | undefined
+      return (arr && arr.length > 0) ? arr : ['All Users']
+    })()
+    if (rawNpj && JSON.stringify(formUsers.sort()) !== JSON.stringify([...currentNpjUsers].sort())) {
+      const updatedNpj = {
+        ...(rawNpj as Record<string, unknown>),
+        scope: {
+          ...((rawNpj as Record<string, unknown>).scope as Record<string, unknown> ?? {}),
+          users: formUsers,
+        },
+      }
+      fields.neutral_policy_json = updatedNpj
     }
     // Auto-mark translation pending when user-visible fields change
     if (translationStatus !== 'not-applicable') {
@@ -715,22 +737,20 @@ export function PolicyIntentEditor({
               {(() => { const pf = npj.policy_family ?? policy.policy_family; return pf ? (POLICY_FAMILY_LABELS[pf] ?? pf) : '—' })()}
             </span>
           </NpjRow>
-          {(npj.scope?.users?.length ?? 0) > 0 && (
-            <NpjRow label="Users">
-              <div className="flex flex-wrap gap-1.5">
-                {(npj.scope!.users!).map((u, i) => (
-                  <span key={i} className={cn(
-                    'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
-                    u === 'All Users'
-                      ? 'border-border bg-muted/40 text-muted-foreground/70'
-                      : 'border-blue-500/25 bg-blue-500/10 text-blue-400',
-                  )}>
-                    {u === 'All Users' ? 'All Users' : `${u} Users`}
-                  </span>
-                ))}
-              </div>
-            </NpjRow>
-          )}
+          <NpjRow label="Users">
+            <div className="flex flex-wrap gap-1.5">
+              {(formUsers).map((u, i) => (
+                <span key={i} className={cn(
+                  'inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium',
+                  u === 'All Users'
+                    ? 'border-border bg-muted/40 text-muted-foreground/70'
+                    : 'border-blue-500/25 bg-blue-500/10 text-blue-400',
+                )}>
+                  {u}
+                </span>
+              ))}
+            </div>
+          </NpjRow>
           <NpjRow label="Monitored Activities">
             <ReadOnlyTooltip tip="Activities are set by the compiler. Use Policy Change Assistant to change.">
               <div className="flex flex-wrap gap-1.5">
@@ -1455,6 +1475,72 @@ export function PolicyIntentEditor({
               </label>
             </div>
           </div>
+          {/* Users / scope */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground/60 block mb-1.5">Users</label>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {formUsers.map((u, i) => (
+                <span key={i} className={cn(
+                  'inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-xs font-medium',
+                  u === 'All Users' ? 'border-border bg-muted/40 text-muted-foreground/70' : 'border-blue-500/25 bg-blue-500/10 text-blue-400',
+                )}>
+                  {u}
+                  <button
+                    type="button"
+                    onClick={() => setFormUsers(prev => {
+                      const next = prev.filter((_, j) => j !== i)
+                      return next.length === 0 ? ['All Users'] : next
+                    })}
+                    className="ml-0.5 hover:text-red-400 transition-colors"
+                    aria-label={`Remove ${u}`}
+                  >×</button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={formUserInput}
+                onChange={e => setFormUserInput(e.target.value)}
+                onKeyDown={e => {
+                  if ((e.key === 'Enter' || e.key === ',') && formUserInput.trim()) {
+                    e.preventDefault()
+                    const val = formUserInput.trim()
+                    setFormUsers(prev => {
+                      const filtered = prev.filter(u => u !== 'All Users')
+                      return filtered.includes(val) ? filtered : [...filtered, val]
+                    })
+                    setFormUserInput('')
+                  }
+                }}
+                placeholder="Add group, e.g. HR Users, Finance Users…"
+                className="flex-1 rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (formUserInput.trim()) {
+                    const val = formUserInput.trim()
+                    setFormUsers(prev => {
+                      const filtered = prev.filter(u => u !== 'All Users')
+                      return filtered.includes(val) ? filtered : [...filtered, val]
+                    })
+                    setFormUserInput('')
+                  }
+                }}
+                className="px-3 py-1.5 rounded-lg border border-border bg-muted/30 text-xs text-foreground/70 hover:bg-muted/50 transition-colors"
+              >Add</button>
+              {formUsers.some(u => u !== 'All Users') && (
+                <button
+                  type="button"
+                  onClick={() => { setFormUsers(['All Users']); setFormUserInput('') }}
+                  className="px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground/60 hover:text-foreground/70 transition-colors"
+                >Reset to All</button>
+              )}
+            </div>
+            <p className="text-[10px] text-muted-foreground/40 mt-1">Press Enter or comma to add. Empty = All Users.</p>
+          </div>
+
           <div>
             <label className="text-xs font-medium text-muted-foreground/60 block mb-1.5">Description</label>
             <textarea

@@ -146,9 +146,14 @@ function parsePolicyProposal(text: string): PolicyProposal | null {
 
 function normalizeProposal(p: PolicyProposal): PolicyProposal {
   const users = (p.npj.scope?.users?.length ?? 0) > 0 ? p.npj.scope!.users! : ['All Users']
+  // Prohibited apps are blocked at the network layer — they must never appear in
+  // content inspection policies. Remove any prohibited category from scope.
+  const appCategories = (p.npj.scope?.app_categories ?? []).filter(
+    c => c.system_tag !== 'prohibited'
+  )
   const baseNpj: NeutralPolicyJson = {
     ...p.npj,
-    scope: { ...p.npj.scope, users },
+    scope: { ...p.npj.scope, users, app_categories: appCategories },
   }
   if (p.npj?.intent !== 'govern_app_access') return { ...p, npj: baseNpj }
   return {
@@ -931,7 +936,7 @@ export function AiPolicyAssistant({ categories, ruleItems, vendors = [] }: Props
 
     setCreating(false)
     if (res.error) { setCreateError(res.error); return }
-    router.push('/genai-controls/policies')
+    router.push(`/genai-controls/policies/${res.id}/edit`)
   }
 
   function handleReset() {
