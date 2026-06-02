@@ -105,9 +105,13 @@ function NativePolicyCard({ policy }: { policy: NetskopePolicy }) {
     'Fallback Policies'
   }`
 
+  const noMatchText = policy.no_match_action
+    ? policy.no_match_action.charAt(0).toUpperCase() + policy.no_match_action.slice(1)
+    : 'Continue Policy Evaluation (no terminal no-match action — downstream policies must evaluate)'
+
   const implementNote = policy.policy_type === 'access_control'
     ? `Create a Real-time Protection policy in Netskope. Set destination to ${policy.destination.strategy === 'app_tag' ? `App Tag: "${policy.destination.tag_or_category}"` : `Category: "${policy.destination.tag_or_category}"`}. Set action to Block. No DLP profile required.`
-    : `Create a Real-time Protection policy in Netskope. Set destination to ${policy.destination.strategy === 'app_tag' ? `App Tag: "${policy.destination.tag_or_category}"` : `Category: "${policy.destination.tag_or_category}"`}. Add the listed DLP profiles with their respective per-profile actions. Set the no-match action to ${policy.no_match_action ?? 'Allow'}.`
+    : `Create a Real-time Protection policy in Netskope. Set destination to ${policy.destination.strategy === 'app_tag' ? `App Tag: "${policy.destination.tag_or_category}"` : `Category: "${policy.destination.tag_or_category}"`}. Add the listed DLP profiles with their respective per-profile actions. No-match action: ${noMatchText}.${policy.no_match_action === null ? ' CRITICAL: Enable "Continue Policy Evaluation" on this policy in the Netskope console so that traffic not matching a DLP profile continues to the category policies below.' : ''}`
 
   const rawJson = {
     policy_key:     policy.policy_key,
@@ -214,13 +218,14 @@ function NativePolicyCard({ policy }: { policy: NetskopePolicy }) {
                   </div>
                 </div>
               ))}
-              {/* No-match row */}
-              {policy.no_match_action && (
-                <div className="flex items-center gap-2 text-xs pt-1">
-                  <span className="text-muted-foreground/40">No DLP profile match:</span>
-                  <ActionChip action={policy.no_match_action} />
-                </div>
-              )}
+              {/* No-match row — always shown when profiles exist */}
+              <div className="flex items-center gap-2 text-xs pt-1">
+                <span className="text-muted-foreground/40">No DLP profile match:</span>
+                {policy.no_match_action
+                  ? <ActionChip action={policy.no_match_action} />
+                  : <span className="text-[11px] text-blue-400/70 italic">Continue to category policies</span>
+                }
+              </div>
             </div>
           )}
           {/* Continue policy evaluation */}
@@ -238,7 +243,7 @@ function NativePolicyCard({ policy }: { policy: NetskopePolicy }) {
           <p className="text-xs text-muted-foreground/60">
             {policy.policy_type === 'access_control'
               ? `Blocks access to ${policy.destination.tag_or_category} apps at the network layer before content inspection.`
-              : `Enforces DLP controls for ${policy.destination.tag_or_category} GenAI apps. No-match action: ${policy.no_match_action ?? 'Allow'}.`
+              : `Enforces DLP controls for ${policy.destination.tag_or_category} GenAI apps. No-match: ${policy.no_match_action ?? 'continue to category policies — Continue Policy Evaluation required'}.`
             }
           </p>
         </PolicyRow>
@@ -308,7 +313,7 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
   const [tab, setTab] = useState<Tab>('Native Policies')
 
   return (
-    <div className="space-y-5 max-w-4xl">
+    <div className="space-y-6">
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
@@ -335,13 +340,18 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
         </div>
       </div>
 
-      {/* Why selected */}
-      <div className="rounded-xl border border-border bg-card/50 px-5 py-3.5">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-2">Why this topology was selected</p>
-        <ul className="space-y-1.5">
+      {/* Topology Rationale — dedicated section */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+        <div className="px-5 py-3.5 border-b border-border/50 bg-muted/5">
+          <span className="text-sm font-bold text-foreground">Why this topology was selected</span>
+          <p className="text-[11px] text-muted-foreground/50 mt-0.5">
+            Hybrid category-based · {r.recommendation_mode === 'default' ? 'Default recommendation' : r.recommendation_mode}
+          </p>
+        </div>
+        <ul className="px-5 py-4 space-y-2.5">
           {r.why_selected.map((w, i) => (
-            <li key={i} className="flex items-start gap-2 text-xs text-foreground/60">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+            <li key={i} className="flex items-start gap-2.5 text-sm text-foreground/70">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
               {w}
             </li>
           ))}
