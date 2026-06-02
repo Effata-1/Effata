@@ -920,6 +920,7 @@ export function AiPolicyAssistant({ categories, ruleItems, vendors = [] }: Props
       approval_status:           'draft',
       vendor_translation_status: 'pending',
       generated_from:            'ai-assisted',
+      policy_source:             'manual',
       policy_family:             proposal.npj.policy_family ?? null,
       neutral_policy_json:       proposal.npj as Record<string, unknown>,
       scope_app_ids:             [],
