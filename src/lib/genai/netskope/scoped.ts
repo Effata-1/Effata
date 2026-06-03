@@ -285,21 +285,14 @@ export function buildScopedPolicies(scopedNpjs: ScopedNpjInput[]): ScopedPolicie
       ? `${group.destination.app} — ${group.destination.instance} instance`
       : null
 
-    // Activities: union across NPJs in the group; fallback to standard set.
-    const activityUnion = new Set<string>()
-    for (const npj of group.npjs) {
-      const rawNpjActivities = (npj as unknown as Record<string, unknown>).activities
-      if (Array.isArray(rawNpjActivities)) {
-        rawNpjActivities.forEach(a => activityUnion.add(String(a)))
-      }
-    }
-    const activities = activityUnion.size > 0
-      ? [...activityUnion]
-      : ['post', 'upload', 'prompt_submit']
+    // Activity scoping from NPJ scope.activities is Phase 4.
+    // Phase 3: standard GenAI activity set applied to all scoped policies.
+    const activities = ['post', 'upload', 'prompt_submit']
 
     const policy: NetskopePolicy = {
       priority:    priority,
-      policy_key:  `netskope:scoped:${slugify(group.source.value)}-${slugify(group.destination.value)}`,
+      // Include priority in the key to prevent slug collisions between groups with similar source/dest names.
+      policy_key:  `netskope:scoped:p${priority}-${slugify(group.source.value)}-${slugify(group.destination.value)}`,
       name:        `GenAI — ${sourceGroup} — ${contentLabel} ${capitalise(strictestAction)} — ${destName}`,
       policy_type: 'realtime_protection',
       destination: {

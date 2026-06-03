@@ -648,15 +648,23 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
                       value={override?.source_type ?? 'all_users'}
                       onChange={e => {
                         const v = e.target.value as 'all_users' | 'ad_group'
-                        setStrategyOverrides(prev => ({
-                          ...prev,
-                          [cat]: {
-                            source_type:       v,
-                            source_value:      v === 'all_users' ? null : (prev[cat]?.source_value ?? ''),
-                            destination_type:  prev[cat]?.destination_type  ?? 'app_tag',
-                            destination_value: prev[cat]?.destination_value ?? null,
-                          },
-                        }))
+                        setStrategyOverrides(prev => {
+                          const currentDest    = prev[cat]?.destination_type  ?? 'app_tag'
+                          const currentDestVal = prev[cat]?.destination_value ?? null
+                          // Both at defaults → remove entry entirely (no phantom state)
+                          if (v === 'all_users' && currentDest === 'app_tag') {
+                            const next = { ...prev }; delete next[cat]; return next
+                          }
+                          return {
+                            ...prev,
+                            [cat]: {
+                              source_type:       v,
+                              source_value:      v === 'all_users' ? null : (prev[cat]?.source_value ?? ''),
+                              destination_type:  currentDest,
+                              destination_value: currentDestVal,
+                            },
+                          }
+                        })
                       }}
                       className="w-full text-xs bg-muted border border-border/50 rounded px-2 py-1.5 text-foreground/70 focus:outline-none disabled:opacity-40"
                     >
@@ -687,15 +695,23 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
                       value={override?.destination_type ?? 'app_tag'}
                       onChange={e => {
                         const v = e.target.value as 'app_tag' | 'app_instance'
-                        setStrategyOverrides(prev => ({
-                          ...prev,
-                          [cat]: {
-                            source_type:       prev[cat]?.source_type       ?? 'all_users',
-                            source_value:      prev[cat]?.source_value      ?? null,
-                            destination_type:  v,
-                            destination_value: v === 'app_tag' ? null : (prev[cat]?.destination_value ?? ''),
-                          },
-                        }))
+                        setStrategyOverrides(prev => {
+                          const currentSrc    = prev[cat]?.source_type  ?? 'all_users'
+                          const currentSrcVal = prev[cat]?.source_value ?? null
+                          // Both at defaults → remove entry entirely (no phantom state)
+                          if (v === 'app_tag' && currentSrc === 'all_users') {
+                            const next = { ...prev }; delete next[cat]; return next
+                          }
+                          return {
+                            ...prev,
+                            [cat]: {
+                              source_type:       currentSrc,
+                              source_value:      currentSrcVal,
+                              destination_type:  v,
+                              destination_value: v === 'app_tag' ? null : (prev[cat]?.destination_value ?? ''),
+                            },
+                          }
+                        })
                       }}
                       className="w-full text-xs bg-muted border border-border/50 rounded px-2 py-1.5 text-foreground/70 focus:outline-none disabled:opacity-40"
                     >
@@ -760,8 +776,8 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
       {/* Issues */}
       {allIssues.length > 0 && (
         <div className="space-y-2">
-          {allIssues.map(issue => (
-            <div key={issue.code} className="flex items-start gap-2.5 rounded-lg border border-amber-500/25 bg-amber-500/8 px-4 py-2.5">
+          {allIssues.map((issue, i) => (
+            <div key={`${issue.code}-${i}`} className="flex items-start gap-2.5 rounded-lg border border-amber-500/25 bg-amber-500/8 px-4 py-2.5">
               {ISSUE_ICON[issue.severity]}
               <div className="space-y-0.5">
                 <p className="text-xs text-foreground/80">{issue.description}</p>
@@ -817,7 +833,7 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
       {/* Tab: Native Policies */}
       {tab === 'Native Policies' && (
         <div className="space-y-4">
-          {activeOption.policies.length === 0 ? (
+          {patchedPolicies.length === 0 ? (
             <div className="rounded-xl border border-border bg-card px-5 py-8 text-center">
               <p className="text-sm text-muted-foreground/60">No valid policies found. Resolve NPJ issues in the Policy Editor before generating a recommendation.</p>
             </div>
