@@ -492,7 +492,7 @@ export function PolicyIntentEditor({
       const arr = u?.users as string[] | undefined
       return (arr && arr.length > 0) ? arr : ['All Users']
     })()
-    if (rawNpj && JSON.stringify(formUsers.sort()) !== JSON.stringify([...currentNpjUsers].sort())) {
+    if (rawNpj && JSON.stringify([...formUsers].sort()) !== JSON.stringify([...currentNpjUsers].sort())) {
       const updatedNpj = {
         ...(rawNpj as Record<string, unknown>),
         scope: {

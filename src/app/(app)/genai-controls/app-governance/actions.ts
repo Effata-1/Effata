@@ -106,10 +106,26 @@ export async function upsertGenAICategory(
       .eq('org_id', user.orgId)
     if (error) return { error: error.message }
   } else {
-    const system_tag = fields.name
+    let baseTag = fields.name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '_')
       .replace(/^_+|_+$/g, '')
+    if (!baseTag) baseTag = `custom_${Date.now()}`
+
+    // Ensure uniqueness within the org by appending a counter if the tag already exists
+    const { data: existing } = await supabase
+      .from('org_genai_governance_categories')
+      .select('system_tag')
+      .eq('org_id', user.orgId)
+      .like('system_tag', `${baseTag}%`)
+    const existingTags = new Set((existing ?? []).map((r: { system_tag: string | null }) => r.system_tag))
+    let system_tag = baseTag
+    let suffix = 2
+    while (existingTags.has(system_tag)) {
+      system_tag = `${baseTag}_${suffix}`
+      suffix++
+    }
+
     const { error } = await supabase
       .from('org_genai_governance_categories')
       .insert({ org_id: user.orgId, ...fields, is_system: false, system_tag })

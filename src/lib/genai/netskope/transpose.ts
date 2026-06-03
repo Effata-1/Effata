@@ -64,14 +64,13 @@ export function transposeNpjs(
     const profileType = FAMILY_TO_PROFILE_TYPE[npj.policy_family]
     if (!profileType) continue
 
-    // All categories present in this NPJ (standard + custom). Custom ones are any
-    // key that isn't one of the 3 standard categories and isn't 'prohibited'.
-    const allCats = [
-      ...CATEGORIES,
-      ...Object.keys(npj.actions_by_category).filter(
-        k => !(CATEGORIES as readonly string[]).includes(k) && k !== 'prohibited'
-      ),
-    ]
+    // All categories present in this NPJ: standard first (ordered), then custom.
+    // Use a Set to guarantee no duplicates (standard cats might also appear in
+    // actions_by_category keys, but the filter below handles that).
+    const customKeys = Object.keys(npj.actions_by_category).filter(
+      k => k && !(CATEGORIES as readonly string[]).includes(k) && k !== 'prohibited'
+    )
+    const allCats = [...CATEGORIES, ...customKeys]
 
     for (const cat of allCats) {
       const action = npj.actions_by_category[cat]

@@ -936,7 +936,11 @@ export function AiPolicyAssistant({ categories, ruleItems, vendors = [] }: Props
 
     setCreating(false)
     if (res.error) { setCreateError(res.error); return }
-    router.push(`/genai-controls/policies/${res.id}/edit`)
+    if (res.id) {
+      router.push(`/genai-controls/policies/${res.id}/edit`)
+    } else {
+      router.push('/genai-controls/policies')
+    }
   }
 
   function handleReset() {

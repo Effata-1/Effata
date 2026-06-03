@@ -283,6 +283,16 @@ export function buildTopology(input: BuildTopologyInput): Omit<NetskopeRecommend
   for (const catKey of customCatKeys) {
     const profilesForCat = buckets[catKey] ?? []
     if (profilesForCat.length === 0) continue
+    // Guard: never let custom policies reach P500 (reserved for R/U catch-all)
+    if (customPriority >= 500) {
+      issues.push({
+        code:        'CUSTOM_CATEGORY_OVERFLOW',
+        severity:    'warning',
+        description: `Custom category "${catKey}" could not be assigned a priority — too many custom categories (max 4 before the Restricted / Unassessed catch-all at P500).`,
+        fix:         'Reduce the number of custom governance categories, or manually adjust policy priorities in the Netskope console.',
+      })
+      continue
+    }
 
     const catDisplayName = categoryNameMap[catKey]
       ?? catKey.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')

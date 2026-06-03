@@ -136,10 +136,10 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
   )
   const [, startTransition] = useTransition()
 
-  const systemTagSet = new Set<string | null>(SYSTEM_TAG_ORDER)
+  const systemTagSet = new Set<string>(SYSTEM_TAG_ORDER)
   const orderedCats: MatrixCategory[] = [
     ...(SYSTEM_TAG_ORDER.map(tag => categories.find(c => c.system_tag === tag)).filter(Boolean) as MatrixCategory[]),
-    ...categories.filter(c => !systemTagSet.has(c.system_tag)), // custom categories (null or auto-generated tag)
+    ...categories.filter(c => !systemTagSet.has(c.system_tag ?? '')), // custom categories (null or auto-generated tag)
   ]
 
   const [selectedCatId, setSelectedCatId] = useState<string>(orderedCats[0]?.id ?? '')
