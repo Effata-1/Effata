@@ -225,7 +225,9 @@ function NativePolicyCard({ policy }: { policy: NetskopePolicy }) {
                 <span className="text-muted-foreground/40">No DLP profile match:</span>
                 {policy.no_match_action
                   ? <ActionChip action={policy.no_match_action} />
-                  : <span className="text-[11px] text-blue-400/70 italic">Continue to category policies</span>
+                  : policy.priority === 200
+                    ? <span className="text-[11px] text-blue-400/70 italic">Continue to category policies</span>
+                    : <span className="text-[11px] text-amber-400/80 italic">⚠ Not configured — set before deploying</span>
                 }
               </div>
             </div>

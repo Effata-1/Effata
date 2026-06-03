@@ -319,8 +319,12 @@ export function buildTopology(input: BuildTopologyInput): Omit<NetskopeRecommend
       source:          { type: 'all_users', value: null },
       activities:      ['post', 'upload', 'prompt_submit'],
       profiles,
-      no_match_action: 'alert',
-      continue_policy_evaluation: buildContinuePolicyEvaluation(profiles),
+      no_match_action: null,
+      continue_policy_evaluation: {
+        recommended:  false,
+        applies_when: 'No DLP profile match for this custom category.',
+        limitation:   'No-match action not configured — decide based on your risk tolerance for this category (Allow / Alert / Block) and set it explicitly in Netskope before deploying.',
+      },
       notification:    null,
     })
     customPriority += 10
