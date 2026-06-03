@@ -44,12 +44,13 @@ function toConfidence(score: number): 'high' | 'medium' | 'low' {
 // content_detection vs classification_label even when labels match.
 
 interface DeduplicatedProfile {
-  dedup_key:         string
-  risk_family_key:   string
-  risk_family_label: string
-  profile_type:      TransposedProfile['profile_type']
-  actions:           string[]
-  coaching:          string | null
+  dedup_key:          string
+  risk_family_key:    string
+  risk_family_label:  string
+  profile_type:       TransposedProfile['profile_type']
+  actions:            string[]
+  // coaching keyed by action so we can pick the template for the resolved strictest action
+  coachingByAction:   Record<string, string | null>
 }
 
 function collectDedupedProfiles(
@@ -63,6 +64,10 @@ function collectDedupedProfiles(
       const existing = map.get(key)
       if (existing) {
         existing.actions.push(p.action)
+        // store coaching per action so strictest-action resolution can pick the right template
+        if (p.coaching_template_id && !existing.coachingByAction[p.action]) {
+          existing.coachingByAction[p.action] = p.coaching_template_id
+        }
       } else {
         map.set(key, {
           dedup_key:         key,
@@ -70,7 +75,7 @@ function collectDedupedProfiles(
           risk_family_label: p.risk_family_label,
           profile_type:      p.profile_type,
           actions:           [p.action],
-          coaching:          p.coaching_template_id,
+          coachingByAction:  p.coaching_template_id ? { [p.action]: p.coaching_template_id } : {},
         })
       }
     }
@@ -119,12 +124,15 @@ function buildConsolidatedTopology(
     return { policies: baseline, issues }
   }
 
-  const profiles: NetskopeProfileEntry[] = deduped.map(d => ({
-    profile:           d.risk_family_label,
-    profile_type:      d.profile_type,
-    profile_action:    resolveStrictestAction(d.actions),
-    coaching_template: d.coaching ?? null,
-  }))
+  const profiles: NetskopeProfileEntry[] = deduped.map(d => {
+    const action = resolveStrictestAction(d.actions)
+    return {
+      profile:           d.risk_family_label,
+      profile_type:      d.profile_type,
+      profile_action:    action,
+      coaching_template: d.coachingByAction[action] ?? null,
+    }
+  })
 
   const consolidated: NetskopePolicy = {
     priority:    500,
@@ -174,7 +182,7 @@ function buildPerRiskFamilyTopology(
       profile:           d.risk_family_label,
       profile_type:      d.profile_type,
       profile_action:    action,
-      coaching_template: d.coaching ?? null,
+      coaching_template: d.coachingByAction[action] ?? null,
     }
     return {
       priority:    300 + i * 10,

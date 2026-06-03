@@ -396,7 +396,12 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
   const [selectedMode, setSelectedMode] = useState<TopologyMode>(
     () => r.topology_options.find(o => o.recommended)?.mode ?? 'hybrid_category_based'
   )
-  const activeOption = r.topology_options.find(o => o.mode === selectedMode) ?? r.topology_options[0]
+  // generateTopologyOptions always returns [hybrid, consolidated, per_risk_family] — never empty
+  const activeOption = (
+    r.topology_options.find(o => o.mode === selectedMode)
+    ?? r.topology_options.find(o => o.recommended)
+    ?? r.topology_options[0]
+  )!
 
   const whySelected = selectedMode === 'hybrid_category_based'
     ? r.why_selected
