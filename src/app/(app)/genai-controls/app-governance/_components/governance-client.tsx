@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useOptimistic } from 'react'
+import { useState, useTransition, useOptimistic, useMemo } from 'react'
 import Link from 'next/link'
 import { Plus, Pencil, X, Settings2, ChevronDown, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -99,10 +99,12 @@ function ClassificationSelect({
   value,
   onChange,
   disabled,
+  options = CLS_OPTIONS,
 }: {
   value: CustomerClass
   onChange: (v: string) => void
   disabled?: boolean
+  options?: { value: string; label: string }[]
 }) {
   const meta = CLASSIFICATION_LABELS[value] ?? CLASSIFICATION_LABELS.unknown
   const style = CLS_SELECT_STYLE[meta.color] ?? CLS_SELECT_STYLE.zinc
@@ -116,7 +118,7 @@ function ClassificationSelect({
         className="w-full appearance-none bg-transparent text-xs font-semibold focus:outline-none cursor-pointer pr-5 disabled:cursor-not-allowed disabled:opacity-60"
         style={{ color: 'inherit' }}
       >
-        {CLS_OPTIONS.map(opt => (
+        {options.map(opt => (
           <option key={opt.value} value={opt.value} className="bg-card text-foreground">
             {opt.label}
           </option>
@@ -132,9 +134,11 @@ function ClassificationSelect({
 function AppRow({
   entry,
   categorySystemTag,
+  clsOptions,
 }: {
   entry: AppEntry
   categorySystemTag: string | null
+  clsOptions: { value: string; label: string }[]
 }) {
   const { app, profile, classification } = entry
   const initialCls = (classification?.customer_classification ?? 'unknown') as CustomerClass
@@ -197,6 +201,7 @@ function AppRow({
                 value={localCls}
                 onChange={handleClassificationChange}
                 disabled={isPending}
+                options={clsOptions}
               />
               <button
                 onClick={handleInScopeToggle}
@@ -274,11 +279,12 @@ function AppRow({
 // ── App group section (Layer 2 — groups DB apps by app_group) ────────────────
 
 function AppGroupSection({
-  groupName, entries, categorySystemTag,
+  groupName, entries, categorySystemTag, clsOptions,
 }: {
   groupName:         string
   entries:           AppEntry[]
   categorySystemTag: string | null
+  clsOptions:        { value: string; label: string }[]
 }) {
   const [open, setOpen] = useState(true)
 
@@ -303,6 +309,7 @@ function AppGroupSection({
               key={entry.app.app_id}
               entry={entry}
               categorySystemTag={categorySystemTag}
+              clsOptions={clsOptions}
             />
           ))}
         </div>
@@ -314,11 +321,12 @@ function AppGroupSection({
 // ── Category section (Layer 1) ────────────────────────────────────────────────
 
 function CategorySection({
-  category, apps, initialNotes,
+  category, apps, initialNotes, clsOptions,
 }: {
   category:     GenAIGovernanceCategory
   apps:         AppEntry[]
   initialNotes: Record<string, RefAppData>
+  clsOptions:   { value: string; label: string }[]
 }) {
   const [open, setOpen] = useState(false)
   const cc = colorClasses(category.color)
@@ -374,13 +382,14 @@ function CategorySection({
               {[...byGroup.entries()].map(([groupName, entries]) => (
                 byGroup.size === 1
                   ? entries.map(entry => (
-                      <AppRow key={entry.app.app_id} entry={entry} categorySystemTag={category.system_tag} />
+                      <AppRow key={entry.app.app_id} entry={entry} categorySystemTag={category.system_tag} clsOptions={clsOptions} />
                     ))
                   : <AppGroupSection
                       key={groupName}
                       groupName={groupName}
                       entries={entries}
                       categorySystemTag={category.system_tag}
+                      clsOptions={clsOptions}
                     />
               ))}
             </>
@@ -388,7 +397,7 @@ function CategorySection({
 
           {/* Prohibited reference catalog */}
           {isProhibited && (
-            <ProhibitedCatalog initialNotes={initialNotes} />
+            <ProhibitedCatalog initialNotes={initialNotes} clsOptions={clsOptions} />
           )}
 
           {/* Empty state (non-prohibited categories with no DB apps) */}
@@ -519,6 +528,15 @@ export function GovernanceClient({ categories, appsByCategoryTag, userRole, init
   const isAdmin = userRole === 'admin'
   const sorted = [...categories].sort((a, b) => a.priority - b.priority)
 
+  // Build classification dropdown options from the org's category names (user may have renamed them).
+  const clsOptions = useMemo(() => [
+    ...categories
+      .filter(c => c.system_tag && c.system_tag !== 'unknown')
+      .sort((a, b) => a.priority - b.priority)
+      .map(c => ({ value: c.system_tag as string, label: c.name })),
+    { value: 'unknown', label: 'Not Set' },
+  ], [categories])
+
   return (
     <div className="flex gap-0">
       <div className="flex-1 min-w-0 space-y-4">
@@ -561,6 +579,7 @@ export function GovernanceClient({ categories, appsByCategoryTag, userRole, init
                 category={cat}
                 apps={appsByCategoryTag[cat.system_tag ?? cat.id] ?? []}
                 initialNotes={initialNotes}
+                clsOptions={clsOptions}
               />
             ))}
         </div>

@@ -26,6 +26,7 @@ interface Props {
   entries: CatalogEntry[]
   lastRunInfo: { status: string; apps_updated: number; apps_added: number } | null
   totalInDb: number
+  orgCategories?: { system_tag: string | null; name: string }[]
 }
 
 const DEFAULT_PAGE_SIZE = 10
@@ -424,11 +425,12 @@ const BULK_CLS_OPTIONS: { value: CustomerClass; label: string }[] = [
   { value: 'prohibited',                 label: 'Prohibited'               },
 ]
 
-function BulkActionBar({ count, onClear, onApply, isPending }: {
+function BulkActionBar({ count, onClear, onApply, isPending, clsOptions = BULK_CLS_OPTIONS }: {
   count: number
   onClear: () => void
   onApply: (cls: CustomerClass) => void
   isPending: boolean
+  clsOptions?: { value: string; label: string }[]
 }) {
   const [selectedCls, setSelectedCls] = useState<string>('')
 
@@ -439,7 +441,7 @@ function BulkActionBar({ count, onClear, onApply, isPending }: {
       <Tag className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
       <span className="text-xs text-muted-foreground/70 shrink-0">Set classification:</span>
       <FilterSelect
-        options={BULK_CLS_OPTIONS}
+        options={clsOptions}
         value={selectedCls}
         onChange={setSelectedCls}
         placeholder="Choose…"
@@ -736,7 +738,7 @@ function parseEvalError(rawError: string, searchTerm: string): {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
+export function AppCatalogClient({ entries, lastRunInfo, totalInDb, orgCategories = [] }: Props) {
   const [search,       setSearch]       = useState('')
   const [view,         setView]         = useState<'table' | 'grid'>('table')
   const [sort,         setSort]         = useState<{ key: SortKey; dir: SortDir }>({ key: 'name', dir: 'asc' })
@@ -909,13 +911,14 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
   const pendingCount = totalInDb - scoredCount
   const showNotFound = trimmed.length > 2 && filtered.length === 0 && !isPending && !evaluatedApp
 
+  const catNameMap = Object.fromEntries(orgCategories.map(c => [c.system_tag ?? '', c.name]))
   const clsFilterOptions = [
     { value: 'not-set',                    label: 'Not Set' },
-    { value: 'enterprise-approved',        label: 'Approved & Supported' },
-    { value: 'approved-with-conditions',   label: 'Approved w/ Conditions' },
-    { value: 'permitted-with-restriction', label: 'Restricted' },
+    { value: 'enterprise-approved',        label: catNameMap['enterprise-approved']        ?? 'Approved & Supported' },
+    { value: 'approved-with-conditions',   label: catNameMap['approved-with-conditions']   ?? 'Approved w/ Conditions' },
+    { value: 'permitted-with-restriction', label: catNameMap['permitted-with-restriction'] ?? 'Restricted' },
     { value: 'personal',                   label: 'Personal Only' },
-    { value: 'prohibited',                 label: 'Prohibited' },
+    { value: 'prohibited',                 label: catNameMap['prohibited']                 ?? 'Prohibited' },
   ]
 
   const riskFilterOptions = [
@@ -1006,7 +1009,14 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb }: Props) {
       )}
 
       {selectedIds.size > 0 && (
-        <BulkActionBar count={selectedIds.size} onClear={() => setSelectedIds(new Set())} onApply={handleBulkApply} isPending={isBulkPending} />
+        <BulkActionBar count={selectedIds.size} onClear={() => setSelectedIds(new Set())} onApply={handleBulkApply} isPending={isBulkPending} clsOptions={[
+          { value: 'enterprise-approved',        label: catNameMap['enterprise-approved']        ?? 'Approved & Supported' },
+          { value: 'approved-with-conditions',   label: catNameMap['approved-with-conditions']   ?? 'Approved with Conditions' },
+          { value: 'permitted-with-restriction', label: catNameMap['permitted-with-restriction'] ?? 'Restricted / Unassessed' },
+          { value: 'personal',                   label: 'Personal' },
+          { value: 'unknown',                    label: 'Unknown' },
+          { value: 'prohibited',                 label: catNameMap['prohibited']                 ?? 'Prohibited' },
+        ]} />
       )}
 
       {/* Evaluating */}

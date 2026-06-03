@@ -40,6 +40,13 @@ export default async function GenAIAppCatalogPage() {
     .select('*')
     .eq('org_id', user.orgId)
 
+  // Org governance categories — needed for dynamic classification labels
+  const { data: orgCategories } = await supabase
+    .from('org_genai_governance_categories')
+    .select('system_tag, name')
+    .eq('org_id', user.orgId)
+    .eq('active', true)
+
   // One profile per app — first found wins (DB has UNIQUE(app_id, mode))
   const profileMap = new Map<string, GenAIAppProfile>()
   for (const p of (profiles as GenAIAppProfile[] ?? [])) {
@@ -69,6 +76,7 @@ export default async function GenAIAppCatalogPage() {
       entries={entries}
       lastRunInfo={lastRunInfo}
       totalInDb={totalInDb}
+      orgCategories={orgCategories ?? []}
     />
   )
 }

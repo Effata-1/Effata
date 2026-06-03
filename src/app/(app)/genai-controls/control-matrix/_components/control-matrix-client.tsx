@@ -34,7 +34,8 @@ export const ACTIONS: Record<ActionCode, { label: string; cell: string; text: st
 // RF_DEFAULTS, RF_COACHING_DEFAULTS are imported from @/lib/genai/control-matrix-rows
 
 function catDisplayName(cat: { system_tag: string | null; name: string }): string {
-  return cat.system_tag ? (TAG_DISPLAY_NAMES[cat.system_tag] ?? cat.name) : cat.name
+  // Prefer the org's custom name (DB value) over the hardcoded default label.
+  return cat.name || (cat.system_tag ? (TAG_DISPLAY_NAMES[cat.system_tag] ?? cat.system_tag) : '')
 }
 
 

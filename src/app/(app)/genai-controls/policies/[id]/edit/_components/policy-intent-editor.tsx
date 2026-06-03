@@ -382,6 +382,7 @@ function ReadOnlyTooltip({ children, tip }: { children: React.ReactNode; tip: st
 export function PolicyIntentEditor({
   policy,
   apps,
+  categories,
   coachingTemplates,
   allPolicies,
   translations,
@@ -1140,7 +1141,17 @@ export function PolicyIntentEditor({
         {(() => {
           const actionsByCategory = (rawNpj as Record<string, unknown>)?.actions_by_category as Record<string, string> | undefined
           const coachingByCategory = (rawNpj as Record<string, unknown>)?.coaching_by_category as Record<string, string | null> | undefined
-          const ORDER = ['Approved & Supported', 'Approved with Conditions', 'Restricted', 'Prohibited']
+          // Dynamic category name lookup: org name → TAG_ALIAS reverse → TAG_DISPLAY_NAMES → key slug
+          const orgCatNameBySysTag = Object.fromEntries(categories.map(c => [c.system_tag ?? '', c.name]))
+          function getCatDisplayName(key: string): string {
+            // key may be DB tag (enterprise-approved) or internal key (approved_supported)
+            if (orgCatNameBySysTag[key]) return orgCatNameBySysTag[key]
+            // Try TAG_ALIAS forward (DB tag → internal) by looking up DB tag match
+            const byInternal = categories.find(c => (TAG_DISPLAY_NAMES[c.system_tag ?? ''] ?? '') !== '' && (c.system_tag === key || TAG_DISPLAY_NAMES[c.system_tag ?? ''] === TAG_DISPLAY_NAMES[key]))
+            if (byInternal?.name) return byInternal.name
+            return TAG_DISPLAY_NAMES[key] ?? key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+          }
+          const SYSTEM_PRIORITY = ['enterprise-approved', 'approved_supported', 'approved-with-conditions', 'approved_with_conditions', 'permitted-with-restriction', 'restricted_unassessed', 'prohibited']
 
           if (actionsByCategory && Object.keys(actionsByCategory).length > 0) {
             return (
@@ -1155,10 +1166,8 @@ export function PolicyIntentEditor({
                   {Object.entries(actionsByCategory)
                     .filter(([cat]) => cat !== '')
                     .sort(([a], [b]) => {
-                      const nameA = TAG_DISPLAY_NAMES[a] ?? a
-                      const nameB = TAG_DISPLAY_NAMES[b] ?? b
-                      const ia = ORDER.findIndex(p => nameA.includes(p))
-                      const ib = ORDER.findIndex(p => nameB.includes(p))
+                      const ia = SYSTEM_PRIORITY.indexOf(a)
+                      const ib = SYSTEM_PRIORITY.indexOf(b)
                       return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib)
                     })
                     .map(([cat, action]) => {
@@ -1169,7 +1178,7 @@ export function PolicyIntentEditor({
                       return (
                         <div key={cat} className="grid grid-cols-[1fr_120px_200px] items-center px-5 py-3">
                           <span className="text-xs text-foreground/70">
-                            {TAG_DISPLAY_NAMES[cat] ?? cat.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                            {getCatDisplayName(cat)}
                           </span>
                           <span className={cn('inline-flex items-center w-fit px-2.5 py-1 rounded-lg border text-xs font-semibold', ACTION_CHIP[action] ?? 'bg-muted/50 text-muted-foreground border-border')}>
                             {action}

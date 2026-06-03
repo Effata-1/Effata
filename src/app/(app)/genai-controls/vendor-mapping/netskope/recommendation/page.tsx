@@ -218,5 +218,5 @@ export default async function NetskopeRecommendationPage() {
     inline_file_size_limit_mb: INLINE_FILE_SIZE_LIMIT_MB,
   }
 
-  return <RecommendationClient recommendation={recommendation} />
+  return <RecommendationClient recommendation={recommendation} orgCategories={categories ?? []} />
 }

@@ -441,7 +441,7 @@ function applyStrategyOverrides(
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
-export function RecommendationClient({ recommendation: r }: { recommendation: NetskopeRecommendation }) {
+export function RecommendationClient({ recommendation: r, orgCategories = [] }: { recommendation: NetskopeRecommendation; orgCategories?: { system_tag: string | null; name: string }[] }) {
   const [tab, setTab]               = useState<Tab>('Native Policies')
   const [selectedMode, setSelectedMode] = useState<TopologyMode>(
     () => r.topology_options.find(o => o.recommended)?.mode ?? 'hybrid_category_based'
@@ -631,11 +631,12 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
             </p>
             {(
               [
-                ['approved_supported',       'Approved & Supported'],
-                ['approved_with_conditions',  'Approved with Conditions'],
-                ['restricted_unassessed',     'Restricted / Unassessed'],
-              ] as [NetskopeCategory, string][]
-            ).map(([cat, label]) => {
+                ['approved_supported',      ['enterprise-approved',        'approved_supported'],      'Approved & Supported'],
+                ['approved_with_conditions', ['approved-with-conditions',   'approved_with_conditions'], 'Approved with Conditions'],
+                ['restricted_unassessed',   ['permitted-with-restriction', 'restricted_unassessed'],   'Restricted / Unassessed'],
+              ] as [NetskopeCategory, string[], string][]
+            ).map(([cat, dbTags, fallback]) => {
+              const label = orgCategories.find(c => dbTags.includes(c.system_tag ?? ''))?.name ?? fallback
               const override = strategyOverrides[cat]
               const disabled = selectedMode !== 'hybrid_category_based'
               return (

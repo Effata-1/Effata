@@ -9,12 +9,12 @@ import type { RefAppData } from './governance-client'
 
 // ── Classification options ────────────────────────────────────────────────────
 
-const CLS_OPTIONS = [
+const CLS_OPTIONS: { value: string; label: string }[] = [
   { value: 'prohibited',                 label: 'Prohibited'             },
   { value: 'permitted-with-restriction', label: 'Restricted / Unassessed'},
   { value: 'approved-with-conditions',   label: 'Approved w/ Conditions' },
   { value: 'enterprise-approved',        label: 'Approved & Supported'   },
-] as const
+]
 
 type CatValue = typeof CLS_OPTIONS[number]['value']
 
@@ -39,11 +39,12 @@ const CONTROL_CLS: Record<string, string> = {
 // ── Individual app row ────────────────────────────────────────────────────────
 
 function AppRow({
-  app, data, onSaved,
+  app, data, onSaved, clsOptions,
 }: {
-  app:     ProhibitedApp
-  data:    RefAppData
-  onSaved: (slug: string, data: RefAppData) => void
+  app:        ProhibitedApp
+  data:       RefAppData
+  onSaved:    (slug: string, data: RefAppData) => void
+  clsOptions: { value: string; label: string }[]
 }) {
   const [open, setOpen]           = useState(false)
   const [localData, setLocalData] = useState<RefAppData>(data)
@@ -152,7 +153,7 @@ function AppRow({
                   className="w-full appearance-none bg-transparent text-xs font-semibold focus:outline-none cursor-pointer pr-5"
                   style={{ color: 'inherit' }}
                 >
-                  {CLS_OPTIONS.map(o => (
+                  {clsOptions.map(o => (
                     <option key={o.value} value={o.value} className="bg-card text-foreground font-normal">
                       {o.label}
                     </option>
@@ -271,11 +272,12 @@ function AppRow({
 // ── Group section (Layer 2) ───────────────────────────────────────────────────
 
 function GroupSection({
-  group, appData, onSaved,
+  group, appData, onSaved, clsOptions,
 }: {
-  group:   ProhibitedGroup
-  appData: Record<string, RefAppData>
-  onSaved: (slug: string, data: RefAppData) => void
+  group:      ProhibitedGroup
+  appData:    Record<string, RefAppData>
+  onSaved:    (slug: string, data: RefAppData) => void
+  clsOptions: { value: string; label: string }[]
 }) {
   const [open, setOpen] = useState(false)
   const ctrlCls = CONTROL_CLS[group.dlp_control] ?? 'bg-muted/60 text-muted-foreground border-border'
@@ -326,6 +328,7 @@ function GroupSection({
               app={app}
               data={appData[app.slug] ?? { notes: '', in_scope: false, classification: null }}
               onSaved={onSaved}
+              clsOptions={clsOptions}
             />
           ))}
         </>
@@ -338,8 +341,10 @@ function GroupSection({
 
 export function ProhibitedCatalog({
   initialNotes,
+  clsOptions = CLS_OPTIONS,
 }: {
   initialNotes: Record<string, RefAppData>
+  clsOptions?:  { value: string; label: string }[]
 }) {
   const [appData, setAppData] = useState<Record<string, RefAppData>>(initialNotes)
 
@@ -375,6 +380,7 @@ export function ProhibitedCatalog({
           group={group}
           appData={appData}
           onSaved={handleSaved}
+          clsOptions={clsOptions}
         />
       ))}
     </div>
