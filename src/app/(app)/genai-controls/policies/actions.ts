@@ -727,7 +727,7 @@ export async function syncRecommendedPolicies(): Promise<void> {
       const ov     = overrideMap.get(`${rowKey}::${cat.id}`)
 
       if (ov) {
-        hasOverride = true
+        if (ov.action_code !== (RF_DEFAULTS[tag]?.[rfKey] ?? 'allow')) hasOverride = true
         actions_by_category[tag]  = ov.action_code
         coaching_by_category[tag] = ov.coaching_notification_id ?? null
       } else {
@@ -837,7 +837,7 @@ export async function syncRecommendedPolicies(): Promise<void> {
       const ov     = overrideMap.get(`${rowKey}::${cat.id}`)
 
       if (ov) {
-        hasOverride = true
+        if (ov.action_code !== (UL_FN_DEFAULTS[tag]?.[lbl.system_level] ?? 'allow')) hasOverride = true
         actions_by_category[tag]  = ov.action_code
         coaching_by_category[tag] = ov.coaching_notification_id ?? null
       } else {
@@ -942,12 +942,12 @@ export async function syncRecommendedPolicies(): Promise<void> {
       const rowKey = `ul|dc|clabel:${clbl.id}`
       const ov     = overrideMap.get(`${rowKey}::${cat.id}`)
 
+      const sysLevel = (clbl as Record<string, unknown>).system_level as string | null ?? ''
       if (ov) {
-        hasOverride = true
+        if (ov.action_code !== (UL_DC_DEFAULTS[tag]?.[sysLevel] ?? 'allow')) hasOverride = true
         actions_by_category[tag]  = ov.action_code
         coaching_by_category[tag] = ov.coaching_notification_id ?? null
       } else {
-        const sysLevel = (clbl as Record<string, unknown>).system_level as string | null ?? ''
         actions_by_category[tag]  = UL_DC_DEFAULTS[tag]?.[sysLevel] ?? 'allow'
         // Now uses UL_DC_COACHING_DEFAULTS (was always null)
         const dcCoachName = UL_DC_COACHING_DEFAULTS[tag]?.[sysLevel] ?? null

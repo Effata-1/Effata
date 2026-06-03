@@ -1439,7 +1439,7 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                       selectedIds.has(policy.id)
                         ? 'bg-blue-500/5 hover:bg-blue-500/8'
                         : 'hover:bg-card/40',
-                      !policy.is_active && 'opacity-50',
+                      !policy.is_active && '[&>td:not(:last-child)]:opacity-50',
                     )}
                   >
                     {selectMode && (
