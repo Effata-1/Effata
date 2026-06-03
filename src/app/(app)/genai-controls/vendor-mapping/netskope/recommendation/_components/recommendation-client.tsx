@@ -242,7 +242,9 @@ const NativePolicyCard = memo(function NativePolicyCard({ policy }: { policy: Ne
                   ? <ActionChip action={policy.no_match_action} />
                   : policy.priority === 200
                     ? <span className="text-[11px] text-blue-400/70 italic">Continue to category policies</span>
-                    : <span className="text-[11px] text-amber-400/80 italic">⚠ Not configured — set before deploying</span>
+                    : policy.policy_key.startsWith('netskope:rf:')
+                      ? <span className="text-[11px] text-blue-400/70 italic">Continue to next risk-family policy</span>
+                      : <span className="text-[11px] text-amber-400/80 italic">⚠ Not configured — set before deploying</span>
                 }
               </div>
             </div>
