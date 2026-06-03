@@ -47,7 +47,7 @@ export interface NetskopePolicy {
   name:         string
   policy_type:  'access_control' | 'realtime_protection'
   destination:  { strategy: string; tag_or_category: string; note: string | null }
-  source:       { type: 'all_users' | 'ad_group'; value: string | null }
+  source:       { type: 'all_users' | 'ad_group' | 'user_group'; value: string | null }
   activities:   string[]
   profiles:     NetskopeProfileEntry[]
   no_match_action:            string | null
@@ -70,6 +70,8 @@ export interface RequiredObjects {
   app_instances:                 string[]
   app_instance_tags:             string[]
   url_lists:                     string[]
+  user_groups:                   string[]
+  ad_groups:                     string[]
   policy_order:                  string[]
 }
 
@@ -99,6 +101,53 @@ export interface RecommendationIssue {
   description: string
   fix:         string | null
 }
+
+// ── Phase 3: Scoped NPJ types ─────────────────────────────────────────────────
+
+export interface NpjScopeSource {
+  type:  'all_users' | 'ad_group' | 'user_group'
+  value: string | null
+}
+
+export interface NpjScopeDestination {
+  type:      'app_category' | 'app_tag' | 'app_instance' | 'url_list'
+  value:     string
+  app?:      string
+  instance?: string
+}
+
+export interface ScopedNpjInput {
+  policy_id:              string
+  policy_name:            string
+  policy_family:          string
+  risk_family_key:        string
+  risk_family_label:      string
+  actions_by_category:    Record<string, string>
+  coaching_by_category?:  Record<string, string | null>
+  source:                 NpjScopeSource
+  destination:            NpjScopeDestination
+  destination_defaulted?: boolean
+}
+
+export interface ScopedPoliciesResult {
+  policies:         NetskopePolicy[]
+  required_objects: RequiredObjects
+  issues:           RecommendationIssue[]
+  overflow_count:   number
+}
+
+export type SourceStrategyType      = 'all_users' | 'ad_group'
+export type DestinationStrategyType = 'app_tag'   | 'app_instance'
+// V1 supports app_tag and app_instance. Future: add 'app_category' | 'url_list'.
+
+export interface CategoryStrategyOverride {
+  source_type:       SourceStrategyType
+  source_value:      string | null
+  destination_type:  DestinationStrategyType
+  destination_value: string | null
+}
+
+export type StrategyOverrides = Partial<Record<NetskopeCategory, CategoryStrategyOverride>>
 
 // ── Phase 2: Topology option types ───────────────────────────────────────────
 
@@ -141,5 +190,7 @@ export interface NetskopeRecommendation {
   skipped_policies:     SkippedPolicy[]
   issues:               RecommendationIssue[]
   inline_file_size_limit_mb: number
-  topology_options:     TopologyOptionSummary[]  // Phase 2
+  topology_options:     TopologyOptionSummary[]    // Phase 2
+  scoped_policies:      ScopedPoliciesResult | null // Phase 3: null when no scoped NPJs detected
+  strategy_overrides:   null                        // Phase 3: always null from server; overrides live in client state
 }

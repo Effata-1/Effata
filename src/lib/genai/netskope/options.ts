@@ -243,7 +243,7 @@ const TRADE_OFFS: Record<TopologyMode, { pro: string; con: string }[]> = {
 
 export function generateTopologyOptions(
   input: BuildTopologyInput,
-  hybridResult: Omit<NetskopeRecommendation, 'skipped_policies' | 'limitations' | 'inline_file_size_limit_mb' | 'topology_options'>,
+  hybridResult: Omit<NetskopeRecommendation, 'skipped_policies' | 'limitations' | 'inline_file_size_limit_mb' | 'topology_options' | 'scoped_policies' | 'strategy_overrides'>,
 ): TopologyOptionSummary[] {
   // Option 1: Hybrid — zero recomputation, reuse Phase 1 output directly
   const hybridOption: TopologyOptionSummary = {

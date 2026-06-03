@@ -58,6 +58,18 @@ export const LIMITATIONS: LimitationEntry[] = [
     practical_impact: 'Reporting may be less clean compared with one policy per risk family.',
     risk_acceptance:  'Accepted',
   },
+  {
+    area:             'Scoped policy ordering',
+    limitation:       'Scoped policies (P210–P290) must be deployed before category policies (P300+) in Netskope.',
+    practical_impact: 'If scoped policies are placed after category policies, the broader policy matches first and the scoped policy never executes.',
+    risk_acceptance:  'Known',
+  },
+  {
+    area:             'App instance / URL list dependency',
+    limitation:       'Scoped policies targeting app instances or URL lists require those objects to exist and be correctly configured in the Netskope tenant.',
+    practical_impact: 'A missing app instance or URL list causes silent policy failure — traffic falls through to the category policy below.',
+    risk_acceptance:  'Known',
+  },
 ]
 
 export const VALIDATION_CHECKLIST: ValidationItem[] = [
@@ -73,4 +85,6 @@ export const VALIDATION_CHECKLIST: ValidationItem[] = [
   { id: 10, text: 'Validate Alert + Continue behavior for alert-only policies.',                               critical: false },
   { id: 11, text: 'Validate incident/reporting expectations for consolidated policies.',                       critical: false },
   { id: 12, text: 'Validate fallback behavior for Restricted / Unassessed (no-match = Alert).',                critical: false },
+  { id: 13, text: 'Scoped policies (P210–P290) are placed before category policies (P300+) in Netskope.',    critical: true  },
+  { id: 14, text: 'All app instances and URL lists referenced by scoped policies exist in the Netskope tenant.', critical: true },
 ]

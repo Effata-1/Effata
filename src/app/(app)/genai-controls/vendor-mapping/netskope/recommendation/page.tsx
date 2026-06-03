@@ -6,8 +6,9 @@ import { buildTopology } from '@/lib/genai/netskope/topology'
 import { generateTopologyOptions } from '@/lib/genai/netskope/options'
 import { LIMITATIONS, INLINE_FILE_SIZE_LIMIT_MB } from '@/lib/genai/netskope/limitations'
 import { TAG_ALIAS } from '@/lib/genai/control-matrix-rows'
+import { isScopedNpj, resolveNpjScope, buildScopedPolicies } from '@/lib/genai/netskope/scoped'
 import type { NpjInput } from '@/lib/genai/netskope/transpose'
-import type { SkippedPolicy } from '@/lib/genai/netskope/types'
+import type { SkippedPolicy, ScopedNpjInput } from '@/lib/genai/netskope/types'
 import { RecommendationClient } from './_components/recommendation-client'
 
 const SUPPORTED_FAMILIES = new Set([
@@ -58,8 +59,9 @@ export default async function NetskopeRecommendationPage() {
     )
   }
 
-  // ── Step 2: Validate each NPJ (5 checks) ───────────────────────────────────
+  // ── Step 2: Validate each NPJ (6 checks) + classify scoped vs default ────────
   const validNpjs:  NpjInput[]       = []
+  const scopedNpjs: ScopedNpjInput[] = []
   const skipped:    SkippedPolicy[]  = []
 
   for (const p of policies ?? []) {
@@ -136,6 +138,27 @@ export default async function NetskopeRecommendationPage() {
         )
       : undefined
 
+    // ── Phase 3: Classify scoped vs default before pushing to category buckets ──
+    if (isScopedNpj(npj)) {
+      const resolved = resolveNpjScope(npj)
+      if (resolved) {
+        scopedNpjs.push({
+          policy_id:              p.id,
+          policy_name:            p.name,
+          policy_family:          p.policy_family ?? '',
+          risk_family_key:        rfKey,
+          risk_family_label:      rfLabel,
+          actions_by_category:    abc,
+          coaching_by_category:   resolvedCoaching,
+          source:                 resolved.source,
+          destination:            resolved.destination,
+          destination_defaulted:  resolved.destinationDefaulted,
+        })
+        continue  // exclude from category buckets
+      }
+      // resolveNpjScope returned null (source is all_users, no destination) → fall through
+    }
+
     validNpjs.push({
       policy_id:           p.id,
       policy_name:         p.name,
@@ -183,9 +206,13 @@ export default async function NetskopeRecommendationPage() {
     partial,
   )
 
+  const scoped_policies = scopedNpjs.length > 0 ? buildScopedPolicies(scopedNpjs) : null
+
   const recommendation = {
     ...partial,
     topology_options,
+    scoped_policies,
+    strategy_overrides:        null,
     skipped_policies:          skipped,
     limitations:               LIMITATIONS,
     inline_file_size_limit_mb: INLINE_FILE_SIZE_LIMIT_MB,

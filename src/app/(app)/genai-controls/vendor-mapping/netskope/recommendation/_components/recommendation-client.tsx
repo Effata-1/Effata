@@ -7,6 +7,7 @@ import { AlertTriangle, CheckCircle2, Info, ChevronDown, ChevronRight, ExternalL
 import type {
   NetskopeRecommendation, NetskopePolicy, NetskopeProfileEntry,
   NpjProfileType, RecommendationIssue, TopologyMode, TopologyOptionSummary,
+  NetskopeCategory, StrategyOverrides, CategoryStrategyOverride, RequiredObjects,
 } from '@/lib/genai/netskope/types'
 import { FILE_SIZE_LIMIT_SOURCE } from '@/lib/genai/netskope/limitations'
 
@@ -39,6 +40,7 @@ const PROFILE_TYPE_DOT: Record<NpjProfileType, string> = {
 function priorityBadgeClass(p: number): string {
   if (p === 100) return 'bg-red-500/15 text-red-400 border-red-500/25'
   if (p === 200) return 'bg-red-500/10 text-red-300/80 border-red-500/15'
+  if (p >= 210 && p <= 290) return 'bg-violet-500/10 text-violet-400 border-violet-500/20' // scoped (P210–P290)
   if (p === 300) return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
   if (p === 400) return 'bg-amber-500/10 text-amber-400 border-amber-500/20'
   if (p >= 450 && p < 900) return 'bg-blue-500/10 text-blue-400 border-blue-500/20' // custom categories (P450–P890)
@@ -102,11 +104,12 @@ const NativePolicyCard = memo(function NativePolicyCard({ policy }: { policy: Ne
   const typesPresent = Object.keys(profilesByType) as NpjProfileType[]
 
   const policyGroupLabel = (() => {
-    if (policy.priority === 100) return '1. Header Policies'
-    if (policy.priority === 200) return '2. Global DLP Block'
-    if (policy.priority === 300) return '3. Approved Category Policies'
-    if (policy.priority === 400) return '4. Conditional Category Policies'
-    if (policy.priority >= 450 && policy.priority < 900) return `${policy.priority}. Custom Category Policies`
+    if (policy.priority === 100)                                    return '1. Header Policies'
+    if (policy.priority === 200)                                    return '2. Global DLP Block'
+    if (policy.priority >= 210 && policy.priority <= 290)          return 'Scoped — Pre-Category (P210–P290)'
+    if (policy.priority === 300)                                    return '3. Approved Category Policies'
+    if (policy.priority === 400)                                    return '4. Conditional Category Policies'
+    if (policy.priority >= 450 && policy.priority < 900)           return `${policy.priority}. Custom Category Policies`
     return '9. Fallback Policies'
   })()
 
@@ -114,12 +117,14 @@ const NativePolicyCard = memo(function NativePolicyCard({ policy }: { policy: Ne
     ? policy.no_match_action.charAt(0).toUpperCase() + policy.no_match_action.slice(1)
     : 'Not configured'
 
-  // P200: standard DLP pass-through (no CPE needed).
-  // Custom/unconfigured: tell admin to set no-match before deploying.
+  // P200 and scoped (P210–P290): pass-through — no config needed.
+  // Custom/unconfigured categories: admin must set no-match before deploying.
   const noMatchImplNote = policy.no_match_action === null
     ? policy.priority === 200
       ? 'No DLP profile match = no decision — standard Netskope DLP pass-through to the next category policy. No additional configuration required for this behaviour.'
-      : 'No-match action is not configured. Decide the no-match behaviour (Allow / Alert / Block) for this category before deploying.'
+      : (policy.priority >= 210 && policy.priority <= 290)
+        ? 'Source/destination criteria not met or no DLP profile match = no decision — traffic passes through to the next policy. This is correct behaviour for a scoped policy.'
+        : 'No-match action is not configured. Decide the no-match behaviour (Allow / Alert / Block) for this category before deploying.'
     : ''
 
   const dest = policy.destination.strategy === 'app_tag'
@@ -242,9 +247,11 @@ const NativePolicyCard = memo(function NativePolicyCard({ policy }: { policy: Ne
                   ? <ActionChip action={policy.no_match_action} />
                   : policy.priority === 200
                     ? <span className="text-[11px] text-blue-400/70 italic">Continue to category policies</span>
-                    : policy.policy_key.startsWith('netskope:rf:')
-                      ? <span className="text-[11px] text-blue-400/70 italic">Continue to next risk-family policy</span>
-                      : <span className="text-[11px] text-amber-400/80 italic">⚠ Not configured — set before deploying</span>
+                    : policy.policy_key.startsWith('netskope:scoped:')
+                      ? <span className="text-[11px] text-blue-400/70 italic">Continue to category policies</span>
+                      : policy.policy_key.startsWith('netskope:rf:')
+                        ? <span className="text-[11px] text-blue-400/70 italic">Continue to next risk-family policy</span>
+                        : <span className="text-[11px] text-amber-400/80 italic">⚠ Not configured — set before deploying</span>
                 }
               </div>
             </div>
@@ -394,6 +401,44 @@ function TopologyOptionCard({
 const TABS = ['Native Policies', 'Required Objects', 'Limitations'] as const
 type Tab = typeof TABS[number]
 
+// ── Phase 3: Strategy override helpers ───────────────────────────────────────
+
+const OVERRIDEABLE_KEYS: Record<NetskopeCategory, string> = {
+  approved_supported:       'netskope:approved_supported',
+  approved_with_conditions: 'netskope:approved_with_conditions',
+  restricted_unassessed:    'netskope:restricted_unassessed',
+}
+
+function applyStrategyOverrides(
+  policies:  NetskopePolicy[],
+  overrides: StrategyOverrides,
+): NetskopePolicy[] {
+  if (Object.keys(overrides).length === 0) return policies
+  return policies.map(policy => {
+    const cat = (Object.entries(OVERRIDEABLE_KEYS) as [NetskopeCategory, string][])
+      .find(([, key]) => key === policy.policy_key)?.[0]
+    if (!cat) return policy
+    const override = overrides[cat]
+    if (!override) return policy
+
+    let patched = { ...policy }
+    if (override.source_type === 'ad_group' && override.source_value) {
+      patched = { ...patched, source: { type: 'ad_group', value: override.source_value } }
+    }
+    if (override.destination_type === 'app_instance' && override.destination_value) {
+      patched = {
+        ...patched,
+        destination: {
+          ...patched.destination,
+          strategy:        'app_instance',
+          tag_or_category: override.destination_value,
+        },
+      }
+    }
+    return patched
+  })
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export function RecommendationClient({ recommendation: r }: { recommendation: NetskopeRecommendation }) {
@@ -401,6 +446,9 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
   const [selectedMode, setSelectedMode] = useState<TopologyMode>(
     () => r.topology_options.find(o => o.recommended)?.mode ?? 'hybrid_category_based'
   )
+  const [strategyOverrides, setStrategyOverrides] = useState<StrategyOverrides>({})
+  const [strategyPanelOpen, setStrategyPanelOpen] = useState(false)
+
   // generateTopologyOptions always returns [hybrid, consolidated, per_risk_family] — never empty
   const activeOption = (
     r.topology_options.find(o => o.mode === selectedMode)
@@ -411,6 +459,66 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
   const whySelected = selectedMode === 'hybrid_category_based'
     ? r.why_selected
     : WHY_SELECTED[selectedMode]
+
+  const patchedPolicies = useMemo(
+    () => applyStrategyOverrides(activeOption.policies, strategyOverrides),
+    [activeOption.policies, strategyOverrides],
+  )
+
+  const allIssues = useMemo(
+    () => [...r.issues, ...(r.scoped_policies?.issues ?? [])],
+    [r.issues, r.scoped_policies],
+  )
+
+  const combinedRequiredObjects = useMemo((): RequiredObjects => {
+    const base  = activeOption.required_objects
+    const scoped = r.scoped_policies?.required_objects
+
+    const adGroupsFromOverrides = (Object.values(strategyOverrides) as (CategoryStrategyOverride | undefined)[])
+      .filter((o): o is CategoryStrategyOverride => !!o && o.source_type === 'ad_group' && !!o.source_value)
+      .map(o => o.source_value!)
+    const appInstancesFromOverrides = (Object.values(strategyOverrides) as (CategoryStrategyOverride | undefined)[])
+      .filter((o): o is CategoryStrategyOverride => !!o && o.destination_type === 'app_instance' && !!o.destination_value)
+      .map(o => o.destination_value!)
+
+    if (!scoped) {
+      return {
+        ...base,
+        ad_groups:     [...new Set([...(base.ad_groups ?? []),     ...adGroupsFromOverrides])],
+        app_instances: [...new Set([...(base.app_instances ?? []), ...appInstancesFromOverrides])],
+      }
+    }
+    return {
+      dlp_profiles:                  [...new Set([...base.dlp_profiles,                  ...scoped.dlp_profiles])],
+      classification_label_profiles: [...new Set([...base.classification_label_profiles, ...scoped.classification_label_profiles])],
+      filename_profiles:             [...new Set([...base.filename_profiles,             ...scoped.filename_profiles])],
+      filetype_profiles:             [...new Set([...base.filetype_profiles,             ...scoped.filetype_profiles])],
+      notification_templates:        [...new Set([...base.notification_templates,        ...scoped.notification_templates])],
+      cci_app_tags:                  [...new Set([...base.cci_app_tags,                  ...scoped.cci_app_tags])],
+      app_categories:                [...new Set([...base.app_categories,                ...scoped.app_categories])],
+      app_instances:                 [...new Set([...scoped.app_instances,               ...appInstancesFromOverrides])],
+      app_instance_tags:             [...base.app_instance_tags],
+      url_lists:                     [...scoped.url_lists],
+      user_groups:                   [...scoped.user_groups],
+      ad_groups:                     [...new Set([...scoped.ad_groups, ...adGroupsFromOverrides])],
+      policy_order:                  [...(r.scoped_policies?.policies.map(p => p.name) ?? []), ...base.policy_order],
+    }
+  }, [activeOption.required_objects, r.scoped_policies, strategyOverrides])
+
+  const activeLimitations = useMemo(() => {
+    const hasAppInstanceOverride = (Object.values(strategyOverrides) as (CategoryStrategyOverride | undefined)[])
+      .some(o => o?.destination_type === 'app_instance' && !!o.destination_value)
+    if (!hasAppInstanceOverride) return r.limitations
+    return [
+      ...r.limitations,
+      {
+        area:             'App instance destination override',
+        limitation:       'Policy destination has been overridden to target a specific app instance instead of a CCI App Tag.',
+        practical_impact: 'The app instance must exist in Netskope and be correctly mapped before deployment. Category-based catch-all coverage no longer applies for this category.',
+        risk_acceptance:  'Accepted' as const,
+      },
+    ]
+  }, [r.limitations, strategyOverrides])
 
   return (
     <div className="space-y-6">
@@ -426,7 +534,10 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
           </Link>
           <h1 className="text-xl font-bold text-foreground">Netskope Policy Recommendation</h1>
           <p className="text-sm text-muted-foreground/60 mt-0.5">
-            {activeOption.label} · {activeOption.policy_count} native {activeOption.policy_count === 1 ? 'policy' : 'policies'}
+            {activeOption.label} · {activeOption.policy_count} category {activeOption.policy_count === 1 ? 'policy' : 'policies'}
+            {r.scoped_policies && r.scoped_policies.policies.length > 0 && (
+              <span className="ml-1 text-violet-400/80">· {r.scoped_policies.policies.length} scoped</span>
+            )}
             {r.is_partial && <span className="ml-2 text-amber-400/80">· Partial</span>}
           </p>
         </div>
@@ -439,6 +550,39 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
           </span>
         </div>
       </div>
+
+      {/* Scoped Policies Section — topology-agnostic, only shown when scoped NPJs detected */}
+      {r.scoped_policies && r.scoped_policies.policies.length > 0 && (
+        <div className="rounded-xl border border-violet-500/25 bg-card overflow-hidden shadow-sm">
+          <div className="px-5 py-3.5 border-b border-border/50 bg-muted/5 flex items-center gap-2.5">
+            <span className="text-sm font-bold text-foreground">Scoped Policies · P210–P290</span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-violet-500/20 bg-violet-500/10 text-[10px] font-semibold text-violet-400">
+              {r.scoped_policies.policies.length} {r.scoped_policies.policies.length === 1 ? 'policy' : 'policies'}
+            </span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-border/40 bg-muted/30 text-[10px] font-medium text-muted-foreground/50">
+              Topology-Agnostic
+            </span>
+          </div>
+          <div className="px-5 py-2 border-b border-border/20 bg-muted/5">
+            <p className="text-[11px] text-muted-foreground/50">
+              Generated from NPJs with custom source or destination scope. Execute before category policies (P300+) — deploy these first.
+            </p>
+          </div>
+          {r.scoped_policies.overflow_count > 0 && (
+            <div className="px-5 py-2 border-b border-amber-500/20 bg-amber-500/5 flex items-center gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <p className="text-[11px] text-amber-400/80">
+                {r.scoped_policies.overflow_count} scoped {r.scoped_policies.overflow_count === 1 ? 'policy group' : 'policy groups'} exceeded the 8-policy slot limit and were not generated. Reduce scoped NPJs or adjust priorities manually in Netskope.
+              </p>
+            </div>
+          )}
+          <div className="p-5 space-y-4">
+            {r.scoped_policies.policies.map(p => (
+              <NativePolicyCard key={p.policy_key} policy={p} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Topology option selector */}
       <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
@@ -456,6 +600,143 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
             />
           ))}
         </div>
+      </div>
+
+      {/* Strategy Override Panel — collapsible */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+        <button
+          type="button"
+          onClick={() => setStrategyPanelOpen(o => !o)}
+          className="w-full flex items-center justify-between px-5 py-3 hover:bg-muted/10 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-foreground">Strategy Overrides · Source / Destination</span>
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted/40 text-muted-foreground/60 border border-border/40">Optional</span>
+          </div>
+          {strategyPanelOpen
+            ? <ChevronDown className="w-4 h-4 text-muted-foreground/50" />
+            : <ChevronRight className="w-4 h-4 text-muted-foreground/50" />
+          }
+        </button>
+        {strategyPanelOpen && (
+          <div className="border-t border-border/30 px-5 py-4 space-y-4">
+            {selectedMode !== 'hybrid_category_based' && (
+              <p className="text-[11px] text-amber-400/80 flex items-center gap-1.5">
+                <Info className="w-3.5 h-3.5 shrink-0" />
+                Source / Destination overrides apply to Hybrid Category-Based topology only. Inputs are disabled for other topologies.
+              </p>
+            )}
+            <p className="text-[11px] text-muted-foreground/50">
+              Override the default source (All Users) or destination (App Tag) per governance category. Scoped policies above are not affected.
+            </p>
+            {(
+              [
+                ['approved_supported',       'Approved & Supported'],
+                ['approved_with_conditions',  'Approved with Conditions'],
+                ['restricted_unassessed',     'Restricted / Unassessed'],
+              ] as [NetskopeCategory, string][]
+            ).map(([cat, label]) => {
+              const override = strategyOverrides[cat]
+              const disabled = selectedMode !== 'hybrid_category_based'
+              return (
+                <div key={cat} className="grid grid-cols-[160px_1fr_1fr_auto] gap-3 items-start">
+                  <span className="text-xs font-medium text-foreground/70 pt-2">{label}</span>
+                  {/* Source */}
+                  <div className="space-y-1">
+                    <select
+                      disabled={disabled}
+                      value={override?.source_type ?? 'all_users'}
+                      onChange={e => {
+                        const v = e.target.value as 'all_users' | 'ad_group'
+                        setStrategyOverrides(prev => ({
+                          ...prev,
+                          [cat]: {
+                            source_type:       v,
+                            source_value:      v === 'all_users' ? null : (prev[cat]?.source_value ?? ''),
+                            destination_type:  prev[cat]?.destination_type  ?? 'app_tag',
+                            destination_value: prev[cat]?.destination_value ?? null,
+                          },
+                        }))
+                      }}
+                      className="w-full text-xs bg-muted border border-border/50 rounded px-2 py-1.5 text-foreground/70 focus:outline-none disabled:opacity-40"
+                    >
+                      <option value="all_users">All Users (Default)</option>
+                      <option value="ad_group">AD Group</option>
+                    </select>
+                    {override?.source_type === 'ad_group' && (
+                      <input
+                        type="text"
+                        disabled={disabled}
+                        placeholder="Group name…"
+                        value={override.source_value ?? ''}
+                        onChange={e => setStrategyOverrides(prev => ({
+                          ...prev,
+                          [cat]: { ...prev[cat]!, source_value: e.target.value || null },
+                        }))}
+                        className={cn(
+                          'w-full text-xs bg-muted border rounded px-2 py-1.5 text-foreground/70 focus:outline-none disabled:opacity-40',
+                          !override.source_value ? 'border-red-500/40' : 'border-border/50',
+                        )}
+                      />
+                    )}
+                  </div>
+                  {/* Destination */}
+                  <div className="space-y-1">
+                    <select
+                      disabled={disabled}
+                      value={override?.destination_type ?? 'app_tag'}
+                      onChange={e => {
+                        const v = e.target.value as 'app_tag' | 'app_instance'
+                        setStrategyOverrides(prev => ({
+                          ...prev,
+                          [cat]: {
+                            source_type:       prev[cat]?.source_type       ?? 'all_users',
+                            source_value:      prev[cat]?.source_value      ?? null,
+                            destination_type:  v,
+                            destination_value: v === 'app_tag' ? null : (prev[cat]?.destination_value ?? ''),
+                          },
+                        }))
+                      }}
+                      className="w-full text-xs bg-muted border border-border/50 rounded px-2 py-1.5 text-foreground/70 focus:outline-none disabled:opacity-40"
+                    >
+                      <option value="app_tag">App Tag (Default)</option>
+                      <option value="app_instance">App Instance</option>
+                    </select>
+                    {override?.destination_type === 'app_instance' && (
+                      <input
+                        type="text"
+                        disabled={disabled}
+                        placeholder="Instance name…"
+                        value={override.destination_value ?? ''}
+                        onChange={e => setStrategyOverrides(prev => ({
+                          ...prev,
+                          [cat]: { ...prev[cat]!, destination_value: e.target.value || null },
+                        }))}
+                        className={cn(
+                          'w-full text-xs bg-muted border rounded px-2 py-1.5 text-foreground/70 focus:outline-none disabled:opacity-40',
+                          !override.destination_value ? 'border-red-500/40' : 'border-border/50',
+                        )}
+                      />
+                    )}
+                  </div>
+                  {/* Reset */}
+                  <button
+                    type="button"
+                    disabled={disabled || !override}
+                    onClick={() => setStrategyOverrides(prev => {
+                      const next = { ...prev }
+                      delete next[cat]
+                      return next
+                    })}
+                    className="mt-2 text-[10px] text-muted-foreground/40 hover:text-muted-foreground/70 disabled:opacity-0 transition-colors"
+                  >
+                    Reset
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Topology Rationale — updates with selected option */}
@@ -477,9 +758,9 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
       </div>
 
       {/* Issues */}
-      {r.issues.length > 0 && (
+      {allIssues.length > 0 && (
         <div className="space-y-2">
-          {r.issues.map(issue => (
+          {allIssues.map(issue => (
             <div key={issue.code} className="flex items-start gap-2.5 rounded-lg border border-amber-500/25 bg-amber-500/8 px-4 py-2.5">
               {ISSUE_ICON[issue.severity]}
               <div className="space-y-0.5">
@@ -541,7 +822,7 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
               <p className="text-sm text-muted-foreground/60">No valid policies found. Resolve NPJ issues in the Policy Editor before generating a recommendation.</p>
             </div>
           ) : (
-            activeOption.policies.map(p => <NativePolicyCard key={p.policy_key} policy={p} />)
+            patchedPolicies.map(p => <NativePolicyCard key={p.policy_key} policy={p} />)
           )}
         </div>
       )}
@@ -550,14 +831,18 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
       {tab === 'Required Objects' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {([
-            ['DLP Profiles',             activeOption.required_objects.dlp_profiles],
-            ['Classification Labels',    activeOption.required_objects.classification_label_profiles],
-            ['Filename Profiles',        activeOption.required_objects.filename_profiles],
-            ['Filetype Profiles',        activeOption.required_objects.filetype_profiles],
-            ['Notification Templates',   activeOption.required_objects.notification_templates],
-            ['CCI App Tags',             activeOption.required_objects.cci_app_tags],
-            ['App Categories',           activeOption.required_objects.app_categories],
-            ['Policy Order',             activeOption.required_objects.policy_order],
+            ['DLP Profiles',             combinedRequiredObjects.dlp_profiles],
+            ['Classification Labels',    combinedRequiredObjects.classification_label_profiles],
+            ['Filename Profiles',        combinedRequiredObjects.filename_profiles],
+            ['Filetype Profiles',        combinedRequiredObjects.filetype_profiles],
+            ['Notification Templates',   combinedRequiredObjects.notification_templates],
+            ['CCI App Tags',             combinedRequiredObjects.cci_app_tags],
+            ['App Categories',           combinedRequiredObjects.app_categories],
+            ['App Instances',            combinedRequiredObjects.app_instances],
+            ['URL Lists',                combinedRequiredObjects.url_lists],
+            ['User Groups',              combinedRequiredObjects.user_groups],
+            ['AD Groups',                combinedRequiredObjects.ad_groups],
+            ['Policy Order',             combinedRequiredObjects.policy_order],
           ] as [string, string[]][]).filter(([, items]) => items.length > 0).map(([label, items]) => (
             <div key={label} className="rounded-xl border border-border bg-card overflow-hidden">
               <div className="px-4 py-2.5 border-b border-border/50 bg-muted/5 flex items-center justify-between">
@@ -594,7 +879,7 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/20">
-                  {r.limitations.map((l, i) => (
+                  {activeLimitations.map((l, i) => (
                     <tr key={i} className="hover:bg-muted/5">
                       <td className="px-4 py-3 font-medium text-foreground/70 whitespace-nowrap align-top">{l.area}</td>
                       <td className="px-4 py-3 text-muted-foreground/70 align-top">{l.limitation}</td>
