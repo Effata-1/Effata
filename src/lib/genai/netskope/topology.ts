@@ -254,6 +254,8 @@ export function buildTopology(input: BuildTopologyInput): Omit<NetskopeRecommend
           : null,
       },
       source:          { type: 'all_users', value: null },
+      // TODO Phase 3: derive from union of NPJ scope.activities across bucket profiles.
+      // Phase 1: standard GenAI activity set applied to all category policies.
       activities:      ['post', 'upload', 'prompt_submit'],
       profiles,
       no_match_action: NO_MATCH_ACTION[cat],
@@ -330,8 +332,14 @@ export function buildTopology(input: BuildTopologyInput): Omit<NetskopeRecommend
   }
 
   whySelected.push('Category policies use CCI App Tags for approved categories and Generative AI category as a fallback for Restricted / Unassessed.')
-  whySelected.push('Approved & Supported and Approved with Conditions default to Allow on no-match, preserving normal enterprise GenAI usage.')
-  whySelected.push('Restricted / Unassessed defaults to Alert on no-match to monitor unknown apps without blocking productivity.')
+  if (buckets.approved_supported.length > 0 || buckets.approved_with_conditions.length > 0) {
+    whySelected.push('Approved & Supported and Approved with Conditions default to Allow on no-match, preserving normal enterprise GenAI usage.')
+  }
+  if (buckets.restricted_unassessed.length > 0) {
+    whySelected.push('Restricted / Unassessed defaults to Alert on no-match to monitor unknown apps without blocking productivity.')
+  } else {
+    whySelected.push('Restricted / Unassessed fallback policy included as catch-all with no enforcement profiles — monitors unclassified GenAI traffic via no-match Alert.')
+  }
 
   const required_objects = collectRequiredObjects(policies)
   const { score, confidence } = computeScore({
