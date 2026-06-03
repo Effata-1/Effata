@@ -1,108 +1,31 @@
+'use client'
+
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
-import { requireRole } from '@/lib/auth'
-import { ensureClassificationLabels } from '@/lib/data-catalog/actions'
-import { BlankPolicyWizard } from './_components/blank-policy-wizard'
-import type { RuleItem } from './_components/blank-policy-wizard'
+import { ChevronLeft, Loader2 } from 'lucide-react'
+import { createBlankPolicy } from './actions'
 
-export default async function NewPolicyPage() {
-  const user = await requireRole('analyst')
-  const supabase = await createClient()
+export default function NewPolicyPage() {
+  const [name, setName]         = useState('')
+  const [desc, setDesc]         = useState('')
+  const [error, setError]       = useState('')
+  const [isPending, startTx]    = useTransition()
+  const router                  = useRouter()
 
-  const [
-    appsResult,
-    categoriesResult,
-    classificationLabels,
-    orgTypesResult,
-    orgTypeMappingsResult,
-    catalogTypesResult,
-    coachingTemplatesResult,
-  ] = await Promise.all([
-    supabase
-      .from('genai_apps')
-      .select('app_id, app_name, vendor, app_type, logo_letter, logo_bg')
-      .order('app_name'),
-    supabase
-      .from('org_genai_governance_categories')
-      .select('id, system_tag, name, color')
-      .eq('org_id', user.orgId)
-      .eq('active', true)
-      .order('priority'),
-    ensureClassificationLabels(),
-    supabase
-      .from('org_data_types')
-      .select('id, name, catalog_data_type_id')
-      .eq('org_id', user.orgId)
-      .eq('is_in_scope', true)
-      .order('name'),
-    supabase
-      .from('org_data_type_classifications')
-      .select('org_data_type_id, org_classification_label_id')
-      .eq('org_id', user.orgId),
-    supabase
-      .from('catalog_data_types')
-      .select('id, name, system_level, subcategory')
-      .eq('active', true)
-      .order('priority')
-      .order('name'),
-    supabase
-      .from('org_coaching_notifications')
-      .select('id, name, coach_label')
-      .eq('org_id', user.orgId)
-      .order('name'),
-  ])
-
-  const apps              = appsResult.data              ?? []
-  const categories        = categoriesResult.data        ?? []
-  const orgTypes          = orgTypesResult.data          ?? []
-  const orgTypeMappings   = orgTypeMappingsResult.data   ?? []
-  const catalogTypes      = catalogTypesResult.data      ?? []
-  const coachingTemplates = coachingTemplatesResult.data ?? []
-
-  const orgTypeLabelMap = new Map(
-    orgTypeMappings.map(m => [m.org_data_type_id as string, m.org_classification_label_id as string]),
-  )
-  const coveredCatalogIds = new Set(orgTypes.map(t => t.catalog_data_type_id).filter(Boolean))
-
-  const ruleItems: RuleItem[] = [
-    ...classificationLabels.map(l => ({
-      key:        `label:${l.system_level ?? l.id}`,
-      name:       l.name,
-      kind:       'label' as const,
-      color:      l.color,
-      layer:      1 as const,
-      layerLabel: undefined as string | undefined,
-    })),
-    ...orgTypes.map(dt => {
-      const labelId = orgTypeLabelMap.get(dt.id)
-      const label   = classificationLabels.find(l => l.id === labelId)
-      return {
-        key:        `dt:${dt.id}`,
-        name:       dt.name,
-        kind:       'type' as const,
-        color:      label?.color ?? 'zinc',
-        layer:      2 as const,
-        layerLabel: label?.name,
-      }
-    }),
-    ...catalogTypes
-      .filter(c => !coveredCatalogIds.has(c.id))
-      .map(c => {
-        const matchingLabel = classificationLabels.find(l => l.system_level === c.system_level)
-        return {
-          key:        `cat:${c.id}`,
-          name:       c.name,
-          kind:       'catalog' as const,
-          color:      matchingLabel?.color ?? 'zinc',
-          layer:      3 as const,
-          layerLabel: matchingLabel?.name,
-        }
-      }),
-  ]
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!name.trim()) { setError('Policy name is required.'); return }
+    setError('')
+    startTx(async () => {
+      const result = await createBlankPolicy(name.trim(), desc.trim() || undefined)
+      if (result.error) { setError(result.error); return }
+      if (result.id) router.push(`/genai-controls/policies/${result.id}/edit`)
+    })
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-xl space-y-6">
       <div>
         <Link
           href="/genai-controls/policies"
@@ -112,16 +35,54 @@ export default async function NewPolicyPage() {
         </Link>
         <h1 className="text-xl font-bold text-foreground">New Blank Policy</h1>
         <p className="text-sm text-muted-foreground/70 mt-0.5">
-          Step-by-step wizard — every field you set creates a valid neutral policy from the start.
+          Creates an empty policy in the intent editor. Fill in detection, enforcement, and scope after creation.
         </p>
       </div>
 
-      <BlankPolicyWizard
-        apps={apps}
-        categories={categories}
-        ruleItems={ruleItems}
-        coachingTemplates={coachingTemplates}
-      />
+      <form onSubmit={handleSubmit} className="rounded-xl border border-border bg-card p-5 space-y-4">
+        <div>
+          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            Policy Name <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="e.g. Block Finance Users – PCI Data Upload to GenAI"
+            autoFocus
+            className="block w-full rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            Description <span className="text-muted-foreground/40">(optional)</span>
+          </label>
+          <textarea
+            value={desc}
+            onChange={e => setDesc(e.target.value)}
+            rows={2}
+            placeholder="What does this policy enforce and why?"
+            className="block w-full rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-blue-500 resize-none"
+          />
+        </div>
+        {error && <p className="text-xs text-red-400">{error}</p>}
+        <div className="flex items-center justify-end gap-3 pt-1">
+          <Link
+            href="/genai-controls/policies"
+            className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground/70 transition-colors"
+          >
+            Cancel
+          </Link>
+          <button
+            type="submit"
+            disabled={isPending}
+            className="flex items-center gap-2 px-5 py-2 rounded-lg bg-foreground text-background text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            Create Policy
+          </button>
+        </div>
+      </form>
     </div>
   )
 }

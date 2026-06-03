@@ -1008,7 +1008,7 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-foreground">Blank Policy</p>
                   <p className="text-xs text-muted-foreground/60 mt-0.5 leading-relaxed">
-                    Step-by-step structured wizard. You control every field. Creates a valid neutral policy from scratch.
+                    Name your policy and open it directly in the intent editor. Fill in detection, enforcement, and scope from there.
                   </p>
                 </div>
                 <span className="text-[10px] px-2 py-0.5 rounded-md border border-border/60 bg-muted/30 text-muted-foreground/60">

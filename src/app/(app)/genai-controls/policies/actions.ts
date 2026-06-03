@@ -94,10 +94,24 @@ export async function upsertPolicy(
     }
   }
 
+  const now = new Date().toISOString()
+
+  // For NEW inserts: stamp provenance.generated_at = now so the policy is
+  // immediately 'current' (not 'outdated') on first view.
+  let npjForPayload = fields.neutral_policy_json
+  if (!id && npjForPayload) {
+    const prov = (npjForPayload as Record<string, unknown>).provenance as Record<string, unknown> | undefined
+    npjForPayload = {
+      ...(npjForPayload as Record<string, unknown>),
+      provenance: { ...prov, generated_at: now },
+    }
+  }
+
   const payload = {
     org_id:     user.orgId,
-    updated_at: new Date().toISOString(),
+    updated_at: now,
     ...fields,
+    ...(npjForPayload !== fields.neutral_policy_json ? { neutral_policy_json: npjForPayload } : {}),
     ...(id ? { id } : {}),
   }
 
