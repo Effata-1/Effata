@@ -48,9 +48,14 @@ export function extractAlwaysBlockProfiles(npjs: NpjInput[]): NpjInput[] {
 
 // Transposes NPJs into category buckets, excluding always-block risk families.
 // action === 'allow' profiles are skipped (no DLP enforcement profile needed).
+// validCategoryTags: set of system_tags that exist in org_genai_governance_categories.
+// Custom keys in actions_by_category that are NOT in this set are silently dropped —
+// this catches AI-assisted or blank policies whose category keys drifted after the
+// policy was created (e.g. a category was renamed or deleted).
 export function transposeNpjs(
-  npjs:            NpjInput[],
-  alwaysBlockKeys: Set<string>,
+  npjs:               NpjInput[],
+  alwaysBlockKeys:    Set<string>,
+  validCategoryTags?: Set<string>,
 ): CategoryBuckets {
   const buckets: CategoryBuckets = {
     approved_supported:       [],
@@ -64,12 +69,17 @@ export function transposeNpjs(
     const profileType = FAMILY_TO_PROFILE_TYPE[npj.policy_family]
     if (!profileType) continue
 
-    // All categories present in this NPJ: standard first (ordered), then custom.
-    // Use a Set to guarantee no duplicates (standard cats might also appear in
-    // actions_by_category keys, but the filter below handles that).
-    const customKeys = Object.keys(npj.actions_by_category).filter(
-      k => k && !(CATEGORIES as readonly string[]).includes(k) && k !== 'prohibited'
-    )
+    // Standard categories first (ordered), then custom keys that:
+    //   - are non-empty
+    //   - are not 'prohibited'
+    //   - are not one of the 3 standard keys (already included above)
+    //   - exist as a real org category (if validCategoryTags was supplied)
+    const customKeys = Object.keys(npj.actions_by_category).filter(k => {
+      if (!k || k === 'prohibited') return false
+      if ((CATEGORIES as readonly string[]).includes(k)) return false
+      if (validCategoryTags && !validCategoryTags.has(k)) return false
+      return true
+    })
     const allCats = [...CATEGORIES, ...customKeys]
 
     for (const cat of allCats) {

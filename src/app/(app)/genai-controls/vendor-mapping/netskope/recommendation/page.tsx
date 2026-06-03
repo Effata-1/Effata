@@ -147,9 +147,17 @@ export default async function NetskopeRecommendationPage() {
   }
 
   // ── Steps 3–4: Transpose + extract always-block ────────────────────────────
+  // Build valid category tag set from DB so drift keys in AI/blank policy NPJs
+  // (created or edited after a category was renamed/deleted) are silently dropped.
+  const validCategoryTags = new Set(
+    (categories ?? [])
+      .map(c => TAG_ALIAS[c.system_tag as string ?? ''] ?? c.system_tag as string ?? '')
+      .filter(Boolean)
+  )
+
   const alwaysBlockNpjs = extractAlwaysBlockProfiles(validNpjs)
   const alwaysBlockKeys = new Set(alwaysBlockNpjs.map(n => n.risk_family_key))
-  const buckets         = transposeNpjs(validNpjs, alwaysBlockKeys)
+  const buckets         = transposeNpjs(validNpjs, alwaysBlockKeys, validCategoryTags)
 
   // ── Step 5–9: Build topology ───────────────────────────────────────────────
   const prohibitedCategory = (categories ?? []).find(c => c.system_tag === 'prohibited') ?? null
