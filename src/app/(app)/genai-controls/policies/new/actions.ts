@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
+import { TAG_ALIAS } from '@/lib/genai/control-matrix-rows'
 
 export async function createBlankPolicy(
   name: string,
@@ -12,6 +13,22 @@ export async function createBlankPolicy(
   const supabase = await createClient()
 
   const now = new Date().toISOString()
+
+  // Fetch org categories to build actions_by_category (same structure as recommended policies)
+  const { data: catRows } = await supabase
+    .from('org_genai_governance_categories')
+    .select('id, system_tag, access_posture')
+    .eq('org_id', user.orgId)
+    .eq('active', true)
+    .order('priority')
+
+  const actions_by_category: Record<string, string> = {}
+  for (const cat of catRows ?? []) {
+    if ((cat as Record<string, unknown>).access_posture === 'block') continue
+    const tag = TAG_ALIAS[cat.system_tag as string ?? ''] ?? cat.system_tag as string ?? ''
+    if (!tag) continue
+    actions_by_category[tag] = 'allow'
+  }
 
   const blankNpj = {
     schema_version: '1.0',
@@ -25,6 +42,8 @@ export async function createBlankPolicy(
     },
     content:  { operator: 'any', conditions: [] },
     decision: { mode: 'allow' },
+    actions_by_category,
+    coaching_by_category: Object.fromEntries(Object.keys(actions_by_category).map(k => [k, null])),
     provenance: {
       generated_at:     now,
       compiler_version: '1.0',

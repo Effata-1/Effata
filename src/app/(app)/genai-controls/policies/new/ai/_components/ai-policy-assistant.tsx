@@ -136,25 +136,51 @@ function parseProposalError(text: string): string[] | null {
   try { return (JSON.parse(m[1]) as { errors: string[] }).errors } catch { return null }
 }
 
-function parsePolicyProposal(text: string): PolicyProposal | null {
+type NormCat = { system_tag: string | null; access_posture?: string }
+
+function parsePolicyProposal(
+  text: string,
+  cats: NormCat[] = [],
+): PolicyProposal | null {
   const repairMatch = text.match(/<policyProposalRepair>\s*([\s\S]*?)\s*<\/policyProposalRepair>/)
-  if (repairMatch) { try { return normalizeProposal(JSON.parse(repairMatch[1]) as PolicyProposal) } catch {} }
+  if (repairMatch) { try { return normalizeProposal(JSON.parse(repairMatch[1]) as PolicyProposal, cats) } catch {} }
   const match = text.match(/<policyProposal>\s*([\s\S]*?)\s*<\/policyProposal>/)
   if (!match) return null
-  try { return normalizeProposal(JSON.parse(match[1]) as PolicyProposal) } catch { return null }
+  try { return normalizeProposal(JSON.parse(match[1]) as PolicyProposal, cats) } catch { return null }
 }
 
-function normalizeProposal(p: PolicyProposal): PolicyProposal {
+function normalizeProposal(p: PolicyProposal, cats: NormCat[] = []): PolicyProposal {
   const users = (p.npj.scope?.users?.length ?? 0) > 0 ? p.npj.scope!.users! : ['All Users']
   // Prohibited apps are blocked at the network layer — they must never appear in
-  // content inspection policies. Remove any prohibited category from scope.
+  // content inspection policies.
   const appCategories = (p.npj.scope?.app_categories ?? []).filter(
     c => c.system_tag !== 'prohibited'
   )
-  const baseNpj: NeutralPolicyJson = {
-    ...p.npj,
-    scope: { ...p.npj.scope, users, app_categories: appCategories },
+
+  // Build actions_by_category if missing — same structure as recommended policies.
+  // Uses decision.mode (the AI's global action) applied to all non-prohibited categories.
+  const existingAbc = (p.npj as Record<string, unknown>).actions_by_category as Record<string, string> | undefined
+  let actions_by_category = existingAbc
+  if (!actions_by_category || Object.keys(actions_by_category).length === 0) {
+    const mode = p.npj.decision?.mode ?? 'allow'
+    actions_by_category = {}
+    for (const cat of cats) {
+      if (cat.access_posture === 'block') continue
+      const tag = cat.system_tag ?? ''
+      if (!tag || tag === 'prohibited') continue
+      actions_by_category[tag] = mode
+    }
   }
+
+  const baseNpj = {
+    ...p.npj,
+    scope:               { ...p.npj.scope, users, app_categories: appCategories },
+    actions_by_category,
+    coaching_by_category: Object.fromEntries(
+      Object.keys(actions_by_category).map(k => [k, null])
+    ),
+  } as NeutralPolicyJson
+
   if (p.npj?.intent !== 'govern_app_access') return { ...p, npj: baseNpj }
   return {
     ...p,
@@ -886,7 +912,7 @@ export function AiPolicyAssistant({ categories, ruleItems, vendors = [] }: Props
         return
       }
 
-      const parsed = parsePolicyProposal(full)
+      const parsed = parsePolicyProposal(full, categories.map(c => ({ system_tag: c.system_tag, access_posture: c.access_posture })))
       if (!parsed) {
         setParseError('AI did not return a structured proposal. Please try rephrasing your request.')
         return

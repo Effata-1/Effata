@@ -764,9 +764,10 @@ export function PolicyIntentEditor({
           <NpjRow label="Enforcement">
             {npj.decision ? (
               (() => {
-                if (isRecommended) {
-                  const abc = (rawNpj as Record<string, unknown>)?.actions_by_category as Record<string, string> | undefined
-                  const unique = abc ? [...new Set(Object.values(abc))] : []
+                {/* Always use actions_by_category if present, regardless of policy_source */}
+                const abc = (rawNpj as Record<string, unknown>)?.actions_by_category as Record<string, string> | undefined
+                if (abc && Object.keys(abc).length > 0) {
+                  const unique = [...new Set(Object.values(abc))]
                   if (unique.length > 1) {
                     return (
                       <div className="flex items-center gap-2">
@@ -1105,85 +1106,108 @@ export function PolicyIntentEditor({
         readOnly={isRecommended}
         tooltip={isRecommended ? 'Decision is governed by the Control Matrix. Change detection settings in the Control Matrix to update.' : undefined}
       >
-        {!isRecommended && (
-          <div className="px-5 py-4 space-y-4">
-            {npj?.decision ? (
-              <DecisionFlags decision={npj.decision} />
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className={cn('inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-semibold', ACTION_CHIP[policy.fallback_action ?? ''] ?? 'bg-muted/50 text-muted-foreground border-border')}>
-                  {policy.fallback_action ?? 'not-set'}
-                </span>
-                <span className="text-[10px] text-amber-400/70">(legacy field)</span>
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 block mb-1.5">Coaching Template</label>
-              <select
-                value={formCoachTemplate}
-                onChange={e => setFormCoachTemplate(e.target.value)}
-                className="block w-full max-w-xs rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong"
-              >
-                <option value="">None</option>
-                {coachingTemplates.map(t => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-        )}
-        {isRecommended && (() => {
+        {(() => {
           const actionsByCategory = (rawNpj as Record<string, unknown>)?.actions_by_category as Record<string, string> | undefined
           const coachingByCategory = (rawNpj as Record<string, unknown>)?.coaching_by_category as Record<string, string | null> | undefined
-          if (!actionsByCategory || Object.keys(actionsByCategory).length === 0) return null
           const ORDER = ['Approved & Supported', 'Approved with Conditions', 'Restricted', 'Prohibited']
+
+          if (actionsByCategory && Object.keys(actionsByCategory).length > 0) {
+            return (
+              <>
+                {/* Column headers */}
+                <div className="grid grid-cols-[1fr_120px_200px] px-5 py-2 border-b border-border/50 bg-muted/5">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Category</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Action</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Coaching</span>
+                </div>
+                <div className="divide-y divide-border/40">
+                  {Object.entries(actionsByCategory)
+                    .filter(([cat]) => cat !== '')
+                    .sort(([a], [b]) => {
+                      const nameA = TAG_DISPLAY_NAMES[a] ?? a
+                      const nameB = TAG_DISPLAY_NAMES[b] ?? b
+                      const ia = ORDER.findIndex(p => nameA.includes(p))
+                      const ib = ORDER.findIndex(p => nameB.includes(p))
+                      return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib)
+                    })
+                    .map(([cat, action]) => {
+                      const tpl = coachingByCategory?.[cat]
+                        ? coachingTemplates.find(t => t.id === coachingByCategory[cat])
+                        : undefined
+                      const coachName = tpl ? (tpl.coach_label ?? tpl.name) : null
+                      return (
+                        <div key={cat} className="grid grid-cols-[1fr_120px_200px] items-center px-5 py-3">
+                          <span className="text-xs text-foreground/70">
+                            {TAG_DISPLAY_NAMES[cat] ?? cat.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                          </span>
+                          <span className={cn('inline-flex items-center w-fit px-2.5 py-1 rounded-lg border text-xs font-semibold', ACTION_CHIP[action] ?? 'bg-muted/50 text-muted-foreground border-border')}>
+                            {action}
+                          </span>
+                          <span className="text-xs text-muted-foreground/60">
+                            {coachName ?? <span className="text-muted-foreground/30 italic">None</span>}
+                          </span>
+                        </div>
+                      )
+                    })}
+                </div>
+                <div className="border-t border-border/50 px-4 py-2.5 flex items-center justify-between">
+                  {!isRecommended && (
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 block">Coaching Template</label>
+                      <select
+                        value={formCoachTemplate}
+                        onChange={e => setFormCoachTemplate(e.target.value)}
+                        className="rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong"
+                      >
+                        <option value="">None</option>
+                        {coachingTemplates.map(t => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {isRecommended && (
+                    <Link
+                      href="/genai-controls/control-matrix"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border text-[11px] font-medium text-foreground/70 bg-muted/40 hover:bg-muted/70 hover:text-foreground transition-colors"
+                    >
+                      <ExternalLink className="h-3 w-3" /> Open Control Matrix
+                    </Link>
+                  )}
+                </div>
+              </>
+            )
+          }
+
+          // Fallback: legacy decision.mode display
           return (
-            <>
-              {/* Column headers */}
-              <div className="grid grid-cols-[1fr_120px_200px] px-5 py-2 border-b border-border/50 bg-muted/5">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Category</span>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Action</span>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Coaching</span>
-              </div>
-              <div className="divide-y divide-border/40">
-                {Object.entries(actionsByCategory)
-                  .filter(([cat]) => cat !== '')  // skip null-system_tag categories
-                  .sort(([a], [b]) => {
-                    const nameA = TAG_DISPLAY_NAMES[a] ?? a
-                    const nameB = TAG_DISPLAY_NAMES[b] ?? b
-                    const ia = ORDER.findIndex(p => nameA.includes(p))
-                    const ib = ORDER.findIndex(p => nameB.includes(p))
-                    return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib)
-                  })
-                  .map(([cat, action]) => {
-                    const tpl = coachingByCategory?.[cat]
-                      ? coachingTemplates.find(t => t.id === coachingByCategory[cat])
-                      : undefined
-                    const coachName = tpl ? (tpl.coach_label ?? tpl.name) : null
-                    return (
-                      <div key={cat} className="grid grid-cols-[1fr_120px_200px] items-center px-5 py-3">
-                        <span className="text-xs text-foreground/70">
-                          {TAG_DISPLAY_NAMES[cat] ?? cat.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-                        </span>
-                        <span className={cn('inline-flex items-center w-fit px-2.5 py-1 rounded-lg border text-xs font-semibold', ACTION_CHIP[action] ?? 'bg-muted/50 text-muted-foreground border-border')}>
-                          {action}
-                        </span>
-                        <span className="text-xs text-muted-foreground/60">
-                          {coachName ?? <span className="text-muted-foreground/30 italic">None</span>}
-                        </span>
-                      </div>
-                    )
-                  })}
-              </div>
-              <div className="border-t border-border/50 px-4 py-2.5 flex justify-end">
-                <Link
-                  href="/genai-controls/control-matrix"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border text-[11px] font-medium text-foreground/70 bg-muted/40 hover:bg-muted/70 hover:text-foreground transition-colors"
-                >
-                  <ExternalLink className="h-3 w-3" /> Open Control Matrix
-                </Link>
-              </div>
-            </>
+            <div className="px-5 py-4 space-y-4">
+              {npj?.decision ? (
+                <DecisionFlags decision={npj.decision} />
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className={cn('inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-semibold', ACTION_CHIP[policy.fallback_action ?? ''] ?? 'bg-muted/50 text-muted-foreground border-border')}>
+                    {policy.fallback_action ?? 'not-set'}
+                  </span>
+                  <span className="text-[10px] text-amber-400/70">(legacy field)</span>
+                </div>
+              )}
+              {!isRecommended && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 block mb-1.5">Coaching Template</label>
+                  <select
+                    value={formCoachTemplate}
+                    onChange={e => setFormCoachTemplate(e.target.value)}
+                    className="block w-full max-w-xs rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong"
+                  >
+                    <option value="">None</option>
+                    {coachingTemplates.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
           )
         })()}
       </SectionCard>
@@ -1454,7 +1478,7 @@ export function PolicyIntentEditor({
       </div>
 
       {/* Basic Details — hidden for recommended (name/active shown in header; fields all read-only) */}
-      {!isRecommended && <SectionCard title="Basic Details" readOnly={isRecommended}>
+      {<SectionCard title="Basic Details" readOnly={isRecommended}>
         <div className="space-y-3 px-5 py-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             <div>
@@ -1555,7 +1579,7 @@ export function PolicyIntentEditor({
       </SectionCard>}
 
       {/* ── Save Section — hidden for recommended ────────────────────────── */}
-      {!isRecommended && (
+      {(
         <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card px-4 py-3">
           <div>
             <p className="text-xs font-medium text-foreground">Save Changes</p>
