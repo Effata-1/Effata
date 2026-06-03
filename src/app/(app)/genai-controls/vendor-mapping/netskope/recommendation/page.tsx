@@ -24,7 +24,7 @@ export default async function NetskopeRecommendationPage() {
   const [{ data: policies, error: policiesError }, { data: categories }, { data: coachingTemplates }] = await Promise.all([
     supabase
       .from('org_genai_policies')
-      .select('id, name, policy_family, neutral_policy_json')
+      .select('id, name, policy_family, neutral_policy_json, updated_at')
       .eq('org_id', user.orgId)
       .eq('is_active', true)
       .eq('approval_status', 'approved')
@@ -93,6 +93,20 @@ export default async function NetskopeRecommendationPage() {
     // Check 5: supported policy_family
     if (!SUPPORTED_FAMILIES.has(p.policy_family ?? '')) {
       skipped.push({ policy_id: p.id, policy_name: p.name, reason: `Policy family '${p.policy_family}' is not yet supported`, fix: 'Policy family not yet supported by recommendation engine' })
+      continue
+    }
+
+    // Check 6: NPJ is not stale — provenance.generated_at must be >= updated_at
+    const provenance = npj.provenance as Record<string, unknown> | undefined
+    const generatedAt = provenance?.generated_at as string | undefined
+    const updatedAt   = p.updated_at as string | undefined
+    if (generatedAt && updatedAt && generatedAt < updatedAt) {
+      skipped.push({
+        policy_id:   p.id,
+        policy_name: p.name,
+        reason:      `NPJ is outdated — policy was updated ${new Date(updatedAt).toLocaleDateString()} but NPJ was last compiled ${new Date(generatedAt).toLocaleDateString()}`,
+        fix:         'Visit Policy Editor — recompile or refresh from Control Matrix',
+      })
       continue
     }
 
