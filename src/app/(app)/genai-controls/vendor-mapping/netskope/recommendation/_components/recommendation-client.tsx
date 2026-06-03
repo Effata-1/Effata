@@ -41,8 +41,8 @@ function priorityBadgeClass(p: number): string {
   if (p === 200) return 'bg-red-500/10 text-red-300/80 border-red-500/15'
   if (p === 300) return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
   if (p === 400) return 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-  if (p >= 450 && p < 500) return 'bg-blue-500/10 text-blue-400 border-blue-500/20' // custom categories
-  return 'bg-muted/60 text-muted-foreground/70 border-border/60' // 500 = R/U fallback
+  if (p >= 450 && p < 900) return 'bg-blue-500/10 text-blue-400 border-blue-500/20' // custom categories (P450–P890)
+  return 'bg-muted/60 text-muted-foreground/70 border-border/60' // P900 = R/U fallback
 }
 
 const CONFIDENCE_CHIP: Record<string, string> = {
@@ -103,8 +103,8 @@ function NativePolicyCard({ policy }: { policy: NetskopePolicy }) {
     if (policy.priority === 200) return '2. Global DLP Block'
     if (policy.priority === 300) return '3. Approved Category Policies'
     if (policy.priority === 400) return '4. Conditional Category Policies'
-    if (policy.priority >= 450 && policy.priority < 500) return `${policy.priority}. Custom Category Policies`
-    return '5. Fallback Policies'
+    if (policy.priority >= 450 && policy.priority < 900) return `${policy.priority}. Custom Category Policies`
+    return '9. Fallback Policies'
   })()
 
   const noMatchText = policy.no_match_action

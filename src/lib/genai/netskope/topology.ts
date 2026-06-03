@@ -17,7 +17,7 @@ const PRIORITIES = {
   always_block_global_dlp:  200,
   approved_supported:       300,
   approved_with_conditions: 400,
-  restricted_unassessed:    500, // always last — catch-all
+  restricted_unassessed:    900, // always last — catch-all (P450–P890 reserved for future custom policies)
 } as const
 
 // ── Fixed no-match actions (Phase 1 — no posture selector) ───────────────────
@@ -205,14 +205,13 @@ export function buildTopology(input: BuildTopologyInput): Omit<NetskopeRecommend
       activities:      ['post', 'upload', 'prompt_submit'],
       profiles:        alwaysBlockProfiles,
       no_match_action: null,
-      // Policy 200 has broad scope (Category = Generative AI). CPE must be true so
-      // traffic that does NOT match the Credentials profile continues to the narrower
-      // category policies below — without this, non-credential GenAI traffic would
-      // never reach P300/P400/P500.
+      // Policy 200 has broad scope (Category = Generative AI).
+      // When no Credentials profile match: no decision — traffic continues to P300/P400/P900.
+      // This is not Alert + Continue. It is no-decision / pass-through to category policies.
       continue_policy_evaluation: {
         recommended:  true,
-        applies_when: 'No Credentials, Keys & Secrets DLP profile match — traffic continues to category-specific policies (P300 / P400 / P500).',
-        limitation:   'This policy uses a broad Category = Generative AI destination. Continue Policy Evaluation MUST be enabled in the Netskope console — otherwise non-matching traffic is allowed at P200 and never reaches the Approved & Supported, Approved with Conditions, or Restricted / Unassessed enforcement policies below it.',
+        applies_when: 'No Credentials, Keys & Secrets DLP profile match — no decision made. Traffic continues to category-specific policies (P300 / P400 / P900).',
+        limitation:   'P200 uses a broad Category = Generative AI destination. When no profile matches, the outcome must be no decision — not Allow. Enable Continue Policy Evaluation in Netskope to ensure non-matching traffic reaches the category policies below.',
       },
       notification:    'Credential Sharing Blocked',
     })
@@ -283,12 +282,14 @@ export function buildTopology(input: BuildTopologyInput): Omit<NetskopeRecommend
   for (const catKey of customCatKeys) {
     const profilesForCat = buckets[catKey] ?? []
     if (profilesForCat.length === 0) continue
-    // Guard: never let custom policies reach P500 (reserved for R/U catch-all)
-    if (customPriority >= 500) {
+    // Guard: never let custom policies reach P900 (reserved for R/U catch-all).
+    // P450–P890 is available for custom categories, AD group, app-instance,
+    // personal-instance block, and exception policies in future phases.
+    if (customPriority >= 900) {
       issues.push({
         code:        'CUSTOM_CATEGORY_OVERFLOW',
         severity:    'warning',
-        description: `Custom category "${catKey}" could not be assigned a priority — too many custom categories (max 4 before the Restricted / Unassessed catch-all at P500).`,
+        description: `Custom category "${catKey}" could not be assigned a priority — too many custom categories queued before the Restricted / Unassessed catch-all at P900.`,
         fix:         'Reduce the number of custom governance categories, or manually adjust policy priorities in the Netskope console.',
       })
       continue
