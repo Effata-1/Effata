@@ -133,7 +133,7 @@ function computeScore(params: {
   score -= params.skippedCount * 5
   if (params.restrictedEmpty) score -= 10
   score = Math.max(50, score)
-  const confidence = score >= 80 ? 'high' : score >= 65 ? 'medium' : 'low'
+  const confidence = score >= 85 ? 'high' : score >= 70 ? 'medium' : 'low'
   return { score, confidence }
 }
 
