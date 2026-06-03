@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   ChevronLeft, AlertTriangle, CheckCircle2, RefreshCw, Loader2,
-  Lock, ExternalLink, Copy, Check, Info,
+  Lock, ExternalLink, Copy, Check, Info, Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { colorClasses, SYSTEM_LEVEL_META } from '@/lib/data-catalog/types'
@@ -391,7 +391,8 @@ export function PolicyIntentEditor({
   const npj           = isValidNpj(policy.neutral_policy_json) ? (policy.neutral_policy_json as NeutralPolicyJson) : null
   const rawNpj        = policy.neutral_policy_json
   const status        = npjStatus(rawNpj, policy.updated_at)
-  const isRecommended = policy.policy_source === 'recommended'
+  const isRecommended  = policy.policy_source === 'recommended'
+  const isAiGenerated  = policy.generated_from === 'ai-assisted'
 
   // ── form state (safe-field edits) ──────────────────────────────────────────
   const [formName,             setFormName]             = useState(policy.name)
@@ -680,6 +681,36 @@ export function PolicyIntentEditor({
                 {refreshing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                 Refresh from Matrix
               </button>
+              <button
+                type="button"
+                onClick={handleDuplicateAsManual}
+                disabled={duplicating}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/30 text-xs font-medium text-muted-foreground/70 hover:bg-muted/50 hover:text-foreground/80 transition-colors disabled:opacity-50"
+              >
+                {duplicating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Copy className="h-3 w-3" />}
+                Duplicate as Manual
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── AI-Generated Policy Banner ──────────────────────────────────── */}
+      {isAiGenerated && !isRecommended && (
+        <div className="rounded-xl border border-violet-500/25 bg-violet-500/5 overflow-hidden">
+          <div className="flex items-start justify-between gap-4 px-4 py-3.5">
+            <div className="space-y-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Sparkles className="h-4 w-4 text-violet-400 shrink-0" />
+                <span className="text-sm font-semibold text-foreground">AI-Generated Policy</span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-violet-500/30 bg-violet-500/10 text-[10px] font-medium text-violet-400">Drafted by AI · Review before enabling</span>
+              </div>
+              <p className="text-xs text-muted-foreground/60 pl-6">
+                This policy was drafted by the AI assistant. Review all sections carefully before enabling.
+                Duplicate as Manual to unlock full editing.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
                 onClick={handleDuplicateAsManual}
@@ -1335,38 +1366,9 @@ export function PolicyIntentEditor({
         )}
       </div>
 
-      {/* ── 10. Lifecycle & Metadata ─────────────────────────────────────── */}
-      <div className={!isRecommended ? 'grid grid-cols-1 lg:grid-cols-2 gap-5' : undefined}>
-
-        {/* Policy Metadata (read-only) — hidden for recommended */}
-        {!isRecommended && (
-          <SectionCard title="Policy Metadata">
-            <div>
-              <NpjRow label="Policy Key">
-                <span className="text-xs font-mono text-foreground/70">{policy.policy_key ?? '—'}</span>
-              </NpjRow>
-              <NpjRow label="Family">
-                <span className="text-xs text-foreground/80">{policy.policy_family ?? '—'}</span>
-              </NpjRow>
-              <NpjRow label="Generated From">
-                <span className="text-xs text-foreground/80">{policy.generated_from ?? '—'}</span>
-              </NpjRow>
-              {npj?.provenance?.generated_at && (
-                <NpjRow label="Generated At">
-                  <span className="text-xs text-muted-foreground/70">{new Date(npj.provenance.generated_at).toLocaleString()}</span>
-                </NpjRow>
-              )}
-              {npj?.provenance?.compiler_version && (
-                <NpjRow label="Compiler Version">
-                  <span className="text-xs font-mono text-muted-foreground/70">{npj.provenance.compiler_version}</span>
-                </NpjRow>
-              )}
-            </div>
-          </SectionCard>
-        )}
-
-        {/* Translation Status (state machine) */}
-        <SectionCard title="Translation Status">
+      {/* ── 10. Translation Status ───────────────────────────────────────── */}
+      {/* Translation Status (state machine) */}
+      <SectionCard title="Translation Status">
           <div className="space-y-3 px-5 py-4">
             <div className="flex items-center gap-2">
               <StatusChip label={translationStatus} chipClass={TRANSLATION_CHIP[translationStatus] ?? 'bg-muted/60 text-muted-foreground/70 border-border/60'} />
@@ -1414,7 +1416,6 @@ export function PolicyIntentEditor({
             )}
           </div>
         </SectionCard>
-      </div>
 
       {/* Lifecycle (approval, test status) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
