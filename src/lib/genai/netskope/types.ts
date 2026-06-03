@@ -100,6 +100,30 @@ export interface RecommendationIssue {
   fix:         string | null
 }
 
+// ── Phase 2: Topology option types ───────────────────────────────────────────
+
+export type TopologyMode =
+  | 'hybrid_category_based'
+  | 'consolidated'
+  | 'per_risk_family'
+
+export interface TopologyTradeOff {
+  pro: string
+  con: string
+}
+
+export interface TopologyOptionSummary {
+  mode:             TopologyMode
+  label:            string
+  score:            number
+  confidence:       'high' | 'medium' | 'low'
+  policy_count:     number
+  trade_offs:       TopologyTradeOff[]
+  recommended:      boolean
+  policies:         NetskopePolicy[]
+  required_objects: RequiredObjects
+}
+
 // ── Top-level recommendation ──────────────────────────────────────────────────
 
 export interface NetskopeRecommendation {
@@ -117,4 +141,5 @@ export interface NetskopeRecommendation {
   skipped_policies:     SkippedPolicy[]
   issues:               RecommendationIssue[]
   inline_file_size_limit_mb: number
+  topology_options:     TopologyOptionSummary[]  // Phase 2
 }

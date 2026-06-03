@@ -63,7 +63,7 @@ function sortProfiles(profiles: NetskopeProfileEntry[]): NetskopeProfileEntry[] 
 // Recommended only when ALL profiles in the policy have alert action.
 // Mixed-action policies terminate on non-alert matches.
 
-function buildContinuePolicyEvaluation(profiles: NetskopeProfileEntry[]) {
+export function buildContinuePolicyEvaluation(profiles: NetskopeProfileEntry[]) {
   const isAlertOnly = profiles.length > 0 && profiles.every(p => p.profile_action === 'alert')
   return {
     recommended:  isAlertOnly,
@@ -74,7 +74,7 @@ function buildContinuePolicyEvaluation(profiles: NetskopeProfileEntry[]) {
 
 // ── Required objects collector ────────────────────────────────────────────────
 
-function collectRequiredObjects(
+export function collectRequiredObjects(
   policies: NetskopePolicy[],
 ): RequiredObjects {
   const dlp       = new Set<string>()
@@ -147,7 +147,7 @@ export interface BuildTopologyInput {
   categoryNameMap?:     Record<string, string>  // system_tag → display name for custom categories
 }
 
-export function buildTopology(input: BuildTopologyInput): Omit<NetskopeRecommendation, 'skipped_policies' | 'limitations' | 'inline_file_size_limit_mb'> {
+export function buildTopology(input: BuildTopologyInput): Omit<NetskopeRecommendation, 'skipped_policies' | 'limitations' | 'inline_file_size_limit_mb' | 'topology_options'> {
   const { buckets, alwaysBlockNpjs, prohibitedCategory, skippedCount, categoryNameMap = {} } = input
   const policies: NetskopePolicy[] = []
   const issues: RecommendationIssue[] = []

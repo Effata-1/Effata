@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth'
 import { validateNeutralPolicy, isTranslationReady } from '@/lib/genai/npj-schema'
 import { extractAlwaysBlockProfiles, transposeNpjs } from '@/lib/genai/netskope/transpose'
 import { buildTopology } from '@/lib/genai/netskope/topology'
+import { generateTopologyOptions } from '@/lib/genai/netskope/options'
 import { LIMITATIONS, INLINE_FILE_SIZE_LIMIT_MB } from '@/lib/genai/netskope/limitations'
 import { TAG_ALIAS } from '@/lib/genai/control-matrix-rows'
 import type { NpjInput } from '@/lib/genai/netskope/transpose'
@@ -177,8 +178,14 @@ export default async function NetskopeRecommendationPage() {
     categoryNameMap,
   })
 
+  const topology_options = generateTopologyOptions(
+    { buckets, alwaysBlockNpjs, prohibitedCategory, skippedCount: skipped.length, categoryNameMap },
+    partial,
+  )
+
   const recommendation = {
     ...partial,
+    topology_options,
     skipped_policies:          skipped,
     limitations:               LIMITATIONS,
     inline_file_size_limit_mb: INLINE_FILE_SIZE_LIMIT_MB,

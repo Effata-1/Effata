@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { AlertTriangle, CheckCircle2, Info, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
 import type {
   NetskopeRecommendation, NetskopePolicy, NetskopeProfileEntry,
-  NpjProfileType, RecommendationIssue,
+  NpjProfileType, RecommendationIssue, TopologyMode, TopologyOptionSummary,
 } from '@/lib/genai/netskope/types'
 import { FILE_SIZE_LIMIT_SOURCE } from '@/lib/genai/netskope/limitations'
 
@@ -318,6 +318,72 @@ function NativePolicyCard({ policy }: { policy: NetskopePolicy }) {
   )
 }
 
+// ── Static why-selected copy for non-hybrid options ──────────────────────────
+
+const WHY_SELECTED: Record<TopologyMode, string[]> = {
+  hybrid_category_based: [], // populated from server-computed r.why_selected
+  consolidated: [
+    'All DLP risk families are merged into a single Real-time Protection policy covering every GenAI app category.',
+    'The strictest action for each risk family is applied globally — no per-category differentiation.',
+    'Minimises the number of Netskope policies to configure and maintain.',
+    'Best suited for organisations that want the simplest possible policy structure and are comfortable with uniform enforcement.',
+  ],
+  per_risk_family: [
+    'One Real-time Protection policy is created per risk family, each covering all GenAI app categories.',
+    'Each policy passes traffic with no decision when the risk family profile does not match, continuing to the next policy.',
+    'A P900 Fallback Visibility policy catches any traffic not matched by any risk-family policy and alerts for monitoring.',
+    'Best suited for organisations that prioritise granular incident reporting over simplified policy management.',
+  ],
+}
+
+// ── Topology option card ──────────────────────────────────────────────────────
+
+function TopologyOptionCard({
+  option,
+  selected,
+  onSelect,
+}: {
+  option: TopologyOptionSummary
+  selected: boolean
+  onSelect: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        'flex flex-col items-start gap-3 p-4 rounded-xl border bg-card text-left transition-all w-full',
+        selected
+          ? 'border-blue-500/40 ring-1 ring-blue-500/20 bg-blue-500/3'
+          : 'border-border hover:border-border/80 hover:bg-muted/20',
+      )}
+    >
+      <div className="flex items-center justify-between w-full gap-2">
+        <span className="text-sm font-bold text-foreground">{option.label}</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {option.recommended && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md border border-emerald-500/20 bg-emerald-500/10 text-[10px] font-semibold text-emerald-400">
+              Recommended
+            </span>
+          )}
+          <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-bold', CONFIDENCE_CHIP[option.confidence])}>
+            {option.score}
+          </span>
+        </div>
+      </div>
+      <p className="text-[11px] text-muted-foreground/50">{option.policy_count} {option.policy_count === 1 ? 'policy' : 'policies'} · {option.confidence} confidence</p>
+      <div className="space-y-1 w-full">
+        {option.trade_offs.map((t, i) => (
+          <div key={i} className="space-y-0.5">
+            <p className="text-[11px] text-emerald-400/80">✓ {t.pro}</p>
+            <p className="text-[11px] text-amber-400/70">✗ {t.con}</p>
+          </div>
+        ))}
+      </div>
+    </button>
+  )
+}
+
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
 const TABS = ['Native Policies', 'Required Objects', 'Limitations'] as const
@@ -326,7 +392,15 @@ type Tab = typeof TABS[number]
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export function RecommendationClient({ recommendation: r }: { recommendation: NetskopeRecommendation }) {
-  const [tab, setTab] = useState<Tab>('Native Policies')
+  const [tab, setTab]               = useState<Tab>('Native Policies')
+  const [selectedMode, setSelectedMode] = useState<TopologyMode>(
+    () => r.topology_options.find(o => o.recommended)?.mode ?? 'hybrid_category_based'
+  )
+  const activeOption = r.topology_options.find(o => o.mode === selectedMode) ?? r.topology_options[0]
+
+  const whySelected = selectedMode === 'hybrid_category_based'
+    ? r.why_selected
+    : WHY_SELECTED[selectedMode]
 
   return (
     <div className="space-y-6">
@@ -342,30 +416,48 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
           </Link>
           <h1 className="text-xl font-bold text-foreground">Netskope Policy Recommendation</h1>
           <p className="text-sm text-muted-foreground/60 mt-0.5">
-            Hybrid category-based topology · {r.recommended_policies.length} native {r.recommended_policies.length === 1 ? 'policy' : 'policies'}
+            {activeOption.label} · {activeOption.policy_count} native {activeOption.policy_count === 1 ? 'policy' : 'policies'}
             {r.is_partial && <span className="ml-2 text-amber-400/80">· Partial</span>}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className={cn('inline-flex items-center px-3 py-1.5 rounded-lg border text-sm font-bold', CONFIDENCE_CHIP[r.confidence])}>
-            {r.score} / 100
+          <span className={cn('inline-flex items-center px-3 py-1.5 rounded-lg border text-sm font-bold', CONFIDENCE_CHIP[activeOption.confidence])}>
+            {activeOption.score} / 100
           </span>
-          <span className={cn('inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-medium capitalize', CONFIDENCE_CHIP[r.confidence])}>
-            {r.confidence} confidence
+          <span className={cn('inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-medium capitalize', CONFIDENCE_CHIP[activeOption.confidence])}>
+            {activeOption.confidence} confidence
           </span>
         </div>
       </div>
 
-      {/* Topology Rationale — dedicated section */}
+      {/* Topology option selector */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+        <div className="px-5 py-3 border-b border-border/50 bg-muted/5 flex items-center justify-between">
+          <span className="text-sm font-bold text-foreground">Choose Topology</span>
+          <span className="text-[11px] text-muted-foreground/40">{r.topology_options.length} options</span>
+        </div>
+        <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {r.topology_options.map(option => (
+            <TopologyOptionCard
+              key={option.mode}
+              option={option}
+              selected={option.mode === selectedMode}
+              onSelect={() => setSelectedMode(option.mode)}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Topology Rationale — updates with selected option */}
       <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
         <div className="px-5 py-3.5 border-b border-border/50 bg-muted/5">
           <span className="text-sm font-bold text-foreground">Why this topology was selected</span>
           <p className="text-[11px] text-muted-foreground/50 mt-0.5">
-            Hybrid category-based · {r.recommendation_mode === 'default' ? 'Default recommendation' : r.recommendation_mode}
+            {activeOption.label} · {r.recommendation_mode === 'default' ? 'Default recommendation' : r.recommendation_mode}
           </p>
         </div>
         <ul className="px-5 py-4 space-y-2.5">
-          {r.why_selected.map((w, i) => (
+          {whySelected.map((w, i) => (
             <li key={i} className="flex items-start gap-2.5 text-sm text-foreground/70">
               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
               {w}
@@ -434,12 +526,12 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
       {/* Tab: Native Policies */}
       {tab === 'Native Policies' && (
         <div className="space-y-4">
-          {r.recommended_policies.length === 0 ? (
+          {activeOption.policies.length === 0 ? (
             <div className="rounded-xl border border-border bg-card px-5 py-8 text-center">
               <p className="text-sm text-muted-foreground/60">No valid policies found. Resolve NPJ issues in the Policy Editor before generating a recommendation.</p>
             </div>
           ) : (
-            r.recommended_policies.map(p => <NativePolicyCard key={p.policy_key} policy={p} />)
+            activeOption.policies.map(p => <NativePolicyCard key={p.policy_key} policy={p} />)
           )}
         </div>
       )}
@@ -448,14 +540,14 @@ export function RecommendationClient({ recommendation: r }: { recommendation: Ne
       {tab === 'Required Objects' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {([
-            ['DLP Profiles',             r.required_objects.dlp_profiles],
-            ['Classification Labels',    r.required_objects.classification_label_profiles],
-            ['Filename Profiles',        r.required_objects.filename_profiles],
-            ['Filetype Profiles',        r.required_objects.filetype_profiles],
-            ['Notification Templates',   r.required_objects.notification_templates],
-            ['CCI App Tags',             r.required_objects.cci_app_tags],
-            ['App Categories',           r.required_objects.app_categories],
-            ['Policy Order',             r.required_objects.policy_order],
+            ['DLP Profiles',             activeOption.required_objects.dlp_profiles],
+            ['Classification Labels',    activeOption.required_objects.classification_label_profiles],
+            ['Filename Profiles',        activeOption.required_objects.filename_profiles],
+            ['Filetype Profiles',        activeOption.required_objects.filetype_profiles],
+            ['Notification Templates',   activeOption.required_objects.notification_templates],
+            ['CCI App Tags',             activeOption.required_objects.cci_app_tags],
+            ['App Categories',           activeOption.required_objects.app_categories],
+            ['Policy Order',             activeOption.required_objects.policy_order],
           ] as [string, string[]][]).filter(([, items]) => items.length > 0).map(([label, items]) => (
             <div key={label} className="rounded-xl border border-border bg-card overflow-hidden">
               <div className="px-4 py-2.5 border-b border-border/50 bg-muted/5 flex items-center justify-between">
