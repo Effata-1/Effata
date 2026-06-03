@@ -28,42 +28,43 @@ export default async function ControlMatrixPage() {
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
-  const { data: catRows } = await supabase
-    .from('org_genai_governance_categories')
-    .select('id, system_tag, name, color, access_posture')
-    .eq('org_id', user.orgId)
-    .eq('active', true)
-    .order('priority')
+  const [
+    { data: catRows },
+    { data: overrideRows },
+    labels,
+    { data: customerLabelRows },
+    { data: notifRows },
+  ] = await Promise.all([
+    supabase
+      .from('org_genai_governance_categories')
+      .select('id, system_tag, name, color, access_posture')
+      .eq('org_id', user.orgId)
+      .eq('active', true)
+      .order('priority'),
+    supabase
+      .from('org_control_matrix_overrides')
+      .select('data_type, category_id, action_code, coaching_notification_id')
+      .eq('org_id', user.orgId),
+    ensureClassificationLabels(),
+    supabase
+      .from('org_customer_sensitivity_labels')
+      .select('id, display_name, color, system_level, priority')
+      .eq('org_id', user.orgId)
+      .eq('active', true)
+      .order('priority'),
+    supabase
+      .from('org_coaching_notifications')
+      .select('id, name, coach_label, control_type')
+      .eq('org_id', user.orgId)
+      .eq('is_active', true)
+      .order('created_at'),
+  ])
 
-  const categories: MatrixCategory[] = (catRows ?? []) as MatrixCategory[]
-
-  const { data: overrideRows } = await supabase
-    .from('org_control_matrix_overrides')
-    .select('data_type, category_id, action_code, coaching_notification_id')
-    .eq('org_id', user.orgId)
-
-  const overrides: MatrixOverride[] = (overrideRows ?? []) as MatrixOverride[]
-
-  const labels: OrgClassificationLabel[] = await ensureClassificationLabels()
-
-  const { data: customerLabelRows } = await supabase
-    .from('org_customer_sensitivity_labels')
-    .select('id, display_name, color, system_level, priority')
-    .eq('org_id', user.orgId)
-    .eq('active', true)
-    .order('priority')
-
+  const categories: MatrixCategory[]  = (catRows ?? []) as MatrixCategory[]
+  const overrides: MatrixOverride[]    = (overrideRows ?? []) as MatrixOverride[]
   const customerLabels = (customerLabelRows ?? []) as {
     id: string; display_name: string; color: string; system_level: string | null; priority: number
   }[]
-
-  const { data: notifRows } = await supabase
-    .from('org_coaching_notifications')
-    .select('id, name, coach_label, control_type')
-    .eq('org_id', user.orgId)
-    .eq('is_active', true)
-    .order('created_at')
-
   const notifications = (notifRows ?? []) as { id: string; name: string; coach_label: string | null; control_type: string }[]
 
   return (

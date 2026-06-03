@@ -106,13 +106,11 @@ function extractBaselinePolicies(hybridPolicies: NetskopePolicy[]): NetskopePoli
 // ── Consolidated topology builder ────────────────────────────────────────────
 
 function buildConsolidatedTopology(
-  input: BuildTopologyInput,
   hybridPolicies: NetskopePolicy[],
+  deduped: DeduplicatedProfile[],
 ): { policies: NetskopePolicy[]; issues: RecommendationIssue[] } {
   const baseline = extractBaselinePolicies(hybridPolicies)
   const issues: RecommendationIssue[] = []
-
-  const deduped = sortDedupedProfiles(collectDedupedProfiles(input.buckets))
 
   if (deduped.length === 0) {
     issues.push({
@@ -158,13 +156,11 @@ function buildConsolidatedTopology(
 // ── Per-risk-family topology builder ─────────────────────────────────────────
 
 function buildPerRiskFamilyTopology(
-  input: BuildTopologyInput,
   hybridPolicies: NetskopePolicy[],
+  deduped: DeduplicatedProfile[],
 ): { policies: NetskopePolicy[]; issues: RecommendationIssue[] } {
   const baseline = extractBaselinePolicies(hybridPolicies)
   const issues: RecommendationIssue[] = []
-
-  const deduped = sortDedupedProfiles(collectDedupedProfiles(input.buckets))
 
   if (deduped.length === 0) {
     issues.push({
@@ -262,8 +258,11 @@ export function generateTopologyOptions(
     required_objects: hybridResult.required_objects,
   }
 
+  // Compute deduped profiles once — shared between both alternative topology builders.
+  const deduped = sortDedupedProfiles(collectDedupedProfiles(input.buckets))
+
   // Option 2: Consolidated
-  const { policies: consolidatedPolicies } = buildConsolidatedTopology(input, hybridResult.recommended_policies)
+  const { policies: consolidatedPolicies } = buildConsolidatedTopology(hybridResult.recommended_policies, deduped)
   const consolidatedScore = Math.max(50, hybridResult.score - 10)
   const consolidatedOption: TopologyOptionSummary = {
     mode:             'consolidated',
@@ -278,7 +277,7 @@ export function generateTopologyOptions(
   }
 
   // Option 3: Per-Risk-Family
-  const { policies: perRfPolicies } = buildPerRiskFamilyTopology(input, hybridResult.recommended_policies)
+  const { policies: perRfPolicies } = buildPerRiskFamilyTopology(hybridResult.recommended_policies, deduped)
   const perRfScore = Math.max(50, hybridResult.score - 5)
   const perRfOption: TopologyOptionSummary = {
     mode:             'per_risk_family',
