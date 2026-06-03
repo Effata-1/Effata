@@ -205,14 +205,10 @@ export function buildTopology(input: BuildTopologyInput): Omit<NetskopeRecommend
       activities:      ['post', 'upload', 'prompt_submit'],
       profiles:        alwaysBlockProfiles,
       no_match_action: null,
-      // Policy 200 has broad scope (Category = Generative AI).
-      // When no Credentials profile match: no decision — traffic continues to P300/P400/P900.
-      // This is not Alert + Continue. It is no-decision / pass-through to category policies.
-      continue_policy_evaluation: {
-        recommended:  true,
-        applies_when: 'No Credentials, Keys & Secrets DLP profile match — no decision made. Traffic continues to category-specific policies (P300 / P400 / P900).',
-        limitation:   'P200 uses a broad Category = Generative AI destination. When no profile matches, the outcome must be no decision — not Allow. Enable Continue Policy Evaluation in Netskope to ensure non-matching traffic reaches the category policies below.',
-      },
+      // Policy 200: block only when Credentials profile matches.
+      // No DLP match = no decision / standard pass-through to P300/P400/P900.
+      // This is NOT Alert + Continue — do not set continue_policy_evaluation here.
+      continue_policy_evaluation: null,
       notification:    'Credential Sharing Blocked',
     })
     whySelected.push('Credentials and secrets are isolated into a top-priority global block policy for maximum enforcement separation.')

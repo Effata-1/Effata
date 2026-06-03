@@ -109,11 +109,23 @@ function NativePolicyCard({ policy }: { policy: NetskopePolicy }) {
 
   const noMatchText = policy.no_match_action
     ? policy.no_match_action.charAt(0).toUpperCase() + policy.no_match_action.slice(1)
-    : 'Continue Policy Evaluation (no terminal no-match action — downstream policies must evaluate)'
+    : 'Not configured'
+
+  // P200: standard DLP pass-through (no CPE needed).
+  // Custom/unconfigured: tell admin to set no-match before deploying.
+  const noMatchImplNote = policy.no_match_action === null
+    ? policy.priority === 200
+      ? 'No DLP profile match = no decision — standard Netskope DLP pass-through to the next category policy. No additional configuration required for this behaviour.'
+      : 'No-match action is not configured. Decide the no-match behaviour (Allow / Alert / Block) for this category before deploying.'
+    : ''
+
+  const dest = policy.destination.strategy === 'app_tag'
+    ? `App Tag: "${policy.destination.tag_or_category}"`
+    : `Category: "${policy.destination.tag_or_category}"`
 
   const implementNote = policy.policy_type === 'access_control'
-    ? `Create a Real-time Protection policy in Netskope. Set destination to ${policy.destination.strategy === 'app_tag' ? `App Tag: "${policy.destination.tag_or_category}"` : `Category: "${policy.destination.tag_or_category}"`}. Set action to Block. No DLP profile required.`
-    : `Create a Real-time Protection policy in Netskope. Set destination to ${policy.destination.strategy === 'app_tag' ? `App Tag: "${policy.destination.tag_or_category}"` : `Category: "${policy.destination.tag_or_category}"`}. Add the listed DLP profiles with their respective per-profile actions. No-match action: ${noMatchText}.${policy.no_match_action === null ? ' CRITICAL: Enable "Continue Policy Evaluation" on this policy in the Netskope console so that traffic not matching a DLP profile continues to the category policies below.' : ''}`
+    ? `Create a Real-time Protection policy in Netskope. Set destination to ${dest}. Set action to Block. No DLP profile required.`
+    : `Create a Real-time Protection policy in Netskope. Set destination to ${dest}. Add the listed DLP profiles with their respective per-profile actions. No-match action: ${noMatchText}.${noMatchImplNote ? ` ${noMatchImplNote}` : ''}`
 
   const rawJson = {
     policy_key:     policy.policy_key,
@@ -247,7 +259,7 @@ function NativePolicyCard({ policy }: { policy: NetskopePolicy }) {
           <p className="text-xs text-muted-foreground/60">
             {policy.policy_type === 'access_control'
               ? `Blocks access to ${policy.destination.tag_or_category} apps at the network layer before content inspection.`
-              : `Enforces DLP controls for ${policy.destination.tag_or_category} GenAI apps. No-match: ${policy.no_match_action ?? 'continue to category policies — Continue Policy Evaluation required'}.`
+              : `Enforces DLP controls for ${policy.destination.tag_or_category} GenAI apps. No-match: ${policy.no_match_action ?? (policy.priority === 200 ? 'no decision — pass-through to category policies' : 'not configured')}.`
             }
           </p>
         </PolicyRow>
