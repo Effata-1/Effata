@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo, memo } from 'react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { AlertTriangle, CheckCircle2, Info, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
@@ -87,15 +87,18 @@ function SubField({ label, children }: { label: string; children: React.ReactNod
 
 // ── Netskope-style native policy card ─────────────────────────────────────────
 
-function NativePolicyCard({ policy }: { policy: NetskopePolicy }) {
+const NativePolicyCard = memo(function NativePolicyCard({ policy }: { policy: NetskopePolicy }) {
   const [implOpen, setImplOpen] = useState(false)
   const [jsonOpen, setJsonOpen] = useState(false)
 
-  const profilesByType: Partial<Record<NpjProfileType, NetskopeProfileEntry[]>> = {}
-  for (const p of policy.profiles) {
-    if (!profilesByType[p.profile_type]) profilesByType[p.profile_type] = []
-    profilesByType[p.profile_type]!.push(p)
-  }
+  const profilesByType = useMemo(() => {
+    const map: Partial<Record<NpjProfileType, NetskopeProfileEntry[]>> = {}
+    for (const p of policy.profiles) {
+      if (!map[p.profile_type]) map[p.profile_type] = []
+      map[p.profile_type]!.push(p)
+    }
+    return map
+  }, [policy.profiles])
   const typesPresent = Object.keys(profilesByType) as NpjProfileType[]
 
   const policyGroupLabel = (() => {
@@ -316,7 +319,7 @@ function NativePolicyCard({ policy }: { policy: NetskopePolicy }) {
 
     </div>
   )
-}
+})
 
 // ── Static why-selected copy for non-hybrid options ──────────────────────────
 

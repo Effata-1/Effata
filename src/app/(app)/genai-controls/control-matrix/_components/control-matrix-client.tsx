@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useMemo, useTransition } from 'react'
 import { cn } from '@/lib/utils'
 import { colorClasses, RISK_FAMILY_META } from '@/lib/data-catalog/types'
 import type { OrgClassificationLabel, SystemLevel, RiskFamily } from '@/lib/data-catalog/types'
@@ -136,14 +136,28 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
   )
   const [, startTransition] = useTransition()
 
-  const systemTagSet = new Set<string>(SYSTEM_TAG_ORDER)
-  const orderedCats: MatrixCategory[] = [
+  const notifById    = useMemo(() => new Map(notifications.map(n => [n.id, n])), [notifications])
+  const notifByName  = useMemo(() => new Map(notifications.map(n => [n.name, n])), [notifications])
+  const notifsByType = useMemo(() => {
+    const map = new Map<string, typeof notifications>()
+    for (const n of notifications) {
+      if (!map.has(n.control_type)) map.set(n.control_type, [])
+      map.get(n.control_type)!.push(n)
+    }
+    return map
+  }, [notifications])
+
+  const systemTagSet = useMemo(() => new Set<string>(SYSTEM_TAG_ORDER), [])
+  const orderedCats = useMemo<MatrixCategory[]>(() => [
     ...(SYSTEM_TAG_ORDER.map(tag => categories.find(c => c.system_tag === tag)).filter(Boolean) as MatrixCategory[]),
-    ...categories.filter(c => !systemTagSet.has(c.system_tag ?? '')), // custom categories (null or auto-generated tag)
-  ]
+    ...categories.filter(c => !systemTagSet.has(c.system_tag ?? '')),
+  ], [categories, systemTagSet])
 
   const [selectedCatId, setSelectedCatId] = useState<string>(orderedCats[0]?.id ?? '')
-  const selectedCat = orderedCats.find(c => c.id === selectedCatId) ?? orderedCats[0]
+  const selectedCat = useMemo(
+    () => orderedCats.find(c => c.id === selectedCatId) ?? orderedCats[0],
+    [orderedCats, selectedCatId],
+  )
 
   // ── Flat row list ─────────────────────────────────────────────────────────
 
@@ -154,39 +168,43 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     | { type: 'clabel-row';   rowKey: string; clabel: CustomerLabel; sectionId: string; ri: number }
     | { type: 'clabel-empty'; sectionId: string }
 
-  const flatItems: FlatItem[] = []
-  let rowIndex = 0
+  const flatItems = useMemo<FlatItem[]>(() => {
+    const items: FlatItem[] = []
+    let rowIndex = 0
 
-  // Content detection — risk family rows
-  flatItems.push({ type: 'section', sectionId: 'pp', label: 'Prompt / Upload (Content Detection)', color: 'text-orange-400' })
-  CONTENT_DETECTION_ROWS.forEach(rf => {
-    const key = RF_KEY[rf]
-    flatItems.push({ type: 'rf-row', rowKey: `pp|rf:${key}`, riskFamily: rf, rfKey: key, sectionId: 'pp', ri: rowIndex++ })
-  })
+    // Content detection — risk family rows
+    items.push({ type: 'section', sectionId: 'pp', label: 'Prompt / Upload (Content Detection)', color: 'text-orange-400' })
+    CONTENT_DETECTION_ROWS.forEach(rf => {
+      const key = RF_KEY[rf]
+      items.push({ type: 'rf-row', rowKey: `pp|rf:${key}`, riskFamily: rf, rfKey: key, sectionId: 'pp', ri: rowIndex++ })
+    })
 
-  // Label detection — customer sensitivity labels (unchanged)
-  const hasCustomerLabels = customerLabels.length > 0
-  flatItems.push({
-    type: 'section', sectionId: 'ul_dc',
-    label: 'Upload — Data Classification Labels (Label Detection)',
-    color: hasCustomerLabels ? 'text-orange-400' : 'text-muted-foreground/40',
-  })
-  if (hasCustomerLabels) {
-    customerLabels.forEach(clbl =>
-      flatItems.push({ type: 'clabel-row', rowKey: `ul|dc|clabel:${clbl.id}`, clabel: clbl, sectionId: 'ul_dc', ri: rowIndex++ })
-    )
-  } else {
-    flatItems.push({ type: 'clabel-empty', sectionId: 'ul_dc' })
-  }
+    // Label detection — customer sensitivity labels
+    const hasCustomerLabels = customerLabels.length > 0
+    items.push({
+      type: 'section', sectionId: 'ul_dc',
+      label: 'Upload — Data Classification Labels (Label Detection)',
+      color: hasCustomerLabels ? 'text-orange-400' : 'text-muted-foreground/40',
+    })
+    if (hasCustomerLabels) {
+      customerLabels.forEach(clbl =>
+        items.push({ type: 'clabel-row', rowKey: `ul|dc|clabel:${clbl.id}`, clabel: clbl, sectionId: 'ul_dc', ri: rowIndex++ })
+      )
+    } else {
+      items.push({ type: 'clabel-empty', sectionId: 'ul_dc' })
+    }
 
-  // Filename detection (unchanged)
-  const filenameLabels = localLabels.filter(lbl => lbl.system_level && FILENAME_LEVELS.includes(lbl.system_level as SystemLevel))
-  if (filenameLabels.length > 0) {
-    flatItems.push({ type: 'section', sectionId: 'ul_fn', label: 'Upload — Filename Detection', color: 'text-muted-foreground/60' })
-    filenameLabels.forEach(lbl =>
-      flatItems.push({ type: 'row', rowKey: `ul|fn|${lbl.id}`, label: lbl, sectionId: 'ul_fn', ri: rowIndex++ })
-    )
-  }
+    // Filename detection
+    const filenameLabels = localLabels.filter(lbl => lbl.system_level && FILENAME_LEVELS.includes(lbl.system_level as SystemLevel))
+    if (filenameLabels.length > 0) {
+      items.push({ type: 'section', sectionId: 'ul_fn', label: 'Upload — Filename Detection', color: 'text-muted-foreground/60' })
+      filenameLabels.forEach(lbl =>
+        items.push({ type: 'row', rowKey: `ul|fn|${lbl.id}`, label: lbl, sectionId: 'ul_fn', ri: rowIndex++ })
+      )
+    }
+
+    return items
+  }, [localLabels, customerLabels])
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -201,14 +219,14 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     const tag = TAG_ALIAS[catTag] ?? catTag
     const notifName = RF_COACHING_DEFAULTS[tag]?.[rfKey] ?? null
     if (!notifName) return null
-    return notifications.find(n => n.name === notifName)?.id ?? null
+    return notifByName.get(notifName)?.id ?? null
   }
 
   function getFnCoachingDefault(systemLevel: string | null, catTag: string | null): string | null {
     if (!systemLevel || !catTag) return null
     const notifName = UL_FN_COACHING_DEFAULTS[catTag]?.[systemLevel] ?? null
     if (!notifName) return null
-    return notifications.find(n => n.name === notifName)?.id ?? null
+    return notifByName.get(notifName)?.id ?? null
   }
 
   function getDefault(sectionId: string, lbl: OrgClassificationLabel, catTag: string | null): ActionCode | null {
@@ -272,7 +290,7 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     const effectiveCoaching = override !== null ? override.coachingId : defaultCoachingId
     const isOverride        = !!override
     const meta              = ACTIONS[effectiveAction]
-    const selectedNotif     = notifications.find(n => n.id === effectiveCoaching)
+    const selectedNotif     = effectiveCoaching ? (notifById.get(effectiveCoaching) ?? null) : null
 
     return (
       <td className="px-4 py-3 w-80">
@@ -311,9 +329,7 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
           {(() => {
             const compatibleTypes = COMPATIBLE_CONTROL_TYPES[effectiveAction] ?? []
             if (compatibleTypes.length === 0) return null
-            const compatibleNotifs = notifications.filter(n =>
-              compatibleTypes.includes(n.control_type as ControlType)
-            )
+            const compatibleNotifs = compatibleTypes.flatMap(t => notifsByType.get(t) ?? [])
             return (
               <div className="flex items-center gap-1.5">
                 {selectedNotif?.coach_label && (

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { Search, X } from 'lucide-react'
 import type { AuditEntry, RegulationRef } from '../page'
@@ -43,28 +43,31 @@ export function AuditTrailClient({
   const [regFilter, setReg]   = useState<string[]>([])
   const [ctrlFilter, setCtrl] = useState<string[]>([])
 
-  const regMap = new Map(regulations.map(r => [r.id, r]))
+  const regMap    = useMemo(() => new Map(regulations.map(r => [r.id, r])), [regulations])
+  const ctrlByKey = useMemo(() => new Map(controls.map(c => [c.key, c])), [controls])
 
-  const q = search.toLowerCase().trim()
-  const visible = entries.filter(e => {
-    const regId = e.details?.regulation_id ?? ''
-    const reg   = regMap.get(regId)
+  const visible = useMemo(() => {
+    const q = search.toLowerCase().trim()
+    return entries.filter(e => {
+      const regId = e.details?.regulation_id ?? ''
+      const reg   = regMap.get(regId)
 
-    if (regFilter.length > 0 && !regFilter.includes(reg?.code ?? '')) return false
-    if (ctrlFilter.length > 0 && !ctrlFilter.includes(e.entity_name)) return false
-    if (q) {
-      const ctrl = controls.find(c => c.key === e.entity_name)
-      const searchable = [
-        e.user_email ?? '',
-        ctrl?.label ?? e.entity_name,
-        reg?.short_name ?? '',
-        e.old_value ?? '',
-        e.new_value ?? '',
-      ].join(' ').toLowerCase()
-      if (!searchable.includes(q)) return false
-    }
-    return true
-  })
+      if (regFilter.length > 0 && !regFilter.includes(reg?.code ?? '')) return false
+      if (ctrlFilter.length > 0 && !ctrlFilter.includes(e.entity_name)) return false
+      if (q) {
+        const ctrl = ctrlByKey.get(e.entity_name)
+        const searchable = [
+          e.user_email ?? '',
+          ctrl?.label ?? e.entity_name,
+          reg?.short_name ?? '',
+          e.old_value ?? '',
+          e.new_value ?? '',
+        ].join(' ').toLowerCase()
+        if (!searchable.includes(q)) return false
+      }
+      return true
+    })
+  }, [entries, search, regFilter, ctrlFilter, regMap, ctrlByKey])
 
   const pg = usePagination(visible, 10, 'audit_trail')
   const PER_PAGE_OPTIONS = [10, 25, 50, 100]
@@ -137,7 +140,7 @@ export function AuditTrailClient({
             <tbody className="divide-y divide-border/60">
               {pg.slice.map(e => {
                 const reg  = regMap.get(e.details?.regulation_id ?? '')
-                const ctrl = controls.find(c => c.key === e.entity_name)
+                const ctrl = ctrlByKey.get(e.entity_name)
                 return (
                   <tr key={e.id} className="hover:bg-card/40 transition-colors">
                     <td className="px-5 py-3 whitespace-nowrap">
