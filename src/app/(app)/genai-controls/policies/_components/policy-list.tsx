@@ -1440,7 +1440,7 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                       'border-b border-border/40 last:border-0 transition-colors',
                       selectedIds.has(policy.id)
                         ? 'bg-blue-500/5 hover:bg-blue-500/8'
-                        : 'hover:bg-card/40',
+                        : 'hover:bg-muted/15',
                       !policy.is_active && '[&>td:not(:last-child)]:opacity-50',
                     )}
                   >
@@ -1460,9 +1460,9 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                     </td>
 
                     <td className="px-3 py-2.5 align-middle max-w-[240px]">
-                      <Link href={`/genai-controls/policies/${policy.id}/edit`} className="group">
+                      <Link href={`/genai-controls/policies/${policy.id}/edit`} className="group cursor-pointer">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <p className="font-semibold text-foreground/90 leading-tight truncate group-hover:text-foreground transition-colors">{policy.name}</p>
+                          <p className="font-semibold text-foreground/90 leading-tight truncate group-hover:text-foreground group-hover:underline underline-offset-2 transition-colors">{policy.name}</p>
                           {/* Type badge */}
                           {policy.policy_source === 'recommended' ? (
                             <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">

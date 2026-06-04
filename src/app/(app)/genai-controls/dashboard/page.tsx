@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { BarChart3, Clock, Globe, ShieldCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { computeTrustScore } from '@/lib/genai/scoring'
 import type { AppFields, DLPActivities, BreachInfo, ApprovalStatus } from '@/lib/genai/types'
@@ -8,6 +9,7 @@ import type { CategoryItem } from './_components/category-breakdown'
 import { ApprovalStatusRow } from './_components/approval-status-row'
 import { TrustScoreSummary } from './_components/trust-score-summary'
 import { ResearchStatus } from './_components/research-status'
+import { FadeIn } from '@/components/ui/fade-in'
 
 export default async function GenAIDashboardPage() {
   const supabase = await createClient()
@@ -119,61 +121,71 @@ export default async function GenAIDashboardPage() {
       </div>
 
       {/* Top stat row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatCard
-          label="Total Apps"
-          value={totalApps}
-          sub="in catalog"
-        />
-        <StatCard
-          label="Approved"
-          value={approvalCounts.approved}
-          sub="governance approved"
-          accent={approvalCounts.approved > 0 ? 'emerald' : undefined}
-        />
-        <StatCard
-          label="Avg Trust Score"
-          value={avgScore !== null ? avgScore : '—'}
-          sub={avgScore !== null ? 'across all profiles' : 'no profiles yet'}
-          accent={avgAccent}
-        />
-        <StatCard
-          label="Needs Review"
-          value={needsReviewCount}
-          sub={<Link href="/genai-controls/apps" className="hover:underline">view apps →</Link>}
-          accent={needsReviewCount > 0 ? 'amber' : undefined}
-        />
-      </div>
-
-      {/* Category breakdown */}
-      <div className="rounded-xl border border-border bg-card/50 shadow-sm p-5">
-        <p className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wide mb-4">
-          Apps by Governance Category
-        </p>
-        <CategoryBreakdown items={categoryBreakdown} />
-      </div>
-
-      {/* Approval status + trust score */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="rounded-xl border border-border bg-card/50 shadow-sm p-5">
-          <p className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wide mb-4">
-            Approval Status
-          </p>
-          <ApprovalStatusRow counts={approvalCounts} />
-        </div>
-        <div className="rounded-xl border border-border bg-card/50 shadow-sm p-5">
-          <p className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wide mb-4">
-            Trust Score Distribution
-          </p>
-          <TrustScoreSummary
-            avg={avgScore}
-            high={highRisk}
-            medium={medRisk}
-            low={lowRisk}
-            total={scores.length}
+      <FadeIn delay={0}>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <StatCard
+            label="Total Apps"
+            value={totalApps}
+            sub="in catalog"
+            icon={<Globe className="w-4 h-4" />}
+          />
+          <StatCard
+            label="Approved"
+            value={approvalCounts.approved}
+            sub="governance approved"
+            accent={approvalCounts.approved > 0 ? 'emerald' : undefined}
+            icon={<ShieldCheck className="w-4 h-4" />}
+          />
+          <StatCard
+            label="Avg Trust Score"
+            value={avgScore !== null ? avgScore : '—'}
+            sub={avgScore !== null ? 'across all profiles' : 'no profiles yet'}
+            accent={avgAccent}
+            icon={<BarChart3 className="w-4 h-4" />}
+          />
+          <StatCard
+            label="Needs Review"
+            value={needsReviewCount}
+            sub={<Link href="/genai-controls/apps" className="hover:underline">view apps →</Link>}
+            accent={needsReviewCount > 0 ? 'amber' : undefined}
+            icon={<Clock className="w-4 h-4" />}
           />
         </div>
-      </div>
+      </FadeIn>
+
+      {/* Category breakdown */}
+      <FadeIn delay={0.05}>
+        <div className="rounded-xl border border-border bg-card/50 shadow-sm p-5">
+          <p className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wide mb-4">
+            Apps by Governance Category
+          </p>
+          <CategoryBreakdown items={categoryBreakdown} />
+        </div>
+      </FadeIn>
+
+      {/* Approval status + trust score */}
+      <FadeIn delay={0.1}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="rounded-xl border border-border bg-card/50 shadow-sm p-5">
+            <p className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wide mb-4">
+              Approval Status
+            </p>
+            <ApprovalStatusRow counts={approvalCounts} />
+          </div>
+          <div className="rounded-xl border border-border bg-card/50 shadow-sm p-5">
+            <p className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wide mb-4">
+              Trust Score Distribution
+            </p>
+            <TrustScoreSummary
+              avg={avgScore}
+              high={highRisk}
+              medium={medRisk}
+              low={lowRisk}
+              total={scores.length}
+            />
+          </div>
+        </div>
+      </FadeIn>
 
       {/* Research run + placeholder tiles */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

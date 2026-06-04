@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useOptimistic, useMemo } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import Link from 'next/link'
 import { Plus, Pencil, X, Settings2, ChevronDown, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -329,6 +330,7 @@ function CategorySection({
   clsOptions:   { value: string; label: string }[]
 }) {
   const [open, setOpen] = useState(false)
+  const shouldReduceMotion = useReducedMotion()
   const cc = colorClasses(category.color)
 
   const inScopeCount = apps.filter(e =>
@@ -370,44 +372,53 @@ function CategorySection({
         <ChevronDown className={cn('ml-auto w-4 h-4 text-muted-foreground/40 transition-transform', !open && '-rotate-90')} />
       </button>
 
-      {open && (
-        <>
-          {/* DB apps — grouped by app_group (Layer 2 → Layer 3) */}
-          {apps.length > 0 && (
-            <>
-              <div className="flex items-center px-5 py-2 border-b border-border/60 bg-card/20">
-                <span className="flex-1 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">App</span>
-                <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">Your Classification</span>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="content"
+            initial={shouldReduceMotion ? false : { height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+            transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeOut' }}
+            style={{ overflow: 'hidden' }}
+          >
+            {/* DB apps — grouped by app_group (Layer 2 → Layer 3) */}
+            {apps.length > 0 && (
+              <>
+                <div className="flex items-center px-5 py-2 border-b border-border/60 bg-card/20">
+                  <span className="flex-1 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">App</span>
+                  <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">Your Classification</span>
+                </div>
+                {[...byGroup.entries()].map(([groupName, entries]) => (
+                  byGroup.size === 1
+                    ? entries.map(entry => (
+                        <AppRow key={entry.app.app_id} entry={entry} categorySystemTag={category.system_tag} clsOptions={clsOptions} />
+                      ))
+                    : <AppGroupSection
+                        key={groupName}
+                        groupName={groupName}
+                        entries={entries}
+                        categorySystemTag={category.system_tag}
+                        clsOptions={clsOptions}
+                      />
+                ))}
+              </>
+            )}
+
+            {/* Prohibited reference catalog */}
+            {isProhibited && (
+              <ProhibitedCatalog initialNotes={initialNotes} clsOptions={clsOptions} />
+            )}
+
+            {/* Empty state (non-prohibited categories with no DB apps) */}
+            {!isProhibited && apps.length === 0 && (
+              <div className="px-5 py-8 text-center bg-card/5">
+                <p className="text-sm text-muted-foreground/40">No apps assigned to this category</p>
               </div>
-              {[...byGroup.entries()].map(([groupName, entries]) => (
-                byGroup.size === 1
-                  ? entries.map(entry => (
-                      <AppRow key={entry.app.app_id} entry={entry} categorySystemTag={category.system_tag} clsOptions={clsOptions} />
-                    ))
-                  : <AppGroupSection
-                      key={groupName}
-                      groupName={groupName}
-                      entries={entries}
-                      categorySystemTag={category.system_tag}
-                      clsOptions={clsOptions}
-                    />
-              ))}
-            </>
-          )}
-
-          {/* Prohibited reference catalog */}
-          {isProhibited && (
-            <ProhibitedCatalog initialNotes={initialNotes} clsOptions={clsOptions} />
-          )}
-
-          {/* Empty state (non-prohibited categories with no DB apps) */}
-          {!isProhibited && apps.length === 0 && (
-            <div className="px-5 py-8 text-center bg-card/5">
-              <p className="text-sm text-muted-foreground/40">No apps assigned to this category</p>
-            </div>
-          )}
-        </>
-      )}
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

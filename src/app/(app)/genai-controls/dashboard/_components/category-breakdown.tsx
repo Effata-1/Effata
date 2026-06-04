@@ -1,9 +1,12 @@
+'use client'
+
+import { motion, useReducedMotion } from 'framer-motion'
 import { colorClasses } from '@/lib/data-catalog/types'
 import { cn } from '@/lib/utils'
 
 export interface CategoryItem {
-  key: string
-  name: string
+  key:   string
+  name:  string
   color: string
   count: number
 }
@@ -13,6 +16,7 @@ interface Props {
 }
 
 export function CategoryBreakdown({ items }: Props) {
+  const shouldReduceMotion = useReducedMotion()
   const visible = items.filter(i => i.count > 0)
 
   if (visible.length === 0) {
@@ -23,8 +27,8 @@ export function CategoryBreakdown({ items }: Props) {
 
   return (
     <div className="space-y-2.5">
-      {visible.map(item => {
-        const cc = colorClasses(item.color)
+      {visible.map((item, index) => {
+        const cc  = colorClasses(item.color)
         const pct = Math.round((item.count / maxCount) * 100)
         return (
           <div key={item.key}>
@@ -36,9 +40,15 @@ export function CategoryBreakdown({ items }: Props) {
               <span className="text-xs font-semibold text-foreground/70">{item.count}</span>
             </div>
             <div className="w-full bg-muted/40 rounded-full h-1.5">
-              <div
+              <motion.div
                 className={cn('h-1.5 rounded-full opacity-70', cc.bg)}
-                style={{ width: `${pct}%` }}
+                initial={shouldReduceMotion ? false : { width: 0 }}
+                animate={{ width: `${pct}%` }}
+                transition={
+                  shouldReduceMotion
+                    ? { duration: 0 }
+                    : { duration: 0.6, delay: index * 0.05, ease: 'easeOut' }
+                }
               />
             </div>
           </div>
