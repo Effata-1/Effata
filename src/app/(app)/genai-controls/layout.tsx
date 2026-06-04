@@ -9,8 +9,7 @@ const ITEMS = [
   { label: 'Control Matrix',     href: '/genai-controls/control-matrix' },
   { label: 'Policy Library',     href: '/genai-controls/policies' },
   { label: 'Coaching Templates', href: '/genai-controls/notifications' },
-  { label: 'Translation',        href: '/genai-controls/translation' },
-  { label: 'Vendor Mapping',     href: '/genai-controls/vendor-mapping/netskope' },
+  { label: 'Netskope Policies',  href: '/genai-controls/vendor-mapping/netskope/recommendation' },
   { label: 'Presentation',       href: '/genai-controls/presentation' },
 ]
 
