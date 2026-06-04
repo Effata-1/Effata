@@ -7,7 +7,7 @@ import { requireRole } from '@/lib/auth'
 import { callData } from '@/lib/api-client.server'
 import { logAuditEvent } from '@/lib/audit'
 import { validateNeutralPolicy } from '@/lib/genai/npj-schema'
-import type { ApprovalStatus, PolicyType, PolicyRule, ActionCode } from '@/lib/genai/types'
+import type { ApprovalStatus, PolicyType, PolicyRule, ActionCode, NpjCategory, NpjCondition, NpjDecision, NpjShape } from '@/lib/genai/types'
 import {
   CONTENT_DETECTION_ROWS, RF_KEY, TAG_ALIAS,
   RF_DEFAULTS, RF_COACHING_DEFAULTS,
@@ -148,17 +148,6 @@ export interface CoverageResult {
   matches:     CoverageMatch[]
 }
 
-type NpjCategory  = { id: string; system_tag: string | null; name: string }
-type NpjCondition = { type: string; sensitivity?: string; risk_family?: string; label_id?: string }
-type NpjDecision  = { mode: string; require_acknowledgement?: boolean; require_justification?: boolean }
-type NpjShape     = {
-  intent?:    string
-  policy_family?: string | null
-  scope?:     { app_categories?: NpjCategory[]; activities?: string[]; users?: string[]; groups?: string[] }
-  content?:   { conditions?: NpjCondition[] }
-  decision?:  NpjDecision
-}
-
 const ACTION_RANK: Record<string, number> = { allow: 1, monitor: 2, alert: 3, coach: 4, block: 5 }
 
 function categoryScopeCovers(
@@ -225,7 +214,7 @@ function buildExplanation(npj: NpjShape): string {
     return `${mode === 'block' ? 'Blocks' : 'Controls'} app access (${activities}) ${catStr} — no content inspection.`
   }
   const conds = (npj.content?.conditions ?? [])
-    .map(c => (c as Record<string,unknown>).name as string ?? c.sensitivity ?? c.type)
+    .map(c => (c as unknown as Record<string, string>).name ?? c.sensitivity ?? c.type)
     .filter(Boolean)
     .join(', ')
   return `${mode}s ${conds || 'matching content'} on ${activities} ${catStr}.`

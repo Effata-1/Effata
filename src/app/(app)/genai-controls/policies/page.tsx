@@ -25,7 +25,7 @@ export default async function GenAIPoliciesPage() {
     catalogTypesResult,
     identityData,
   ] = await Promise.all([
-    supabase.from('org_genai_policies').select('*').eq('org_id', user.orgId).order('priority').order('created_at'),
+    supabase.from('org_genai_policies').select('id, name, description, policy_source, policy_family, is_active, approval_status, priority, scope_all_apps, scope_app_ids, rules, identity_context, primary_action, data_classification_label, policy_key, matrix_basis, last_synced_from_matrix_at, generated_from, test_status, vendor_translation_status, neutral_policy_json, next_review_date, policy_owner, updated_at, created_at').eq('org_id', user.orgId).order('priority').order('created_at'),
     supabase.from('org_genai_governance_categories').select('id, system_tag, name, color').eq('org_id', user.orgId).eq('active', true).order('priority'),
     supabase.from('genai_apps').select('app_id, app_name, vendor, logo_letter, logo_bg').order('app_name'),
     supabase.from('org_customer_classifications').select('app_id, customer_classification').eq('org_id', user.orgId),

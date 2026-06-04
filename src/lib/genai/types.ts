@@ -182,6 +182,40 @@ export interface GenAIPolicy {
   neutral_policy_json: Record<string, unknown> | null
 }
 
+// ── Neutral Policy JSON (NPJ) shared types ────────────────────────────────────
+// Single source of truth. Import these instead of redeclaring locally.
+
+export interface NpjCondition {
+  type:             string
+  sensitivity?:     string
+  risk_family?:     string
+  risk_family_key?: string
+  label_id?:        string
+  label_source?:    string
+  label_name?:      string
+  system_level?:    string
+}
+
+export interface NpjCategory {
+  id:          string
+  system_tag:  string | null
+  name:        string
+}
+
+export interface NpjDecision {
+  mode:                     string
+  require_acknowledgement?: boolean
+  require_justification?:   boolean
+}
+
+export interface NpjShape {
+  intent?:        string
+  policy_family?: string | null
+  scope?:         { app_categories?: NpjCategory[]; activities?: string[]; users?: string[]; groups?: string[] }
+  content?:       { conditions?: NpjCondition[] }
+  decision?:      NpjDecision
+}
+
 export type CustomerClass =
   | 'enterprise-approved'
   | 'approved-with-conditions'

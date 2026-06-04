@@ -23,6 +23,11 @@ export async function GET() {
     }
   }
 
+  // Restrict to admins only — this endpoint exposes full JWT claims and org data
+  if (claims.user_role !== 'admin') {
+    return NextResponse.json({ ok: false, error: 'Admin access required' }, { status: 403 })
+  }
+
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('*')

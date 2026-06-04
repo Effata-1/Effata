@@ -13,7 +13,7 @@ export async function upsertControlMatrixCell(
   categoryId: string,
   actionCode: string,
   coachingNotificationId: string | null = null,
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; warning?: string }> {
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
@@ -54,7 +54,13 @@ export async function upsertControlMatrixCell(
   revalidatePath('/genai-controls/control-matrix')
 
   // Keep recommended policies live-updated when matrix changes
-  try { await syncRecommendedPolicies() } catch (e) { console.error('[control-matrix] sync error:', e) }
+  try {
+    await syncRecommendedPolicies()
+  } catch (e) {
+    console.error('[control-matrix] sync error:', e)
+    // Matrix cell was saved — only the downstream policy sync failed
+    return { warning: 'Matrix was saved, but recommended policy sync failed. Policies may be out of date.' }
+  }
 
   return {}
 }
@@ -81,7 +87,7 @@ export async function deleteControlMatrixCell(
 export async function updateCategoryAccessPosture(
   categoryId: string,
   accessPosture: 'allow' | 'allow_dlp' | 'block',
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; warning?: string }> {
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
@@ -97,7 +103,12 @@ export async function updateCategoryAccessPosture(
   revalidatePath('/genai-controls/control-matrix')
 
   // Changing posture may add or remove app-block policies
-  try { await syncRecommendedPolicies() } catch (e) { console.error('[control-matrix] posture sync error:', e) }
+  try {
+    await syncRecommendedPolicies()
+  } catch (e) {
+    console.error('[control-matrix] posture sync error:', e)
+    return { warning: 'Posture was saved, but recommended policy sync failed. Policies may be out of date.' }
+  }
 
   return {}
 }

@@ -10,7 +10,7 @@ import {
 import { cn } from '@/lib/utils'
 import { deletePolicy, duplicatePolicy, duplicatePolicyAsManual, generatePoliciesFromGovernance, getPolicyPackJobStatus, refreshPolicyFromMatrix, togglePolicyActive } from '../actions'
 import { PolicyChatPanel } from './policy-chat-panel'
-import type { GenAIPolicy, ApprovalStatus, ActionCode, PolicyRule } from '@/lib/genai/types'
+import type { GenAIPolicy, ApprovalStatus, ActionCode, PolicyRule, NpjCondition } from '@/lib/genai/types'
 import { lintAllPolicies, SEVERITY_STYLES, type LintIssue } from '@/lib/genai/lint'
 import type { RuleItem } from '../new/_components/policy-builder'
 
@@ -337,8 +337,6 @@ function DestCell({ policy, apps, categories }: { policy: GenAIPolicy; apps: App
 }
 
 // ── NPJ-aware helpers ─────────────────────────────────────────────────────────
-
-interface NpjCondition { type: string; sensitivity?: string; risk_family?: string; label_source?: string; label_name?: string }
 
 function getNpj(policy: GenAIPolicy): Record<string, unknown> | null {
   const raw = (policy as unknown as Record<string, unknown>).neutral_policy_json

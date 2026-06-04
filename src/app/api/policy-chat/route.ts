@@ -9,6 +9,17 @@ export async function POST(req: NextRequest) {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session?.access_token) return new Response('Unauthorized', { status: 401 })
 
+  // Require analyst role minimum — same gate as all other GenAI policy actions
+  try {
+    const claims = JSON.parse(Buffer.from(session.access_token.split('.')[1], 'base64url').toString()) as Record<string, unknown>
+    const role   = claims.user_role as string | undefined
+    if (!role || !['admin', 'analyst'].includes(role)) {
+      return new Response('Forbidden', { status: 403 })
+    }
+  } catch {
+    return new Response('Unauthorized', { status: 401 })
+  }
+
   let body: { messages: unknown[]; policyId?: string }
   try {
     body = await req.json()

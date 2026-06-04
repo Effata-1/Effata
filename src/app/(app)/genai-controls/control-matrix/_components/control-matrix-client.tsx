@@ -9,6 +9,7 @@ import { upsertControlMatrixCell, deleteControlMatrixCell, updateCategoryAccessP
 import {
   RF_KEY, CONTENT_DETECTION_ROWS, TAG_ALIAS, TAG_DISPLAY_NAMES,
   RF_DEFAULTS, RF_COACHING_DEFAULTS,
+  UL_FN_DEFAULTS, UL_DC_DEFAULTS, UL_FN_COACHING_DEFAULTS,
 } from '@/lib/genai/control-matrix-rows'
 import { COMPATIBLE_CONTROL_TYPES } from '@/lib/genai/coaching-validation'
 import type { ControlType } from '@/lib/genai/types'
@@ -47,32 +48,7 @@ const EXTRA_ROW_META: Record<string, { color: string }> = {
   'General Usage Reminder':    { color: 'zinc' },
 }
 
-// ── Label / filename detection defaults (unchanged) ───────────────────────────
-
-type LevelMap = Partial<Record<SystemLevel, ActionCode>>
-
-const UL_DC_DEFAULTS: Record<string, LevelMap> = {
-  'enterprise-approved':        { public: 'allow',   internal: 'monitor',    confidential: 'alert',     highly_confidential: 'coach-ack', secret: 'block' },
-  'approved-with-conditions':   { public: 'allow',   internal: 'monitor',    confidential: 'coach-ack', highly_confidential: 'block',     secret: 'block' },
-  'permitted-with-restriction': { public: 'monitor', internal: 'coach-ack',  confidential: 'block',     highly_confidential: 'block',     secret: 'block' },
-  'prohibited':                 { public: 'block',   internal: 'block',      confidential: 'block',     highly_confidential: 'block',     secret: 'block' },
-}
-
-const UL_FN_DEFAULTS: Record<string, LevelMap> = {
-  'enterprise-approved':        { highly_confidential: 'allow',     secret: 'allow' },
-  'approved-with-conditions':   { highly_confidential: 'coach-ack', secret: 'coach-just' },
-  'permitted-with-restriction': { highly_confidential: 'block',     secret: 'block' },
-  'prohibited':                 { highly_confidential: 'block',     secret: 'block' },
-}
-
 const FILENAME_LEVELS: SystemLevel[] = ['highly_confidential', 'secret']
-
-// 2D: catTag × sysLevel → coaching template name
-const UL_FN_COACHING_DEFAULTS: Record<string, Partial<Record<string, string | null>>> = {
-  'enterprise-approved':        { highly_confidential: null, secret: null },
-  'approved-with-conditions':   { highly_confidential: 'Sensitive File Name Detected', secret: 'Sensitive Filename Justification Required' },
-  'permitted-with-restriction': { highly_confidential: 'Highly Confidential Upload Blocked', secret: 'Secret File Upload Blocked' },
-}
 
 export const SYSTEM_TAG_ORDER = [
   'enterprise-approved',
@@ -136,8 +112,9 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     Object.fromEntries(categories.map(c => [c.id, c.access_posture]))
   )
   const [, startTransition] = useTransition()
-  const [resetPending, setResetPending] = useState(false)
-  const [resetConfirm, setResetConfirm] = useState(false)
+  const [resetPending, setResetPending]   = useState(false)
+  const [resetConfirm, setResetConfirm]   = useState(false)
+  const [syncWarning,  setSyncWarning]    = useState<string | null>(null)
 
   const notifById    = useMemo(() => new Map(notifications.map(n => [n.id, n])), [notifications])
   const notifByName  = useMemo(() => new Map(notifications.map(n => [n.name, n])), [notifications])
@@ -227,20 +204,23 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
 
   function getFnCoachingDefault(systemLevel: string | null, catTag: string | null): string | null {
     if (!systemLevel || !catTag) return null
-    const notifName = UL_FN_COACHING_DEFAULTS[catTag]?.[systemLevel] ?? null
+    const tag = TAG_ALIAS[catTag] ?? catTag
+    const notifName = UL_FN_COACHING_DEFAULTS[tag]?.[systemLevel] ?? null
     if (!notifName) return null
     return notifByName.get(notifName)?.id ?? null
   }
 
   function getDefault(sectionId: string, lbl: OrgClassificationLabel, catTag: string | null): ActionCode | null {
     if (!catTag || !lbl.system_level) return null
-    if (sectionId === 'ul_fn') return UL_FN_DEFAULTS[catTag]?.[lbl.system_level as SystemLevel] ?? null
+    const tag = TAG_ALIAS[catTag] ?? catTag
+    if (sectionId === 'ul_fn') return (UL_FN_DEFAULTS[tag]?.[lbl.system_level] ?? null) as ActionCode | null
     return null
   }
 
   function getCustomerLabelDefault(clbl: CustomerLabel, catTag: string | null): ActionCode | null {
     if (!catTag || !clbl.system_level) return null
-    return UL_DC_DEFAULTS[catTag]?.[clbl.system_level as SystemLevel] ?? null
+    const tag = TAG_ALIAS[catTag] ?? catTag
+    return (UL_DC_DEFAULTS[tag]?.[clbl.system_level] ?? null) as ActionCode | null
   }
 
   function handleAction(rowKey: string, action: ActionCode, rowDefaultCoachingId: string | null = null) {
@@ -265,19 +245,28 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     const newCoachingId = templateIncompatible ? null : currentCoachingId
 
     setLocalOverrides(prev => ({ ...prev, [`${rowKey}::${selectedCat.id}`]: { action, coachingId: newCoachingId } }))
-    startTransition(async () => { await upsertControlMatrixCell(rowKey, selectedCat.id, action, newCoachingId) })
+    startTransition(async () => {
+      const r = await upsertControlMatrixCell(rowKey, selectedCat.id, action, newCoachingId)
+      if (r.warning) setSyncWarning(r.warning)
+    })
   }
 
   function handleCoaching(rowKey: string, coachingId: string | null, effectiveAction: ActionCode) {
     if (!selectedCat) return
     setLocalOverrides(prev => ({ ...prev, [`${rowKey}::${selectedCat.id}`]: { action: effectiveAction, coachingId } }))
-    startTransition(async () => { await upsertControlMatrixCell(rowKey, selectedCat.id, effectiveAction, coachingId) })
+    startTransition(async () => {
+      const r = await upsertControlMatrixCell(rowKey, selectedCat.id, effectiveAction, coachingId)
+      if (r.warning) setSyncWarning(r.warning)
+    })
   }
 
   function handlePostureToggle(catId: string, current: 'allow' | 'allow_dlp' | 'block') {
     const next = current === 'allow' ? 'allow_dlp' : current === 'allow_dlp' ? 'block' : 'allow'
     setLocalPostures(prev => ({ ...prev, [catId]: next }))
-    startTransition(async () => { await updateCategoryAccessPosture(catId, next) })
+    startTransition(async () => {
+      const r = await updateCategoryAccessPosture(catId, next)
+      if (r.warning) setSyncWarning(r.warning)
+    })
   }
 
   async function handleResetAllToDefaults() {
@@ -384,6 +373,14 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
 
   return (
     <div className="space-y-4">
+
+      {/* Policy sync warning — shown when matrix saved but sync failed */}
+      {syncWarning && (
+        <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs">
+          <span>{syncWarning}</span>
+          <button type="button" onClick={() => setSyncWarning(null)} className="shrink-0 text-amber-400/60 hover:text-amber-400 transition-colors">✕</button>
+        </div>
+      )}
 
       {/* Reset confirm overlay */}
       {resetConfirm && (
