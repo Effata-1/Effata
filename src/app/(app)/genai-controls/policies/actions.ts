@@ -107,17 +107,18 @@ export async function upsertPolicy(
     }
   }
 
-  const payload = {
+  const basePayload = {
     org_id:     user.orgId,
     updated_at: now,
     ...fields,
     ...(npjForPayload !== fields.neutral_policy_json ? { neutral_policy_json: npjForPayload } : {}),
-    ...(id ? { id } : {}),
   }
 
+  // Use UPDATE for existing rows — upsert tries an INSERT first which fails the
+  // policy_source CHECK constraint when the column is absent from the payload.
   const { data, error } = id
-    ? await supabase.from('org_genai_policies').upsert(payload, { onConflict: 'id' }).select('id').maybeSingle()
-    : await supabase.from('org_genai_policies').insert(payload).select('id').maybeSingle()
+    ? await supabase.from('org_genai_policies').update(basePayload).eq('id', id).eq('org_id', user.orgId).select('id').maybeSingle()
+    : await supabase.from('org_genai_policies').insert(basePayload).select('id').maybeSingle()
 
   if (error) return { error: error.message }
   revalidatePath('/genai-controls/policies')
