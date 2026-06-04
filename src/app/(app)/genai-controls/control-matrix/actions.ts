@@ -102,6 +102,27 @@ export async function updateCategoryAccessPosture(
   return {}
 }
 
+// ── Reset all overrides to system defaults ─────────────────────────────────────
+// Deletes every row in org_control_matrix_overrides for this org, then re-syncs
+// recommended policies so matrix_basis reflects the clean state.
+
+export async function resetMatrixToDefaults(): Promise<{ error?: string }> {
+  const user = await requireRole('admin')
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('org_control_matrix_overrides')
+    .delete()
+    .eq('org_id', user.orgId)
+
+  if (error) return { error: error.message }
+
+  try { await syncRecommendedPolicies() } catch (e) { console.error('[control-matrix] reset sync error:', e) }
+  revalidatePath('/genai-controls/control-matrix')
+  revalidatePath('/genai-controls/policies')
+  return {}
+}
+
 // ── Classification label management (also revalidates control matrix) ─────────
 
 export async function upsertMatrixLabel(

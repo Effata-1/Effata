@@ -4,8 +4,8 @@ import { useState, useMemo, useTransition } from 'react'
 import { cn } from '@/lib/utils'
 import { colorClasses, RISK_FAMILY_META } from '@/lib/data-catalog/types'
 import type { OrgClassificationLabel, SystemLevel, RiskFamily } from '@/lib/data-catalog/types'
-import { RotateCcw, Lock, ArrowRight, Shield, CheckCircle2 } from 'lucide-react'
-import { upsertControlMatrixCell, deleteControlMatrixCell, updateCategoryAccessPosture } from '../actions'
+import { RotateCcw, Lock, ArrowRight, Shield, CheckCircle2, RefreshCw } from 'lucide-react'
+import { upsertControlMatrixCell, deleteControlMatrixCell, updateCategoryAccessPosture, resetMatrixToDefaults } from '../actions'
 import {
   RF_KEY, CONTENT_DETECTION_ROWS, TAG_ALIAS, TAG_DISPLAY_NAMES,
   RF_DEFAULTS, RF_COACHING_DEFAULTS,
@@ -136,6 +136,8 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     Object.fromEntries(categories.map(c => [c.id, c.access_posture]))
   )
   const [, startTransition] = useTransition()
+  const [resetPending, setResetPending] = useState(false)
+  const [resetConfirm, setResetConfirm] = useState(false)
 
   const notifById    = useMemo(() => new Map(notifications.map(n => [n.id, n])), [notifications])
   const notifByName  = useMemo(() => new Map(notifications.map(n => [n.name, n])), [notifications])
@@ -278,6 +280,16 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     startTransition(async () => { await updateCategoryAccessPosture(catId, next) })
   }
 
+  async function handleResetAllToDefaults() {
+    setResetPending(true)
+    setResetConfirm(false)
+    const result = await resetMatrixToDefaults()
+    setResetPending(false)
+    if (!result?.error) {
+      setLocalOverrides({})
+    }
+  }
+
   function handleReset(rowKey: string) {
     if (!selectedCat) return
     setLocalOverrides(prev => { const n = { ...prev }; delete n[`${rowKey}::${selectedCat.id}`]; return n })
@@ -373,8 +385,41 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
   return (
     <div className="space-y-4">
 
-      {/* Category filter — single select */}
-      <div className="flex gap-2 flex-wrap">
+      {/* Reset confirm overlay */}
+      {resetConfirm && (
+        <>
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => setResetConfirm(false)} />
+          <div className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm rounded-xl border border-border bg-card shadow-2xl p-6 space-y-4">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Reset all overrides to defaults?</p>
+              <p className="text-xs text-muted-foreground/70 mt-1 leading-relaxed">
+                This will delete every customised action in the control matrix and restore system defaults. All recommended policies will be re-compiled and will show <span className="text-blue-400 font-medium">Default Matrix</span>. This cannot be undone.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setResetConfirm(false)}
+                className="px-3.5 py-1.5 text-xs font-medium rounded-md border border-border bg-muted/30 hover:bg-muted/60 text-foreground/70 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleResetAllToDefaults}
+                className="px-3.5 py-1.5 text-xs font-semibold rounded-md bg-amber-600 hover:bg-amber-700 text-white transition-colors"
+              >
+                Reset to defaults
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Header row: category tabs + reset button */}
+      <div className="flex items-center justify-between gap-2">
+        {/* Category filter — single select */}
+        <div className="flex gap-2 flex-wrap flex-1">
         {orderedCats.map(cat => {
           const cc        = colorClasses(cat.color)
           const isSelected = cat.id === selectedCat?.id
@@ -393,6 +438,19 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
             </button>
           )
         })}
+        </div>
+
+        {/* Reset to defaults button */}
+        <button
+          type="button"
+          onClick={() => setResetConfirm(true)}
+          disabled={resetPending}
+          title="Reset all control matrix overrides to system defaults"
+          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-border bg-muted/30 hover:bg-muted/60 text-muted-foreground/60 hover:text-foreground/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <RefreshCw className={cn('w-3.5 h-3.5', resetPending && 'animate-spin')} />
+          {resetPending ? 'Resetting…' : 'Reset to Defaults'}
+        </button>
       </div>
 
       {/* ── App Access Posture ─────────────────────────────────────────────── */}

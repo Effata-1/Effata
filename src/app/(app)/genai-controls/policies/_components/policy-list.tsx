@@ -396,6 +396,10 @@ function DataTypeCell({ policy, ruleItems }: { policy: GenAIPolicy; ruleItems: R
     if (npj.intent === 'govern_app_access' || conds.length === 0) {
       return <span className="text-[11px] text-muted-foreground/40 italic">{npj.intent === 'govern_app_access' ? 'App access only' : '—'}</span>
     }
+    // Filename detection policies use classification_label conditions with system_level
+    if (npj.policy_family === 'genai_filename') {
+      return <span className="text-[11px] text-muted-foreground/60">Filename pattern</span>
+    }
     if (conds.every(c => c.type === 'filename')) {
       return <span className="text-[11px] text-muted-foreground/60">Filename pattern</span>
     }
