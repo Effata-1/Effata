@@ -86,7 +86,7 @@ export default async function CoachingNotificationsPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-bold text-foreground">Coaching Message Templates</h1>
+          <h1 className="text-2xl font-bold text-foreground">Coaching Message Templates</h1>
           <p className="text-sm text-muted-foreground/70 mt-0.5">
             Messages shown to users when a DLP policy triggers a coaching, block, or notification action.
           </p>

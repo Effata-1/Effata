@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -582,7 +583,6 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
   const [search, setSearch]                   = useState('')
   const [lintResults, setLintResults]         = useState<LintIssue[] | null>(null)
   const [isGenerating, setIsGenerating]       = useState(false)
-  const [generateError, setGenerateError]     = useState<string | null>(null)
   const [, startTransition]                   = useTransition()
   const [chatOpen, setChatOpen]               = useState(false)
   const [chatPolicyId, setChatPolicyId]       = useState<string | undefined>(undefined)
@@ -845,23 +845,23 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
       const result = await deletePolicy(id)
       if (result?.error) {
         if (snapshot) setPolicies(ps => [...ps, snapshot])
-        alert(`Failed to delete "${name}": ${result.error}`)
+        toast.error(`Failed to delete "${name}"`, { description: result.error })
       }
     })
   }
 
   async function handleGenerate() {
     setIsGenerating(true)
-    setGenerateError(null)
     const result = await generatePoliciesFromGovernance()
     if (result.error) {
-      setGenerateError(result.error)
       setIsGenerating(false)
+      toast.error('Policy generation failed', { description: result.error })
       return
     }
     // Poll until the compile job completes, then refresh to show generated policies
     const jobId = result.jobId
     if (!jobId) {
+      toast.success('Policies compiled successfully')
       router.refresh()
       setIsGenerating(false)
       return
@@ -875,19 +875,25 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
           clearInterval(poll)
           setIsGenerating(false)
           if (status.status === 'failed') {
-            setGenerateError(status.error ?? 'Policy generation failed.')
+            toast.error('Policy generation failed', { description: status.error ?? undefined })
           } else {
+            toast.success('Policies compiled successfully')
             router.refresh()
           }
         }
       } catch {
         // getPolicyPackJobStatus requires admin — fall back to timed refresh
         clearInterval(poll)
-        setTimeout(() => { router.refresh(); setIsGenerating(false) }, 4000)
+        setTimeout(() => {
+          toast.success('Policies compiled successfully')
+          router.refresh()
+          setIsGenerating(false)
+        }, 4000)
       }
       if (attempts >= 30) {
         clearInterval(poll)
         setIsGenerating(false)
+        toast.success('Policies compiled successfully')
         router.refresh()
       }
     }, 2000)
@@ -1276,14 +1282,6 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
           </svg>
           Compiling policies from your Governance Matrix… this takes a few seconds.
-        </div>
-      )}
-
-      {/* Generate error */}
-      {generateError && (
-        <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs mb-4">
-          <span>{generateError}</span>
-          <button onClick={() => setGenerateError(null)} className="text-red-400/60 hover:text-red-400 transition-colors"><X className="w-3.5 h-3.5" /></button>
         </div>
       )}
 

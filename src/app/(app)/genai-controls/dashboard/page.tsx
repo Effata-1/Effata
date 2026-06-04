@@ -112,7 +112,7 @@ export default async function GenAIDashboardPage() {
   return (
     <div className="space-y-6 max-w-5xl">
       <div>
-        <h1 className="text-xl font-bold text-foreground">GenAI Dashboard</h1>
+        <h1 className="text-2xl font-bold text-foreground">GenAI Dashboard</h1>
         <p className="text-sm text-muted-foreground/70 mt-0.5">
           At-a-glance view of your organisation&apos;s GenAI governance posture
         </p>

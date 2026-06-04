@@ -33,7 +33,7 @@ export default function NewPolicyPage() {
         >
           <ChevronLeft className="h-3 w-3" /> Policy Library
         </Link>
-        <h1 className="text-xl font-bold text-foreground">New Blank Policy</h1>
+        <h1 className="text-2xl font-bold text-foreground">New Blank Policy</h1>
         <p className="text-sm text-muted-foreground/70 mt-0.5">
           Creates an empty policy in the intent editor. Fill in detection, enforcement, and scope after creation.
         </p>

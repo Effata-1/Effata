@@ -110,7 +110,7 @@ export default async function AiPolicyPage() {
         >
           <ChevronLeft className="h-3 w-3" /> Policy Library
         </Link>
-        <h1 className="text-xl font-bold text-foreground">AI-Assisted Policy</h1>
+        <h1 className="text-2xl font-bold text-foreground">AI-Assisted Policy</h1>
         <p className="text-sm text-muted-foreground/70 mt-0.5">
           Describe what you need — AI drafts a full structured proposal for your review before anything is created.
         </p>

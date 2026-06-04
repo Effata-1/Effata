@@ -60,7 +60,7 @@ export default async function NetskopeVendorMappingPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-foreground">Netskope Vendor Mapping</h1>
+        <h1 className="text-2xl font-bold text-foreground">Netskope Vendor Mapping</h1>
         <p className="text-sm text-muted-foreground/70 mt-1">
           Map Effata policy concepts to your Netskope tenant objects. These mappings are used at translation time
           to produce exact, deployment-ready Netskope policy output instead of generic placeholders.

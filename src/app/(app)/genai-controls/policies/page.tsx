@@ -100,7 +100,7 @@ export default async function GenAIPoliciesPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-bold text-foreground">Policy Library</h1>
+          <h1 className="text-2xl font-bold text-foreground">Policy Library</h1>
           <p className="text-sm text-muted-foreground/70 mt-0.5">
             Named governance policies documenting how GenAI apps are approved and controlled.
           </p>

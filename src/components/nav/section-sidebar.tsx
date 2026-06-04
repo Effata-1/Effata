@@ -58,10 +58,10 @@ export function SectionSidebar({ title, items, backHref = '/dashboard' }: Props)
               key={item.href}
               href={item.href!}
               className={cn(
-                'block px-3 py-2 rounded-md text-sm transition-colors',
+                'block pl-[10px] pr-3 py-2 rounded-md text-sm transition-all border-l-2',
                 isActive
-                  ? 'bg-sidebar-accent text-foreground font-medium'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50'
+                  ? 'bg-sidebar-accent text-foreground font-medium border-blue-500'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50 border-transparent'
               )}
             >
               {item.label}

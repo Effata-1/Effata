@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useTransition } from 'react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { colorClasses, RISK_FAMILY_META } from '@/lib/data-catalog/types'
 import type { OrgClassificationLabel, SystemLevel, RiskFamily } from '@/lib/data-catalog/types'
@@ -247,7 +248,7 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     setLocalOverrides(prev => ({ ...prev, [`${rowKey}::${selectedCat.id}`]: { action, coachingId: newCoachingId } }))
     startTransition(async () => {
       const r = await upsertControlMatrixCell(rowKey, selectedCat.id, action, newCoachingId)
-      if (r.warning) setSyncWarning(r.warning)
+      if (r.warning) { setSyncWarning(r.warning); toast.warning(r.warning) }
     })
   }
 
@@ -256,7 +257,7 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     setLocalOverrides(prev => ({ ...prev, [`${rowKey}::${selectedCat.id}`]: { action: effectiveAction, coachingId } }))
     startTransition(async () => {
       const r = await upsertControlMatrixCell(rowKey, selectedCat.id, effectiveAction, coachingId)
-      if (r.warning) setSyncWarning(r.warning)
+      if (r.warning) { setSyncWarning(r.warning); toast.warning(r.warning) }
     })
   }
 
@@ -265,7 +266,7 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     setLocalPostures(prev => ({ ...prev, [catId]: next }))
     startTransition(async () => {
       const r = await updateCategoryAccessPosture(catId, next)
-      if (r.warning) setSyncWarning(r.warning)
+      if (r.warning) { setSyncWarning(r.warning); toast.warning(r.warning) }
     })
   }
 
@@ -274,8 +275,11 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     setResetConfirm(false)
     const result = await resetMatrixToDefaults()
     setResetPending(false)
-    if (!result?.error) {
+    if (result?.error) {
+      toast.error('Reset failed', { description: result.error })
+    } else {
       setLocalOverrides({})
+      toast.success('Matrix reset to defaults')
     }
   }
 

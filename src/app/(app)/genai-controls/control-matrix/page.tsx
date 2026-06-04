@@ -70,7 +70,7 @@ export default async function ControlMatrixPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-foreground">Control Matrix</h1>
+        <h1 className="text-2xl font-bold text-foreground">Control Matrix</h1>
         <p className="text-sm text-muted-foreground/80 mt-1">
           DLP enforcement actions by activity and data sensitivity, mapped across your GenAI governance categories. Each cell can also assign a coaching message shown to users when the action fires.
         </p>
