@@ -285,6 +285,7 @@ const NativePolicyCard = memo(function NativePolicyCard({ policy }: { policy: Ne
       {/* ── Profile & Action ──────────────────────────────────────────── */}
       <NtsSection icon={Wrench} label="Profile &amp; Action">
         {policy.profiles.length === 0 ? (
+          // ── No DLP profiles (access control or catch-all) ────────────
           <>
             <p className="text-[11px] text-muted-foreground/40 italic px-1">
               {policy.policy_type === 'access_control'
@@ -300,83 +301,149 @@ const NativePolicyCard = memo(function NativePolicyCard({ policy }: { policy: Ne
                     : 'Allow')}
             />
           </>
-        ) : (
-          <>
-            {/* DLP profiles grouped by type */}
-            {typesPresent.map(pt => (
-              <div key={pt} className="space-y-1.5">
-                <div className="flex items-center gap-1.5 px-1">
-                  <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', PROFILE_TYPE_DOT[pt])} />
-                  <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider">
-                    {PROFILE_TYPE_LABEL[pt]}
-                  </span>
-                </div>
-                {profilesByType[pt]!.map((p, i) => (
-                  <div key={i} className="relative flex items-center rounded border border-border/60 bg-muted/15 px-3 py-2 pr-16">
-                    <span className="text-xs text-muted-foreground/60 shrink-0">DLP Profile =</span>
-                    <span className="ml-1.5 text-xs font-mono text-foreground/80">{p.profile}</span>
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-muted-foreground/30">
-                      <span className="text-[11px]">ℹ</span>
-                      <span className="text-xs">×</span>
-                    </div>
-                  </div>
-                ))}
-                {/* Action for this profile group */}
-                <NtsActionRow
-                  label="Action"
-                  value={profilesByType[pt]![0].profile_action.charAt(0).toUpperCase() + profilesByType[pt]![0].profile_action.slice(1)}
-                />
-                {profilesByType[pt]![0].coaching_template && (
-                  <div className="flex items-center gap-2 px-1">
-                    <span className="text-xs text-muted-foreground/50">User notification:</span>
-                    <span className="text-xs font-mono text-foreground/70 bg-muted/30 border border-border/50 px-1.5 py-0.5 rounded">
-                      {profilesByType[pt]![0].coaching_template}
+        ) : (() => {
+          // ── Compute per-profile vs single-action mode ─────────────────
+          const uniqueActions = [...new Set(policy.profiles.map(p => p.profile_action))]
+          const perProfileMode = uniqueActions.length > 1
+          const singleAction   = uniqueActions.length === 1 ? uniqueActions[0] : null
+
+          // "Continue policy evaluation" is Netskope-valid ONLY for Alert action
+          const continuePeRecommended = policy.continue_policy_evaluation?.recommended
+          const actionIsAlert = singleAction === 'alert' || (!perProfileMode && singleAction?.toLowerCase() === 'alert')
+
+          // DLP Profile chips row — all profiles shown flat, + N more if > 3
+          const CHIP_MAX = 3
+          const visibleProfiles = policy.profiles.slice(0, CHIP_MAX)
+          const extraCount = policy.profiles.length - CHIP_MAX
+
+          return (
+            <>
+              {/* DLP Profile chips row */}
+              <div className="relative rounded border border-border/60 bg-muted/15 px-3 py-2.5 pr-16">
+                <span className="text-xs text-muted-foreground/60 shrink-0">DLP Profile =</span>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {visibleProfiles.map((p, i) => (
+                    <span key={i} className="inline-flex items-center px-2 py-0.5 rounded border border-border/60 bg-muted/30 text-[11px] font-mono text-foreground/80">
+                      {p.profile}
                     </span>
-                  </div>
-                )}
-              </div>
-            ))}
-
-            {/* Set action per profile checkbox */}
-            <div className="flex items-center gap-2 px-1">
-              <div className="w-3.5 h-3.5 rounded-sm border border-border/60 bg-muted/20 shrink-0" />
-              <span className="text-xs text-foreground/70">Set action for each profile</span>
-              <NtsGreenDot />
-            </div>
-
-            {/* No-match / fallback section */}
-            <div className="mt-1 pt-2 border-t border-border/30 space-y-2">
-              <div className="flex items-center rounded border border-border/60 bg-muted/10 px-3 py-2">
-                <span className="text-xs text-muted-foreground/50">If none of the specified profiles matches</span>
-              </div>
-              {policy.no_match_action ? (
-                <NtsActionRow
-                  label="Action"
-                  value={policy.no_match_action.charAt(0).toUpperCase() + policy.no_match_action.slice(1)}
-                  dimmed
-                />
-              ) : (
-                <div className="flex items-center gap-2 px-1">
-                  <span className="text-xs text-muted-foreground/50">Action:</span>
-                  {policy.priority === 200 || policy.policy_key.startsWith('netskope:scoped:') ? (
-                    <span className="text-[11px] text-blue-400/70 italic">Continue to category policies</span>
-                  ) : policy.policy_key.startsWith('netskope:rf:') ? (
-                    <span className="text-[11px] text-blue-400/70 italic">Continue to next risk-family policy</span>
-                  ) : (
-                    <span className="text-[11px] text-amber-400/80 italic">⚠ Not configured — set before deploying</span>
+                  ))}
+                  {extraCount > 0 && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded border border-border/40 bg-muted/20 text-[11px] text-muted-foreground/50">
+                      + {extraCount} more
+                    </span>
                   )}
                 </div>
-              )}
-            </div>
-
-            {/* Continue policy evaluation note */}
-            {policy.continue_policy_evaluation?.recommended && (
-              <div className="rounded-md border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-[11px] text-blue-400/80">
-                Continue Policy Evaluation recommended — {policy.continue_policy_evaluation.applies_when}
+                <div className="absolute right-2 top-2.5 flex items-center gap-1.5 text-muted-foreground/30">
+                  <span className="text-[11px]">ℹ</span>
+                  <span className="text-xs">×</span>
+                </div>
               </div>
-            )}
-          </>
-        )}
+
+              {perProfileMode ? (
+                // ── Per-profile action table (Set action for each profile = ✓) ──
+                <>
+                  <div className="rounded border border-border/50 bg-muted/10 overflow-hidden">
+                    {/* Table header */}
+                    <div className="flex items-center gap-2 px-3 py-2 bg-muted/20 border-b border-border/40">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">Profile Action</span>
+                      <span className="text-[10px] text-muted-foreground/30">ℹ</span>
+                    </div>
+                    {/* Profile rows */}
+                    {policy.profiles.map((p, i) => (
+                      <div key={i} className="flex items-center justify-between gap-3 px-3 py-2.5 border-b border-border/30 last:border-0">
+                        <span className="text-xs text-foreground/70 flex-1 min-w-0 truncate">{p.profile}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <NtsActionRow label="" value={p.profile_action.charAt(0).toUpperCase() + p.profile_action.slice(1)} />
+                          {p.coaching_template && (
+                            <span className="text-[10px] text-muted-foreground/50 font-mono bg-muted/30 border border-border/40 px-1.5 py-0.5 rounded max-w-[160px] truncate">
+                              {p.coaching_template}
+                            </span>
+                          )}
+                          <span className="text-muted-foreground/25 text-xs">•••</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Checked checkbox */}
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="w-3.5 h-3.5 rounded-sm border border-blue-500/60 bg-blue-500/80 flex items-center justify-center shrink-0">
+                      <span className="text-white text-[9px] font-bold">✓</span>
+                    </div>
+                    <span className="text-xs text-foreground/70">Set action for each profile</span>
+                    <NtsGreenDot />
+                  </div>
+                </>
+              ) : (
+                // ── Single action for all profiles (Set action for each profile = □) ──
+                <>
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <NtsActionRow
+                      label="Action"
+                      value={singleAction ? singleAction.charAt(0).toUpperCase() + singleAction.slice(1) : 'Alert'}
+                    />
+                    {policy.profiles[0]?.coaching_template && (
+                      <div className="flex items-center gap-1.5 rounded border border-border/60 bg-muted/15 px-2.5 py-1.5">
+                        <span className="text-xs text-muted-foreground/60">Template:</span>
+                        <span className="text-xs text-foreground/80 font-mono">{policy.profiles[0].coaching_template}</span>
+                        <span className="text-muted-foreground/30 text-[10px]">▼</span>
+                      </div>
+                    )}
+                  </div>
+                  {/* Unchecked checkbox */}
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="w-3.5 h-3.5 rounded-sm border border-border/60 bg-muted/20 shrink-0" />
+                    <span className="text-xs text-foreground/70">Set action for each profile</span>
+                    <NtsGreenDot />
+                  </div>
+                </>
+              )}
+
+              {/* Continue policy evaluation — only valid when action is Alert */}
+              {actionIsAlert && (
+                <div className="flex items-center gap-2 px-1">
+                  <div className={cn(
+                    'w-3.5 h-3.5 rounded-sm border shrink-0 flex items-center justify-center',
+                    continuePeRecommended
+                      ? 'border-blue-500/60 bg-blue-500/80'
+                      : 'border-border/60 bg-muted/20',
+                  )}>
+                    {continuePeRecommended && <span className="text-white text-[9px] font-bold">✓</span>}
+                  </div>
+                  <span className="text-xs text-foreground/70">Continue policy evaluation after match</span>
+                  <span className="text-amber-400/60 text-[11px]" title={policy.continue_policy_evaluation?.limitation ?? 'When checked, Netskope continues evaluating subsequent policies even after this one matches.'}>⚠</span>
+                </div>
+              )}
+
+              {/* Traffic action / no-match section */}
+              {policy.no_match_action ? (
+                // Explicit no-match action configured — show the section
+                <div className="space-y-2">
+                  <div className="border-t border-dashed border-border/50 pt-2" />
+                  <div className="relative flex items-center rounded border border-border/40 bg-muted/10 px-3 py-2 pr-8">
+                    <span className="text-xs text-muted-foreground/50">If none of the specified profiles matches</span>
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/30 text-xs">×</span>
+                  </div>
+                  <NtsActionRow
+                    label="Action"
+                    value={policy.no_match_action.charAt(0).toUpperCase() + policy.no_match_action.slice(1)}
+                  />
+                </div>
+              ) : (
+                // null → Netskope default pass-through; show + ADD TRAFFIC ACTION
+                <div className="space-y-1 px-1">
+                  <p className="text-[11px] font-semibold text-blue-400/70">+ ADD TRAFFIC ACTION</p>
+                  <p className="text-[10px] text-muted-foreground/40">
+                    {policy.priority === 200 || policy.policy_key.startsWith('netskope:scoped:')
+                      ? 'No profile match = pass-through to next policy (correct Netskope default — no action needed).'
+                      : policy.policy_key.startsWith('netskope:rf:')
+                        ? 'No profile match = continue to next risk-family policy (Netskope default — no action needed).'
+                        : 'Not configured — click Add Traffic Action in Netskope to set Allow / Alert / Block on no-match.'}
+                  </p>
+                </div>
+              )}
+            </>
+          )
+        })()}
       </NtsSection>
 
       {/* ── Policy Name ───────────────────────────────────────────────── */}
