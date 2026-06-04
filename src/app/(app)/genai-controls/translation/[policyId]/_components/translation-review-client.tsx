@@ -2,7 +2,7 @@
 
 import { useState, useOptimistic, useTransition, useRef } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, CheckCircle, Clock, RefreshCw } from 'lucide-react'
+import { ArrowLeft, CheckCircle, Clock, RefreshCw, User, ArrowDownToLine, Wrench, FileText, ToggleRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   markTranslationVerified,
@@ -757,10 +757,88 @@ function ActionChip({ action }: { action: string }) {
   )
 }
 
+// ── Netskope policy form UI primitives ───────────────────────────────────────
+
+function NtsSection({ icon: Icon, label, children }: {
+  icon: React.ElementType
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="grid grid-cols-[180px_1fr] items-start border-b border-border/40 last:border-0">
+      <div className="flex items-center gap-2 px-5 py-4 sticky top-0">
+        <Icon className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+        <span className="text-xs font-bold text-foreground/70 uppercase tracking-wide">{label}</span>
+      </div>
+      <div className="py-3 pr-5 pl-1 space-y-2">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function NtsField({ label, value, removable = false, mono = false }: {
+  label: string
+  value?: React.ReactNode
+  removable?: boolean
+  mono?: boolean
+}) {
+  return (
+    <div className="relative flex items-center rounded border border-border/60 bg-muted/15 px-3 py-2 pr-8">
+      <span className="text-xs text-muted-foreground/60 shrink-0">{label} =</span>
+      <span className={cn(
+        'ml-1.5 text-xs',
+        mono ? 'font-mono text-foreground/80' : 'text-foreground/80',
+        !value && 'text-muted-foreground/40 italic',
+      )}>
+        {value ?? 'Not configured'}
+      </span>
+      {removable && (
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/30 text-xs">×</span>
+      )}
+    </div>
+  )
+}
+
+function NtsActionRow({ label, value, dimmed = false }: { label: string; value: string; dimmed?: boolean }) {
+  return (
+    <div className={cn('flex items-center gap-2', dimmed && 'opacity-60')}>
+      <span className="text-xs text-muted-foreground/60">{label}:</span>
+      <div className="flex items-center gap-1.5 rounded border border-border/60 bg-muted/15 px-2.5 py-1.5">
+        <span className={cn(
+          'text-xs font-semibold',
+          value === 'Block'     ? 'text-red-400'     :
+          value === 'Alert'     ? 'text-amber-400'   :
+          value === 'Coach'     ? 'text-orange-400'  :
+          value === 'Allow'     ? 'text-emerald-400' :
+          value === 'Monitor'   ? 'text-blue-400'    :
+          'text-foreground/80',
+        )}>
+          {value}
+        </span>
+        <span className="text-muted-foreground/30 text-[10px]">▼</span>
+      </div>
+    </div>
+  )
+}
+
+function NtsAddLink({ label }: { label: string }) {
+  return (
+    <p className="text-[11px] font-semibold text-blue-400/70 pt-0.5">
+      + {label} ▼
+    </p>
+  )
+}
+
+function NtsGreenDot() {
+  return <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 ml-1 shrink-0" />
+}
+
 // ── Netskope-specific card — mirrors the Netskope RT policy UI exactly ─────────
 
 function NetskopeCard({ policy }: { policy: Record<string, unknown> }) {
   const [showRaw, setShowRaw] = useState(false)
+  const [implOpen, setImplOpen] = useState(false)
 
   const source        = policy.source as Record<string, string[]> | undefined
   const destination   = policy.destination as Record<string, unknown> | undefined
@@ -775,153 +853,194 @@ function NetskopeCard({ policy }: { policy: Record<string, unknown> }) {
   const activities    = (destination?.activities ?? []) as string[]
   const usersOrGroups = source?.users_or_groups ?? ['All Users']
   const dlpProfiles   = profileAction?.dlp_profiles ?? []
+  const cciAppTag     = destination?.cci_app_tag as string | undefined
+  const appInstanceTag= destination?.app_instance_tag as string | undefined
+  const destCountry   = destination?.destination_country as string | undefined
+  const destCategory  = destination?.category as string | undefined
+  const specificApps  = destination?.specific_apps as string[] | undefined
+  const notifTemplate = profileAction?.notification_template ?? null
 
   return (
-    <div className="divide-y divide-border/40">
-
-      {/* Source */}
-      <div className="grid grid-cols-[160px_1fr] gap-4 px-5 py-3.5 items-start">
-        <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide pt-0.5">Source</span>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground/50">User =</span>
-          <StringChips values={usersOrGroups} />
-        </div>
+    <div className="bg-card">
+      {/* Subtitle bar */}
+      <div className="px-5 py-2.5 border-b border-border/40 bg-muted/5">
+        <p className="text-[11px] text-muted-foreground/50">
+          Activities and actions available are dependent on the type of profile and applications you selected.
+        </p>
       </div>
 
-      {/* Destination */}
-      <div className="grid grid-cols-[160px_1fr] gap-4 px-5 py-3.5 items-start">
-        <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide pt-0.5">Destination</span>
-        <div className="space-y-2">
-          {destination?.category ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground/50">Category =</span>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-border bg-muted/40 text-xs text-foreground/80">
-                {String(destination.category)}
-              </span>
-            </div>
-          ) : destination?.specific_apps ? (
-            <div className="flex items-start gap-2">
-              <span className="text-xs text-muted-foreground/50 pt-0.5 shrink-0">Apps =</span>
-              <StringChips values={destination.specific_apps as string[]} />
-            </div>
-          ) : null}
-          {activities.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground/50">Activities =</span>
-              <StringChips values={activities} colorClass="bg-blue-500/10 text-blue-400 border-blue-500/20" />
-            </div>
-          )}
+      {/* ── Source ────────────────────────────────────────────────────── */}
+      <NtsSection icon={User} label="Source">
+        <NtsField
+          label="User"
+          value={usersOrGroups.join(', ')}
+          removable={false}
+        />
+        <NtsAddLink label="ADD CRITERIA" />
+      </NtsSection>
+
+      {/* ── Destination ───────────────────────────────────────────────── */}
+      <NtsSection icon={ArrowDownToLine} label="Destination">
+        {/* Category / type selector row */}
+        <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center rounded border border-border/60 bg-muted/15 px-2.5 py-1.5 gap-1.5">
+            <span className="text-xs text-foreground/80">Category</span>
+            <span className="text-muted-foreground/30 text-[10px]">▼</span>
+          </div>
+          <NtsGreenDot />
         </div>
-      </div>
 
-      {/* Profile & Action */}
-      <div className="grid grid-cols-[160px_1fr] gap-4 px-5 py-3.5 items-start">
-        <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide pt-0.5">Profile &amp; Action</span>
-        <div className="space-y-2.5">
+        {destCategory && (
+          <NtsField label="Category" value={destCategory} />
+        )}
+        {specificApps && specificApps.length > 0 && (
+          <NtsField label="Apps" value={specificApps.join(', ')} />
+        )}
+        {activities.length > 0 && (
+          <NtsField label="Activities" value={activities.join(', ')} />
+        )}
+        {cciAppTag && <NtsField label="CCI App Tag" value={cciAppTag} removable />}
+        {appInstanceTag && <NtsField label="App Instance Tag" value={appInstanceTag} removable />}
+        {destCountry && <NtsField label="Destination Country" value={destCountry} removable />}
 
-          {profileAction ? (
-            <>
-              {/* DLP Profile chips */}
-              {dlpProfiles.length > 0 && (
-                <div className="flex items-start gap-2 flex-wrap">
-                  <span className="text-xs text-muted-foreground/50 shrink-0 pt-0.5">DLP Profile =</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {dlpProfiles.map((name, i) => (
-                      <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md border border-border bg-muted/40 text-xs font-mono text-foreground/80">
-                        {name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+        <NtsAddLink label="ADD CRITERIA & CONSTRAINTS" />
+      </NtsSection>
 
-              {/* Single action for all profiles — simple form (no per-profile table) */}
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground/50">Action:</span>
-                  <ActionChip action={profileAction.action} />
-                </div>
-                {profileAction.notification_template && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground/50">Template:</span>
-                    <span className="text-xs font-mono text-foreground/70 bg-muted/30 px-2 py-0.5 rounded border border-border/50">
-                      {profileAction.notification_template}
+      {/* ── Profile & Action ──────────────────────────────────────────── */}
+      <NtsSection icon={Wrench} label="Profile & Action">
+        {/* DLP Profile row */}
+        {profileAction && (
+          <>
+            <div className="relative flex items-center rounded border border-border/60 bg-muted/15 px-3 py-2 pr-16">
+              <span className="text-xs text-muted-foreground/60 shrink-0">DLP Profile =</span>
+              {dlpProfiles.length > 0 ? (
+                <div className="ml-1.5 flex flex-wrap gap-1.5">
+                  {dlpProfiles.map((name, i) => (
+                    <span key={i} className="text-xs font-mono text-foreground/80 bg-muted/40 border border-border/50 px-1.5 py-0.5 rounded">
+                      {name}
                     </span>
-                  </div>
-                )}
-              </div>
-            </>
-          ) : policyAction ? (
-            /* No DLP profile — action applies to all content matching activities */
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground/50">Action:</span>
-                <ActionChip action={policyAction} />
-              </div>
-              <p className="text-[10px] text-muted-foreground/50 italic">No DLP profile — action applies to all content</p>
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground/50 italic">No profile or action configured</p>
-          )}
-
-          {/* Traffic Action — only shown when explicitly set (not a default) */}
-          {trafficAction && (
-            <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-3 py-2.5 space-y-1.5">
-              <p className="text-[10px] text-muted-foreground/60">If none of the specified profiles matches</p>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground/60">Action:</span>
-                <ActionChip action={trafficAction} />
+                  ))}
+                </div>
+              ) : (
+                <span className="ml-1.5 text-xs text-muted-foreground/40 italic">Select</span>
+              )}
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-muted-foreground/30">
+                <span className="text-[11px]">ℹ</span>
+                <span className="text-xs">×</span>
               </div>
             </div>
-          )}
 
-        </div>
-      </div>
+            {/* Action row */}
+            <NtsActionRow label="Action" value={profileAction.action} />
 
-      {/* Policy Name + Group + Description */}
-      <div className="grid grid-cols-[160px_1fr] gap-4 px-5 py-3.5 items-start">
-        <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide pt-0.5">Policy Name</span>
-        <div className="space-y-1.5">
+            {/* Set action per profile checkbox row */}
+            <div className="flex items-center gap-2">
+              <div className="w-3.5 h-3.5 rounded-sm border border-border/60 bg-muted/20 shrink-0" />
+              <span className="text-xs text-foreground/70">Set action for each profile</span>
+              <NtsGreenDot />
+            </div>
+
+            {/* Notification template */}
+            {notifTemplate && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground/60">
+                <span>User notification:</span>
+                <span className="font-mono text-foreground/80 bg-muted/30 border border-border/50 px-1.5 py-0.5 rounded text-[11px]">{notifTemplate}</span>
+              </div>
+            )}
+          </>
+        )}
+
+        {!profileAction && policyAction && (
+          <>
+            <p className="text-[10px] text-muted-foreground/50 italic">No DLP profile — action applies to all content matching activities</p>
+            <NtsActionRow label="Action" value={policyAction} />
+          </>
+        )}
+
+        {/* Traffic action / fallback section */}
+        {trafficAction && (
+          <div className="mt-2 pt-2 border-t border-border/40 space-y-2">
+            <div className="flex items-center gap-2 rounded border border-border/60 bg-muted/10 px-3 py-2">
+              <span className="text-xs text-muted-foreground/50">If none of the specified profiles matches</span>
+              <span className="ml-auto text-muted-foreground/30 text-xs">×</span>
+            </div>
+            <NtsActionRow label="Action" value={trafficAction} dimmed />
+          </div>
+        )}
+      </NtsSection>
+
+      {/* ── Policy Name ───────────────────────────────────────────────── */}
+      <NtsSection icon={FileText} label="Policy Name">
+        {/* Name input */}
+        <div className="rounded border border-border/60 bg-muted/15 px-3 py-2">
           <span className="text-xs text-foreground/80">{String(policy.name ?? '—')}</span>
-          {group && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-muted-foreground/50">Group =</span>
-              <span className="text-xs text-muted-foreground/70">{group}</span>
-            </div>
-          )}
-          {description && (
-            <div className="pt-1.5 mt-1 border-t border-border/30 space-y-1">
-              <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider">Policy Description</p>
-              <p className="text-xs text-muted-foreground/70 leading-relaxed">{description}</p>
-            </div>
-          )}
         </div>
+
+        {/* Group selector */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center rounded border border-border/60 bg-muted/15 px-2.5 py-1.5 gap-1.5">
+            <span className="text-xs text-muted-foreground/60">Group:</span>
+            <span className="text-xs text-foreground/80">{group ?? 'Select'}</span>
+            <span className="text-muted-foreground/30 text-[10px]">▼</span>
+          </div>
+        </div>
+
+        {/* Description */}
+        {description ? (
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider">Policy Description</p>
+            <div className="relative rounded border border-border/60 bg-muted/15 px-3 py-2 pr-8 min-h-[48px]">
+              <span className="text-xs text-foreground/70 leading-relaxed">{description}</span>
+              <span className="absolute right-2 top-2 text-muted-foreground/30 text-xs">×</span>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider">Policy Description</p>
+            <div className="rounded border border-border/40 bg-muted/10 px-3 py-2 min-h-[48px]">
+              <span className="text-xs text-muted-foreground/30 italic">Enter Policy Description</span>
+            </div>
+          </div>
+        )}
+
+        <p className="text-[11px] font-semibold text-blue-400/70">+ EMAIL NOTIFICATION</p>
+      </NtsSection>
+
+      {/* ── Status ────────────────────────────────────────────────────── */}
+      <NtsSection icon={ToggleRight} label="Status">
+        <div className="flex items-center gap-2.5">
+          {/* Toggle pill */}
+          <div className="relative w-10 h-5 rounded-full bg-blue-500 flex items-center px-0.5 shrink-0">
+            <div className="w-4 h-4 rounded-full bg-white shadow-sm ml-auto" />
+          </div>
+          <span className="text-xs font-semibold text-foreground/80">Enabled</span>
+        </div>
+        <p className="text-[10px] text-muted-foreground/40">
+          Status in Netskope. Set to <span className="font-mono">{status ?? 'enabled'}</span> when deploying.
+        </p>
+      </NtsSection>
+
+      {/* ── Implementation steps (collapsible) ────────────────────────── */}
+      <div className="border-t border-border/40 px-5 py-3">
+        <button
+          type="button"
+          onClick={() => setImplOpen(o => !o)}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+        >
+          <span>{implOpen ? '▼' : '▶'}</span>
+          How to implement in Netskope
+        </button>
+        {implOpen && (
+          <NetskopeImplementationSteps policy={policy} />
+        )}
       </div>
 
-      {/* Status */}
-      <div className="grid grid-cols-[160px_1fr] gap-4 px-5 py-3.5 items-start">
-        <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide pt-0.5">Status</span>
-        <div className="space-y-1">
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-400">
-            <span className="w-2 h-2 rounded-full bg-blue-400/70" />
-            Draft — Not Deployed
-          </span>
-          <p className="text-[10px] text-muted-foreground/50">
-            Configure in Netskope console. Set to{' '}
-            <span className="font-mono">{status ?? 'enabled'}</span> when deploying.
-          </p>
-        </div>
-      </div>
-
-      {/* Implementation Guide */}
-      <NetskopeImplementationGuide policy={policy} />
-
-      {/* Raw JSON toggle */}
-      <div className="px-5 py-3">
+      {/* ── Raw JSON toggle ────────────────────────────────────────────── */}
+      <div className="border-t border-border/40 px-5 py-3">
         <button
           type="button"
           onClick={() => setShowRaw(r => !r)}
-          className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+          className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors"
         >
           {showRaw ? '▲ Hide raw JSON' : '▼ View raw JSON'}
         </button>
@@ -931,16 +1050,13 @@ function NetskopeCard({ policy }: { policy: Record<string, unknown> }) {
           </pre>
         )}
       </div>
-
     </div>
   )
 }
 
-// ── Netskope Implementation Guide ─────────────────────────────────────────────
+// ── Netskope Implementation Steps ─────────────────────────────────────────────
 
-function NetskopeImplementationGuide({ policy }: { policy: Record<string, unknown> }) {
-  const [expanded, setExpanded] = useState(false)
-
+function NetskopeImplementationSteps({ policy }: { policy: Record<string, unknown> }) {
   const profileAction = policy.profile_action as { dlp_profiles: string[]; action: string; notification_template: string | null } | null
   const policyAction  = (profileAction?.action ?? policy.action) as string
   const destination   = policy.destination as Record<string, unknown> | undefined
@@ -969,18 +1085,7 @@ function NetskopeImplementationGuide({ policy }: { policy: Record<string, unknow
   }
 
   return (
-    <div className="border-t border-border/40 px-5 py-3">
-      <button
-        type="button"
-        onClick={() => setExpanded(e => !e)}
-        className="flex items-center gap-1.5 text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-      >
-        <span>{expanded ? '▼' : '▶'}</span>
-        How to implement in Netskope
-      </button>
-
-      {expanded && (
-        <div className="mt-4 space-y-5">
+    <div className="mt-4 space-y-5">
 
           {/* Step 1 — App Scope */}
           {step(
@@ -1098,8 +1203,6 @@ function NetskopeImplementationGuide({ policy }: { policy: Record<string, unknow
             </>,
           )}
 
-        </div>
-      )}
     </div>
   )
 }
