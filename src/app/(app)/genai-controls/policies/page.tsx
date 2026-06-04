@@ -11,14 +11,15 @@ export default async function GenAIPoliciesPage() {
   const user     = await requireRole('analyst')
   const supabase = await createClient()
 
-  try { await syncRecommendedPolicies() } catch (e) { console.error('[policies/page] sync error:', e) }
+  // Fetch labels once — shared with sync (avoids a duplicate DB call inside syncRecommendedPolicies)
+  const classificationLabels = await ensureClassificationLabels().catch(() => [])
+  try { await syncRecommendedPolicies(classificationLabels) } catch (e) { console.error('[policies/page] sync error:', e) }
 
   const [
     policyResult,
     categoryResult,
     appsResult,
     classificationsResult,
-    classificationLabels,
     orgTypesResult,
     orgTypeMappingsResult,
     catalogTypesResult,
@@ -28,7 +29,6 @@ export default async function GenAIPoliciesPage() {
     supabase.from('org_genai_governance_categories').select('id, system_tag, name, color').eq('org_id', user.orgId).eq('active', true).order('priority'),
     supabase.from('genai_apps').select('app_id, app_name, vendor, logo_letter, logo_bg').order('app_name'),
     supabase.from('org_customer_classifications').select('app_id, customer_classification').eq('org_id', user.orgId),
-    ensureClassificationLabels().catch(() => []),
     supabase.from('org_data_types').select('id, name, catalog_data_type_id').eq('org_id', user.orgId).eq('is_in_scope', true).order('name'),
     supabase.from('org_data_type_classifications').select('org_data_type_id, org_classification_label_id').eq('org_id', user.orgId),
     supabase.from('catalog_data_types').select('id, name, system_level, risk_family').eq('active', true).order('priority').order('name'),

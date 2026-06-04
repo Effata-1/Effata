@@ -655,18 +655,19 @@ function computeTranslationHints(
   }
 }
 
-export async function syncRecommendedPolicies(): Promise<void> {
+export async function syncRecommendedPolicies(
+  preloadedLabels?: Awaited<ReturnType<typeof ensureClassificationLabels>>,
+): Promise<void> {
   const user     = await requireRole('analyst')
   const supabase = await createClient()
 
-  // Ensure all default coaching templates are seeded before building notifMap.
-  // Without this, new templates added to seeds.ts would resolve to null in notifMap
-  // until the notifications page is visited, marking policies translation_ready: false.
-  await ensureDefaultCoachingTemplates(user.orgId)
+  // Run both ensures in parallel — they're independent of each other.
+  // ensureDefaultCoachingTemplates must finish before we fetch org_coaching_notifications below.
+  const [, allClassificationLabels] = await Promise.all([
+    ensureDefaultCoachingTemplates(user.orgId),
+    preloadedLabels ? Promise.resolve(preloadedLabels) : ensureClassificationLabels(),
+  ])
 
-  // Ensure system classification labels are seeded before parallel fetch
-  // (first-time orgs may not have visited the Control Matrix yet)
-  const allClassificationLabels = await ensureClassificationLabels()
   const filenameLabels = allClassificationLabels.filter(
     l => l.system_level && FILENAME_DETECTION_LEVELS.includes(l.system_level as FilenameDetectionLevel),
   )
@@ -707,6 +708,10 @@ export async function syncRecommendedPolicies(): Promise<void> {
   const notifById   = new Map((notifications ?? []).map(n => [n.id as string, n]))
   const now         = new Date().toISOString()
 
+  // Collect all rows to write in bulk — avoids one DB round-trip per policy.
+  const upsertRows: Record<string, unknown>[] = []
+  const deleteKeys: string[]                  = []
+
   // ── 1. Content detection rows — derived from CONTENT_DETECTION_ROWS ──────────
   for (const rowLabel of CONTENT_DETECTION_ROWS) {
     const rfKey = RF_KEY[rowLabel]
@@ -718,12 +723,9 @@ export async function syncRecommendedPolicies(): Promise<void> {
     let   hasOverride = false
 
     for (const cat of categories ?? []) {
-      // Skip categories with block access posture — they get their own govern_app_access policy
-      // and don't need content-detection controls (network access is blocked entirely)
       if ((cat as Record<string, unknown>).access_posture === 'block') continue
-
       const tag    = TAG_ALIAS[cat.system_tag ?? ''] ?? cat.system_tag ?? ''
-      if (!tag) continue // skip categories without a system_tag (misconfigured custom categories)
+      if (!tag) continue
       const rowKey = `pp|rf:${rfKey}`
       const ov     = overrideMap.get(`${rowKey}::${cat.id}`)
 
@@ -771,20 +773,12 @@ export async function syncRecommendedPolicies(): Promise<void> {
     const fullNpj = {
       ...npj,
       coaching_templates,
-      ...(coachWarnings.length > 0 && {
-        translation_ready,
-        provenance: { warnings: coachWarnings },
-      }),
+      ...(coachWarnings.length > 0 && { translation_ready, provenance: { warnings: coachWarnings } }),
     }
 
-    // If every active category allows this data type, no enforcement policy is needed.
-    // Delete any existing policy for this key — stale policies must not persist.
     const actionVals = Object.values(actions_by_category)
     if (actionVals.length > 0 && actionVals.every(a => a === 'allow')) {
-      if (existingMap.has(policy_key)) {
-        await supabase.from('org_genai_policies')
-          .delete().eq('org_id', user.orgId).eq('policy_key', policy_key)
-      }
+      if (existingMap.has(policy_key)) deleteKeys.push(policy_key)
       continue
     }
 
@@ -794,31 +788,19 @@ export async function syncRecommendedPolicies(): Promise<void> {
     const isNew             = !existing
     const npjChanged        = isNew || JSON.stringify(existing.neutral_policy_json) !== JSON.stringify(fullNpj)
 
-    const { error } = await supabase.from('org_genai_policies').upsert({
-      org_id:               user.orgId,
-      policy_key,
-      policy_source:        'recommended',
-      matrix_basis,
-      last_synced_from_matrix_at: now,
-      name:                 policyName,
-      description:          `Detects and enforces controls for ${rowLabel} data across all GenAI apps.`,
-      generated_from:       'recommended',
-      is_active:            isNew ? true : existing.is_active,
-      approval_status:      'approved',
-      policy_family:        'genai_content_detection',
-      coaching_template_id: defaultCoachingId,
-      neutral_policy_json:  fullNpj,
-      scope_all_apps:       true,
-      scope_app_ids:        [],
-      rules:                [],
-      priority:             100,
+    upsertRows.push({
+      org_id: user.orgId, policy_key, policy_source: 'recommended', matrix_basis,
+      last_synced_from_matrix_at: now, name: policyName,
+      description: `Detects and enforces controls for ${rowLabel} data across all GenAI apps.`,
+      generated_from: 'recommended', is_active: isNew ? true : existing.is_active,
+      approval_status: 'approved', policy_family: 'genai_content_detection',
+      coaching_template_id: defaultCoachingId, neutral_policy_json: fullNpj,
+      scope_all_apps: true, scope_app_ids: [], rules: [], priority: 100,
       required_dependencies: [],
       vendor_translation_status: npjChanged ? 'pending'  : (existing?.vendor_translation_status ?? 'pending'),
       test_status:               npjChanged ? 'untested' : (existing?.test_status               ?? 'untested'),
       updated_at: now,
-    }, { onConflict: 'org_id,policy_key' })
-
-    if (error) console.error(`[syncRecommendedPolicies] ${policy_key}:`, error.message)
+    })
   }
 
   // ── 2. Filename detection (ul_fn) — one policy per system classification level ─
@@ -843,7 +825,6 @@ export async function syncRecommendedPolicies(): Promise<void> {
         coaching_by_category[tag] = ov.coaching_notification_id ?? null
       } else {
         actions_by_category[tag]  = UL_FN_DEFAULTS[tag]?.[lbl.system_level] ?? 'allow'
-        // 2D lookup: catTag × sysLevel (was 1D level-only)
         const coachName = UL_FN_COACHING_DEFAULTS[tag]?.[lbl.system_level] ?? null
         coaching_by_category[tag] = coachName ? (notifMap.get(coachName) ?? null) : null
       }
@@ -851,24 +832,15 @@ export async function syncRecommendedPolicies(): Promise<void> {
 
     const fnPolicyName = `GenAI - ${lbl.name} Filename ${computePolicySuffix('', actions_by_category)}`
     const fnNpj = {
-      policy_id:      policy_key,
-      policy_name:    fnPolicyName,
-      schema_version: '1.0',
-      intent:         'prevent_exfiltration',
-      policy_family:  'genai_filename',
+      policy_id: policy_key, policy_name: fnPolicyName, schema_version: '1.0',
+      intent: 'prevent_exfiltration', policy_family: 'genai_filename',
       scope: { activities: ['upload'] },
       content: {
-        operator:   'any',
+        operator: 'any',
         conditions: [{ type: 'classification_label', label_id: lbl.id, label_name: lbl.name, system_level: lbl.system_level }],
       },
-      decision: {
-        role:                    'fallback_summary',
-        mode:                    computeFallbackMode(actions_by_category),
-        require_acknowledgement: false,
-        require_justification:   false,
-      },
-      actions_by_category,
-      coaching_by_category,
+      decision: { role: 'fallback_summary', mode: computeFallbackMode(actions_by_category), require_acknowledgement: false, require_justification: false },
+      actions_by_category, coaching_by_category,
       excluded_categories:  buildExcludedCategories((categories ?? []) as Array<Record<string, unknown>>),
       app_governance_source: { type: 'current_org_app_governance', version: 'active' },
       translation_hints:    computeTranslationHints(actions_by_category, 'genai_filename'),
@@ -876,22 +848,13 @@ export async function syncRecommendedPolicies(): Promise<void> {
     const { templates: fnCoachingTemplates, warnings: fnWarnings, translation_ready: fnReady } =
       resolveCoachingTemplates(coaching_by_category, actions_by_category, notifById)
     const fullFnNpj = {
-      ...fnNpj,
-      coaching_templates: fnCoachingTemplates,
-      ...(fnWarnings.length > 0 && {
-        translation_ready: fnReady,
-        provenance: { warnings: fnWarnings },
-      }),
+      ...fnNpj, coaching_templates: fnCoachingTemplates,
+      ...(fnWarnings.length > 0 && { translation_ready: fnReady, provenance: { warnings: fnWarnings } }),
     }
 
-    // If every active category allows this classification level, no enforcement policy is needed.
-    // Delete any existing policy for this key — stale policies must not persist.
     const fnVals = Object.values(actions_by_category)
     if (fnVals.length > 0 && fnVals.every(a => a === 'allow')) {
-      if (existingMap.has(policy_key)) {
-        await supabase.from('org_genai_policies')
-          .delete().eq('org_id', user.orgId).eq('policy_key', policy_key)
-      }
+      if (existingMap.has(policy_key)) deleteKeys.push(policy_key)
       continue
     }
 
@@ -901,31 +864,19 @@ export async function syncRecommendedPolicies(): Promise<void> {
     const isNew             = !existing
     const npjChanged        = isNew || JSON.stringify(existing.neutral_policy_json) !== JSON.stringify(fullFnNpj)
 
-    const { error } = await supabase.from('org_genai_policies').upsert({
-      org_id:               user.orgId,
-      policy_key,
-      policy_source:        'recommended',
-      matrix_basis,
-      last_synced_from_matrix_at: now,
-      name:                 fnPolicyName,
-      description:          `Controls uploads with ${lbl.name}-classified filename patterns across all GenAI apps.`,
-      generated_from:       'recommended',
-      is_active:            isNew ? true : existing.is_active,
-      approval_status:      'approved',
-      policy_family:        'genai_filename',
-      coaching_template_id: defaultCoachingId,
-      neutral_policy_json:  fullFnNpj,
-      scope_all_apps:       true,
-      scope_app_ids:        [],
-      rules:                [],
-      priority:             90,
+    upsertRows.push({
+      org_id: user.orgId, policy_key, policy_source: 'recommended', matrix_basis,
+      last_synced_from_matrix_at: now, name: fnPolicyName,
+      description: `Controls uploads with ${lbl.name}-classified filename patterns across all GenAI apps.`,
+      generated_from: 'recommended', is_active: isNew ? true : existing.is_active,
+      approval_status: 'approved', policy_family: 'genai_filename',
+      coaching_template_id: defaultCoachingId, neutral_policy_json: fullFnNpj,
+      scope_all_apps: true, scope_app_ids: [], rules: [], priority: 90,
       required_dependencies: [],
       vendor_translation_status: npjChanged ? 'pending'  : (existing?.vendor_translation_status ?? 'pending'),
       test_status:               npjChanged ? 'untested' : (existing?.test_status               ?? 'untested'),
       updated_at: now,
-    }, { onConflict: 'org_id,policy_key' })
-
-    if (error) console.error(`[syncRecommendedPolicies] ${policy_key}:`, error.message)
+    })
   }
 
   // ── 3. Data classification label detection (ul_dc) — one policy per customer label ──
@@ -950,33 +901,20 @@ export async function syncRecommendedPolicies(): Promise<void> {
         coaching_by_category[tag] = ov.coaching_notification_id ?? null
       } else {
         actions_by_category[tag]  = UL_DC_DEFAULTS[tag]?.[sysLevel] ?? 'allow'
-        // Now uses UL_DC_COACHING_DEFAULTS (was always null)
         const dcCoachName = UL_DC_COACHING_DEFAULTS[tag]?.[sysLevel] ?? null
         coaching_by_category[tag] = dcCoachName ? (notifMap.get(dcCoachName) ?? null) : null
       }
     }
 
-    const displayName    = (clbl as Record<string, unknown>).display_name as string
-    const dcPolicyName   = `GenAI - ${displayName} Label ${computePolicySuffix('', actions_by_category)}`
+    const displayName  = (clbl as Record<string, unknown>).display_name as string
+    const dcPolicyName = `GenAI - ${displayName} Label ${computePolicySuffix('', actions_by_category)}`
     const dcNpj = {
-      policy_id:      policy_key,
-      policy_name:    dcPolicyName,
-      schema_version: '1.0',
-      intent:         'prevent_exfiltration',
-      policy_family:  'genai_label_detection',
+      policy_id: policy_key, policy_name: dcPolicyName, schema_version: '1.0',
+      intent: 'prevent_exfiltration', policy_family: 'genai_label_detection',
       scope: { activities: ['upload'] },
-      content: {
-        operator:   'any',
-        conditions: [{ type: 'classification_label', label_id: clbl.id, label_name: displayName }],
-      },
-      decision: {
-        role:                    'fallback_summary',
-        mode:                    computeFallbackMode(actions_by_category),
-        require_acknowledgement: false,
-        require_justification:   false,
-      },
-      actions_by_category,
-      coaching_by_category,
+      content: { operator: 'any', conditions: [{ type: 'classification_label', label_id: clbl.id, label_name: displayName }] },
+      decision: { role: 'fallback_summary', mode: computeFallbackMode(actions_by_category), require_acknowledgement: false, require_justification: false },
+      actions_by_category, coaching_by_category,
       excluded_categories:  buildExcludedCategories((categories ?? []) as Array<Record<string, unknown>>),
       app_governance_source: { type: 'current_org_app_governance', version: 'active' },
       translation_hints:    computeTranslationHints(actions_by_category, 'genai_label_detection'),
@@ -984,22 +922,13 @@ export async function syncRecommendedPolicies(): Promise<void> {
     const { templates: dcCoachingTemplates, warnings: dcWarnings, translation_ready: dcReady } =
       resolveCoachingTemplates(coaching_by_category, actions_by_category, notifById)
     const fullDcNpj = {
-      ...dcNpj,
-      coaching_templates: dcCoachingTemplates,
-      ...(dcWarnings.length > 0 && {
-        translation_ready: dcReady,
-        provenance: { warnings: dcWarnings },
-      }),
+      ...dcNpj, coaching_templates: dcCoachingTemplates,
+      ...(dcWarnings.length > 0 && { translation_ready: dcReady, provenance: { warnings: dcWarnings } }),
     }
 
-    // If every active category allows this label, no enforcement policy is needed.
-    // Delete any existing policy for this key — stale policies must not persist.
     const dcVals = Object.values(actions_by_category)
     if (dcVals.length > 0 && dcVals.every(a => a === 'allow')) {
-      if (existingMap.has(policy_key)) {
-        await supabase.from('org_genai_policies')
-          .delete().eq('org_id', user.orgId).eq('policy_key', policy_key)
-      }
+      if (existingMap.has(policy_key)) deleteKeys.push(policy_key)
       continue
     }
 
@@ -1009,36 +938,22 @@ export async function syncRecommendedPolicies(): Promise<void> {
     const isNew        = !existing
     const npjChanged   = isNew || JSON.stringify(existing.neutral_policy_json) !== JSON.stringify(fullDcNpj)
 
-    const { error } = await supabase.from('org_genai_policies').upsert({
-      org_id:               user.orgId,
-      policy_key,
-      policy_source:        'recommended',
-      matrix_basis,
-      last_synced_from_matrix_at: now,
-      name:                 dcPolicyName,
-      description:          `Controls uploads classified as ${displayName} across all GenAI apps.`,
-      generated_from:       'recommended',
-      is_active:            isNew ? true : existing.is_active,
-      approval_status:      'approved',
-      policy_family:        'genai_label_detection',
-      coaching_template_id: defaultDcCoachingId,
-      neutral_policy_json:  fullDcNpj,
-      scope_all_apps:       true,
-      scope_app_ids:        [],
-      rules:                [],
-      priority:             80,
+    upsertRows.push({
+      org_id: user.orgId, policy_key, policy_source: 'recommended', matrix_basis,
+      last_synced_from_matrix_at: now, name: dcPolicyName,
+      description: `Controls uploads classified as ${displayName} across all GenAI apps.`,
+      generated_from: 'recommended', is_active: isNew ? true : existing.is_active,
+      approval_status: 'approved', policy_family: 'genai_label_detection',
+      coaching_template_id: defaultDcCoachingId, neutral_policy_json: fullDcNpj,
+      scope_all_apps: true, scope_app_ids: [], rules: [], priority: 80,
       required_dependencies: [],
       vendor_translation_status: npjChanged ? 'pending'  : (existing?.vendor_translation_status ?? 'pending'),
       test_status:               npjChanged ? 'untested' : (existing?.test_status               ?? 'untested'),
       updated_at: now,
-    }, { onConflict: 'org_id,policy_key' })
-
-    if (error) console.error(`[syncRecommendedPolicies] ${policy_key}:`, error.message)
+    })
   }
 
   // ── 4. App access block policies — one per category with access_posture === 'block' ──
-  // Policy key format: rf:{tag}_app_block (e.g. rf:prohibited_app_block for prohibited)
-  // This replaces the old hardcoded prohibited-only block — now driven by posture configuration.
   for (const cat of (categories ?? []).filter(c => (c as Record<string, unknown>).access_posture === 'block')) {
     const tag        = TAG_ALIAS[cat.system_tag ?? ''] ?? cat.system_tag ?? ''
     const policy_key = `rf:${tag}_app_block`
@@ -1047,48 +962,42 @@ export async function syncRecommendedPolicies(): Promise<void> {
     const coaching_by_category: Record<string, string | null> = { [tag]: null }
 
     const npj = {
-      schema_version: '1.0',
-      intent:         'govern_app_access',
-      policy_family:  'genai_app_access',
-      scope: {
-        activities:     ['browse', 'login'],
-        app_categories: [{ system_tag: cat.system_tag, name: cat.name }],
-      },
-      content:  { operator: 'any', conditions: [] },
+      schema_version: '1.0', intent: 'govern_app_access', policy_family: 'genai_app_access',
+      scope: { activities: ['browse', 'login'], app_categories: [{ system_tag: cat.system_tag, name: cat.name }] },
+      content: { operator: 'any', conditions: [] },
       decision: { mode: 'block', require_acknowledgement: false, require_justification: false },
-      actions_by_category,
-      coaching_by_category,
+      actions_by_category, coaching_by_category,
     }
 
     const existing   = existingMap.get(policy_key)
     const isNew      = !existing
     const npjChanged = isNew || JSON.stringify(existing.neutral_policy_json) !== JSON.stringify(npj)
 
-    const { error } = await supabase.from('org_genai_policies').upsert({
-      org_id:               user.orgId,
-      policy_key,
-      policy_source:        'recommended',
-      matrix_basis:         'default',
-      last_synced_from_matrix_at: now,
-      name:                 `GenAI - ${cat.name} App Block`,
-      description:          `Blocks network access to all GenAI apps classified as ${cat.name}.`,
-      generated_from:       'recommended',
-      is_active:            isNew ? true : existing.is_active,
-      approval_status:      'approved',
-      policy_family:        'genai_app_access',
-      coaching_template_id: null,
-      neutral_policy_json:  npj,
-      scope_all_apps:       false,
-      scope_app_ids:        [],
-      rules:                [],
-      priority:             10,
+    upsertRows.push({
+      org_id: user.orgId, policy_key, policy_source: 'recommended', matrix_basis: 'default',
+      last_synced_from_matrix_at: now, name: `GenAI - ${cat.name} App Block`,
+      description: `Blocks network access to all GenAI apps classified as ${cat.name}.`,
+      generated_from: 'recommended', is_active: isNew ? true : existing.is_active,
+      approval_status: 'approved', policy_family: 'genai_app_access',
+      coaching_template_id: null, neutral_policy_json: npj,
+      scope_all_apps: false, scope_app_ids: [], rules: [], priority: 10,
       required_dependencies: [],
       vendor_translation_status: npjChanged ? 'pending'  : (existing?.vendor_translation_status ?? 'pending'),
       test_status:               npjChanged ? 'untested' : (existing?.test_status               ?? 'untested'),
       updated_at: now,
-    }, { onConflict: 'org_id,policy_key' })
+    })
+  }
 
-    if (error) console.error(`[syncRecommendedPolicies] ${policy_key}:`, error.message)
+  // ── Bulk write: 2 DB calls instead of one per policy ─────────────────────────
+  if (deleteKeys.length > 0) {
+    const { error } = await supabase.from('org_genai_policies')
+      .delete().eq('org_id', user.orgId).in('policy_key', deleteKeys)
+    if (error) console.error('[syncRecommendedPolicies] bulk delete:', error.message)
+  }
+  if (upsertRows.length > 0) {
+    const { error } = await supabase.from('org_genai_policies')
+      .upsert(upsertRows, { onConflict: 'org_id,policy_key' })
+    if (error) console.error('[syncRecommendedPolicies] bulk upsert:', error.message)
   }
 
   revalidatePath('/genai-controls/policies')
