@@ -149,7 +149,7 @@ export interface BuildTopologyInput {
   categoryNameMap?:     Record<string, string>  // system_tag → display name for custom categories
 }
 
-export function buildTopology(input: BuildTopologyInput): Omit<NetskopeRecommendation, 'skipped_policies' | 'limitations' | 'inline_file_size_limit_mb' | 'topology_options' | 'scoped_policies' | 'strategy_overrides'> {
+export function buildTopology(input: BuildTopologyInput): Omit<NetskopeRecommendation, 'skipped_policies' | 'limitations' | 'inline_file_size_limit_mb' | 'topology_options' | 'scoped_policies' | 'strategy_overrides' | 'manual_policies'> {
   const { buckets, alwaysBlockNpjs, prohibitedCategory, skippedCount, categoryNameMap = {} } = input
   const policies: NetskopePolicy[] = []
   const issues: RecommendationIssue[] = []

@@ -599,6 +599,7 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
   const [openMenuId,   setOpenMenuId]         = useState<string | null>(null)
   const [menuPos,      setMenuPos]            = useState({ top: 0, right: 0 })
   const menuTriggerRef                        = useRef<HTMLButtonElement | null>(null)
+  const menuPopupRef                          = useRef<HTMLDivElement | null>(null)
 
   // Close new-policy modal on Escape
   useEffect(() => {
@@ -640,13 +641,14 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
     return () => document.removeEventListener('mousedown', handler)
   }, [filterPickerOpen])
 
-  // Close row 3-dot menu on outside click
+  // Close row 3-dot menu on outside click — must exclude BOTH trigger and popup
+  // so that mousedown on menu items doesn't unmount the menu before click fires
   useEffect(() => {
     if (!openMenuId) return
     function handler(e: MouseEvent) {
-      if (menuTriggerRef.current && !menuTriggerRef.current.contains(e.target as Node)) {
-        setOpenMenuId(null)
-      }
+      const inTrigger = menuTriggerRef.current?.contains(e.target as Node) ?? false
+      const inPopup   = menuPopupRef.current?.contains(e.target as Node)   ?? false
+      if (!inTrigger && !inPopup) setOpenMenuId(null)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -1555,6 +1557,7 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
                         </button>
                         {openMenuId === policy.id && (
                           <div
+                            ref={menuPopupRef}
                             className="fixed z-50 bg-card border border-border rounded-lg shadow-xl py-1 min-w-[180px]"
                             style={{ top: menuPos.top, right: menuPos.right }}
                           >

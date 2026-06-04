@@ -8,7 +8,7 @@ import { LIMITATIONS, INLINE_FILE_SIZE_LIMIT_MB } from '@/lib/genai/netskope/lim
 import { TAG_ALIAS } from '@/lib/genai/control-matrix-rows'
 import { isScopedNpj, resolveNpjScope, buildScopedPolicies } from '@/lib/genai/netskope/scoped'
 import type { NpjInput } from '@/lib/genai/netskope/transpose'
-import type { SkippedPolicy, ScopedNpjInput } from '@/lib/genai/netskope/types'
+import type { SkippedPolicy, ScopedNpjInput, NetskopePolicy, NetskopeProfileEntry, NpjProfileType } from '@/lib/genai/netskope/types'
 import { RecommendationClient } from './_components/recommendation-client'
 
 const SUPPORTED_FAMILIES = new Set([
@@ -23,7 +23,12 @@ export default async function NetskopeRecommendationPage() {
   const supabase = await createClient()
 
   // ── Step 1: Fetch data in parallel ─────────────────────────────────────────
-  const [{ data: policies, error: policiesError }, { data: categories }, { data: coachingTemplates }] = await Promise.all([
+  const [
+    { data: policies, error: policiesError },
+    { data: categories },
+    { data: coachingTemplates },
+    { data: manualPolicyRows },
+  ] = await Promise.all([
     supabase
       .from('org_genai_policies')
       .select('id, name, policy_family, neutral_policy_json, updated_at')
@@ -41,6 +46,14 @@ export default async function NetskopeRecommendationPage() {
       .select('id, name, coach_label')
       .eq('org_id', user.orgId)
       .eq('is_active', true),
+    // Manual / AI-generated policies — shown in their own section, not fed into the topology engine
+    supabase
+      .from('org_genai_policies')
+      .select('id, name, policy_family, neutral_policy_json')
+      .eq('org_id', user.orgId)
+      .eq('is_active', true)
+      .eq('approval_status', 'approved')
+      .eq('policy_source', 'manual'),
   ])
 
   // UUID → display name map for coaching templates
@@ -208,10 +221,61 @@ export default async function NetskopeRecommendationPage() {
 
   const scoped_policies = scopedNpjs.length > 0 ? buildScopedPolicies(scopedNpjs) : null
 
+  // ── Manual policy conversion ────────────────────────────────────────────────
+  const manual_policies: NetskopePolicy[] = (manualPolicyRows ?? [])
+    .map((p, idx) => {
+      const npj = p.neutral_policy_json as Record<string, unknown> | null
+      if (!npj || typeof npj !== 'object') return null
+
+      const scope    = (npj.scope as Record<string, unknown> | undefined) ?? {}
+      const decision = (npj.decision as Record<string, unknown> | undefined) ?? {}
+      const content  = (npj.content as Record<string, unknown> | undefined) ?? {}
+      const conds    = (content.conditions as Array<Record<string, unknown>> | undefined) ?? []
+      const users    = (scope.users as string[] | undefined) ?? []
+      const appCats  = (scope.app_categories as Array<Record<string, unknown>> | undefined) ?? []
+      const activities = (scope.activities as string[] | undefined) ?? ['prompt_submit', 'upload']
+      const action     = (decision.mode as string | undefined) ?? 'alert'
+      const firstUser  = users.find(u => u !== 'All Users')
+      const destName   = (appCats[0]?.name as string | undefined) ?? 'All GenAI apps'
+
+      const profiles: NetskopeProfileEntry[] = conds.length > 0
+        ? conds.map(cond => {
+            const pType: NpjProfileType =
+              cond.type === 'data_type'             ? 'content_detection'  :
+              p.policy_family === 'genai_filename'  ? 'filename_detection' :
+                                                      'classification_label'
+            const pName =
+              (cond.risk_family as string | undefined) ??
+              (cond.label_name as string | undefined)  ??
+              (cond.sensitivity as string | undefined) ??
+              p.name
+            return { profile: pName, profile_type: pType, profile_action: action, coaching_template: null }
+          })
+        : [{ profile: p.name, profile_type: 'content_detection' as NpjProfileType, profile_action: action, coaching_template: null }]
+
+      return {
+        priority:    500 + idx * 10,
+        policy_key:  `manual:${p.id}`,
+        name:        p.name,
+        policy_type: 'realtime_protection' as const,
+        destination: { strategy: 'app_tag', tag_or_category: destName, note: null },
+        source:      firstUser
+          ? { type: 'user_group' as const, value: firstUser }
+          : { type: 'all_users' as const, value: null },
+        activities,
+        profiles,
+        no_match_action:            null,
+        continue_policy_evaluation: null,
+        notification:               null,
+      }
+    })
+    .filter((p): p is NonNullable<typeof p> => p !== null)
+
   const recommendation = {
     ...partial,
     topology_options,
     scoped_policies,
+    manual_policies,
     strategy_overrides:        null,
     skipped_policies:          skipped,
     limitations:               LIMITATIONS,

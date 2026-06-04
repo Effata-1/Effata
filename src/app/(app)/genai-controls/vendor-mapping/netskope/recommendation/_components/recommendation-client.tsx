@@ -782,6 +782,29 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
         </div>
       )}
 
+      {/* Manual / Custom Policies section */}
+      {r.manual_policies.length > 0 && (
+        <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+          <div className="px-5 py-3 border-b border-border/50 bg-muted/5 flex items-center gap-3">
+            <span className="text-sm font-bold text-foreground">Custom Policies</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-500/10 border border-zinc-500/20 text-zinc-400 font-medium">
+              {r.manual_policies.length} {r.manual_policies.length === 1 ? 'policy' : 'policies'}
+            </span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted/40 border border-border/40 text-muted-foreground/60 font-medium">
+              Manual / AI-Generated
+            </span>
+            <span className="text-[11px] text-muted-foreground/40 ml-auto">
+              Deploy after category topology policies
+            </span>
+          </div>
+          <div className="divide-y divide-border/40">
+            {r.manual_policies.map(p => (
+              <NativePolicyCard key={p.policy_key} policy={p} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Topology option selector */}
       <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
         <div className="px-5 py-3 border-b border-border/50 bg-muted/5 flex items-center justify-between">

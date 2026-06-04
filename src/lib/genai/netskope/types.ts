@@ -193,4 +193,5 @@ export interface NetskopeRecommendation {
   topology_options:     TopologyOptionSummary[]    // Phase 2
   scoped_policies:      ScopedPoliciesResult | null // Phase 3: null when no scoped NPJs detected
   strategy_overrides:   null                        // Phase 3: always null from server; overrides live in client state
+  manual_policies:      NetskopePolicy[]            // Manual/AI-generated policies shown in their own section
 }
