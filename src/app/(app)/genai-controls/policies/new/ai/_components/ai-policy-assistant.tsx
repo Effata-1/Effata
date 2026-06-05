@@ -11,6 +11,7 @@ import {
 } from '@/lib/genai/npj-schema'
 import { upsertPolicy, checkPolicyCoverage } from '../../../actions'
 import type { CoverageResult } from '../../../actions'
+import { enrichManualNpj } from '@/lib/genai/npj-enrich'
 import { PolicyCoverageWarning } from '../../../_components/policy-coverage-warning'
 import type { RuleItem, AppRow, CategoryRow } from '../../_components/blank-policy-wizard'
 import type { ActionCode, PolicyType } from '@/lib/genai/types'
@@ -179,17 +180,21 @@ function normalizeProposal(p: PolicyProposal, cats: NormCat[] = []): PolicyPropo
     coaching_by_category: Object.fromEntries(
       Object.keys(actions_by_category).map(k => [k, null])
     ),
+    provenance:          { ...p.npj.provenance, generated_from: 'ai-assisted' },
   } as NeutralPolicyJson
 
-  if (p.npj?.intent !== 'govern_app_access') return { ...p, npj: baseNpj }
-  return {
-    ...p,
-    npj: {
-      ...baseNpj,
-      scope:   { ...baseNpj.scope, activities: ['browse', 'login'] },
-      content: { operator: p.npj.content?.operator ?? 'any', conditions: [] },
-    },
-  }
+  const finalNpj: NeutralPolicyJson = p.npj?.intent === 'govern_app_access'
+    ? {
+        ...baseNpj,
+        scope:   { ...baseNpj.scope, activities: ['browse', 'login'] },
+        content: { operator: p.npj.content?.operator ?? 'any', conditions: [] },
+      }
+    : baseNpj
+
+  // Backfill structural enrichment (channels, telemetry, exceptions, decision
+  // severity/evidence/incident, provenance) so AI policies match the enriched
+  // shape of recommended + manual policies. AI-provided values are preserved.
+  return { ...p, npj: enrichManualNpj(finalNpj as Record<string, unknown>) as NeutralPolicyJson }
 }
 
 function displayText(text: string): string {

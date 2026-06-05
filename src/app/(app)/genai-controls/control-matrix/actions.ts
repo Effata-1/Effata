@@ -68,7 +68,7 @@ export async function upsertControlMatrixCell(
 export async function deleteControlMatrixCell(
   dataType: string,
   categoryId: string,
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; warning?: string }> {
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
@@ -80,8 +80,19 @@ export async function deleteControlMatrixCell(
     .eq('category_id', categoryId)
 
   if (error) return { error: error.message }
+
+  let warning: string | undefined
+  try {
+    await syncRecommendedPolicies()
+  } catch (syncErr) {
+    console.error('[control-matrix] sync error after delete:', syncErr)
+    warning = 'Cell reset but recommended policies may be stale — they will refresh on next page load.'
+  }
+
   revalidatePath('/genai-controls/control-matrix')
-  return {}
+  revalidatePath('/genai-controls/policies')
+
+  return warning ? { warning } : {}
 }
 
 export async function updateCategoryAccessPosture(

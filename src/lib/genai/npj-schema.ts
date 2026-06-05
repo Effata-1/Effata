@@ -218,3 +218,17 @@ export const GENERATED_FROM_LABELS: Record<string, string> = {
   'recommended': 'Recommended',
   'manual':      'Manual',
 }
+
+// ── Vendor-neutral channel constants ─────────────────────────────────────────
+// One source of truth for which inspection channels each GenAI policy family
+// covers. Imported by syncRecommendedPolicies so channel lists are defined
+// alongside the validator, not scattered across the sync function.
+
+export type NpjChannel =
+  | 'web' | 'browser' | 'saas_api' | 'email'
+  | 'endpoint' | 'copilot' | 'chat' | 'files'
+
+export const NPJ_CHANNELS_CONTENT_DETECTION:  NpjChannel[] = ['web', 'browser', 'copilot', 'chat', 'saas_api']
+export const NPJ_CHANNELS_LABEL_DETECTION:    NpjChannel[] = ['web', 'browser', 'saas_api']
+export const NPJ_CHANNELS_FILENAME_DETECTION: NpjChannel[] = ['web', 'browser', 'saas_api']
+export const NPJ_CHANNELS_APP_ACCESS:         NpjChannel[] = ['web', 'browser', 'copilot', 'chat']

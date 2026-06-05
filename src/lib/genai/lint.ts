@@ -1,4 +1,4 @@
-import type { GenAIPolicy } from '@/lib/genai/types'
+import type { GenAIPolicy, NpjShape } from '@/lib/genai/types'
 
 export type LintSeverity = 'error' | 'warning' | 'info'
 
@@ -41,7 +41,45 @@ const ACTIVITY_LABELS: Record<Activity, string> = {
   response:    'Response',
 }
 
-export function lintPolicy(policy: GenAIPolicy): LintIssue[] {
+// ── NPJ helpers ───────────────────────────────────────────────────────────────
+
+function getNpj(policy: GenAIPolicy): NpjShape | null {
+  return policy.neutral_policy_json as NpjShape | null
+}
+
+function lintNpjPolicy(policy: GenAIPolicy, npj: NpjShape): LintIssue[] {
+  const issues: LintIssue[] = []
+
+  // 1. No decision configured — policy has no enforcement effect
+  if (!npj.decision?.mode) {
+    issues.push({
+      id:        `${policy.id}-npj-no-decision`,
+      severity:  'error',
+      title:     'No decision configured',
+      detail:    `"${policy.name}" has no decision mode set — it will have no enforcement effect.`,
+      policyIds: [policy.id],
+    })
+  }
+
+  // 2. No content conditions and no app scope — policy won't match any traffic
+  const hasConditions = (npj.content?.conditions ?? []).length > 0
+  const hasAppScope   = (npj.scope?.app_categories ?? []).length > 0
+  if (!hasConditions && !hasAppScope) {
+    issues.push({
+      id:        `${policy.id}-npj-no-scope`,
+      severity:  'warning',
+      title:     'No content conditions or app scope',
+      detail:    `"${policy.name}" has no content conditions and no app category scope — it may not match any traffic.`,
+      policyIds: [policy.id],
+    })
+  }
+
+  return issues
+}
+
+// ── Legacy rules-based checks (non-NPJ policies only) ─────────────────────────
+
+function lintRulesPolicy(policy: GenAIPolicy): LintIssue[] {
   const issues: LintIssue[] = []
 
   // 1. No DLP rules configured
@@ -91,6 +129,14 @@ export function lintPolicy(policy: GenAIPolicy): LintIssue[] {
     }
   }
 
+  return issues
+}
+
+// ── Universal checks (apply to all policies regardless of model) ──────────────
+
+function lintUniversal(policy: GenAIPolicy): LintIssue[] {
+  const issues: LintIssue[] = []
+
   // 4. No policy owner
   if (!policy.policy_owner) {
     issues.push({
@@ -130,18 +176,31 @@ export function lintPolicy(policy: GenAIPolicy): LintIssue[] {
   return issues
 }
 
+// ── Public API ────────────────────────────────────────────────────────────────
+
+export function lintPolicy(policy: GenAIPolicy): LintIssue[] {
+  const npj = getNpj(policy)
+  return [
+    ...(npj ? lintNpjPolicy(policy, npj) : lintRulesPolicy(policy)),
+    ...lintUniversal(policy),
+  ]
+}
+
 const SEVERITY_ORDER: Record<LintSeverity, number> = { error: 0, warning: 1, info: 2 }
 
 export function lintAllPolicies(policies: GenAIPolicy[]): LintIssue[] {
   const issues: LintIssue[] = policies.flatMap(lintPolicy)
 
   // Cross-policy: allow vs block conflict on same app scope + data_type + activity
-  const active = policies.filter(p => p.is_active)
+  // Only applies to legacy rules-based policies — NPJ policies have empty rules arrays
+  // and conflict detection via NPJ structure requires deeper diffing (deferred).
+  const active     = policies.filter(p => p.is_active)
+  const rulesOnly  = active.filter(p => !getNpj(p))
 
-  for (let i = 0; i < active.length; i++) {
-    for (let j = i + 1; j < active.length; j++) {
-      const pA = active[i]
-      const pB = active[j]
+  for (let i = 0; i < rulesOnly.length; i++) {
+    for (let j = i + 1; j < rulesOnly.length; j++) {
+      const pA = rulesOnly[i]
+      const pB = rulesOnly[j]
 
       const overlap =
         pA.scope_all_apps ||

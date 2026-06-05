@@ -206,14 +206,53 @@ export interface NpjDecision {
   mode:                     string
   require_acknowledgement?: boolean
   require_justification?:   boolean
+  role?:                    string          // 'fallback_summary' for recommended policies
+  // structural enrichment — consumed by multi-vendor translators
+  severity?:                'critical' | 'major' | 'minor' | 'info'
+  preserve_evidence?:       boolean
+  create_incident?:         boolean
+  notification_template?:   string | null
+}
+
+export interface NpjException {
+  effect:         'allow' | 'exclude'
+  reason:         string
+  scope_override: {
+    groups?:        string[]
+    apps?:          string[]
+    app_instances?: string[]
+  }
 }
 
 export interface NpjShape {
   intent?:        string
   policy_family?: string | null
-  scope?:         { app_categories?: NpjCategory[]; activities?: string[]; users?: string[]; groups?: string[] }
-  content?:       { conditions?: NpjCondition[] }
+  scope?: {
+    app_categories?: NpjCategory[]
+    activities?:     string[]
+    channels?:       string[]        // vendor-neutral channel list for multi-vendor translation
+    users?:          string[]
+    groups?:         string[]
+  }
+  content?:       { conditions?: NpjCondition[]; operator?: string }
   decision?:      NpjDecision
+  // governance metadata — Netskope-grade enforcement
+  actions_by_category?:  Record<string, string>
+  coaching_by_category?: Record<string, string | null>
+  excluded_categories?:  Record<string, { reason: string; action: string }>
+  // structural metadata — multi-vendor grade
+  exceptions?:  NpjException[]
+  telemetry?: {
+    incident_recipients: string[]
+    export_evidence:     boolean
+    audit_tags:          string[]
+  }
+  provenance?: {
+    generated_from?:   string
+    source_cells?:     string[]
+    compiler_version?: string
+    warnings?:         string[]
+  }
 }
 
 export type CustomerClass =

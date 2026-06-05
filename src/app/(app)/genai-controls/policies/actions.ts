@@ -4,9 +4,15 @@ import { createHash } from 'crypto'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
-import { callData } from '@/lib/api-client.server'
 import { logAuditEvent } from '@/lib/audit'
-import { validateNeutralPolicy } from '@/lib/genai/npj-schema'
+import {
+  validateNeutralPolicy,
+  NPJ_CHANNELS_CONTENT_DETECTION,
+  NPJ_CHANNELS_LABEL_DETECTION,
+  NPJ_CHANNELS_FILENAME_DETECTION,
+  NPJ_CHANNELS_APP_ACCESS,
+} from '@/lib/genai/npj-schema'
+import { computeDecisionEnrichment, buildTelemetry, NPJ_COMPILER_VERSION } from '@/lib/genai/npj-enrich'
 import type { ApprovalStatus, PolicyType, PolicyRule, ActionCode, NpjCategory, NpjCondition, NpjDecision, NpjShape } from '@/lib/genai/types'
 import {
   CONTENT_DETECTION_ROWS, RF_KEY, TAG_ALIAS,
@@ -377,40 +383,6 @@ export async function togglePolicyActive(
 }
 
 
-export async function getPolicyPackJobStatus(jobId: string): Promise<{
-  status:         string
-  processedItems: number | null
-  totalItems:     number | null
-  error:          string | null
-}> {
-  await requireRole('admin')
-  const data = await callData<{
-    status:          string
-    processed_items: number | null
-    total_items:     number | null
-    error:           string | null
-  }>(`/api/jobs/${jobId}`)
-  return {
-    status:         data.status,
-    processedItems: data.processed_items,
-    totalItems:     data.total_items,
-    error:          data.error,
-  }
-}
-
-export async function generatePoliciesFromGovernance(): Promise<{ error?: string; jobId?: string }> {
-  await requireRole('analyst')
-  try {
-    const result = await callData<{ jobId: string }>('/api/jobs', {
-      method: 'POST',
-      body:   { jobType: 'policy-compile', payload: {} },
-    })
-    revalidatePath('/genai-controls/policies')
-    return { jobId: result.jobId }
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Failed to start policy generation job.' }
-  }
-}
 
 export async function logPolicyChangeEvent(params: {
   policyId:       string
@@ -502,6 +474,9 @@ export async function applyPolicyDiff(diff: {
 }
 
 // ── Recommended policy sync ───────────────────────────────────────────────────
+// Decision enrichment, telemetry, channels, and the compiler version all live in
+// the shared @/lib/genai/npj-enrich module so manual + AI creation paths produce
+// the same enriched NPJ shape.
 
 // Base name per risk family — suffix is computed dynamically from live actions
 const RF_POLICY_BASE: Record<string, string> = {
@@ -709,6 +684,7 @@ export async function syncRecommendedPolicies(
 
     const actions_by_category:  Record<string, string>       = {}
     const coaching_by_category: Record<string, string | null> = {}
+    const sourceCells:          string[]                      = []
     let   hasOverride = false
 
     for (const cat of categories ?? []) {
@@ -722,6 +698,7 @@ export async function syncRecommendedPolicies(
         if (ov.action_code !== (RF_DEFAULTS[tag]?.[rfKey] ?? 'allow')) hasOverride = true
         actions_by_category[tag]  = ov.action_code
         coaching_by_category[tag] = ov.coaching_notification_id ?? null
+        sourceCells.push(`${rowKey}::${cat.id}`)
       } else {
         actions_by_category[tag]  = RF_DEFAULTS[tag]?.[rfKey] ?? 'allow'
         const coachName = RF_COACHING_DEFAULTS[tag]?.[rfKey] ?? null
@@ -729,6 +706,7 @@ export async function syncRecommendedPolicies(
       }
     }
 
+    const fallbackMode = computeFallbackMode(actions_by_category)
     const policyName = `${RF_POLICY_BASE[rfKey] ?? `GenAI - ${rowLabel}`} ${computePolicySuffix(rfKey, actions_by_category)}`
     const npj = {
       policy_id:      policy_key,
@@ -736,7 +714,7 @@ export async function syncRecommendedPolicies(
       schema_version: '1.0',
       intent:         'prevent_exfiltration',
       policy_family:  'genai_content_detection',
-      scope: { activities: getScopeActivities(rfKey) },
+      scope: { activities: getScopeActivities(rfKey), channels: NPJ_CHANNELS_CONTENT_DETECTION },
       content: {
         operator:   'any',
         conditions: [{
@@ -747,22 +725,31 @@ export async function syncRecommendedPolicies(
       },
       decision: {
         role:                    'fallback_summary',
-        mode:                    computeFallbackMode(actions_by_category),
+        mode:                    fallbackMode,
         require_acknowledgement: false,
         require_justification:   false,
+        ...computeDecisionEnrichment(fallbackMode),
       },
       actions_by_category,
       coaching_by_category,
       excluded_categories:  buildExcludedCategories((categories ?? []) as Array<Record<string, unknown>>),
       app_governance_source: { type: 'current_org_app_governance', version: 'active' },
       translation_hints:    computeTranslationHints(actions_by_category, 'genai_content_detection'),
+      exceptions: [] as unknown[],
+      telemetry: buildTelemetry('genai_content_detection', fallbackMode),
     }
     const { templates: coaching_templates, warnings: coachWarnings, translation_ready } =
       resolveCoachingTemplates(coaching_by_category, actions_by_category, notifById)
     const fullNpj = {
       ...npj,
       coaching_templates,
-      ...(coachWarnings.length > 0 && { translation_ready, provenance: { warnings: coachWarnings } }),
+      ...(coachWarnings.length > 0 && { translation_ready }),
+      provenance: {
+        generated_from:   'recommended',
+        source_cells:     sourceCells,
+        compiler_version: NPJ_COMPILER_VERSION,
+        ...(coachWarnings.length > 0 && { warnings: coachWarnings }),
+      },
     }
 
     const actionVals = Object.values(actions_by_category)
@@ -799,6 +786,7 @@ export async function syncRecommendedPolicies(
 
     const actions_by_category:  Record<string, string>       = {}
     const coaching_by_category: Record<string, string | null> = {}
+    const fnSourceCells:        string[]                      = []
     let   hasOverride = false
 
     for (const cat of categories ?? []) {
@@ -812,6 +800,7 @@ export async function syncRecommendedPolicies(
         if (ov.action_code !== (UL_FN_DEFAULTS[tag]?.[lbl.system_level] ?? 'allow')) hasOverride = true
         actions_by_category[tag]  = ov.action_code
         coaching_by_category[tag] = ov.coaching_notification_id ?? null
+        fnSourceCells.push(`${rowKey}::${cat.id}`)
       } else {
         actions_by_category[tag]  = UL_FN_DEFAULTS[tag]?.[lbl.system_level] ?? 'allow'
         const coachName = UL_FN_COACHING_DEFAULTS[tag]?.[lbl.system_level] ?? null
@@ -819,26 +808,39 @@ export async function syncRecommendedPolicies(
       }
     }
 
+    const fnFallbackMode = computeFallbackMode(actions_by_category)
     const fnPolicyName = `GenAI - ${lbl.name} Filename ${computePolicySuffix('', actions_by_category)}`
     const fnNpj = {
       policy_id: policy_key, policy_name: fnPolicyName, schema_version: '1.0',
       intent: 'prevent_exfiltration', policy_family: 'genai_filename',
-      scope: { activities: ['upload'] },
+      scope: { activities: ['upload'], channels: NPJ_CHANNELS_FILENAME_DETECTION },
       content: {
         operator: 'any',
         conditions: [{ type: 'classification_label', label_id: lbl.id, label_name: lbl.name, system_level: lbl.system_level }],
       },
-      decision: { role: 'fallback_summary', mode: computeFallbackMode(actions_by_category), require_acknowledgement: false, require_justification: false },
+      decision: {
+        role: 'fallback_summary', mode: fnFallbackMode,
+        require_acknowledgement: false, require_justification: false,
+        ...computeDecisionEnrichment(fnFallbackMode),
+      },
       actions_by_category, coaching_by_category,
       excluded_categories:  buildExcludedCategories((categories ?? []) as Array<Record<string, unknown>>),
       app_governance_source: { type: 'current_org_app_governance', version: 'active' },
       translation_hints:    computeTranslationHints(actions_by_category, 'genai_filename'),
+      exceptions: [] as unknown[],
+      telemetry: buildTelemetry('genai_filename', fnFallbackMode),
     }
     const { templates: fnCoachingTemplates, warnings: fnWarnings, translation_ready: fnReady } =
       resolveCoachingTemplates(coaching_by_category, actions_by_category, notifById)
     const fullFnNpj = {
       ...fnNpj, coaching_templates: fnCoachingTemplates,
-      ...(fnWarnings.length > 0 && { translation_ready: fnReady, provenance: { warnings: fnWarnings } }),
+      ...(fnWarnings.length > 0 && { translation_ready: fnReady }),
+      provenance: {
+        generated_from:   'recommended',
+        source_cells:     fnSourceCells,
+        compiler_version: NPJ_COMPILER_VERSION,
+        ...(fnWarnings.length > 0 && { warnings: fnWarnings }),
+      },
     }
 
     const fnVals = Object.values(actions_by_category)
@@ -874,6 +876,7 @@ export async function syncRecommendedPolicies(
 
     const actions_by_category:  Record<string, string>       = {}
     const coaching_by_category: Record<string, string | null> = {}
+    const dcSourceCells:        string[]                      = []
     let   hasOverride = false
 
     for (const cat of categories ?? []) {
@@ -888,6 +891,7 @@ export async function syncRecommendedPolicies(
         if (ov.action_code !== (UL_DC_DEFAULTS[tag]?.[sysLevel] ?? 'allow')) hasOverride = true
         actions_by_category[tag]  = ov.action_code
         coaching_by_category[tag] = ov.coaching_notification_id ?? null
+        dcSourceCells.push(`${rowKey}::${cat.id}`)
       } else {
         actions_by_category[tag]  = UL_DC_DEFAULTS[tag]?.[sysLevel] ?? 'allow'
         const dcCoachName = UL_DC_COACHING_DEFAULTS[tag]?.[sysLevel] ?? null
@@ -895,24 +899,37 @@ export async function syncRecommendedPolicies(
       }
     }
 
-    const displayName  = (clbl as Record<string, unknown>).display_name as string
-    const dcPolicyName = `GenAI - ${displayName} Label ${computePolicySuffix('', actions_by_category)}`
+    const dcFallbackMode = computeFallbackMode(actions_by_category)
+    const displayName    = (clbl as Record<string, unknown>).display_name as string
+    const dcPolicyName   = `GenAI - ${displayName} Label ${computePolicySuffix('', actions_by_category)}`
     const dcNpj = {
       policy_id: policy_key, policy_name: dcPolicyName, schema_version: '1.0',
       intent: 'prevent_exfiltration', policy_family: 'genai_label_detection',
-      scope: { activities: ['upload'] },
+      scope: { activities: ['upload'], channels: NPJ_CHANNELS_LABEL_DETECTION },
       content: { operator: 'any', conditions: [{ type: 'classification_label', label_id: clbl.id, label_name: displayName }] },
-      decision: { role: 'fallback_summary', mode: computeFallbackMode(actions_by_category), require_acknowledgement: false, require_justification: false },
+      decision: {
+        role: 'fallback_summary', mode: dcFallbackMode,
+        require_acknowledgement: false, require_justification: false,
+        ...computeDecisionEnrichment(dcFallbackMode),
+      },
       actions_by_category, coaching_by_category,
       excluded_categories:  buildExcludedCategories((categories ?? []) as Array<Record<string, unknown>>),
       app_governance_source: { type: 'current_org_app_governance', version: 'active' },
       translation_hints:    computeTranslationHints(actions_by_category, 'genai_label_detection'),
+      exceptions: [] as unknown[],
+      telemetry: buildTelemetry('genai_label_detection', dcFallbackMode),
     }
     const { templates: dcCoachingTemplates, warnings: dcWarnings, translation_ready: dcReady } =
       resolveCoachingTemplates(coaching_by_category, actions_by_category, notifById)
     const fullDcNpj = {
       ...dcNpj, coaching_templates: dcCoachingTemplates,
-      ...(dcWarnings.length > 0 && { translation_ready: dcReady, provenance: { warnings: dcWarnings } }),
+      ...(dcWarnings.length > 0 && { translation_ready: dcReady }),
+      provenance: {
+        generated_from:   'recommended',
+        source_cells:     dcSourceCells,
+        compiler_version: NPJ_COMPILER_VERSION,
+        ...(dcWarnings.length > 0 && { warnings: dcWarnings }),
+      },
     }
 
     const dcVals = Object.values(actions_by_category)
@@ -952,10 +969,24 @@ export async function syncRecommendedPolicies(
 
     const npj = {
       schema_version: '1.0', intent: 'govern_app_access', policy_family: 'genai_app_access',
-      scope: { activities: ['browse', 'login'], app_categories: [{ system_tag: cat.system_tag, name: cat.name }] },
+      scope: {
+        activities:     ['browse', 'login'],
+        channels:       NPJ_CHANNELS_APP_ACCESS,
+        app_categories: [{ system_tag: cat.system_tag, name: cat.name }],
+      },
       content: { operator: 'any', conditions: [] },
-      decision: { mode: 'block', require_acknowledgement: false, require_justification: false },
+      decision: {
+        mode: 'block', require_acknowledgement: false, require_justification: false,
+        ...computeDecisionEnrichment('block'),
+      },
       actions_by_category, coaching_by_category,
+      exceptions: [] as unknown[],
+      telemetry: buildTelemetry('genai_app_access', 'block'),
+      provenance: {
+        generated_from:   'recommended',
+        source_cells:     [`app-access::${cat.system_tag ?? cat.id}::${cat.id}`],
+        compiler_version: NPJ_COMPILER_VERSION,
+      },
     }
 
     const existing   = existingMap.get(policy_key)

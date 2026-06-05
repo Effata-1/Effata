@@ -9,7 +9,7 @@ import {
   Pencil, Plus, RotateCcw, Search, Settings, ShieldAlert, ShieldCheck, Sparkles, Trash2, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { deletePolicy, duplicatePolicy, duplicatePolicyAsManual, generatePoliciesFromGovernance, getPolicyPackJobStatus, refreshPolicyFromMatrix, togglePolicyActive } from '../actions'
+import { deletePolicy, duplicatePolicy, duplicatePolicyAsManual, refreshPolicyFromMatrix, togglePolicyActive } from '../actions'
 import { PolicyChatPanel } from './policy-chat-panel'
 import type { GenAIPolicy, ApprovalStatus, ActionCode, PolicyRule, NpjCondition } from '@/lib/genai/types'
 import { lintAllPolicies, SEVERITY_STYLES, type LintIssue } from '@/lib/genai/lint'
@@ -582,7 +582,6 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
   const filterPickerRef                       = useRef<HTMLDivElement>(null)
   const [search, setSearch]                   = useState('')
   const [lintResults, setLintResults]         = useState<LintIssue[] | null>(null)
-  const [isGenerating, setIsGenerating]       = useState(false)
   const [, startTransition]                   = useTransition()
   const [chatOpen, setChatOpen]               = useState(false)
   const [chatPolicyId, setChatPolicyId]       = useState<string | undefined>(undefined)
@@ -850,55 +849,6 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
     })
   }
 
-  async function handleGenerate() {
-    setIsGenerating(true)
-    const result = await generatePoliciesFromGovernance()
-    if (result.error) {
-      setIsGenerating(false)
-      toast.error('Policy generation failed', { description: result.error })
-      return
-    }
-    // Poll until the compile job completes, then refresh to show generated policies
-    const jobId = result.jobId
-    if (!jobId) {
-      toast.success('Policies compiled successfully')
-      router.refresh()
-      setIsGenerating(false)
-      return
-    }
-    let attempts = 0
-    const poll = setInterval(async () => {
-      attempts++
-      try {
-        const status = await getPolicyPackJobStatus(jobId)
-        if (status.status === 'completed' || status.status === 'failed') {
-          clearInterval(poll)
-          setIsGenerating(false)
-          if (status.status === 'failed') {
-            toast.error('Policy generation failed', { description: status.error ?? undefined })
-          } else {
-            toast.success('Policies compiled successfully')
-            router.refresh()
-          }
-        }
-      } catch {
-        // getPolicyPackJobStatus requires admin — fall back to timed refresh
-        clearInterval(poll)
-        setTimeout(() => {
-          toast.success('Policies compiled successfully')
-          router.refresh()
-          setIsGenerating(false)
-        }, 4000)
-      }
-      if (attempts >= 30) {
-        clearInterval(poll)
-        setIsGenerating(false)
-        toast.success('Policies compiled successfully')
-        router.refresh()
-      }
-    }, 2000)
-  }
-
   return (
     <>
       {/* Delete confirm modal */}
@@ -1161,16 +1111,6 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
             <span className="ml-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/20">{lintResults.length}</span>
           )}
         </button>
-        {policies.length === 0 && (
-          <button
-            onClick={handleGenerate}
-            disabled={isGenerating}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md border border-border bg-muted/30 hover:bg-muted/60 text-foreground/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            {isGenerating ? 'Generating…' : 'Generate Policies'}
-          </button>
-        )}
         {/* Select mode toggle */}
         <button
           onClick={() => { setSelectMode(m => !m); if (selectMode) setSelectedIds(new Set()) }}
@@ -1274,17 +1214,6 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
         </div>
       )}
 
-      {/* Generating progress banner */}
-      {isGenerating && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-blue-500/8 border border-blue-500/20 text-blue-400 text-xs mb-4">
-          <svg className="animate-spin w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-          </svg>
-          Compiling policies from your Governance Matrix… this takes a few seconds.
-        </div>
-      )}
-
       {/* Lint panel */}
       {lintResults !== null && (
         <div className="rounded-xl border border-border bg-card/50 shadow-sm overflow-hidden mb-4">
@@ -1344,17 +1273,9 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
               </div>
               <p className="text-sm font-semibold text-foreground/70 mb-1">No policies yet</p>
               <p className="text-xs text-muted-foreground/50 mb-6 max-w-xs">
-                Generate the recommended GenAI policy set from your App Governance control matrix, or create one manually.
+                Recommended policies are automatically synced from the Control Matrix. You can also create one manually.
               </p>
               <div className="flex items-center gap-3">
-                <button
-                  onClick={handleGenerate}
-                  disabled={isGenerating}
-                  className="flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-md bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  {isGenerating ? 'Generating…' : 'Generate Policies'}
-                </button>
                 <button
                   type="button"
                   onClick={() => setShowNewModal(true)}

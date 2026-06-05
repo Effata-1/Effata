@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { TAG_ALIAS } from '@/lib/genai/control-matrix-rows'
+import { enrichManualNpj } from '@/lib/genai/npj-enrich'
 
 export async function createBlankPolicy(
   name: string,
@@ -30,7 +31,10 @@ export async function createBlankPolicy(
     actions_by_category[tag] = 'allow'
   }
 
-  const blankNpj = {
+  // Build the base policy, then run it through the shared enrichment helper so a
+  // manual policy carries the same structural fields (channels, decision severity,
+  // telemetry, exceptions, standardised provenance) as recommended + AI policies.
+  const blankNpj = enrichManualNpj({
     schema_version: '1.0',
     intent:         'prevent_exfiltration',
     policy_id:      `manual:blank:${Date.now()}`,
@@ -44,12 +48,8 @@ export async function createBlankPolicy(
     decision: { mode: 'allow' },
     actions_by_category,
     coaching_by_category: Object.fromEntries(Object.keys(actions_by_category).map(k => [k, null])),
-    provenance: {
-      generated_at:     now,
-      compiler_version: '1.0',
-      source:           'manual',
-    },
-  }
+    provenance: { generated_at: now },
+  })
 
   const { data, error } = await supabase
     .from('org_genai_policies')

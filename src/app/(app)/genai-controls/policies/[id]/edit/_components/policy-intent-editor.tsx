@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -11,11 +11,14 @@ import { cn } from '@/lib/utils'
 import { colorClasses, SYSTEM_LEVEL_META } from '@/lib/data-catalog/types'
 import {
   upsertPolicy,
-  generatePoliciesFromGovernance,
-  getPolicyPackJobStatus,
   refreshPolicyFromMatrix,
   duplicatePolicyAsManual,
 } from '../../../actions'
+import { enrichManualNpj } from '@/lib/genai/npj-enrich'
+import {
+  VALID_INTENTS, VALID_DECISION_MODES, VALID_ACTIVITIES, VALID_CONDITION_TYPES,
+  type NpjIntent, type NpjDecisionMode, type NpjActivity, type NpjConditionType,
+} from '@/lib/genai/npj-schema'
 import { TAG_DISPLAY_NAMES } from '@/lib/genai/control-matrix-rows'
 import { RISK_FAMILIES } from '@/lib/shared/risk-families'
 import type { ApprovalStatus } from '@/lib/genai/types'
@@ -415,9 +418,8 @@ export function PolicyIntentEditor({
   const [saveError,            setSaveError]            = useState('')
   const [saveSuccess,          setSaveSuccess]          = useState(false)
 
-  // ── compile state ──────────────────────────────────────────────────────────
-  const [compiling,    setCompiling]    = useState(false)
-  const [compileJobId, setCompileJobId] = useState<string | null>(null)
+  // ── rebuild state ──────────────────────────────────────────────────────────
+  const [rebuilding, setRebuilding] = useState(false)
 
   // ── collapsible panels ─────────────────────────────────────────────────────
   const [sourceOpen,    setSourceOpen]    = useState(false)
@@ -428,32 +430,6 @@ export function PolicyIntentEditor({
   const [refreshing,    setRefreshing]    = useState(false)
   const [refreshError,  setRefreshError]  = useState('')
   const [duplicating,   setDuplicating]   = useState(false)
-
-  // ── poll compile job ───────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!compileJobId || !compiling) return
-    const interval = setInterval(async () => {
-      try {
-        const s = await getPolicyPackJobStatus(compileJobId)
-        if (s.status === 'completed') {
-          clearInterval(interval)
-          setCompiling(false)
-          setCompileJobId(null)
-          router.refresh()
-        } else if (s.status === 'failed') {
-          clearInterval(interval)
-          setCompiling(false)
-          setSaveError(s.error ?? 'Compile job failed.')
-        }
-      } catch {
-        // auth error (analyst can't poll admin-only endpoint) — stop polling, treat as success
-        clearInterval(interval)
-        setCompiling(false)
-        setCompileJobId(null)
-      }
-    }, 2500)
-    return () => clearInterval(interval)
-  }, [compileJobId, compiling, router])
 
   // ── handlers ──────────────────────────────────────────────────────────────
 
@@ -521,20 +497,56 @@ export function PolicyIntentEditor({
     setTimeout(() => setSaveSuccess(false), 3000)
   }
 
-  async function handleCompile() {
-    setCompiling(true)
-    const res = await generatePoliciesFromGovernance()
-    if (res.error) {
-      setSaveError(res.error)
-      setCompiling(false)
-      return
-    }
-    if (res.jobId) {
-      setCompileJobId(res.jobId)
-    } else {
-      setCompiling(false)
-      router.refresh()
-    }
+  // Builds a valid, enriched NPJ for a manual legacy/invalid policy from its own
+  // fields — no backend compile engine. Salvages any existing NPJ content where the
+  // values are still valid, coerces the validity-critical fields, then enriches.
+  function buildManualRebuiltNpj(): Record<string, unknown> {
+    const existing = (rawNpj && typeof rawNpj === 'object' && Object.keys(rawNpj as object).length > 0)
+      ? { ...(rawNpj as Record<string, unknown>) }
+      : {}
+
+    existing.schema_version = '1.0'
+
+    const rawIntent = existing.intent as string | undefined
+    existing.intent = (rawIntent && VALID_INTENTS.includes(rawIntent as NpjIntent))
+      ? rawIntent
+      : 'prevent_exfiltration'
+
+    const dec = (existing.decision as Record<string, unknown> | undefined) ?? {}
+    const rawMode = dec.mode as string | undefined
+    if (!rawMode || !VALID_DECISION_MODES.includes(rawMode as NpjDecisionMode)) dec.mode = 'allow'
+    existing.decision = dec
+
+    const content = (existing.content as Record<string, unknown> | undefined) ?? {}
+    if (content.operator !== 'any' && content.operator !== 'all') content.operator = 'any'
+    const conds = (content.conditions as Array<Record<string, unknown>> | undefined) ?? []
+    content.conditions = conds.filter(c => VALID_CONDITION_TYPES.includes(c.type as NpjConditionType))
+    existing.content = content
+
+    const scope = (existing.scope as Record<string, unknown> | undefined) ?? {}
+    const acts = (scope.activities as string[] | undefined) ?? []
+    scope.activities = acts.filter(a => VALID_ACTIVITIES.includes(a as NpjActivity))
+    if (!(scope.users as string[] | undefined)?.length) scope.users = formUsers
+    existing.scope = scope
+
+    existing.policy_family = existing.policy_family ?? policy.policy_family ?? null
+    // Manual policies manage coaching directly — clear the matrix-conflict flag.
+    delete existing.translation_ready
+
+    return enrichManualNpj(existing)
+  }
+
+  async function handleRebuild() {
+    setRebuilding(true)
+    setSaveError('')
+    // Recommended policies regenerate from the Control Matrix (correct rf: keys + enriched NPJ).
+    // Manual policies rebuild from their own fields — no backend compile engine either way.
+    const res = isRecommended
+      ? await refreshPolicyFromMatrix(policy.id)
+      : await upsertPolicy(policy.id, { neutral_policy_json: buildManualRebuiltNpj() })
+    setRebuilding(false)
+    if (res.error) { setSaveError(res.error); return }
+    router.refresh()
   }
 
   async function handleTranslationAction(action: 'verified' | 'deferred' | 'not-applicable') {
@@ -743,16 +755,20 @@ export function PolicyIntentEditor({
         <div className="flex items-center justify-between rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
           <div className="flex items-center gap-2 text-xs text-amber-400">
             <AlertTriangle className="h-4 w-4 shrink-0" />
-            <span>Legacy fields only — regenerate to compile structured neutral policy.</span>
+            <span>
+              {isRecommended
+                ? 'Legacy format — regenerate this policy from the Control Matrix.'
+                : 'Legacy format — rebuild as a structured neutral policy.'}
+            </span>
           </div>
           <button
             type="button"
-            onClick={handleCompile}
-            disabled={compiling}
+            onClick={handleRebuild}
+            disabled={rebuilding}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs font-medium text-amber-400 hover:bg-amber-500/15 transition-colors disabled:opacity-50"
           >
-            {compiling ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-            Regenerate
+            {rebuilding ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+            {isRecommended ? 'Regenerate from Matrix' : 'Rebuild'}
           </button>
         </div>
       )}
