@@ -19,6 +19,7 @@ import {
   VALID_INTENTS, VALID_DECISION_MODES, VALID_ACTIVITIES, VALID_CONDITION_TYPES,
   type NpjIntent, type NpjDecisionMode, type NpjActivity, type NpjConditionType,
 } from '@/lib/genai/npj-schema'
+import type { NpjSourceType, NpjScopeExclusionType } from '@/lib/genai/netskope/types'
 import { TAG_DISPLAY_NAMES } from '@/lib/genai/control-matrix-rows'
 import { RISK_FAMILIES } from '@/lib/shared/risk-families'
 import type { ApprovalStatus } from '@/lib/genai/types'
@@ -413,6 +414,33 @@ export function PolicyIntentEditor({
     return (arr && arr.length > 0) ? arr : ['All Users']
   })
   const [formUserInput,        setFormUserInput]        = useState('')
+  // Phase 4.6: structured source scoping (writes to scope.source + scope.exclusions)
+  const [formSourceType, setFormSourceType] = useState<NpjSourceType>(() => {
+    const scope = (rawNpj as Record<string, unknown>)?.scope as Record<string, unknown> | undefined
+    const src   = scope?.source as Record<string, unknown> | undefined
+    const t     = src?.type as string | undefined
+    const SCOPED_TYPES = new Set(['user', 'user_group', 'ad_group', 'organizational_unit'])
+    return (t && SCOPED_TYPES.has(t)) ? (t as NpjSourceType) : 'all_users'
+  })
+  const [formSourceValue, setFormSourceValue] = useState<string>(() => {
+    const scope = (rawNpj as Record<string, unknown>)?.scope as Record<string, unknown> | undefined
+    const src   = scope?.source as Record<string, unknown> | undefined
+    return (src?.value as string | undefined) ?? ''
+  })
+  const [formExclusions, setFormExclusions] = useState<Array<{ type: NpjScopeExclusionType; value: string }>>(() => {
+    const scope = (rawNpj as Record<string, unknown>)?.scope as Record<string, unknown> | undefined
+    const raw   = scope?.exclusions
+    if (!Array.isArray(raw)) return []
+    const VALID_EX = new Set<string>(['user', 'user_group', 'organizational_unit'])
+    return (raw as unknown[]).reduce<Array<{ type: NpjScopeExclusionType; value: string }>>((acc, e) => {
+      if (!e || typeof e !== 'object') return acc
+      const { type: t, value: v } = e as Record<string, unknown>
+      if (typeof t === 'string' && typeof v === 'string' && v.trim() && VALID_EX.has(t))
+        acc.push({ type: t as NpjScopeExclusionType, value: v.trim() })
+      return acc
+    }, [])
+  })
+  const [formExclusionInput, setFormExclusionInput] = useState<{ type: NpjScopeExclusionType; value: string }>({ type: 'user', value: '' })
   const [translationStatus,    setTranslationStatus]    = useState(policy.vendor_translation_status)
   const [saving,               setSaving]               = useState(false)
   const [saveError,            setSaveError]            = useState('')
@@ -464,28 +492,52 @@ export function PolicyIntentEditor({
       required_dependencies: formRelatedPolicies,
       scope_app_ids:        formAppIds,
     }
-    // If users changed and there's a valid NPJ, persist the update into scope.users
-    const currentNpjUsers: string[] = (() => {
-      const u = (rawNpj as Record<string, unknown>)?.scope as Record<string, unknown> | undefined
-      const arr = u?.users as string[] | undefined
-      return (arr && arr.length > 0) ? arr : ['All Users']
-    })()
-    if (rawNpj && JSON.stringify([...formUsers].sort()) !== JSON.stringify([...currentNpjUsers].sort())) {
-      const updatedNpj = {
-        ...(rawNpj as Record<string, unknown>),
-        scope: {
-          ...((rawNpj as Record<string, unknown>).scope as Record<string, unknown> ?? {}),
-          users: formUsers,
-        },
+    // ── Source scope change detection (hoisted — used by both NPJ update and translation status) ──
+    // Issue 1: a non-all_users type with a blank value is treated as all_users.
+    // Writing { type: 'user_group', value: null } would make isScopedNpj return true
+    // (type is in SCOPED_SOURCE_TYPES), creating an invalid scoped policy with no source value.
+    const currentScope   = ((rawNpj as Record<string, unknown>)?.scope as Record<string, unknown> | undefined) ?? {}
+    const currentSrc     = currentScope.source as Record<string, unknown> | undefined
+    const currentExcl    = Array.isArray(currentScope.exclusions) ? (currentScope.exclusions as unknown[]) : []
+    // Effective type: fall back to all_users when the user left the value field blank.
+    const effectiveSrcType: NpjSourceType =
+      (formSourceType !== 'all_users' && formSourceValue.trim()) ? formSourceType : 'all_users'
+    const srcTypeChanged  = effectiveSrcType !== ((currentSrc?.type as string | undefined) ?? 'all_users')
+    const srcValueChanged = effectiveSrcType !== 'all_users' &&
+      formSourceValue.trim() !== ((currentSrc?.value as string | undefined) ?? '')
+    const exclChanged     = JSON.stringify(formExclusions) !== JSON.stringify(currentExcl)
+    const sourceScopeChanged = srcTypeChanged || srcValueChanged || exclChanged
+
+    // Persist any NPJ scope changes: users, source type/value, exclusions
+    if (rawNpj) {
+      const currentUsers: string[] = (() => {
+        const arr = currentScope.users as string[] | undefined
+        return (arr && arr.length > 0) ? arr : ['All Users']
+      })()
+      const usersChanged = JSON.stringify([...formUsers].sort()) !== JSON.stringify([...currentUsers].sort())
+
+      if (usersChanged || sourceScopeChanged) {
+        const newScope: Record<string, unknown> = { ...currentScope, users: formUsers }
+        if (effectiveSrcType !== 'all_users') {
+          newScope.source     = { type: effectiveSrcType, value: formSourceValue.trim() }
+          newScope.exclusions = formExclusions.length > 0 ? [...formExclusions] : undefined
+          if (newScope.exclusions === undefined) delete newScope.exclusions
+        } else {
+          // all_users — canonical form; clear any stale exclusions left from a previous scoped config
+          newScope.source = { type: 'all_users', value: null }
+          delete newScope.exclusions
+        }
+        fields.neutral_policy_json = { ...(rawNpj as Record<string, unknown>), scope: newScope }
       }
-      fields.neutral_policy_json = updatedNpj
     }
-    // Auto-mark translation pending when user-visible fields change
+    // Auto-mark translation pending when user-visible fields change.
+    // Issue 2: source scope changes are now included — changing who a policy applies to
+    // invalidates any existing vendor translation.
     if (translationStatus !== 'not-applicable') {
       const nameChanged  = formName.trim() !== policy.name
       const descChanged  = (formDesc.trim() || null) !== policy.description
       const scopeChanged = JSON.stringify([...formAppIds].sort()) !== JSON.stringify([...policy.scope_app_ids].sort())
-      if (nameChanged || descChanged || scopeChanged) {
+      if (nameChanged || descChanged || scopeChanged || sourceScopeChanged) {
         fields.vendor_translation_status = 'pending'
         setTranslationStatus('pending')
       }
@@ -1018,6 +1070,114 @@ export function PolicyIntentEditor({
               )}
             </div>
           )}
+          {/* ── Source Scoping (manual policies only) ───────────────── */}
+          {!isRecommended && (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-3">
+                Source Scoping
+              </p>
+              <div className="space-y-3">
+                {/* Source type + value */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <label className="w-16 text-xs text-muted-foreground/60 shrink-0">Type</label>
+                    <select
+                      value={formSourceType}
+                      onChange={e => { setFormSourceType(e.target.value as NpjSourceType); setFormSourceValue('') }}
+                      className="rounded-lg border border-border bg-muted/30 px-2.5 py-1 text-xs text-foreground focus:outline-none focus:border-border-strong"
+                    >
+                      <option value="all_users">All Users</option>
+                      <option value="user">User</option>
+                      <option value="user_group">User Group</option>
+                      <option value="ad_group">AD Group</option>
+                      <option value="organizational_unit">Organizational Unit</option>
+                    </select>
+                  </div>
+                  {formSourceType !== 'all_users' && (
+                    <div className="flex items-center gap-2">
+                      <label className="w-16 text-xs text-muted-foreground/60 shrink-0">Value</label>
+                      <input
+                        type="text"
+                        value={formSourceValue}
+                        onChange={e => setFormSourceValue(e.target.value)}
+                        placeholder={
+                          formSourceType === 'user'                ? 'user@company.com' :
+                          formSourceType === 'user_group'          ? 'Engineering Users' :
+                          formSourceType === 'ad_group'            ? 'CN=Engineering,DC=corp' :
+                                                                     'OU=Sales,DC=corp'
+                        }
+                        className="flex-1 rounded-lg border border-border bg-muted/30 px-3 py-1 text-xs text-foreground focus:outline-none focus:border-border-strong"
+                      />
+                    </div>
+                  )}
+                </div>
+                {/* Exclusions — only relevant when source is not all_users */}
+                {formSourceType !== 'all_users' && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground/50 mb-2">
+                      Exclusions{' '}
+                      <span className="text-muted-foreground/30 font-normal">— narrow who this source applies to</span>
+                    </p>
+                    {formExclusions.length > 0 && (
+                      <div className="space-y-1.5 mb-2">
+                        {formExclusions.map((ex, i) => (
+                          <div key={i} className="flex items-center gap-2 rounded-md border border-border bg-muted/20 px-2.5 py-1.5">
+                            <span className="text-[10px] font-medium text-muted-foreground/50 w-20 shrink-0">
+                              {ex.type === 'user_group' ? 'User Group' : ex.type === 'organizational_unit' ? 'Org Unit' : 'User'}
+                            </span>
+                            <span className="text-xs text-foreground/80 flex-1 font-mono truncate">{ex.value}</span>
+                            <button
+                              type="button"
+                              onClick={() => setFormExclusions(prev => prev.filter((_, j) => j !== i))}
+                              className="text-muted-foreground/40 hover:text-red-400 transition-colors text-xs shrink-0"
+                              aria-label={`Remove exclusion ${ex.value}`}
+                            >×</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={formExclusionInput.type}
+                        onChange={e => setFormExclusionInput(prev => ({ ...prev, type: e.target.value as NpjScopeExclusionType }))}
+                        className="rounded-lg border border-border bg-muted/30 px-2.5 py-1 text-xs text-foreground focus:outline-none focus:border-border-strong"
+                      >
+                        <option value="user">User</option>
+                        <option value="user_group">User Group</option>
+                        <option value="organizational_unit">Org Unit</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={formExclusionInput.value}
+                        onChange={e => setFormExclusionInput(prev => ({ ...prev, value: e.target.value }))}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && formExclusionInput.value.trim()) {
+                            e.preventDefault()
+                            const val = formExclusionInput.value.trim()
+                            setFormExclusions(prev => [...prev, { type: formExclusionInput.type, value: val }])
+                            setFormExclusionInput(prev => ({ ...prev, value: '' }))
+                          }
+                        }}
+                        placeholder="Add exclusion value…"
+                        className="flex-1 rounded-lg border border-border bg-muted/30 px-3 py-1 text-xs text-foreground focus:outline-none focus:border-border-strong"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const val = formExclusionInput.value.trim()
+                          if (!val) return
+                          setFormExclusions(prev => [...prev, { type: formExclusionInput.type, value: val }])
+                          setFormExclusionInput(prev => ({ ...prev, value: '' }))
+                        }}
+                        className="px-2.5 py-1 rounded-lg border border-border bg-muted/30 text-xs text-muted-foreground/70 hover:bg-muted/50 transition-colors"
+                      >Add</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {(policy.identity_context ?? []).length > 0 && (
             <div>
               <p className="text-xs font-medium text-muted-foreground/60 mb-2 flex items-center gap-1">
