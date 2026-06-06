@@ -19,7 +19,7 @@ import {
   VALID_INTENTS, VALID_DECISION_MODES, VALID_ACTIVITIES, VALID_CONDITION_TYPES,
   type NpjIntent, type NpjDecisionMode, type NpjActivity, type NpjConditionType,
 } from '@/lib/genai/npj-schema'
-import type { NpjSourceType, NpjScopeExclusionType } from '@/lib/genai/netskope/types'
+import type { NpjSourceType, NpjScopeExclusionType, DestinationStrategyType } from '@/lib/genai/netskope/types'
 import { TAG_DISPLAY_NAMES } from '@/lib/genai/control-matrix-rows'
 import { RISK_FAMILIES } from '@/lib/shared/risk-families'
 import type { ApprovalStatus } from '@/lib/genai/types'
@@ -441,6 +441,27 @@ export function PolicyIntentEditor({
     }, [])
   })
   const [formExclusionInput, setFormExclusionInput] = useState<{ type: NpjScopeExclusionType; value: string }>({ type: 'user', value: '' })
+  // Phase 4.7: structured destination scoping.
+  // 'all_apps' is a UI sentinel meaning "no destination scoping" — never written to the NPJ.
+  // 'app_category' is only a scoping trigger when cci_app_tag is non-empty (effectiveDestType falls back to all_apps otherwise).
+  type FormDestType = DestinationStrategyType | 'all_apps'
+  const [formDestType, setFormDestType] = useState<FormDestType>(() => {
+    const scope = (rawNpj as Record<string, unknown>)?.scope as Record<string, unknown> | undefined
+    const dest  = scope?.destination as Record<string, unknown> | undefined
+    const t     = dest?.type as string | undefined
+    const VALID_DEST = new Set(['app_category', 'app_instance', 'destination_profile', 'cloud_app'])
+    return (t && VALID_DEST.has(t)) ? (t as DestinationStrategyType) : 'all_apps'
+  })
+  const [formDestValue, setFormDestValue] = useState<string>(() => {
+    const scope = (rawNpj as Record<string, unknown>)?.scope as Record<string, unknown> | undefined
+    const dest  = scope?.destination as Record<string, unknown> | undefined
+    return (dest?.value as string | undefined) ?? ''
+  })
+  const [formCciAppTag, setFormCciAppTag] = useState<string>(() => {
+    const scope = (rawNpj as Record<string, unknown>)?.scope as Record<string, unknown> | undefined
+    const dest  = scope?.destination as Record<string, unknown> | undefined
+    return (dest?.cci_app_tag as string | undefined) ?? ''
+  })
   const [translationStatus,    setTranslationStatus]    = useState(policy.vendor_translation_status)
   const [saving,               setSaving]               = useState(false)
   const [saveError,            setSaveError]            = useState('')
@@ -508,7 +529,23 @@ export function PolicyIntentEditor({
     const exclChanged     = JSON.stringify(formExclusions) !== JSON.stringify(currentExcl)
     const sourceScopeChanged = srcTypeChanged || srcValueChanged || exclChanged
 
-    // Persist any NPJ scope changes: users, source type/value, exclusions
+    // ── Destination scope change detection (Phase 4.7) ────────────────────────
+    // effectiveDestType: app_category only counts as scoped when cci_app_tag is non-empty.
+    const effectiveDestType: FormDestType = (() => {
+      if (formDestType === 'all_apps') return 'all_apps'
+      if (formDestType === 'app_category') return formCciAppTag.trim() ? 'app_category' : 'all_apps'
+      return formDestValue.trim() ? formDestType : 'all_apps'
+    })()
+    const currentDest    = currentScope.destination as Record<string, unknown> | undefined
+    const currentDestT   = (currentDest?.type  as string | undefined) ?? 'all_apps'
+    const currentDestV   = (currentDest?.value as string | undefined) ?? ''
+    const currentDestTag = (currentDest?.cci_app_tag as string | undefined) ?? ''
+    const destScopeChanged =
+      effectiveDestType !== currentDestT ||
+      (effectiveDestType !== 'all_apps' && effectiveDestType !== 'app_category' && formDestValue.trim() !== currentDestV) ||
+      (effectiveDestType === 'app_category' && formCciAppTag.trim() !== currentDestTag)
+
+    // Persist any NPJ scope changes: users, source type/value, exclusions, destination
     if (rawNpj) {
       const currentUsers: string[] = (() => {
         const arr = currentScope.users as string[] | undefined
@@ -516,8 +553,10 @@ export function PolicyIntentEditor({
       })()
       const usersChanged = JSON.stringify([...formUsers].sort()) !== JSON.stringify([...currentUsers].sort())
 
-      if (usersChanged || sourceScopeChanged) {
+      if (usersChanged || sourceScopeChanged || destScopeChanged) {
         const newScope: Record<string, unknown> = { ...currentScope, users: formUsers }
+
+        // Source scope
         if (effectiveSrcType !== 'all_users') {
           newScope.source     = { type: effectiveSrcType, value: formSourceValue.trim() }
           newScope.exclusions = formExclusions.length > 0 ? [...formExclusions] : undefined
@@ -527,6 +566,22 @@ export function PolicyIntentEditor({
           newScope.source = { type: 'all_users', value: null }
           delete newScope.exclusions
         }
+
+        // Destination scope (Phase 4.7)
+        if (effectiveDestType !== 'all_apps') {
+          const destNode: Record<string, unknown> = {
+            type:  effectiveDestType,
+            // app_category value is always locked to 'Generative AI' — never free text.
+            value: effectiveDestType === 'app_category' ? 'Generative AI' : formDestValue.trim(),
+          }
+          if (effectiveDestType === 'app_category') {
+            destNode.cci_app_tag = formCciAppTag.trim()
+          }
+          newScope.destination = destNode
+        } else {
+          delete newScope.destination
+        }
+
         fields.neutral_policy_json = { ...(rawNpj as Record<string, unknown>), scope: newScope }
       }
     }
@@ -537,7 +592,7 @@ export function PolicyIntentEditor({
       const nameChanged  = formName.trim() !== policy.name
       const descChanged  = (formDesc.trim() || null) !== policy.description
       const scopeChanged = JSON.stringify([...formAppIds].sort()) !== JSON.stringify([...policy.scope_app_ids].sort())
-      if (nameChanged || descChanged || scopeChanged || sourceScopeChanged) {
+      if (nameChanged || descChanged || scopeChanged || sourceScopeChanged || destScopeChanged) {
         fields.vendor_translation_status = 'pending'
         setTranslationStatus('pending')
       }
@@ -1173,6 +1228,79 @@ export function PolicyIntentEditor({
                       >Add</button>
                     </div>
                   </div>
+                )}
+              </div>
+            </div>
+          )}
+          {/* ── Destination Scoping (manual policies only) ───────────── */}
+          {!isRecommended && (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-3">
+                Destination Scoping
+              </p>
+              <div className="space-y-3">
+                {/* Destination type dropdown */}
+                <div className="flex items-center gap-2">
+                  <label className="w-16 text-xs text-muted-foreground/60 shrink-0">Type</label>
+                  <select
+                    value={formDestType}
+                    onChange={e => {
+                      setFormDestType(e.target.value as FormDestType)
+                      setFormDestValue('')
+                      setFormCciAppTag('')
+                    }}
+                    className="rounded-lg border border-border bg-muted/30 px-2.5 py-1 text-xs text-foreground focus:outline-none focus:border-border-strong"
+                  >
+                    <option value="all_apps">All Apps (default)</option>
+                    <option value="app_category">Category + CCI App Tag</option>
+                    <option value="app_instance">App Instance</option>
+                    <option value="destination_profile">Destination Profile</option>
+                    <option value="cloud_app">Cloud App</option>
+                  </select>
+                </div>
+
+                {/* Value input — shown for non-category scoped types */}
+                {(formDestType === 'app_instance' || formDestType === 'destination_profile' || formDestType === 'cloud_app') && (
+                  <div className="flex items-center gap-2">
+                    <label className="w-16 text-xs text-muted-foreground/60 shrink-0">Value</label>
+                    <input
+                      type="text"
+                      value={formDestValue}
+                      onChange={e => setFormDestValue(e.target.value)}
+                      placeholder={
+                        formDestType === 'app_instance'        ? 'ChatGPT - Corporate'   :
+                        formDestType === 'destination_profile' ? 'GenAI Allowed Sites'   :
+                                                                 'ChatGPT'               // cloud_app
+                      }
+                      className="flex-1 rounded-lg border border-border bg-muted/30 px-3 py-1 text-xs text-foreground focus:outline-none focus:border-border-strong"
+                    />
+                  </div>
+                )}
+
+                {/* CCI App Tag — only when type is app_category; required to activate scoping */}
+                {formDestType === 'app_category' && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <label className="w-16 text-xs text-muted-foreground/60 shrink-0">Category</label>
+                      <span className="flex-1 rounded-lg border border-border/40 bg-muted/10 px-3 py-1 text-xs text-muted-foreground/50 font-mono">
+                        Generative AI
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/30 shrink-0">locked</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="w-16 text-xs text-muted-foreground/60 shrink-0">CCI Tag</label>
+                      <input
+                        type="text"
+                        value={formCciAppTag}
+                        onChange={e => setFormCciAppTag(e.target.value)}
+                        placeholder="Approved & Supported GenAI"
+                        className="flex-1 rounded-lg border border-border bg-muted/30 px-3 py-1 text-xs text-foreground focus:outline-none focus:border-border-strong"
+                      />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground/40 pl-[4.5rem]">
+                      CCI tag must be set to activate category-level destination scoping.
+                    </p>
+                  </>
                 )}
               </div>
             </div>

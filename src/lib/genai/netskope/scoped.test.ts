@@ -95,6 +95,16 @@ describe('isScopedNpj', () => {
   test('returns false for empty scope.app_instances', () => {
     assert.equal(isScopedNpj(makeNpj({ app_instances: [] })), false)
   })
+
+  test('returns false for scope.destination.type = app_category without cci_app_tag', () => {
+    // Plain app_category is the default for all GenAI policies — NOT a scoping trigger.
+    assert.equal(isScopedNpj(makeNpj({ destination: { type: 'app_category', value: 'Generative AI' } })), false)
+  })
+
+  test('returns true for scope.destination.type = app_category with cci_app_tag', () => {
+    // app_category + cci_app_tag = scoped to a specific approval category (Phase 4.7).
+    assert.equal(isScopedNpj(makeNpj({ destination: { type: 'app_category', value: 'Generative AI', cci_app_tag: 'Approved & Supported GenAI' } })), true)
+  })
 })
 
 // ── resolveNpjScope ───────────────────────────────────────────────────────────
@@ -848,6 +858,22 @@ describe('Phase 4.5 — buildScopedPolicies: exclusions, group key, required obj
     const result = buildScopedPolicies([npj1, npj2])
     assert.equal(result.policies.length, 1, 'Same source+dest+exclusions must be grouped')
     assert.equal(result.policies[0].profiles.length, 2)
+  })
+
+  test('app_category policies with different cci_app_tag produce separate scoped policies', () => {
+    // Without the cci_app_tag in the group key, both collapse to app_category:Generative AI
+    // and one CCI tag is silently dropped.
+    const npj1 = makeScopedNpjWith({
+      policy_id:   'pol-1',
+      destination: { type: 'app_category', value: 'Generative AI', cci_app_tag: 'Approved & Supported GenAI' },
+    })
+    const npj2 = makeScopedNpjWith({
+      policy_id:   'pol-2',
+      risk_family_key: 'credentials_keys_secrets',
+      destination: { type: 'app_category', value: 'Generative AI', cci_app_tag: 'Approved with Conditions GenAI' },
+    })
+    const result = buildScopedPolicies([npj1, npj2])
+    assert.equal(result.policies.length, 2, 'Different cci_app_tag must produce separate scoped policies')
   })
 
   test('source.type = user populates required_objects.users', () => {

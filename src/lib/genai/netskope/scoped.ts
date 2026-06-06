@@ -41,10 +41,11 @@ interface RawScope {
     value?: unknown
   }
   destination?: {
-    type?:      unknown
-    value?:     unknown
-    app?:       unknown
-    instance?:  unknown
+    type?:       unknown
+    value?:      unknown
+    app?:        unknown
+    instance?:   unknown
+    cci_app_tag?: unknown
   }
 }
 
@@ -68,6 +69,9 @@ function isScoped(s: RawScope): boolean {
   // Accept both canonical names and legacy aliases (url_list, app_tag).
   if (destType === 'app_instance' || destType === 'cloud_app' ||
       destType === 'url_list'     || destType === 'destination_profile') return true
+  // app_category is only a scoped trigger when a CCI App Tag constraint is present.
+  // Plain app_category (the default for all GenAI policies) is NOT a scoping trigger.
+  if (destType === 'app_category' && s.destination?.cci_app_tag) return true
 
   const instances = s.app_instances
   if (Array.isArray(instances) && instances.length > 0) return true
@@ -135,10 +139,11 @@ export function resolveNpjScope(rawNpj: Record<string, unknown>): ResolvedScope 
     : []
 
   // ── Destination ──
-  const rawDestType = typeof s.destination?.type === 'string' ? s.destination.type : undefined
-  const destValue   = typeof s.destination?.value === 'string' ? s.destination.value : null
-  const destApp     = typeof s.destination?.app      === 'string' ? s.destination.app      : undefined
+  const rawDestType  = typeof s.destination?.type === 'string' ? s.destination.type : undefined
+  const destValue    = typeof s.destination?.value === 'string' ? s.destination.value : null
+  const destApp      = typeof s.destination?.app      === 'string' ? s.destination.app      : undefined
   const destInstance = typeof s.destination?.instance === 'string' ? s.destination.instance : undefined
+  const destCciTag   = typeof s.destination?.cci_app_tag === 'string' ? s.destination.cci_app_tag : undefined
 
   let destination: NpjScopeDestination
   let destinationDefaulted = false
@@ -154,6 +159,10 @@ export function resolveNpjScope(rawNpj: Record<string, unknown>): ResolvedScope 
     // Legacy app_tag alias: the tag name was the value → carry it as cci_app_tag.
     // Primary category is always 'Generative AI'; the old tag value narrows it as a CCI App Tag constraint.
     destination = { type: 'app_category', value: 'Generative AI', cci_app_tag: destValue }
+  } else if (rawDestType === 'app_category' && destCciTag) {
+    // Explicitly authored app_category + CCI App Tag (Phase 4.7 UI).
+    // Primary is always 'Generative AI'; cci_app_tag narrows to a specific approval category.
+    destination = { type: 'app_category', value: 'Generative AI', cci_app_tag: destCciTag }
   } else {
     // No explicit scoped destination (includes plain app_category = default, omitted, or unrecognised).
     const instances = s.app_instances
@@ -215,13 +224,16 @@ export function buildScopedPolicies(scopedNpjs: ScopedNpjInput[]): ScopedPolicie
   // ── Group by (source, exclusions, destination) ──
   // Exclusions are included in the key so two NPJs with same source+dest but
   // different exclusions produce separate Netskope policies (different source selectors).
+  // cci_app_tag is included so app_category policies with different CCI App Tag constraints
+  // are never collapsed — they target different Netskope approval categories.
   const groupMap = new Map<string, PolicyGroup>()
   for (const npj of scopedNpjs) {
     const excKey = (npj.source_exclusions ?? [])
       .map(e => `${e.type}:${e.value}`)
       .sort()
       .join('|')
-    const key = `${npj.source.type}:${npj.source.value ?? ''}:${npj.destination.type}:${npj.destination.value}:${excKey}`
+    const cciKey = ('cci_app_tag' in npj.destination && npj.destination.cci_app_tag) ? npj.destination.cci_app_tag : ''
+    const key = `${npj.source.type}:${npj.source.value ?? ''}:${npj.destination.type}:${npj.destination.value}:${cciKey}:${excKey}`
     const existing = groupMap.get(key)
     if (existing) {
       existing.npjs.push(npj)
