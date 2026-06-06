@@ -268,7 +268,7 @@ export default async function NetskopeRecommendationPage() {
         policy_key:  `manual:${p.id}`,
         name:        p.name,
         policy_type: 'realtime_protection' as const,
-        destination: { strategy: 'app_tag', tag_or_category: destName, note: null },
+        destination: { strategy: 'app_category', tag_or_category: destName, note: null },
         source:      firstUser
           ? { type: 'user_group' as const, value: firstUser }
           : { type: 'all_users' as const, value: null },

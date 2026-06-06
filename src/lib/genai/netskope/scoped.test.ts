@@ -80,7 +80,11 @@ describe('isScopedNpj', () => {
     assert.equal(isScopedNpj(makeNpj({ destination: { type: 'app_instance', value: 'MS Copilot Personal' } })), true)
   })
 
-  test('returns true for scope.destination.type = url_list', () => {
+  test('returns true for scope.destination.type = destination_profile (canonical)', () => {
+    assert.equal(isScopedNpj(makeNpj({ destination: { type: 'destination_profile', value: 'blocked-genai-urls' } })), true)
+  })
+
+  test('returns true for legacy scope.destination.type = url_list (alias)', () => {
     assert.equal(isScopedNpj(makeNpj({ destination: { type: 'url_list', value: 'blocked-genai-urls' } })), true)
   })
 
@@ -129,14 +133,37 @@ describe('resolveNpjScope', () => {
     assert.equal(result.destinationDefaulted, false)
   })
 
-  test('scope.destination.type = url_list resolves correctly', () => {
+  test('scope.destination.type = destination_profile resolves correctly (canonical)', () => {
+    const result = resolveNpjScope(makeNpj({
+      users:       ['Finance Team'],
+      destination: { type: 'destination_profile', value: 'personal-genai-urls' },
+    }))
+    assert.ok(result)
+    assert.equal(result.destination.type, 'destination_profile')
+    assert.equal(result.destination.value, 'personal-genai-urls')
+    assert.equal(result.destinationDefaulted, false)
+  })
+
+  test('legacy url_list resolves as destination_profile (alias)', () => {
     const result = resolveNpjScope(makeNpj({
       users:       ['Finance Team'],
       destination: { type: 'url_list', value: 'personal-genai-urls' },
     }))
     assert.ok(result)
-    assert.equal(result.destination.type, 'url_list')
+    assert.equal(result.destination.type, 'destination_profile')
     assert.equal(result.destination.value, 'personal-genai-urls')
+    assert.equal(result.destinationDefaulted, false)
+  })
+
+  test('legacy app_tag resolves as app_category with cci_app_tag (alias)', () => {
+    const result = resolveNpjScope(makeNpj({
+      users:       ['Engineering'],
+      destination: { type: 'app_tag', value: 'My Custom Tag' },
+    }))
+    assert.ok(result)
+    assert.equal(result.destination.type, 'app_category')
+    assert.equal(result.destination.value, 'My Custom Tag')
+    assert.equal(result.destination.cci_app_tag, 'My Custom Tag')
     assert.equal(result.destinationDefaulted, false)
   })
 
@@ -334,12 +361,12 @@ describe('buildScopedPolicies', () => {
     assert.ok(result.required_objects.app_instances.includes('Copilot Personal'))
   })
 
-  test('required_objects.url_lists populated for url_list destination', () => {
+  test('required_objects.destination_profiles populated for destination_profile destination', () => {
     const result = buildScopedPolicies([makeScopedNpj({
       source:      { type: 'user_group', value: 'Legal' },
-      destination: { type: 'url_list', value: 'blocked-genai-sites' },
+      destination: { type: 'destination_profile', value: 'blocked-genai-sites' },
     })])
-    assert.ok(result.required_objects.url_lists.includes('blocked-genai-sites'))
+    assert.ok(result.required_objects.destination_profiles.includes('blocked-genai-sites'))
   })
 
   test('required_objects.user_groups populated for user_group source', () => {
@@ -865,5 +892,91 @@ describe('Phase 4.5 — buildScopedPolicies: exclusions, group key, required obj
     const result = buildScopedPolicies([npj])
     assert.deepEqual(result.required_objects.users, [])
     assert.deepEqual(result.required_objects.organizational_units, [])
+  })
+})
+
+// ── Destination model correction tests ───────────────────────────────────────
+
+function makeBaseInput(overrides: Partial<NpjInput> = {}): NpjInput {
+  return {
+    policy_id:           'p1',
+    policy_name:         'Test Policy',
+    policy_family:       'genai_content_detection',
+    risk_family_key:     'rf:test',
+    risk_family_label:   'Test RF',
+    actions_by_category: { approved_supported: 'block', approved_with_conditions: 'block', restricted_unassessed: 'alert' },
+    ...overrides,
+  }
+}
+
+describe('Destination model — topology outputs', () => {
+  const input = makeBaseInput()
+  const buckets = transposeNpjs([input], new Set(), new Set(['approved_supported', 'approved_with_conditions', 'restricted_unassessed']))
+  const topology = buildTopology({ buckets, alwaysBlockNpjs: [], prohibitedCategory: null, skippedCount: 0 })
+  const policies = topology.recommended_policies
+
+  test('P300 (approved_supported) — strategy app_category, tag_or_category Generative AI, cci_app_tag set', () => {
+    const p = policies.find(p => p.policy_key === 'netskope:approved_supported')
+    assert.ok(p)
+    assert.equal(p.destination.strategy, 'app_category')
+    assert.equal(p.destination.tag_or_category, 'Generative AI')
+    assert.equal(p.destination.cci_app_tag, 'Approved & Supported GenAI')
+  })
+
+  test('P400 (approved_with_conditions) — strategy app_category, cci_app_tag set', () => {
+    const p = policies.find(p => p.policy_key === 'netskope:approved_with_conditions')
+    assert.ok(p)
+    assert.equal(p.destination.strategy, 'app_category')
+    assert.equal(p.destination.tag_or_category, 'Generative AI')
+    assert.equal(p.destination.cci_app_tag, 'Approved with Conditions GenAI')
+  })
+
+  test('P900 (restricted_unassessed) — strategy app_category, no cci_app_tag', () => {
+    const p = policies.find(p => p.policy_key === 'netskope:restricted_unassessed')
+    assert.ok(p)
+    assert.equal(p.destination.strategy, 'app_category')
+    assert.equal(p.destination.tag_or_category, 'Generative AI')
+    assert.ok(!p.destination.cci_app_tag)
+  })
+
+  test('P200 (always-block) — strategy app_category, no cci_app_tag', () => {
+    // Must use a risk_family_key in ALWAYS_BLOCK_PROFILE_KEYS ('credentials_keys_secrets')
+    const abNpj = makeBaseInput({
+      risk_family_key:     'credentials_keys_secrets',
+      actions_by_category: { approved_supported: 'block', approved_with_conditions: 'block', restricted_unassessed: 'block' },
+    })
+    const ab = extractAlwaysBlockProfiles([abNpj])
+    assert.equal(ab.length, 1, 'extractAlwaysBlockProfiles should return 1 entry')
+    const t2   = buildTopology({ buckets, alwaysBlockNpjs: ab, prohibitedCategory: null, skippedCount: 0 })
+    const p200 = t2.recommended_policies.find(p => p.policy_key === 'netskope:always_block_global_dlp')
+    assert.ok(p200)
+    assert.equal(p200.destination.strategy, 'app_category')
+    assert.equal(p200.destination.tag_or_category, 'Generative AI')
+    assert.ok(!p200.destination.cci_app_tag)
+  })
+
+  test('P100 (prohibited) — strategy app_category, cci_app_tag = prohibited category name', () => {
+    const t3 = buildTopology({
+      buckets,
+      alwaysBlockNpjs:    [],
+      prohibitedCategory: { id: 'cat-1', name: 'Prohibited GenAI', system_tag: 'prohibited' },
+      skippedCount:       0,
+    })
+    const p100 = t3.recommended_policies.find(p => p.policy_key === 'netskope:prohibited_access_block')
+    assert.ok(p100)
+    assert.equal(p100.destination.strategy, 'app_category')
+    assert.equal(p100.destination.tag_or_category, 'Generative AI')
+    assert.equal(p100.destination.cci_app_tag, 'Prohibited GenAI')
+  })
+
+  test('required_objects: cci_app_tags collected from cci_app_tag field, not tag_or_category', () => {
+    const t4 = buildTopology({ buckets, alwaysBlockNpjs: [], prohibitedCategory: null, skippedCount: 0 })
+    const tags = t4.required_objects.cci_app_tags
+    assert.ok(tags.includes('Approved & Supported GenAI'))
+    assert.ok(tags.includes('Approved with Conditions GenAI'))
+    // "Generative AI" (the category) must NOT appear in cci_app_tags
+    assert.ok(!tags.includes('Generative AI'))
+    // "Generative AI" should appear in app_categories
+    assert.ok(t4.required_objects.app_categories.includes('Generative AI'))
   })
 })

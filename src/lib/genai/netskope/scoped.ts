@@ -65,7 +65,9 @@ function isScoped(s: RawScope): boolean {
   if (Array.isArray(users) && users.length > 0 && users[0] !== 'All Users') return true
 
   const destType = s.destination?.type
-  if (destType === 'app_instance' || destType === 'url_list') return true
+  // Accept both canonical names and legacy aliases (url_list, app_tag).
+  if (destType === 'app_instance' || destType === 'cloud_app' ||
+      destType === 'url_list'     || destType === 'destination_profile') return true
 
   const instances = s.app_instances
   if (Array.isArray(instances) && instances.length > 0) return true
@@ -133,19 +135,27 @@ export function resolveNpjScope(rawNpj: Record<string, unknown>): ResolvedScope 
     : []
 
   // ── Destination ──
-  const destType = s.destination?.type
-  const destValue = typeof s.destination?.value === 'string' ? s.destination.value : null
-  const destApp = typeof s.destination?.app === 'string' ? s.destination.app : undefined
+  const rawDestType = typeof s.destination?.type === 'string' ? s.destination.type : undefined
+  const destValue   = typeof s.destination?.value === 'string' ? s.destination.value : null
+  const destApp     = typeof s.destination?.app      === 'string' ? s.destination.app      : undefined
   const destInstance = typeof s.destination?.instance === 'string' ? s.destination.instance : undefined
 
   let destination: NpjScopeDestination
   let destinationDefaulted = false
 
-  if (destType === 'app_instance' && destValue) {
+  if (rawDestType === 'app_instance' && destValue) {
     destination = { type: 'app_instance', value: destValue, app: destApp, instance: destInstance }
-  } else if (destType === 'url_list' && destValue) {
-    destination = { type: 'url_list', value: destValue }
+  } else if (rawDestType === 'cloud_app' && destValue) {
+    destination = { type: 'cloud_app', value: destValue }
+  } else if ((rawDestType === 'destination_profile' || rawDestType === 'url_list') && destValue) {
+    // url_list is a legacy alias → normalise to destination_profile
+    destination = { type: 'destination_profile', value: destValue }
+  } else if (rawDestType === 'app_tag' && destValue) {
+    // Legacy app_tag alias: the tag name was the value → carry it as cci_app_tag
+    // (in Netskope's real UI, CCI App Tag is a constraint on Category, not a destination type)
+    destination = { type: 'app_category', value: destValue, cci_app_tag: destValue }
   } else {
+    // No explicit scoped destination (includes plain app_category = default, omitted, or unrecognised).
     const instances = s.app_instances
     if (Array.isArray(instances) && instances.length > 0) {
       destination = { type: 'app_instance', value: String(instances[0]) }
@@ -173,12 +183,12 @@ function capitalise(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-// Destination sort order: app_instance first (most specific), then url_list, then app_tag, then app_category.
+// Destination sort order: most-specific first, broad category last.
 const DEST_SORT_ORDER: Record<string, number> = {
-  app_instance: 0,
-  url_list:     1,
-  app_tag:      2,
-  app_category: 3,
+  app_instance:        0,
+  cloud_app:           1,
+  destination_profile: 2,
+  app_category:        3,
 }
 
 // ── Scoped policy builder ─────────────────────────────────────────────────────
@@ -342,6 +352,8 @@ export function buildScopedPolicies(scopedNpjs: ScopedNpjInput[]): ScopedPolicie
       destination: {
         strategy:        group.destination.type,
         tag_or_category: group.destination.value,
+        // Carry CCI App Tag constraint when present (e.g. app_category with a tag filter).
+        ...(group.destination.cci_app_tag != null && { cci_app_tag: group.destination.cci_app_tag }),
         note:            destNote,
       },
       source: {
@@ -362,17 +374,19 @@ export function buildScopedPolicies(scopedNpjs: ScopedNpjInput[]): ScopedPolicie
   // ── Required objects ──
   const base = collectRequiredObjects(policies)
 
-  const appInstances = new Set<string>()
-  const urlLists     = new Set<string>()
-  const userGroups   = new Set<string>()
-  const adGroups     = new Set<string>()
-  const users        = new Set<string>()
-  const ous          = new Set<string>()
+  const appInstances  = new Set<string>()
+  const destProfiles  = new Set<string>()
+  const cloudApps     = new Set<string>()
+  const userGroups    = new Set<string>()
+  const adGroups      = new Set<string>()
+  const users         = new Set<string>()
+  const ous           = new Set<string>()
 
   for (const group of sortedGroups) {
-    // Destination objects
-    if (group.destination.type === 'app_instance' && group.destination.value) appInstances.add(group.destination.value)
-    if (group.destination.type === 'url_list'     && group.destination.value) urlLists.add(group.destination.value)
+    // Destination objects — all aliases already normalised by resolveNpjScope
+    if (group.destination.type === 'app_instance'        && group.destination.value) appInstances.add(group.destination.value)
+    if (group.destination.type === 'destination_profile' && group.destination.value) destProfiles.add(group.destination.value)
+    if (group.destination.type === 'cloud_app'           && group.destination.value) cloudApps.add(group.destination.value)
 
     // Source identity objects
     if (group.source.value) {
@@ -393,7 +407,8 @@ export function buildScopedPolicies(scopedNpjs: ScopedNpjInput[]): ScopedPolicie
   const required_objects: RequiredObjects = {
     ...base,
     app_instances:        [...appInstances],
-    url_lists:            [...urlLists],
+    destination_profiles: [...destProfiles],
+    cloud_apps:           [...cloudApps],
     user_groups:          [...userGroups],
     ad_groups:            [...adGroups],
     users:                [...users],
@@ -416,7 +431,8 @@ function emptyRequiredObjects(): RequiredObjects {
     app_categories:                [],
     app_instances:                 [],
     app_instance_tags:             [],
-    url_lists:                     [],
+    destination_profiles:          [],
+    cloud_apps:                    [],
     user_groups:                   [],
     ad_groups:                     [],
     users:                         [],

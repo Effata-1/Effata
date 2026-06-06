@@ -7,7 +7,7 @@ import { AlertTriangle, CheckCircle2, Info, ChevronDown, ChevronRight, ExternalL
 import type {
   NetskopeRecommendation, NetskopePolicy, NetskopeProfileEntry,
   NpjProfileType, RecommendationIssue, TopologyMode, TopologyOptionSummary,
-  NetskopeCategory, StrategyOverrides, CategoryStrategyOverride, RequiredObjects,
+  NetskopeCategory, StrategyOverrides, CategoryStrategyOverride, RequiredObjects, DestinationStrategyType,
 } from '@/lib/genai/netskope/types'
 import { FILE_SIZE_LIMIT_SOURCE } from '@/lib/genai/netskope/limitations'
 
@@ -173,9 +173,18 @@ const NativePolicyCard = memo(function NativePolicyCard({ policy }: { policy: Ne
         : 'No-match action is not configured. Decide the no-match behaviour (Allow / Alert / Block) for this category before deploying.'
     : ''
 
-  const dest = policy.destination.strategy === 'app_tag'
-    ? `App Tag: "${policy.destination.tag_or_category}"`
-    : `Category: "${policy.destination.tag_or_category}"`
+  const dest =
+    policy.destination.strategy === 'app_category'
+      ? policy.destination.cci_app_tag
+        ? `Category: "Generative AI" + CCI App Tag: "${policy.destination.cci_app_tag}"`
+        : `Category: "${policy.destination.tag_or_category}"`
+      : policy.destination.strategy === 'app_instance'
+        ? `App Instance: "${policy.destination.tag_or_category}"`
+        : policy.destination.strategy === 'destination_profile'
+          ? `Destination Profile: "${policy.destination.tag_or_category}"`
+          : policy.destination.strategy === 'cloud_app'
+            ? `Cloud App: "${policy.destination.tag_or_category}"`
+            : `Destination: "${policy.destination.tag_or_category}"`
 
   const implementNote = policy.policy_type === 'access_control'
     ? `Create a Real-time Protection policy in Netskope. Set destination to ${dest}. Set action to Block. No DLP profile required.`
@@ -194,9 +203,7 @@ const NativePolicyCard = memo(function NativePolicyCard({ policy }: { policy: Ne
     continue_policy_evaluation: policy.continue_policy_evaluation,
   }
 
-  const destLabel = policy.destination.strategy === 'app_tag'
-    ? `App Tag: "${policy.destination.tag_or_category}"`
-    : `Category: "${policy.destination.tag_or_category}"`
+  const destLabel = dest
 
   const autoDescription = policy.policy_type === 'access_control'
     ? `Blocks access to ${policy.destination.tag_or_category} apps at the network layer before content inspection runs.`
@@ -278,23 +285,45 @@ const NativePolicyCard = memo(function NativePolicyCard({ policy }: { policy: Ne
         <div className="flex items-center gap-2 mb-1">
           <div className="flex items-center rounded border border-border/60 bg-muted/15 px-2.5 py-1.5 gap-1.5">
             <span className="text-xs text-foreground/80 capitalize">
-              {policy.destination.strategy === 'app_tag' ? 'App Tag' : 'Category'}
+              {policy.destination.strategy === 'app_category'        ? 'Category'           :
+               policy.destination.strategy === 'app_instance'        ? 'App Instance'       :
+               policy.destination.strategy === 'destination_profile' ? 'Destination Profile':
+               policy.destination.strategy === 'cloud_app'           ? 'Cloud App'          :
+                                                                        policy.destination.strategy}
             </span>
             <span className="text-muted-foreground/30 text-[10px]">▼</span>
           </div>
           <NtsGreenDot />
         </div>
-        <NtsField
-          label={policy.destination.strategy === 'app_tag' ? 'CCI App Tag' : 'Category'}
-          value={
-            <>
-              {policy.destination.tag_or_category}
-              {policy.destination.note && (
-                <span className="ml-1.5 text-[10px] text-muted-foreground/40">({policy.destination.note})</span>
-              )}
-            </>
-          }
-        />
+        {/* Category strategies: primary Category row, optional CCI App Tag constraint below */}
+        {policy.destination.strategy === 'app_category' && (
+          <>
+            <NtsField
+              label="Category"
+              value={
+                <>
+                  {policy.destination.tag_or_category}
+                  {policy.destination.note && (
+                    <span className="ml-1.5 text-[10px] text-muted-foreground/40">({policy.destination.note})</span>
+                  )}
+                </>
+              }
+            />
+            {policy.destination.cci_app_tag && (
+              <NtsField label="CCI App Tag" value={policy.destination.cci_app_tag} />
+            )}
+          </>
+        )}
+        {/* Non-category strategies: single row, no Category prefix */}
+        {policy.destination.strategy === 'app_instance' && (
+          <NtsField label="App Instance" value={policy.destination.tag_or_category} />
+        )}
+        {policy.destination.strategy === 'destination_profile' && (
+          <NtsField label="Destination Profile" value={policy.destination.tag_or_category} />
+        )}
+        {policy.destination.strategy === 'cloud_app' && (
+          <NtsField label="Cloud App" value={policy.destination.tag_or_category} />
+        )}
         {policy.activities.length > 0 && (
           <NtsField
             label="Activities"
@@ -656,9 +685,10 @@ function applyStrategyOverrides(
       patched = {
         ...patched,
         destination: {
-          ...patched.destination,
           strategy:        'app_instance',
           tag_or_category: override.destination_value,
+          cci_app_tag:     null,
+          note:            null,
         },
       }
     }
@@ -711,8 +741,10 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
     if (!scoped) {
       return {
         ...base,
-        ad_groups:     [...new Set([...(base.ad_groups ?? []),     ...adGroupsFromOverrides])],
+        ad_groups:     [...new Set([...(base.ad_groups     ?? []), ...adGroupsFromOverrides])],
         app_instances: [...new Set([...(base.app_instances ?? []), ...appInstancesFromOverrides])],
+        destination_profiles: base.destination_profiles ?? [],
+        cloud_apps:           base.cloud_apps           ?? [],
       }
     }
     return {
@@ -725,7 +757,8 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
       app_categories:                [...new Set([...base.app_categories,                ...scoped.app_categories])],
       app_instances:                 [...new Set([...scoped.app_instances,               ...appInstancesFromOverrides])],
       app_instance_tags:             [...base.app_instance_tags],
-      url_lists:                     [...scoped.url_lists],
+      destination_profiles:          [...scoped.destination_profiles],
+      cloud_apps:                    [...scoped.cloud_apps],
       user_groups:                   [...scoped.user_groups],
       ad_groups:                     [...new Set([...scoped.ad_groups, ...adGroupsFromOverrides])],
       users:                         [...scoped.users],
@@ -742,8 +775,8 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
       ...r.limitations,
       {
         area:             'App instance destination override',
-        limitation:       'Policy destination has been overridden to target a specific app instance instead of a CCI App Tag.',
-        practical_impact: 'The app instance must exist in Netskope and be correctly mapped before deployment. Category-based catch-all coverage no longer applies for this category.',
+        limitation:       'Policy destination has been overridden to target a specific app instance instead of Category + CCI App Tag.',
+        practical_impact: 'The app instance must exist in Netskope and be correctly mapped before deployment. Category-based catch-all coverage (Category = Generative AI) no longer applies for this category.',
         risk_acceptance:  'Accepted' as const,
       },
     ]
@@ -879,7 +912,7 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
               </p>
             )}
             <p className="text-[11px] text-muted-foreground/50">
-              Override the default source (All Users) or destination (App Tag) per governance category. Scoped policies above are not affected.
+              Override the default source (All Users) or destination (Category + CCI App Tag) per governance category. Scoped policies above are not affected.
             </p>
             {(
               [
@@ -902,10 +935,10 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
                       onChange={e => {
                         const v = e.target.value as 'all_users' | 'ad_group'
                         setStrategyOverrides(prev => {
-                          const currentDest    = prev[cat]?.destination_type  ?? 'app_tag'
+                          const currentDest    = prev[cat]?.destination_type  ?? 'app_category'
                           const currentDestVal = prev[cat]?.destination_value ?? null
                           // Both at defaults → remove entry entirely (no phantom state)
-                          if (v === 'all_users' && currentDest === 'app_tag') {
+                          if (v === 'all_users' && currentDest === 'app_category') {
                             const next = { ...prev }; delete next[cat]; return next
                           }
                           return {
@@ -945,14 +978,14 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
                   <div className="space-y-1">
                     <select
                       disabled={disabled}
-                      value={override?.destination_type ?? 'app_tag'}
+                      value={override?.destination_type ?? 'app_category'}
                       onChange={e => {
-                        const v = e.target.value as 'app_tag' | 'app_instance'
+                        const v = e.target.value as DestinationStrategyType
                         setStrategyOverrides(prev => {
                           const currentSrc    = prev[cat]?.source_type  ?? 'all_users'
                           const currentSrcVal = prev[cat]?.source_value ?? null
                           // Both at defaults → remove entry entirely (no phantom state)
-                          if (v === 'app_tag' && currentSrc === 'all_users') {
+                          if (v === 'app_category' && currentSrc === 'all_users') {
                             const next = { ...prev }; delete next[cat]; return next
                           }
                           return {
@@ -961,14 +994,14 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
                               source_type:       currentSrc,
                               source_value:      currentSrcVal,
                               destination_type:  v,
-                              destination_value: v === 'app_tag' ? null : (prev[cat]?.destination_value ?? ''),
+                              destination_value: v === 'app_category' ? null : (prev[cat]?.destination_value ?? ''),
                             },
                           }
                         })
                       }}
                       className="w-full text-xs bg-muted border border-border/50 rounded px-2 py-1.5 text-foreground/70 focus:outline-none disabled:opacity-40"
                     >
-                      <option value="app_tag">App Tag (Default)</option>
+                      <option value="app_category">Category + CCI App Tag (Default)</option>
                       <option value="app_instance">App Instance</option>
                     </select>
                     {override?.destination_type === 'app_instance' && (
@@ -1108,7 +1141,8 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
             ['CCI App Tags',             combinedRequiredObjects.cci_app_tags],
             ['App Categories',           combinedRequiredObjects.app_categories],
             ['App Instances',            combinedRequiredObjects.app_instances],
-            ['URL Lists',                combinedRequiredObjects.url_lists],
+            ['Destination Profiles',     combinedRequiredObjects.destination_profiles],
+            ['Cloud Apps',               combinedRequiredObjects.cloud_apps],
             ['User Groups',              combinedRequiredObjects.user_groups],
             ['AD Groups',                combinedRequiredObjects.ad_groups],
             ['Users',                    combinedRequiredObjects.users],

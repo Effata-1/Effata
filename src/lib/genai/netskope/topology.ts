@@ -37,10 +37,13 @@ const CATEGORY_POLICY_NAMES: Record<NetskopeCategory, string> = {
   restricted_unassessed:    'GenAI — Restricted / Unassessed — Fallback',
 }
 
-const CATEGORY_APP_TAGS: Record<NetskopeCategory, string> = {
+// CCI App Tag names for category-based policies.
+// In Netskope the primary destination is always Category = "Generative AI";
+// the CCI App Tag is an ADD CRITERIA & CONSTRAINTS entry that narrows to a specific tag.
+// restricted_unassessed has no tag — it targets the full Generative AI category as a catch-all.
+const CATEGORY_CCI_APP_TAGS: Partial<Record<NetskopeCategory, string>> = {
   approved_supported:       'Approved & Supported GenAI',
   approved_with_conditions: 'Approved with Conditions GenAI',
-  restricted_unassessed:    'Generative AI', // broad category as catch-all
 }
 
 // ── Profile type group labels (for UI ordering) ───────────────────────────────
@@ -88,11 +91,11 @@ export function collectRequiredObjects(
 
   for (const p of policies) {
     if (p.destination.tag_or_category) {
-      if (p.destination.strategy === 'app_tag') {
-        tags.add(p.destination.tag_or_category)
-      } else {
-        cats.add(p.destination.tag_or_category)
-      }
+      cats.add(p.destination.tag_or_category)
+    }
+    // CCI App Tag is a constraint on the category destination, not the primary destination value.
+    if (p.destination.cci_app_tag) {
+      tags.add(p.destination.cci_app_tag)
     }
     if (p.notification) notifs.add(p.notification)
 
@@ -115,7 +118,8 @@ export function collectRequiredObjects(
     app_categories:                [...cats],
     app_instances:                 [],
     app_instance_tags:             [],
-    url_lists:                     [],
+    destination_profiles:          [],
+    cloud_apps:                    [],
     user_groups:                   [],
     ad_groups:                     [],
     users:                         [],
@@ -166,9 +170,10 @@ export function buildTopology(input: BuildTopologyInput): Omit<NetskopeRecommend
       name:        'GenAI — Prohibited Applications — Access Block',
       policy_type: 'access_control',
       destination: {
-        strategy:         'app_tag',
-        tag_or_category:  prohibitedCategory.name,
-        note:             'App tag or URL list for Prohibited GenAI apps',
+        strategy:         'app_category',
+        tag_or_category:  'Generative AI',
+        cci_app_tag:      prohibitedCategory.name,
+        note:             'CCI App Tag containing Prohibited GenAI apps — created in Skope IT',
       },
       source:          { type: 'all_users', value: null },
       activities:      ['browse', 'login'],
@@ -253,10 +258,12 @@ export function buildTopology(input: BuildTopologyInput): Omit<NetskopeRecommend
       name:        CATEGORY_POLICY_NAMES[cat],
       policy_type: 'realtime_protection',
       destination: {
-        strategy:        isRestrictedCatchAll ? 'app_category' : 'app_tag',
-        tag_or_category: CATEGORY_APP_TAGS[cat],
-        note:            isRestrictedCatchAll
-          ? 'Broad Generative AI category as catch-all for apps not covered by approved-category policies'
+        strategy:         'app_category',
+        tag_or_category:  'Generative AI',
+        // CCI App Tag narrows to the specific governance tier. P900 (catch-all) has no tag.
+        ...(CATEGORY_CCI_APP_TAGS[cat] != null && { cci_app_tag: CATEGORY_CCI_APP_TAGS[cat] }),
+        note:             isRestrictedCatchAll
+          ? 'Catch-all — targets the full Generative AI category; no CCI App Tag constraint'
           : null,
       },
       source:          { type: 'all_users', value: null },
@@ -317,9 +324,10 @@ export function buildTopology(input: BuildTopologyInput): Omit<NetskopeRecommend
       name:        `GenAI — ${catDisplayName} — Content Protection`,
       policy_type: 'realtime_protection',
       destination: {
-        strategy:        'app_tag',
-        tag_or_category: `${catDisplayName} GenAI`,
-        note:            'Custom CCI app tag — verify this tag exists in your Netskope tenant',
+        strategy:        'app_category',
+        tag_or_category: 'Generative AI',
+        cci_app_tag:     `${catDisplayName} GenAI`,
+        note:            'CCI App Tag for this custom governance tier — verify it exists in your Netskope tenant',
       },
       source:          { type: 'all_users', value: null },
       // Phase 4: union of scope.activities across all profiles in this custom category bucket.

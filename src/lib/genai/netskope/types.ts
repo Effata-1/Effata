@@ -48,7 +48,14 @@ export interface NetskopePolicy {
   policy_key:   string
   name:         string
   policy_type:  'access_control' | 'realtime_protection'
-  destination:  { strategy: string; tag_or_category: string; note: string | null }
+  destination:  {
+    strategy:       string
+    tag_or_category: string
+    /** CCI App Tag constraint — only present when strategy = 'app_category'.
+     *  In Netskope's UI this is an ADD CRITERIA & CONSTRAINTS entry, not the primary destination type. */
+    cci_app_tag?:   string | null
+    note:           string | null
+  }
   source: {
     type:        NpjSourceType
     value:       string | null
@@ -76,7 +83,10 @@ export interface RequiredObjects {
   app_categories:                string[]
   app_instances:                 string[]
   app_instance_tags:             string[]
-  url_lists:                     string[]
+  /** Replaces url_lists — Netskope renamed URL Lists to Destination Profiles. */
+  destination_profiles:          string[]
+  /** Single apps from the App Catalog (Netskope "Cloud App" destination type). */
+  cloud_apps:                    string[]
   user_groups:                   string[]
   ad_groups:                     string[]
   /** Phase 4.5: individual Netskope user objects required by source/exclusion selectors. */
@@ -143,11 +153,16 @@ export interface NpjScopeSource {
   value: string | null
 }
 
+// Canonical destination types emitted by the engine and stored in NPJs.
+// Legacy values 'app_tag' and 'url_list' are accepted as input aliases in resolveNpjScope()
+// and normalised before any downstream code sees them — never emitted.
 export interface NpjScopeDestination {
-  type:      'app_category' | 'app_tag' | 'app_instance' | 'url_list'
-  value:     string
-  app?:      string
-  instance?: string
+  type:        'app_category' | 'app_instance' | 'destination_profile' | 'cloud_app'
+  value:       string
+  /** CCI App Tag constraint — only valid when type = 'app_category'. */
+  cci_app_tag?: string
+  app?:        string
+  instance?:   string
 }
 
 export interface ScopedNpjInput {
@@ -175,8 +190,7 @@ export interface ScopedPoliciesResult {
 }
 
 export type SourceStrategyType      = NpjSourceType
-export type DestinationStrategyType = 'app_tag'   | 'app_instance'
-// V1 supports app_tag and app_instance. Future: add 'app_category' | 'url_list'.
+export type DestinationStrategyType = 'app_category' | 'app_instance' | 'destination_profile' | 'cloud_app'
 
 export interface CategoryStrategyOverride {
   source_type:       SourceStrategyType
