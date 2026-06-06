@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useMemo, memo } from 'react'
+import { useState, useMemo, useEffect, useRef, memo } from 'react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { AlertTriangle, CheckCircle2, Info, ChevronDown, ChevronRight, ExternalLink, User, ArrowDownToLine, Wrench, FileText, ToggleRight, GripVertical } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Info, ChevronDown, ChevronRight, ExternalLink, User, ArrowDownToLine, Wrench, FileText, ToggleRight, GripVertical, Download, FileJson, Loader2 } from 'lucide-react'
+import { dlBlob, dlText, isoDate } from './export-utils'
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -813,6 +814,10 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
   )
   const [strategyOverrides, setStrategyOverrides] = useState<StrategyOverrides>({})
   const [strategyPanelOpen, setStrategyPanelOpen] = useState(false)
+  const [exportOpen,  setExportOpen]  = useState(false)
+  const [exporting,   setExporting]   = useState<'pdf' | null>(null)
+  const [exportError, setExportError] = useState<string | null>(null)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
 
   // generateTopologyOptions always returns [hybrid, consolidated, per_risk_family] — never empty
   const activeOption = (
@@ -865,6 +870,20 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
     if (oldIdx === -1 || newIdx === -1) return
     setOrderKeys(arrayMove(currentKeys, oldIdx, newIdx))
   }
+
+  // ── Export ────────────────────────────────────────────────────────────────
+
+  // Close export dropdown on outside click.
+  useEffect(() => {
+    if (!exportOpen) return
+    function handleOutside(e: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setExportOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [exportOpen])
 
   const allIssues = useMemo(
     () => [...r.issues, ...(r.scoped_policies?.issues ?? [])],
@@ -938,6 +957,59 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
     ]
   }, [r.limitations, strategyOverrides])
 
+  // Export handlers declared after combinedRequiredObjects + activeLimitations
+  // so React Compiler can safely memoize those values (lint: no forward-ref closures).
+  function handleExportJson() {
+    setExportError(null)
+    const pkg = {
+      meta: {
+        generated_at: new Date().toISOString(),
+        topology:     selectedMode,
+        confidence:   activeOption.confidence,
+        score:        activeOption.score,
+        is_partial:   r.is_partial,
+      },
+      policies:             patchedPolicies,
+      required_objects:     combinedRequiredObjects,
+      limitations:          activeLimitations,
+      validation_checklist: r.validation_checklist,
+      skipped_policies:     r.skipped_policies,
+    }
+    dlText(JSON.stringify(pkg, null, 2), `netskope-policy-pack-${isoDate()}.json`, 'application/json')
+    setExportOpen(false)
+  }
+
+  async function handleExportPdf() {
+    setExporting('pdf')
+    setExportError(null)
+    setExportOpen(false)
+    try {
+      const [{ pdf }, { RecommendationPdf }] = await Promise.all([
+        import('@react-pdf/renderer'),
+        import('./recommendation-pdf'),
+      ])
+      const blob = await pdf(
+        <RecommendationPdf
+          policies={patchedPolicies}
+          required_objects={combinedRequiredObjects}
+          limitations={activeLimitations}
+          validation_checklist={r.validation_checklist}
+          why_selected={whySelected}
+          topology={selectedMode}
+          confidence={activeOption.confidence}
+          score={activeOption.score}
+          generated_at={new Date().toISOString()}
+        />
+      ).toBlob()
+      dlBlob(blob, `netskope-policy-pack-${isoDate()}.pdf`)
+    } catch (err) {
+      console.error('PDF export failed', err)
+      setExportError('PDF export failed. Try JSON.')
+    } finally {
+      setExporting(null)
+    }
+  }
+
   return (
     <div className="space-y-6">
 
@@ -969,6 +1041,49 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
           <span className={cn('inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-medium capitalize', CONFIDENCE_CHIP[activeOption.confidence])}>
             {activeOption.confidence} confidence
           </span>
+
+          {/* Export button + dropdown */}
+          <div ref={exportMenuRef} className="relative">
+            <button
+              type="button"
+              disabled={exporting === 'pdf'}
+              onClick={() => setExportOpen(o => !o)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-medium text-foreground/80 hover:bg-muted/30 transition-colors disabled:opacity-60"
+            >
+              {exporting === 'pdf'
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <Download className="w-3.5 h-3.5" />}
+              {exporting === 'pdf' ? 'Generating…' : 'Export'}
+              {exporting !== 'pdf' && <ChevronDown className="w-3 h-3 text-muted-foreground/50" />}
+            </button>
+
+            {exportOpen && (
+              <div className="absolute right-0 top-full mt-1 z-10 rounded-lg border border-border bg-card shadow-lg py-1 min-w-[160px]">
+                <button
+                  type="button"
+                  onClick={handleExportJson}
+                  className="w-full text-left px-3 py-2 text-xs text-foreground/80 hover:bg-muted/30 transition-colors flex items-center gap-2"
+                >
+                  <FileJson className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+                  Download JSON
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportPdf}
+                  className="w-full text-left px-3 py-2 text-xs text-foreground/80 hover:bg-muted/30 transition-colors flex items-center gap-2"
+                >
+                  <FileText className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+                  Download PDF
+                </button>
+              </div>
+            )}
+
+            {exportError && (
+              <p className="absolute right-0 top-full mt-1 text-[11px] text-red-400 whitespace-nowrap bg-card border border-red-500/20 rounded px-2 py-1">
+                {exportError}
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
