@@ -233,14 +233,43 @@ const NativePolicyCard = memo(function NativePolicyCard({ policy }: { policy: Ne
 
       {/* ── Source ────────────────────────────────────────────────────── */}
       <NtsSection icon={User} label="Source">
+        {/* Source criterion — mirrors Netskope's "[Type] = [Value]  ×" row */}
         <NtsField
-          label="User"
-          value={
-            policy.source.type === 'ad_group'   ? `AD Group: ${policy.source.value}` :
-            policy.source.type === 'user_group'  ? `User Group: ${policy.source.value}` :
-            'All Users'
+          removable
+          label={
+            policy.source.type === 'user_group'          ? 'User Group' :
+            policy.source.type === 'ad_group'            ? 'AD Group' :
+            policy.source.type === 'organizational_unit' ? 'Organizational Unit' :
+            policy.source.type === 'user'                ? 'User' :
+                                                           'User'
           }
+          value={policy.source.type === 'all_users' ? 'All Users' : (policy.source.value ?? '')}
         />
+        {/* ADD CRITERIA — read-only visual reference matching Netskope's button */}
+        <div className="flex items-center gap-0.5 px-1 pt-0.5">
+          <span className="text-xs font-semibold text-primary/50 tracking-wide">ADD CRITERIA</span>
+          <span className="text-[10px] text-primary/50">▾</span>
+        </div>
+        {/* Exclusions — mirrors Netskope's "+ EXCLUSIONS" subsection */}
+        {policy.source.exclusions && policy.source.exclusions.length > 0 && (
+          <div className="mt-1 space-y-1.5 border-t border-border/30 pt-2">
+            <span className="block px-1 text-[10px] font-semibold text-primary/60 tracking-wide uppercase">
+              + Exclusions
+            </span>
+            {policy.source.exclusions.map((ex, i) => (
+              <NtsField
+                key={i}
+                removable
+                label={
+                  ex.type === 'user_group'          ? 'User Group' :
+                  ex.type === 'organizational_unit' ? 'Organizational Unit' :
+                                                      'User'
+                }
+                value={ex.value}
+              />
+            ))}
+          </div>
+        )}
       </NtsSection>
 
       {/* ── Destination ───────────────────────────────────────────────── */}
@@ -1082,6 +1111,8 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
             ['URL Lists',                combinedRequiredObjects.url_lists],
             ['User Groups',              combinedRequiredObjects.user_groups],
             ['AD Groups',                combinedRequiredObjects.ad_groups],
+            ['Users',                    combinedRequiredObjects.users],
+            ['Organizational Units',     combinedRequiredObjects.organizational_units],
             ['Policy Order',             combinedRequiredObjects.policy_order],
           ] as [string, string[]][]).filter(([, items]) => items.length > 0).map(([label, items]) => (
             <div key={label} className="rounded-xl border border-border bg-card overflow-hidden">
