@@ -4,6 +4,7 @@
 
 import { collectRequiredObjects, buildContinuePolicyEvaluation } from './topology'
 import { resolveStrictestAction } from './options'
+import { unionActivities } from './activities'
 import type {
   NetskopePolicy, NetskopeProfileEntry, NpjProfileType,
   RequiredObjects, RecommendationIssue,
@@ -285,9 +286,9 @@ export function buildScopedPolicies(scopedNpjs: ScopedNpjInput[]): ScopedPolicie
       ? `${group.destination.app} — ${group.destination.instance} instance`
       : null
 
-    // Activity scoping from NPJ scope.activities is Phase 4.
-    // Phase 3: standard GenAI activity set applied to all scoped policies.
-    const activities = ['post', 'upload', 'prompt_submit']
+    // Phase 4: derive activities from the union of source_activities across all NPJs in this group.
+    // Falls back to the full realtime activity set for pre-Phase 4 NPJs (source_activities undefined).
+    const activities = unionActivities(group.npjs.map(n => n.source_activities))
 
     const policy: NetskopePolicy = {
       priority:    priority,

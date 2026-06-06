@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useTransition, useOptimistic, useEffect, useRef } from 'react'
+import { useState, useMemo, useTransition, useOptimistic, useEffect, useRef, startTransition } from 'react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { Search, X, Plus, ChevronDown, ChevronRight, Info, AlertTriangle, Wand2, FlaskConical, Check } from 'lucide-react'
@@ -523,7 +523,7 @@ function SubcategoryGroup({
   const [collapsed, setCollapsed] = useState(true)
 
   useEffect(() => {
-    if (forceExpand) setCollapsed(false)
+    if (forceExpand) startTransition(() => setCollapsed(false))
   }, [forceExpand])
 
   const inScopeCount  = items.filter(i => i.is_in_scope).length
@@ -606,7 +606,7 @@ function ClassificationSection({
   const [collapsed, setCollapsed] = useState(true)
 
   useEffect(() => {
-    if (forceExpand) setCollapsed(false)
+    if (forceExpand) startTransition(() => setCollapsed(false))
   }, [forceExpand])
 
   const meta       = SYSTEM_LEVEL_META[level]
@@ -928,7 +928,7 @@ function RiskFamilySection({
   const [collapsed, setCollapsed] = useState(true)
 
   useEffect(() => {
-    if (forceExpand) setCollapsed(false)
+    if (forceExpand) startTransition(() => setCollapsed(false))
   }, [forceExpand])
 
   const cc      = colorClasses(rf.color)
@@ -1037,15 +1037,13 @@ export function CatalogClient({
   useEffect(() => {
     if (initialRfFilter) return  // URL param takes priority over localStorage
     const saved = localStorage.getItem('dataCatalogViewMode')
-    if (saved === 'risk_family' || saved === 'classification') setViewMode(saved)
+    if (saved === 'risk_family' || saved === 'classification') startTransition(() => setViewMode(saved))
   }, [])
 
   useEffect(() => {
     if (initialRfFilter) return  // don't overwrite user's saved view preference on deep links
     localStorage.setItem('dataCatalogViewMode', viewMode)
   }, [viewMode])
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_isPending,        startTransition]      = useTransition()
 
   type OptimisticAction =
     | { type: 'toggle';   catalogId: string;    inScope: boolean }

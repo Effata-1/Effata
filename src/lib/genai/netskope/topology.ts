@@ -8,6 +8,7 @@ import type {
 } from './types'
 import type { NpjInput } from './transpose'
 import { VALIDATION_CHECKLIST } from './limitations'
+import { unionActivities } from './activities'
 
 // ── Policy priority ordering ──────────────────────────────────────────────────
 // Lower number = higher priority in Netskope (processed first).
@@ -204,7 +205,8 @@ export function buildTopology(input: BuildTopologyInput): Omit<NetskopeRecommend
         note:            'Applies to all GenAI apps regardless of governance category',
       },
       source:          { type: 'all_users', value: null },
-      activities:      ['post', 'upload', 'prompt_submit'],
+      // Phase 4: derive from union of source NPJ activities; falls back to full set for pre-Phase 4 NPJs.
+      activities:      unionActivities(alwaysBlockNpjs.map(n => n.source_activities)),
       profiles:        alwaysBlockProfiles,
       no_match_action: null,
       // Policy 200: block only when Credentials profile matches.
@@ -256,9 +258,9 @@ export function buildTopology(input: BuildTopologyInput): Omit<NetskopeRecommend
           : null,
       },
       source:          { type: 'all_users', value: null },
-      // TODO Phase 3: derive from union of NPJ scope.activities across bucket profiles.
-      // Phase 1: standard GenAI activity set applied to all category policies.
-      activities:      ['post', 'upload', 'prompt_submit'],
+      // Phase 4: union of scope.activities across all profiles in this category bucket.
+      // Falls back to the full realtime activity set for pre-Phase 4 NPJs (source_activities undefined).
+      activities:      unionActivities(profilesForCat.map(p => p.source_activities)),
       profiles,
       no_match_action: NO_MATCH_ACTION[cat],
       continue_policy_evaluation: buildContinuePolicyEvaluation(profiles),
@@ -318,7 +320,8 @@ export function buildTopology(input: BuildTopologyInput): Omit<NetskopeRecommend
         note:            'Custom CCI app tag — verify this tag exists in your Netskope tenant',
       },
       source:          { type: 'all_users', value: null },
-      activities:      ['post', 'upload', 'prompt_submit'],
+      // Phase 4: union of scope.activities across all profiles in this custom category bucket.
+      activities:      unionActivities(profilesForCat.map(p => p.source_activities)),
       profiles,
       no_match_action: null,
       continue_policy_evaluation: {

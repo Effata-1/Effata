@@ -27,13 +27,15 @@ const ALWAYS_BLOCK_PROFILE_KEYS = new Set([
 ])
 
 export interface NpjInput {
-  policy_id:           string
-  policy_name:         string
-  policy_family:       string
-  risk_family_key:     string
-  risk_family_label:   string
-  actions_by_category: Record<string, string>
+  policy_id:             string
+  policy_name:           string
+  policy_family:         string
+  risk_family_key:       string
+  risk_family_label:     string
+  actions_by_category:   Record<string, string>
   coaching_by_category?: Record<string, string | null>
+  /** Phase 4: activities from the source NPJ's scope.activities. Undefined for pre-Phase 4 NPJs. */
+  source_activities?:    string[]
 }
 
 // Returns NPJs that qualify for the global always-block policy:
@@ -94,6 +96,8 @@ export function transposeNpjs(
         profile_type:         profileType,
         action,
         coaching_template_id: npj.coaching_by_category?.[cat] ?? null,
+        // Phase 4: carry source activities from the NPJ through to the topology builders.
+        ...(npj.source_activities !== undefined && { source_activities: npj.source_activities }),
       }
       buckets[cat].push(profile)
     }

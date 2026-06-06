@@ -13,6 +13,7 @@ import type {
   TopologyMode, TopologyOptionSummary, RequiredObjects, RecommendationIssue,
 } from './types'
 import type { TransposedProfile } from './types'
+import { unionActivities, NETSKOPE_REALTIME_ACTIVITIES } from './activities'
 
 // ── Action priority — block is strictest ─────────────────────────────────────
 
@@ -51,6 +52,12 @@ interface DeduplicatedProfile {
   actions:            string[]
   // coaching keyed by action so we can pick the template for the resolved strictest action
   coachingByAction:   Record<string, string | null>
+  /**
+   * Phase 4: union of source_activities across all TransposedProfiles for this dedup key.
+   * `undefined` means at least one contributing profile had no activity info (pre-Phase 4 NPJ).
+   * `unionActivities` treats undefined as "unknown" and returns the full fallback — never narrow.
+   */
+  source_activities:  string[] | undefined
 }
 
 function collectDedupedProfiles(
@@ -68,6 +75,17 @@ function collectDedupedProfiles(
         if (p.coaching_template_id && !existing.coachingByAction[p.action]) {
           existing.coachingByAction[p.action] = p.coaching_template_id
         }
+        // Phase 4: union source_activities — but preserve undefined as the "unknown" sentinel.
+        // If either side is undefined (pre-Phase 4 NPJ with unknown coverage), the result stays
+        // undefined so unionActivities will apply the conservative full-fallback rule later.
+        if (existing.source_activities !== undefined && p.source_activities !== undefined) {
+          // Both sides have explicit activities — safe to merge.
+          const merged = new Set([...existing.source_activities, ...p.source_activities])
+          existing.source_activities = [...merged]
+        } else {
+          // At least one side is unknown → mark the whole dedup entry as unknown.
+          existing.source_activities = undefined
+        }
       } else {
         map.set(key, {
           dedup_key:         key,
@@ -76,6 +94,8 @@ function collectDedupedProfiles(
           profile_type:      p.profile_type,
           actions:           [p.action],
           coachingByAction:  p.coaching_template_id ? { [p.action]: p.coaching_template_id } : {},
+          // Keep undefined as-is — do NOT coerce to []. undefined signals "unknown activities".
+          source_activities: p.source_activities,
         })
       }
     }
@@ -143,7 +163,8 @@ function buildConsolidatedTopology(
       note:            'Covers all GenAI categories — strictest action per risk family applied globally',
     },
     source:          { type: 'all_users', value: null },
-    activities:      ['post', 'upload', 'prompt_submit'],
+    // Phase 4: union of source_activities across all deduped profiles for the consolidated policy.
+    activities:      unionActivities(deduped.map(d => d.source_activities)),
     profiles,
     no_match_action: 'alert',
     continue_policy_evaluation: null,
@@ -191,7 +212,8 @@ function buildPerRiskFamilyTopology(
         note:            null,
       },
       source:          { type: 'all_users', value: null },
-      activities:      ['post', 'upload', 'prompt_submit'],
+      // Phase 4: derive from this profile's own source_activities union.
+      activities:      unionActivities([d.source_activities]),
       profiles:        [profile],
       no_match_action: null,
       continue_policy_evaluation: {
@@ -203,7 +225,9 @@ function buildPerRiskFamilyTopology(
     }
   })
 
-  // P900 fallback — pure visibility catch-all after all per-family policies
+  // P900 fallback — pure visibility catch-all after all per-family policies.
+  // Intentionally uses the full realtime activity set (not a union) because this
+  // policy must catch any GenAI traffic not matched by a risk-family policy above.
   const fallback: NetskopePolicy = {
     priority:    900,
     policy_key:  'netskope:per_rf_fallback',
@@ -215,7 +239,7 @@ function buildPerRiskFamilyTopology(
       note:            'Catch-all — alerts on any GenAI traffic not matched by a risk-family policy above',
     },
     source:          { type: 'all_users', value: null },
-    activities:      ['post', 'upload', 'prompt_submit'],
+    activities:      [...NETSKOPE_REALTIME_ACTIVITIES],
     profiles:        [],
     no_match_action: 'alert',
     continue_policy_evaluation: null,

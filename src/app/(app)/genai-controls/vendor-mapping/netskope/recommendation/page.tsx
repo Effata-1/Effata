@@ -151,6 +151,12 @@ export default async function NetskopeRecommendationPage() {
         )
       : undefined
 
+    // Phase 4: extract scope.activities from the NPJ to carry through the recommendation engine.
+    const npjScope = npj.scope as Record<string, unknown> | undefined
+    const sourceActivities = Array.isArray(npjScope?.activities)
+      ? (npjScope!.activities as string[])
+      : undefined
+
     // ── Phase 3: Classify scoped vs default before pushing to category buckets ──
     if (isScopedNpj(npj)) {
       const resolved = resolveNpjScope(npj)
@@ -166,6 +172,7 @@ export default async function NetskopeRecommendationPage() {
           source:                 resolved.source,
           destination:            resolved.destination,
           destination_defaulted:  resolved.destinationDefaulted,
+          source_activities:      sourceActivities,
         })
         continue  // exclude from category buckets
       }
@@ -173,13 +180,14 @@ export default async function NetskopeRecommendationPage() {
     }
 
     validNpjs.push({
-      policy_id:           p.id,
-      policy_name:         p.name,
-      policy_family:       p.policy_family ?? '',
-      risk_family_key:     rfKey,
-      risk_family_label:   rfLabel,
-      actions_by_category: abc,
+      policy_id:            p.id,
+      policy_name:          p.name,
+      policy_family:        p.policy_family ?? '',
+      risk_family_key:      rfKey,
+      risk_family_label:    rfLabel,
+      actions_by_category:  abc,
       coaching_by_category: resolvedCoaching,
+      source_activities:    sourceActivities,
     })
   }
 

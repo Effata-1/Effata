@@ -21,6 +21,8 @@ export interface TransposedProfile {
   profile_type:         NpjProfileType
   action:               string
   coaching_template_id: string | null
+  /** Phase 4: activities from the source NPJ's scope.activities. Undefined for pre-Phase 4 NPJs. */
+  source_activities?:   string[]
 }
 
 // The 3 standard keys are always present; additional keys are custom categories.
@@ -127,6 +129,8 @@ export interface ScopedNpjInput {
   source:                 NpjScopeSource
   destination:            NpjScopeDestination
   destination_defaulted?: boolean
+  /** Phase 4: activities from the source NPJ's scope.activities. Undefined for pre-Phase 4 NPJs. */
+  source_activities?:     string[]
 }
 
 export interface ScopedPoliciesResult {

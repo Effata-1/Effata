@@ -1,7 +1,12 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import { isScopedNpj, resolveNpjScope, buildScopedPolicies } from './scoped'
+import { unionActivities, NETSKOPE_REALTIME_ACTIVITIES } from './activities'
+import { buildTopology } from './topology'
+import { generateTopologyOptions } from './options'
+import { transposeNpjs, extractAlwaysBlockProfiles } from './transpose'
 import type { ScopedNpjInput } from './types'
+import type { NpjInput } from './transpose'
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -379,5 +384,278 @@ describe('buildScopedPolicies', () => {
     const result = buildScopedPolicies([makeScopedNpj()])
     assert.ok(result.required_objects.policy_order.length > 0)
     assert.ok(result.required_objects.policy_order.includes(result.policies[0].name))
+  })
+})
+
+// ── Phase 4: unionActivities helper ──────────────────────────────────────────
+
+describe('unionActivities', () => {
+
+  test('returns full fallback for empty input', () => {
+    assert.deepEqual(unionActivities([]), [...NETSKOPE_REALTIME_ACTIVITIES])
+  })
+
+  test('returns full fallback for all-undefined input', () => {
+    assert.deepEqual(unionActivities([undefined, undefined]), [...NETSKOPE_REALTIME_ACTIVITIES])
+  })
+
+  test('returns full fallback for empty arrays', () => {
+    assert.deepEqual(unionActivities([[], []]), [...NETSKOPE_REALTIME_ACTIVITIES])
+  })
+
+  test('filters non-realtime activities (browse, login, response)', () => {
+    // browse/login are access-control only; response is output inspection (not yet modelled)
+    const result = unionActivities([['browse', 'login', 'response']])
+    assert.deepEqual(result, [...NETSKOPE_REALTIME_ACTIVITIES])  // all filtered → fallback
+  })
+
+  test('mixed undefined + defined falls back to full set (the key edge case)', () => {
+    // One pre-Phase 4 NPJ (undefined) co-grouped with a Phase 4 NPJ (['upload']).
+    // Cannot narrow — undefined means "unknown coverage" — must return full set.
+    assert.deepEqual(
+      unionActivities([undefined, ['upload']]),
+      [...NETSKOPE_REALTIME_ACTIVITIES],
+    )
+  })
+
+  test('mixed empty array + defined also falls back to full set', () => {
+    assert.deepEqual(
+      unionActivities([[], ['upload']]),
+      [...NETSKOPE_REALTIME_ACTIVITIES],
+    )
+  })
+
+  test('upload-only NPJ produces [upload] only', () => {
+    const result = unionActivities([['upload']])
+    assert.deepEqual(result, ['upload'])
+  })
+
+  test('content detection NPJ produces all three activities', () => {
+    const result = unionActivities([['prompt_submit', 'upload', 'post']])
+    // canonical order: post, upload, prompt_submit
+    assert.deepEqual(result, ['post', 'upload', 'prompt_submit'])
+  })
+
+  test('canonical order preserved regardless of input order', () => {
+    const result = unionActivities([['prompt_submit', 'post', 'upload']])
+    assert.deepEqual(result, ['post', 'upload', 'prompt_submit'])
+  })
+
+  test('union of upload-only + prompt_submit-only = [upload, prompt_submit]', () => {
+    const result = unionActivities([['upload'], ['prompt_submit']])
+    assert.deepEqual(result, ['upload', 'prompt_submit'])
+  })
+
+  test('union of filename (upload) + content detection (all 3) = all 3', () => {
+    const result = unionActivities([['upload'], ['post', 'upload', 'prompt_submit']])
+    assert.deepEqual(result, ['post', 'upload', 'prompt_submit'])
+  })
+
+  test('deduplicates repeated entries across lists', () => {
+    const result = unionActivities([['upload', 'post'], ['upload', 'post']])
+    assert.deepEqual(result, ['post', 'upload'])
+  })
+})
+
+// ── Phase 4: activity scoping in buildScopedPolicies ─────────────────────────
+
+describe('buildScopedPolicies — Phase 4 activity scoping', () => {
+
+  test('upload-only NPJ produces policy with activities = [upload]', () => {
+    const npj = makeScopedNpj({ source_activities: ['upload'] })
+    const result = buildScopedPolicies([npj])
+    assert.deepEqual(result.policies[0].activities, ['upload'])
+  })
+
+  test('content detection NPJ (all 3 activities) produces full activity set in canonical order', () => {
+    const npj = makeScopedNpj({ source_activities: ['prompt_submit', 'upload', 'post'] })
+    const result = buildScopedPolicies([npj])
+    assert.deepEqual(result.policies[0].activities, ['post', 'upload', 'prompt_submit'])
+  })
+
+  test('no source_activities falls back to full realtime set (backward compat)', () => {
+    const npj = makeScopedNpj()  // no source_activities — pre-Phase 4 NPJ
+    const result = buildScopedPolicies([npj])
+    assert.deepEqual(result.policies[0].activities, [...NETSKOPE_REALTIME_ACTIVITIES])
+  })
+
+  test('two grouped NPJs with different activities produce union', () => {
+    // filename NPJ (upload only) + content detection NPJ (all 3) grouped together
+    const npj1 = makeScopedNpj({
+      policy_id:         'pol-1',
+      policy_family:     'genai_filename',
+      risk_family_key:   'data_with_filename_pattern',
+      risk_family_label: 'File by Name',
+      source_activities: ['upload'],
+    })
+    const npj2 = makeScopedNpj({
+      policy_id:         'pol-2',
+      policy_family:     'genai_content_detection',
+      risk_family_key:   'regulated_data',
+      risk_family_label: 'Regulated Data',
+      source_activities: ['post', 'upload', 'prompt_submit'],
+    })
+    const result = buildScopedPolicies([npj1, npj2])
+    assert.equal(result.policies.length, 1, 'Same source+dest → grouped into 1 policy')
+    assert.deepEqual(result.policies[0].activities, ['post', 'upload', 'prompt_submit'])
+  })
+
+  test('two grouped NPJs both upload-only stay upload-only after union', () => {
+    const npj1 = makeScopedNpj({ policy_id: 'pol-1', source_activities: ['upload'] })
+    const npj2 = makeScopedNpj({ policy_id: 'pol-2', risk_family_key: 'credentials_keys_secrets', risk_family_label: 'Credentials', source_activities: ['upload'] })
+    const result = buildScopedPolicies([npj1, npj2])
+    assert.equal(result.policies.length, 1)
+    assert.deepEqual(result.policies[0].activities, ['upload'])
+  })
+
+  test('non-realtime activities in source_activities are filtered out', () => {
+    const npj = makeScopedNpj({ source_activities: ['browse', 'login', 'upload'] })
+    const result = buildScopedPolicies([npj])
+    // browse/login filtered; only upload survives
+    assert.deepEqual(result.policies[0].activities, ['upload'])
+  })
+
+  test('grouped pre-Phase 4 NPJ (undefined) + Phase 4 NPJ falls back to full set', () => {
+    // The exact backward-compat edge case: one NPJ has no source_activities (pre-Phase 4),
+    // the other has ['upload']. The unknown NPJ's coverage must not be silently dropped.
+    const prePhase4 = makeScopedNpj({
+      policy_id:         'pol-old',
+      risk_family_key:   'regulated_data',
+      risk_family_label: 'Regulated Data',
+      // no source_activities — pre-Phase 4 NPJ
+    })
+    const phase4 = makeScopedNpj({
+      policy_id:         'pol-new',
+      risk_family_key:   'credentials_keys_secrets',
+      risk_family_label: 'Credentials',
+      source_activities: ['upload'],
+    })
+    const result = buildScopedPolicies([prePhase4, phase4])
+    assert.equal(result.policies.length, 1, 'Same source+dest → grouped')
+    assert.deepEqual(result.policies[0].activities, [...NETSKOPE_REALTIME_ACTIVITIES])
+  })
+})
+
+// ── Phase 4: activity scoping in generateTopologyOptions ─────────────────────
+// Covers the collectDedupedProfiles() merge path (consolidated + per-risk-family).
+
+function makeNpjInput(overrides: Partial<NpjInput> & { source_activities?: string[] } = {}): NpjInput {
+  return {
+    policy_id:           overrides.policy_id           ?? 'pol-1',
+    policy_name:         overrides.policy_name         ?? 'Test Policy',
+    policy_family:       overrides.policy_family       ?? 'genai_content_detection',
+    risk_family_key:     overrides.risk_family_key     ?? 'regulated_data',
+    risk_family_label:   overrides.risk_family_label   ?? 'Regulated Data',
+    actions_by_category: overrides.actions_by_category ?? {
+      approved_supported:       'block',
+      approved_with_conditions: 'alert',
+      restricted_unassessed:    'alert',
+    },
+    coaching_by_category: overrides.coaching_by_category,
+    source_activities:   overrides.source_activities,
+  }
+}
+
+describe('generateTopologyOptions — Phase 4 activity scoping', () => {
+
+  // Helper: build the full input pipeline (transpose + topology) from a list of NpjInputs.
+  function buildOptionsInput(npjs: NpjInput[]) {
+    const alwaysBlockNpjs = extractAlwaysBlockProfiles(npjs)
+    const alwaysBlockKeys = new Set(alwaysBlockNpjs.map(n => n.risk_family_key))
+    const buckets = transposeNpjs(npjs, alwaysBlockKeys)
+    const topologyInput = { buckets, alwaysBlockNpjs, prohibitedCategory: null, skippedCount: 0 }
+    const hybridResult = buildTopology(topologyInput)
+    return { topologyInput, hybridResult }
+  }
+
+  test('per-risk-family: upload-only NPJ produces [upload] in its RF policy', () => {
+    const { topologyInput, hybridResult } = buildOptionsInput([
+      makeNpjInput({ source_activities: ['upload'] }),
+    ])
+    const options = generateTopologyOptions(topologyInput, hybridResult)
+    const perRf = options.find(o => o.mode === 'per_risk_family')!
+    const rfPolicy = perRf.policies.find(p => p.policy_key.includes('regulated_data'))
+    assert.ok(rfPolicy, 'RF policy should exist')
+    assert.deepEqual(rfPolicy!.activities, ['upload'])
+  })
+
+  test('consolidated: upload-only NPJ produces [upload] in the consolidated policy', () => {
+    const { topologyInput, hybridResult } = buildOptionsInput([
+      makeNpjInput({ source_activities: ['upload'] }),
+    ])
+    const options = generateTopologyOptions(topologyInput, hybridResult)
+    const consolidated = options.find(o => o.mode === 'consolidated')!
+    const consPolicy = consolidated.policies.find(p => p.policy_key === 'netskope:consolidated_all_categories')
+    assert.ok(consPolicy)
+    assert.deepEqual(consPolicy!.activities, ['upload'])
+  })
+
+  test('per-risk-family: legacy (undefined) + upload-only same RF → conservative full fallback', () => {
+    // The exact case reported: same RF key, one legacy profile (undefined activities)
+    // + one upload-only profile. collectDedupedProfiles must not narrow to ['upload'].
+    const legacyNpj = makeNpjInput({
+      policy_id:           'pol-legacy',
+      risk_family_key:     'regulated_data',
+      // no source_activities — simulates a pre-Phase 4 NPJ (TransposedProfile.source_activities = undefined)
+    })
+    const uploadOnlyNpj = makeNpjInput({
+      policy_id:           'pol-upload',
+      risk_family_key:     'regulated_data',
+      source_activities:   ['upload'],
+      // different category so both end up in the same dedup key but from different buckets
+      actions_by_category: { approved_supported: 'alert', approved_with_conditions: 'block', restricted_unassessed: 'block' },
+    })
+    const { topologyInput, hybridResult } = buildOptionsInput([legacyNpj, uploadOnlyNpj])
+    const options = generateTopologyOptions(topologyInput, hybridResult)
+    const perRf = options.find(o => o.mode === 'per_risk_family')!
+    const rfPolicy = perRf.policies.find(p => p.policy_key.includes('regulated_data'))
+    assert.ok(rfPolicy, 'RF policy for regulated_data should exist')
+    assert.deepEqual(rfPolicy!.activities, [...NETSKOPE_REALTIME_ACTIVITIES],
+      'Mixed legacy+upload profile must fall back to full activity set')
+  })
+
+  test('consolidated: legacy + upload-only same RF → conservative full fallback', () => {
+    const legacyNpj = makeNpjInput({ policy_id: 'pol-legacy', risk_family_key: 'regulated_data' })
+    const uploadOnlyNpj = makeNpjInput({
+      policy_id:           'pol-upload',
+      risk_family_key:     'regulated_data',
+      source_activities:   ['upload'],
+      actions_by_category: { approved_supported: 'alert', approved_with_conditions: 'block', restricted_unassessed: 'block' },
+    })
+    const { topologyInput, hybridResult } = buildOptionsInput([legacyNpj, uploadOnlyNpj])
+    const options = generateTopologyOptions(topologyInput, hybridResult)
+    const consolidated = options.find(o => o.mode === 'consolidated')!
+    const consPolicy = consolidated.policies.find(p => p.policy_key === 'netskope:consolidated_all_categories')
+    assert.ok(consPolicy)
+    assert.deepEqual(consPolicy!.activities, [...NETSKOPE_REALTIME_ACTIVITIES],
+      'Mixed legacy+upload dedup must fall back to full activity set in consolidated topology')
+  })
+
+  test('per-risk-family: two upload-only profiles for same RF stay [upload]', () => {
+    // Both Phase 4 with same scoped activity → safe to narrow
+    const npj1 = makeNpjInput({ policy_id: 'pol-1', source_activities: ['upload'] })
+    const npj2 = makeNpjInput({
+      policy_id:           'pol-2',
+      source_activities:   ['upload'],
+      actions_by_category: { approved_supported: 'alert', approved_with_conditions: 'block', restricted_unassessed: 'block' },
+    })
+    const { topologyInput, hybridResult } = buildOptionsInput([npj1, npj2])
+    const options = generateTopologyOptions(topologyInput, hybridResult)
+    const perRf = options.find(o => o.mode === 'per_risk_family')!
+    const rfPolicy = perRf.policies.find(p => p.policy_key.includes('regulated_data'))
+    assert.ok(rfPolicy)
+    assert.deepEqual(rfPolicy!.activities, ['upload'], 'Both upload-only → stays narrowed')
+  })
+
+  test('per-risk-family fallback policy always has full activity set', () => {
+    const { topologyInput, hybridResult } = buildOptionsInput([
+      makeNpjInput({ source_activities: ['upload'] }),
+    ])
+    const options = generateTopologyOptions(topologyInput, hybridResult)
+    const perRf = options.find(o => o.mode === 'per_risk_family')!
+    const fallback = perRf.policies.find(p => p.policy_key === 'netskope:per_rf_fallback')
+    assert.ok(fallback, 'Fallback policy should exist')
+    assert.deepEqual(fallback!.activities, [...NETSKOPE_REALTIME_ACTIVITIES],
+      'P900 catch-all must always cover all realtime activities')
   })
 })
