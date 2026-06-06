@@ -151,9 +151,9 @@ export function resolveNpjScope(rawNpj: Record<string, unknown>): ResolvedScope 
     // url_list is a legacy alias → normalise to destination_profile
     destination = { type: 'destination_profile', value: destValue }
   } else if (rawDestType === 'app_tag' && destValue) {
-    // Legacy app_tag alias: the tag name was the value → carry it as cci_app_tag
-    // (in Netskope's real UI, CCI App Tag is a constraint on Category, not a destination type)
-    destination = { type: 'app_category', value: destValue, cci_app_tag: destValue }
+    // Legacy app_tag alias: the tag name was the value → carry it as cci_app_tag.
+    // Primary category is always 'Generative AI'; the old tag value narrows it as a CCI App Tag constraint.
+    destination = { type: 'app_category', value: 'Generative AI', cci_app_tag: destValue }
   } else {
     // No explicit scoped destination (includes plain app_category = default, omitted, or unrecognised).
     const instances = s.app_instances

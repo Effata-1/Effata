@@ -246,7 +246,9 @@ export default async function NetskopeRecommendationPage() {
       const activities = (scope.activities as string[] | undefined) ?? ['prompt_submit', 'upload']
       const action     = (decision.mode as string | undefined) ?? 'alert'
       const firstUser  = users.find(u => u !== 'All Users')
-      const destName   = (appCats[0]?.name as string | undefined) ?? 'All GenAI apps'
+      // Governance category name (e.g. "Approved & Supported") is a CCI App Tag in Netskope,
+      // NOT the primary Category destination. Primary is always "Generative AI".
+      const destCciTag = appCats[0]?.name as string | undefined
 
       const profiles: NetskopeProfileEntry[] = conds.length > 0
         ? conds.map(cond => {
@@ -268,7 +270,12 @@ export default async function NetskopeRecommendationPage() {
         policy_key:  `manual:${p.id}`,
         name:        p.name,
         policy_type: 'realtime_protection' as const,
-        destination: { strategy: 'app_category', tag_or_category: destName, note: null },
+        destination: {
+          strategy:        'app_category',
+          tag_or_category: 'Generative AI',
+          ...(destCciTag ? { cci_app_tag: destCciTag } : {}),
+          note:            null,
+        },
         source:      firstUser
           ? { type: 'user_group' as const, value: firstUser }
           : { type: 'all_users' as const, value: null },

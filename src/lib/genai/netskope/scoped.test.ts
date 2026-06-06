@@ -156,14 +156,15 @@ describe('resolveNpjScope', () => {
   })
 
   test('legacy app_tag resolves as app_category with cci_app_tag (alias)', () => {
+    // app_tag value becomes cci_app_tag; primary category is always 'Generative AI'
     const result = resolveNpjScope(makeNpj({
       users:       ['Engineering'],
       destination: { type: 'app_tag', value: 'My Custom Tag' },
     }))
     assert.ok(result)
     assert.equal(result.destination.type, 'app_category')
-    assert.equal(result.destination.value, 'My Custom Tag')
-    assert.equal(result.destination.cci_app_tag, 'My Custom Tag')
+    assert.equal(result.destination.value, 'Generative AI')      // primary category, not the tag name
+    assert.equal(result.destination.cci_app_tag, 'My Custom Tag') // tag name → constraint
     assert.equal(result.destinationDefaulted, false)
   })
 
