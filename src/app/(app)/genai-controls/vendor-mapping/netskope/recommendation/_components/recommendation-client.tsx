@@ -699,6 +699,8 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
       url_lists:                     [...scoped.url_lists],
       user_groups:                   [...scoped.user_groups],
       ad_groups:                     [...new Set([...scoped.ad_groups, ...adGroupsFromOverrides])],
+      users:                         [...scoped.users],
+      organizational_units:          [...scoped.organizational_units],
       policy_order:                  [...(r.scoped_policies?.policies.map(p => p.name) ?? []), ...base.policy_order],
     }
   }, [activeOption.required_objects, r.scoped_policies, strategyOverrides])

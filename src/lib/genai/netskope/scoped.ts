@@ -10,6 +10,7 @@ import type {
   RequiredObjects, RecommendationIssue,
   ScopedNpjInput, ScopedPoliciesResult,
   NpjScopeSource, NpjScopeDestination,
+  NpjScopeExclusion, NpjScopeExclusionType, NpjSourceType,
 } from './types'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -33,6 +34,8 @@ interface RawScope {
   groups?:         unknown
   activities?:     unknown
   app_instances?:  unknown
+  /** Phase 4.5: source identity exclusions — array of { type, value } entries. */
+  exclusions?:     unknown
   source?: {
     type?:  unknown
     value?: unknown
@@ -49,9 +52,14 @@ function getRawScope(rawNpj: Record<string, unknown>): RawScope {
   return (rawNpj.scope ?? {}) as RawScope
 }
 
+// Phase 4.5: all source types that trigger scoped policy detection.
+const SCOPED_SOURCE_TYPES = new Set<string>([
+  'ad_group', 'user_group', 'user', 'organizational_unit',
+])
+
 function isScoped(s: RawScope): boolean {
   const srcType = s.source?.type
-  if (srcType === 'ad_group' || srcType === 'user_group') return true
+  if (typeof srcType === 'string' && SCOPED_SOURCE_TYPES.has(srcType)) return true
 
   const users = s.users
   if (Array.isArray(users) && users.length > 0 && users[0] !== 'All Users') return true
@@ -75,7 +83,14 @@ interface ResolvedScope {
   source:               NpjScopeSource
   destination:          NpjScopeDestination
   destinationDefaulted: boolean
+  exclusions:           NpjScopeExclusion[]
 }
+
+// Allowed types in Netskope's Source Exclusion panel (User / User Group / OU).
+// ad_group excluded until verified.
+const VALID_EXCLUSION_TYPES = new Set<NpjScopeExclusionType>([
+  'user', 'user_group', 'organizational_unit',
+])
 
 export function resolveNpjScope(rawNpj: Record<string, unknown>): ResolvedScope | null {
   const s = getRawScope(rawNpj)
@@ -86,8 +101,8 @@ export function resolveNpjScope(rawNpj: Record<string, unknown>): ResolvedScope 
   const srcType = s.source?.type
   const srcValue = typeof s.source?.value === 'string' ? s.source.value : null
 
-  if (srcType === 'ad_group' || srcType === 'user_group') {
-    source = { type: srcType as 'ad_group' | 'user_group', value: srcValue }
+  if (typeof srcType === 'string' && SCOPED_SOURCE_TYPES.has(srcType)) {
+    source = { type: srcType as NpjSourceType, value: srcValue }
   } else {
     const users = s.users
     if (Array.isArray(users) && users.length > 0 && users[0] !== 'All Users') {
@@ -96,6 +111,26 @@ export function resolveNpjScope(rawNpj: Record<string, unknown>): ResolvedScope 
       source = { type: 'all_users', value: null }
     }
   }
+
+  // ── Source exclusions (Phase 4.5) ──
+  // Validates: must be an object with a string type in VALID_EXCLUSION_TYPES and a non-empty string value.
+  const exclusions: NpjScopeExclusion[] = Array.isArray(s.exclusions)
+    ? (s.exclusions as unknown[]).reduce<NpjScopeExclusion[]>((acc, e) => {
+        if (e === null || typeof e !== 'object') return acc
+        const entry = e as Record<string, unknown>
+        const t = entry.type
+        const v = entry.value
+        if (
+          typeof t === 'string' &&
+          typeof v === 'string' &&
+          v.trim().length > 0 &&
+          VALID_EXCLUSION_TYPES.has(t as NpjScopeExclusionType)
+        ) {
+          acc.push({ type: t as NpjScopeExclusionType, value: v.trim() })
+        }
+        return acc
+      }, [])
+    : []
 
   // ── Destination ──
   const destType = s.destination?.type
@@ -124,7 +159,7 @@ export function resolveNpjScope(rawNpj: Record<string, unknown>): ResolvedScope 
     }
   }
 
-  return { source, destination, destinationDefaulted }
+  return { source, destination, destinationDefaulted, exclusions }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -149,10 +184,11 @@ const DEST_SORT_ORDER: Record<string, number> = {
 // ── Scoped policy builder ─────────────────────────────────────────────────────
 
 interface PolicyGroup {
-  key:         string
-  source:      NpjScopeSource
-  destination: NpjScopeDestination
-  npjs:        ScopedNpjInput[]
+  key:              string
+  source:           NpjScopeSource
+  source_exclusions: NpjScopeExclusion[]
+  destination:      NpjScopeDestination
+  npjs:             ScopedNpjInput[]
   anyDefaultedDestination: boolean
 }
 
@@ -166,10 +202,16 @@ export function buildScopedPolicies(scopedNpjs: ScopedNpjInput[]): ScopedPolicie
     }
   }
 
-  // ── Group by (source, destination) ──
+  // ── Group by (source, exclusions, destination) ──
+  // Exclusions are included in the key so two NPJs with same source+dest but
+  // different exclusions produce separate Netskope policies (different source selectors).
   const groupMap = new Map<string, PolicyGroup>()
   for (const npj of scopedNpjs) {
-    const key = `${npj.source.type}:${npj.source.value ?? ''}:${npj.destination.type}:${npj.destination.value}`
+    const excKey = (npj.source_exclusions ?? [])
+      .map(e => `${e.type}:${e.value}`)
+      .sort()
+      .join('|')
+    const key = `${npj.source.type}:${npj.source.value ?? ''}:${npj.destination.type}:${npj.destination.value}:${excKey}`
     const existing = groupMap.get(key)
     if (existing) {
       existing.npjs.push(npj)
@@ -177,9 +219,10 @@ export function buildScopedPolicies(scopedNpjs: ScopedNpjInput[]): ScopedPolicie
     } else {
       groupMap.set(key, {
         key,
-        source:      npj.source,
-        destination: npj.destination,
-        npjs:        [npj],
+        source:            npj.source,
+        source_exclusions: npj.source_exclusions ?? [],
+        destination:       npj.destination,
+        npjs:              [npj],
         anyDefaultedDestination: !!npj.destination_defaulted,
       })
     }
@@ -301,7 +344,12 @@ export function buildScopedPolicies(scopedNpjs: ScopedNpjInput[]): ScopedPolicie
         tag_or_category: group.destination.value,
         note:            destNote,
       },
-      source:      { type: group.source.type, value: group.source.value },
+      source: {
+        type:  group.source.type,
+        value: group.source.value,
+        // Phase 4.5: propagate source identity exclusions. Omit the field when empty.
+        ...(group.source_exclusions.length > 0 && { exclusions: group.source_exclusions }),
+      },
       activities,
       profiles,
       no_match_action:            null,
@@ -314,32 +362,42 @@ export function buildScopedPolicies(scopedNpjs: ScopedNpjInput[]): ScopedPolicie
   // ── Required objects ──
   const base = collectRequiredObjects(policies)
 
-  const appInstances  = new Set<string>()
-  const urlLists      = new Set<string>()
-  const userGroups    = new Set<string>()
-  const adGroups      = new Set<string>()
+  const appInstances = new Set<string>()
+  const urlLists     = new Set<string>()
+  const userGroups   = new Set<string>()
+  const adGroups     = new Set<string>()
+  const users        = new Set<string>()
+  const ous          = new Set<string>()
 
   for (const group of sortedGroups) {
-    if (group.destination.type === 'app_instance' && group.destination.value) {
-      appInstances.add(group.destination.value)
+    // Destination objects
+    if (group.destination.type === 'app_instance' && group.destination.value) appInstances.add(group.destination.value)
+    if (group.destination.type === 'url_list'     && group.destination.value) urlLists.add(group.destination.value)
+
+    // Source identity objects
+    if (group.source.value) {
+      if (group.source.type === 'user_group')          userGroups.add(group.source.value)
+      if (group.source.type === 'ad_group')            adGroups.add(group.source.value)
+      if (group.source.type === 'user')                users.add(group.source.value)
+      if (group.source.type === 'organizational_unit') ous.add(group.source.value)
     }
-    if (group.destination.type === 'url_list' && group.destination.value) {
-      urlLists.add(group.destination.value)
-    }
-    if (group.source.type === 'user_group' && group.source.value) {
-      userGroups.add(group.source.value)
-    }
-    if (group.source.type === 'ad_group' && group.source.value) {
-      adGroups.add(group.source.value)
+
+    // Exclusion identity objects — collect same types as source
+    for (const ex of group.source_exclusions) {
+      if (ex.type === 'user')               users.add(ex.value)
+      if (ex.type === 'user_group')         userGroups.add(ex.value)
+      if (ex.type === 'organizational_unit') ous.add(ex.value)
     }
   }
 
   const required_objects: RequiredObjects = {
     ...base,
-    app_instances: [...appInstances],
-    url_lists:     [...urlLists],
-    user_groups:   [...userGroups],
-    ad_groups:     [...adGroups],
+    app_instances:        [...appInstances],
+    url_lists:            [...urlLists],
+    user_groups:          [...userGroups],
+    ad_groups:            [...adGroups],
+    users:                [...users],
+    organizational_units: [...ous],
   }
 
   return { policies, required_objects, issues, overflow_count }
@@ -361,6 +419,8 @@ function emptyRequiredObjects(): RequiredObjects {
     url_lists:                     [],
     user_groups:                   [],
     ad_groups:                     [],
+    users:                         [],
+    organizational_units:          [],
     policy_order:                  [],
   }
 }

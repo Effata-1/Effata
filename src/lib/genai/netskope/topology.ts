@@ -118,6 +118,8 @@ export function collectRequiredObjects(
     url_lists:                     [],
     user_groups:                   [],
     ad_groups:                     [],
+    users:                         [],
+    organizational_units:          [],
     policy_order:                  policies.map(p => p.name),
   }
 }

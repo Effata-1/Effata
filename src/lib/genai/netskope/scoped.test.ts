@@ -5,7 +5,7 @@ import { unionActivities, NETSKOPE_REALTIME_ACTIVITIES } from './activities'
 import { buildTopology } from './topology'
 import { generateTopologyOptions } from './options'
 import { transposeNpjs, extractAlwaysBlockProfiles } from './transpose'
-import type { ScopedNpjInput } from './types'
+import type { ScopedNpjInput, NpjScopeExclusion } from './types'
 import type { NpjInput } from './transpose'
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -657,5 +657,213 @@ describe('generateTopologyOptions — Phase 4 activity scoping', () => {
     assert.ok(fallback, 'Fallback policy should exist')
     assert.deepEqual(fallback!.activities, [...NETSKOPE_REALTIME_ACTIVITIES],
       'P900 catch-all must always cover all realtime activities')
+  })
+})
+
+// ── Phase 4.5: source types, exclusions, required objects ─────────────────────
+
+// Helper: make a makeNpj() with a given scope for isScopedNpj / resolveNpjScope tests.
+function makeNpjWithScope(scopeOverride: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    schema_version: '1.0',
+    intent:         'prevent_exfiltration',
+    scope:          scopeOverride,
+    content:        { operator: 'any', conditions: [] },
+    decision:       { mode: 'block' },
+    provenance:     { generated_from: 'manual' },
+  }
+}
+
+function makeScopedNpjWith(overrides: Partial<ScopedNpjInput> = {}): ScopedNpjInput {
+  return {
+    policy_id:           'pol-1',
+    policy_name:         'Test Policy',
+    policy_family:       'genai_content_detection',
+    risk_family_key:     'regulated_data',
+    risk_family_label:   'Regulated Data',
+    actions_by_category: { approved_supported: 'block', approved_with_conditions: 'block', restricted_unassessed: 'block' },
+    source:      { type: 'user_group', value: 'HR Users' },
+    destination: { type: 'app_instance', value: 'Microsoft Copilot — Personal' },
+    ...overrides,
+  }
+}
+
+describe('Phase 4.5 — isScopedNpj: new source types', () => {
+
+  test('source.type = user is scoped', () => {
+    assert.equal(isScopedNpj(makeNpjWithScope({ source: { type: 'user', value: 'alice@company.com' } })), true)
+  })
+
+  test('source.type = organizational_unit is scoped', () => {
+    assert.equal(isScopedNpj(makeNpjWithScope({ source: { type: 'organizational_unit', value: 'OU=Sales,DC=corp' } })), true)
+  })
+
+  test('source.type = all_users is NOT scoped (no destination)', () => {
+    assert.equal(isScopedNpj(makeNpjWithScope({ source: { type: 'all_users', value: null } })), false)
+  })
+
+  test('legacy scope.users still triggers scoped detection', () => {
+    assert.equal(isScopedNpj(makeNpjWithScope({ users: ['LegacyGroup'] })), true)
+  })
+})
+
+describe('Phase 4.5 — resolveNpjScope: new source types + exclusion parsing', () => {
+
+  test('source.type = user resolves correctly', () => {
+    const result = resolveNpjScope(makeNpjWithScope({ source: { type: 'user', value: 'alice@company.com' } }))
+    assert.ok(result)
+    assert.equal(result.source.type, 'user')
+    assert.equal(result.source.value, 'alice@company.com')
+    assert.equal(result.exclusions.length, 0)
+  })
+
+  test('source.type = organizational_unit resolves correctly', () => {
+    const result = resolveNpjScope(makeNpjWithScope({ source: { type: 'organizational_unit', value: 'OU=Sales,DC=corp' } }))
+    assert.ok(result)
+    assert.equal(result.source.type, 'organizational_unit')
+    assert.equal(result.source.value, 'OU=Sales,DC=corp')
+  })
+
+  test('valid exclusion is parsed and returned', () => {
+    const result = resolveNpjScope(makeNpjWithScope({
+      source:     { type: 'user_group', value: 'Engineering' },
+      exclusions: [{ type: 'user', value: 'contractor@company.com' }],
+    }))
+    assert.ok(result)
+    assert.equal(result.exclusions.length, 1)
+    assert.equal(result.exclusions[0].type,  'user')
+    assert.equal(result.exclusions[0].value, 'contractor@company.com')
+  })
+
+  test('multiple exclusions of different types are all parsed', () => {
+    const result = resolveNpjScope(makeNpjWithScope({
+      source: { type: 'organizational_unit', value: 'OU=Sales,DC=corp' },
+      exclusions: [
+        { type: 'user',               value: 'intern@company.com' },
+        { type: 'user_group',         value: 'Sales-Interns' },
+        { type: 'organizational_unit', value: 'OU=Contractors,DC=corp' },
+      ],
+    }))
+    assert.ok(result)
+    assert.equal(result.exclusions.length, 3)
+  })
+
+  test('ad_group in exclusions is silently dropped (not a verified Netskope exclusion type)', () => {
+    const result = resolveNpjScope(makeNpjWithScope({
+      source:     { type: 'user_group', value: 'Engineering' },
+      exclusions: [{ type: 'ad_group', value: 'CN=Admins,DC=corp' }],
+    }))
+    assert.ok(result)
+    assert.equal(result.exclusions.length, 0, 'ad_group must be dropped from exclusions')
+  })
+
+  test('exclusion with empty value is dropped', () => {
+    const result = resolveNpjScope(makeNpjWithScope({
+      source:     { type: 'user_group', value: 'Engineering' },
+      exclusions: [{ type: 'user', value: '   ' }],
+    }))
+    assert.ok(result)
+    assert.equal(result.exclusions.length, 0)
+  })
+
+  test('exclusion with invalid type is dropped', () => {
+    const result = resolveNpjScope(makeNpjWithScope({
+      source:     { type: 'user_group', value: 'Engineering' },
+      exclusions: [{ type: 'unknown_type', value: 'something' }],
+    }))
+    assert.ok(result)
+    assert.equal(result.exclusions.length, 0)
+  })
+
+  test('non-array exclusions field is ignored gracefully', () => {
+    const result = resolveNpjScope(makeNpjWithScope({
+      source:     { type: 'user_group', value: 'Engineering' },
+      exclusions: 'not-an-array',
+    }))
+    assert.ok(result)
+    assert.equal(result.exclusions.length, 0)
+  })
+})
+
+describe('Phase 4.5 — buildScopedPolicies: exclusions, group key, required objects', () => {
+
+  test('exclusions are preserved on policy source', () => {
+    const exclusions: NpjScopeExclusion[] = [{ type: 'user', value: 'contractor@company.com' }]
+    const npj = makeScopedNpjWith({ source_exclusions: exclusions })
+    const result = buildScopedPolicies([npj])
+    assert.deepEqual(result.policies[0].source.exclusions, exclusions)
+  })
+
+  test('policy source has no exclusions field when source_exclusions is empty', () => {
+    const npj = makeScopedNpjWith()  // no exclusions
+    const result = buildScopedPolicies([npj])
+    assert.equal(result.policies[0].source.exclusions, undefined)
+  })
+
+  test('different exclusions on same source+dest produce separate policies (not collapsed)', () => {
+    const npj1 = makeScopedNpjWith({
+      policy_id:        'pol-1',
+      source_exclusions: [{ type: 'user', value: 'alice@company.com' }],
+    })
+    const npj2 = makeScopedNpjWith({
+      policy_id:        'pol-2',
+      source_exclusions: [{ type: 'user', value: 'bob@company.com' }],
+    })
+    const result = buildScopedPolicies([npj1, npj2])
+    assert.equal(result.policies.length, 2, 'Different exclusions must produce separate policies')
+  })
+
+  test('same exclusions on same source+dest are grouped into one policy', () => {
+    const excl: NpjScopeExclusion[] = [{ type: 'user', value: 'shared@company.com' }]
+    const npj1 = makeScopedNpjWith({ policy_id: 'pol-1', source_exclusions: excl })
+    const npj2 = makeScopedNpjWith({ policy_id: 'pol-2', risk_family_key: 'credentials_keys_secrets', risk_family_label: 'Credentials', source_exclusions: excl })
+    const result = buildScopedPolicies([npj1, npj2])
+    assert.equal(result.policies.length, 1, 'Same source+dest+exclusions must be grouped')
+    assert.equal(result.policies[0].profiles.length, 2)
+  })
+
+  test('source.type = user populates required_objects.users', () => {
+    const npj = makeScopedNpjWith({ source: { type: 'user', value: 'alice@company.com' } })
+    const result = buildScopedPolicies([npj])
+    assert.ok(result.required_objects.users.includes('alice@company.com'))
+  })
+
+  test('source.type = organizational_unit populates required_objects.organizational_units', () => {
+    const npj = makeScopedNpjWith({ source: { type: 'organizational_unit', value: 'OU=Sales,DC=corp' } })
+    const result = buildScopedPolicies([npj])
+    assert.ok(result.required_objects.organizational_units.includes('OU=Sales,DC=corp'))
+  })
+
+  test('exclusion targets are collected into required_objects', () => {
+    const npj = makeScopedNpjWith({
+      source: { type: 'user_group', value: 'Engineering' },
+      source_exclusions: [
+        { type: 'user',               value: 'contractor@company.com' },
+        { type: 'organizational_unit', value: 'OU=Contractors,DC=corp' },
+      ],
+    })
+    const result = buildScopedPolicies([npj])
+    assert.ok(result.required_objects.users.includes('contractor@company.com'),
+      'exclusion user must appear in required_objects.users')
+    assert.ok(result.required_objects.organizational_units.includes('OU=Contractors,DC=corp'),
+      'exclusion OU must appear in required_objects.organizational_units')
+    // source still tracked too
+    assert.ok(result.required_objects.user_groups.includes('Engineering'))
+  })
+
+  test('user_group in exclusions appears in required_objects.user_groups', () => {
+    const npj = makeScopedNpjWith({
+      source: { type: 'organizational_unit', value: 'OU=Sales,DC=corp' },
+      source_exclusions: [{ type: 'user_group', value: 'Sales-Interns' }],
+    })
+    const result = buildScopedPolicies([npj])
+    assert.ok(result.required_objects.user_groups.includes('Sales-Interns'))
+  })
+
+  test('empty required_objects.users and .organizational_units when no user/OU scoped policies', () => {
+    const npj = makeScopedNpjWith()  // user_group source, no exclusions
+    const result = buildScopedPolicies([npj])
+    assert.deepEqual(result.required_objects.users, [])
+    assert.deepEqual(result.required_objects.organizational_units, [])
   })
 })

@@ -173,6 +173,8 @@ export default async function NetskopeRecommendationPage() {
           destination:            resolved.destination,
           destination_defaulted:  resolved.destinationDefaulted,
           source_activities:      sourceActivities,
+          // Phase 4.5: source identity exclusions (User / User Group / OU narrowing).
+          ...(resolved.exclusions.length > 0 && { source_exclusions: resolved.exclusions }),
         })
         continue  // exclude from category buckets
       }

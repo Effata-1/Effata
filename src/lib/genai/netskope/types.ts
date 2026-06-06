@@ -49,7 +49,12 @@ export interface NetskopePolicy {
   name:         string
   policy_type:  'access_control' | 'realtime_protection'
   destination:  { strategy: string; tag_or_category: string; note: string | null }
-  source:       { type: 'all_users' | 'ad_group' | 'user_group'; value: string | null }
+  source: {
+    type:        NpjSourceType
+    value:       string | null
+    /** Phase 4.5: source identity exclusions (User / User Group / OU narrowing only). */
+    exclusions?: NpjScopeExclusion[]
+  }
   activities:   string[]
   profiles:     NetskopeProfileEntry[]
   no_match_action:            string | null
@@ -74,6 +79,10 @@ export interface RequiredObjects {
   url_lists:                     string[]
   user_groups:                   string[]
   ad_groups:                     string[]
+  /** Phase 4.5: individual Netskope user objects required by source/exclusion selectors. */
+  users:                         string[]
+  /** Phase 4.5: AD Organizational Unit paths required by source/exclusion selectors. */
+  organizational_units:          string[]
   policy_order:                  string[]
 }
 
@@ -106,8 +115,31 @@ export interface RecommendationIssue {
 
 // ── Phase 3: Scoped NPJ types ─────────────────────────────────────────────────
 
+// Phase 4.5: all Netskope source selector types.
+// ad_group = AD security group (CN=...). organizational_unit = AD OU (OU=...).
+// These are separate objects in both AD and Netskope.
+export type NpjSourceType =
+  | 'all_users'
+  | 'user'
+  | 'user_group'
+  | 'ad_group'
+  | 'organizational_unit'
+
+// Phase 4.5: types allowed in Netskope's Source Exclusion panel.
+// Based on the Netskope UI: User / User Group / Organizational Unit.
+// ad_group intentionally excluded until Netskope exclusion support for AD security groups is verified.
+export type NpjScopeExclusionType = 'user' | 'user_group' | 'organizational_unit'
+
+// Source exclusion entry — narrows WHO the source selector applies to.
+// Meaning: Source = User Group: Engineering, Exclude = User: contractor@company.com
+// This is NOT a policy-level exclusion. Only source/identity membership is narrowed.
+export interface NpjScopeExclusion {
+  type:  NpjScopeExclusionType
+  value: string
+}
+
 export interface NpjScopeSource {
-  type:  'all_users' | 'ad_group' | 'user_group'
+  type:  NpjSourceType
   value: string | null
 }
 
@@ -131,6 +163,8 @@ export interface ScopedNpjInput {
   destination_defaulted?: boolean
   /** Phase 4: activities from the source NPJ's scope.activities. Undefined for pre-Phase 4 NPJs. */
   source_activities?:     string[]
+  /** Phase 4.5: source identity exclusions parsed from scope.exclusions. */
+  source_exclusions?:     NpjScopeExclusion[]
 }
 
 export interface ScopedPoliciesResult {
@@ -140,7 +174,7 @@ export interface ScopedPoliciesResult {
   overflow_count:   number
 }
 
-export type SourceStrategyType      = 'all_users' | 'ad_group'
+export type SourceStrategyType      = NpjSourceType
 export type DestinationStrategyType = 'app_tag'   | 'app_instance'
 // V1 supports app_tag and app_instance. Future: add 'app_category' | 'url_list'.
 
