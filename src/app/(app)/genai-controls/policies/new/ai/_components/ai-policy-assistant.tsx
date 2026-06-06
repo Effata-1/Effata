@@ -48,6 +48,8 @@ interface NeutralPolicyJson {
     activities?:     string[]
     channels?:       string[]
     app_categories?: Array<{ id: string; system_tag: string | null; name: string }>
+    apps?:           string[]   // specific app catalog IDs
+    app_instances?:  string[]   // instance identifiers
   }
   content?: {
     operator?:   string
@@ -87,6 +89,7 @@ interface PolicyProposal {
 interface PolicyCreationContext {
   intents:    string[]
   categories: { id: string; name: string; system_tag: string | null; access_posture?: string }[]
+  apps:       { id: string; name: string; vendor?: string; app_type?: string }[]
   dataTypes:  { key: string; name: string; sensitivity: string }[]
   actions:    string[]
   activities: string[]
@@ -314,6 +317,7 @@ function UsersEditor({ users, onChange }: { users: string[]; onChange: (u: strin
 
 function PolicyProposalCard({
   proposal,
+  apps,
   categories,
   onProposalChange,
   onReset,
@@ -325,6 +329,7 @@ function PolicyProposalCard({
   onDiscard,
 }: {
   proposal:         PolicyProposal
+  apps:             AppRow[]
   categories:       CategoryRow[]
   onProposalChange: (p: PolicyProposal) => void
   onReset:          () => void
@@ -728,6 +733,23 @@ function PolicyProposalCard({
                 {!npj.scope?.activities?.length && <span className="text-xs text-muted-foreground/40 italic">—</span>}
               </div>
             </NpjRow>
+            {(npj.scope?.apps?.length ?? 0) > 0 && (
+              <NpjRow label="App Scope">
+                <div className="flex flex-wrap gap-1.5">
+                  {npj.scope!.apps!.map((appId, i) => {
+                    const found = apps.find(a => a.app_id === appId)
+                    return (
+                      <span key={i} className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-blue-500/25 bg-blue-500/10 text-xs text-blue-400">
+                        {found && (
+                          <span className="w-3 h-3 rounded flex items-center justify-center text-[7px] font-bold text-foreground shrink-0" style={{ backgroundColor: found.logo_bg }}>{found.logo_letter}</span>
+                        )}
+                        {found?.app_name ?? appId}
+                      </span>
+                    )
+                  })}
+                </div>
+              </NpjRow>
+            )}
             <NpjRow label="App Categories">
               <div className="flex flex-wrap gap-1.5">
                 {(npj.scope?.app_categories ?? []).map((cat, i) => (
@@ -735,7 +757,8 @@ function PolicyProposalCard({
                     {cat.name}
                   </span>
                 ))}
-                {!npj.scope?.app_categories?.length && <span className="text-xs text-muted-foreground/40 italic">All categories</span>}
+                {!npj.scope?.app_categories?.length && !npj.scope?.apps?.length && <span className="text-xs text-muted-foreground/40 italic">All categories</span>}
+                {!npj.scope?.app_categories?.length && (npj.scope?.apps?.length ?? 0) > 0 && <span className="text-xs text-muted-foreground/40 italic">Scoped to specific app above</span>}
               </div>
             </NpjRow>
             <NpjRow label="Detection">
@@ -802,6 +825,21 @@ function PolicyProposalCard({
               </ul>
             </div>
           )}
+
+          {/* Policy Warnings — provenance.warnings from AI (companion policy notes, catalog gaps, etc.) */}
+          {(npj.provenance?.warnings?.length ?? 0) > 0 && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-5 py-4">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400/70 mb-2">Policy Warnings</p>
+              <ul className="space-y-1.5">
+                {npj.provenance!.warnings!.map((w, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs">
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-400/70 mt-0.5 shrink-0" />
+                    <span className="text-muted-foreground/80">{w}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
 
@@ -845,7 +883,7 @@ function PolicyProposalCard({
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export function AiPolicyAssistant({ categories, ruleItems, vendors = [] }: Props) {
+export function AiPolicyAssistant({ apps, categories, ruleItems, vendors = [] }: Props) {
   const router = useRouter()
   const [input, setInput]                   = useState('')
   const [streaming, setStreaming]           = useState(false)
@@ -865,13 +903,20 @@ export function AiPolicyAssistant({ categories, ruleItems, vendors = [] }: Props
     return {
       intents:    [...VALID_INTENTS],
       categories: categories.map(c => ({ id: c.id, name: c.name, system_tag: c.system_tag, access_posture: c.access_posture })),
+      apps:       apps.slice(0, 100).map(a => ({
+        id:       a.app_id,
+        name:     a.app_name,
+        vendor:   a.vendor ?? undefined,
+        app_type: a.app_type ?? undefined,
+      })),
       dataTypes:  ruleItems.slice(0, 50).map(r => ({
         key:         r.key,
         name:        r.name,
         sensitivity: r.layerLabel ?? r.name,
       })),
       actions:    ['allow', 'monitor', 'alert', 'coach', 'block'],
-      activities: ['browse', 'post', 'prompt_submit', 'upload', 'download', 'response'],
+      // Includes 'login' for govern_app_access policies that require ["browse", "login"]
+      activities: [...GENAI_ACTIVITIES],
       vendors,
     }
   }
@@ -963,10 +1008,13 @@ export function AiPolicyAssistant({ categories, ruleItems, vendors = [] }: Props
       policy_source:             'manual',
       policy_family:             proposal.npj.policy_family ?? null,
       neutral_policy_json:       proposal.npj as Record<string, unknown>,
-      scope_app_ids:             [],
+      // Populate scope_app_ids from npj.scope.apps so the policy list displays specific apps correctly
+      scope_app_ids:             proposal.npj.scope?.apps ?? [],
       primary_action:            npjDecisionToPrimaryAction(proposal.npj.decision) as ActionCode | null,
       policy_type:               npjIntentToPolicyType(proposal.npj.intent) as PolicyType,
-      scope_all_apps:            !proposal.npj.scope?.app_categories?.length,
+      scope_all_apps:            !proposal.npj.scope?.app_categories?.length &&
+                                 !proposal.npj.scope?.apps?.length &&
+                                 !proposal.npj.scope?.app_instances?.length,
     })
 
     setCreating(false)
@@ -1104,6 +1152,7 @@ export function AiPolicyAssistant({ categories, ruleItems, vendors = [] }: Props
         <div className="rounded-xl border border-blue-500/20 bg-card overflow-hidden shadow-sm">
           <PolicyProposalCard
             proposal={proposal}
+            apps={apps}
             categories={categories}
             onProposalChange={p => { setProposal(p); setCoverage(null) }}
             onReset={handleReset}

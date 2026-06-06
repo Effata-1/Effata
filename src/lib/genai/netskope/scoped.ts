@@ -34,6 +34,7 @@ interface RawScope {
   groups?:         unknown
   activities?:     unknown
   app_instances?:  unknown
+  apps?:           unknown    // vendor-neutral app catalog IDs (genai_apps.app_id)
   /** Phase 4.5: source identity exclusions — array of { type, value } entries. */
   exclusions?:     unknown
   source?: {
@@ -76,6 +77,10 @@ function isScoped(s: RawScope): boolean {
   const instances = s.app_instances
   if (Array.isArray(instances) && instances.length > 0) return true
 
+  // scope.apps — vendor-neutral specific app IDs always trigger scoped policy detection
+  const scopeApps = s.apps
+  if (Array.isArray(scopeApps) && scopeApps.length > 0) return true
+
   return false
 }
 
@@ -98,7 +103,10 @@ const VALID_EXCLUSION_TYPES = new Set<NpjScopeExclusionType>([
   'user', 'user_group', 'organizational_unit',
 ])
 
-export function resolveNpjScope(rawNpj: Record<string, unknown>): ResolvedScope | null {
+export function resolveNpjScope(
+  rawNpj: Record<string, unknown>,
+  appMap?: Record<string, string>,   // optional id → display name map; used to resolve scope.apps
+): ResolvedScope | null {
   const s = getRawScope(rawNpj)
 
   // ── Source ──
@@ -165,16 +173,24 @@ export function resolveNpjScope(rawNpj: Record<string, unknown>): ResolvedScope 
     destination = { type: 'app_category', value: 'Generative AI', cci_app_tag: destCciTag }
   } else {
     // No explicit scoped destination (includes plain app_category = default, omitted, or unrecognised).
-    const instances = s.app_instances
-    if (Array.isArray(instances) && instances.length > 0) {
-      destination = { type: 'app_instance', value: String(instances[0]) }
-    } else if (source.type !== 'all_users') {
-      // Source-only scoped NPJ: default destination to broad Generative AI category.
-      destination = { type: 'app_category', value: 'Generative AI' }
-      destinationDefaulted = true
+    // Check scope.apps (vendor-neutral app catalog IDs) first — resolve to cloud_app via appMap.
+    const scopeApps = s.apps
+    if (Array.isArray(scopeApps) && scopeApps.length > 0) {
+      const appId   = String(scopeApps[0])
+      const appName = appMap?.[appId] ?? appId   // fall back to raw ID if map is absent
+      destination   = { type: 'cloud_app', value: appName }
     } else {
-      // No meaningful scope — fall back to default category path.
-      return null
+      const instances = s.app_instances
+      if (Array.isArray(instances) && instances.length > 0) {
+        destination = { type: 'app_instance', value: String(instances[0]) }
+      } else if (source.type !== 'all_users') {
+        // Source-only scoped NPJ: default destination to broad Generative AI category.
+        destination = { type: 'app_category', value: 'Generative AI' }
+        destinationDefaulted = true
+      } else {
+        // No meaningful scope — fall back to default category path.
+        return null
+      }
     }
   }
 

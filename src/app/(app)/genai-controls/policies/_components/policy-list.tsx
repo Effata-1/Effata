@@ -305,7 +305,7 @@ function SourceCell({ policy, identityFields }: { policy: GenAIPolicy; identityF
 }
 
 function DestCell({ policy, apps, categories }: { policy: GenAIPolicy; apps: App[]; categories: Category[] }) {
-  // Specific app instances take priority
+  // Tier 1: scope_app_ids (DB column — editor-level app override)
   const ids = policy.scope_app_ids ?? []
   const scoped = ids.length > 0 ? apps.filter(a => ids.includes(a.app_id)) : []
   if (scoped.length > 0) {
@@ -320,7 +320,24 @@ function DestCell({ policy, apps, categories }: { policy: GenAIPolicy; apps: App
     )
   }
 
-  // Fall back to app categories from neutral policy json
+  // Tier 2: npj.scope.apps (AI-generated vendor-neutral app scope)
+  const npjAppIds = ((policy as unknown as Record<string, unknown>).neutral_policy_json as Record<string, unknown> | undefined)
+    ?.scope as Record<string, unknown> | undefined
+  const npjApps = (npjAppIds?.apps ?? []) as string[]
+  const npjScoped = npjApps.length > 0 ? apps.filter(a => npjApps.includes(a.app_id)) : []
+  if (npjScoped.length > 0) {
+    return (
+      <div className="space-y-0.5">
+        <div className="flex items-center gap-1.5">
+          <span className="w-3.5 h-3.5 rounded flex items-center justify-center text-[8px] font-bold text-foreground shrink-0" style={{ backgroundColor: npjScoped[0].logo_bg }}>{npjScoped[0].logo_letter}</span>
+          <span className="text-[11px] text-foreground/80 truncate max-w-[100px]">{npjScoped[0].app_name}</span>
+        </div>
+        {npjScoped.length > 1 && <span className="text-[10px] text-muted-foreground/50">+{npjScoped.length - 1} more</span>}
+      </div>
+    )
+  }
+
+  // Tier 3: app categories from neutral policy json
   const cats = getPolicyCategories(policy, categories)
   if (cats.length > 0) {
     return (

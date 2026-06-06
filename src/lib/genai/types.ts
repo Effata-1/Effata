@@ -229,6 +229,8 @@ export interface NpjShape {
   policy_family?: string | null
   scope?: {
     app_categories?: NpjCategory[]
+    apps?:           string[]        // specific app catalog IDs (genai_apps.app_id) — use when user names a specific app
+    app_instances?:  string[]        // instance identifiers — use when targeting a specific deployed instance
     activities?:     string[]
     channels?:       string[]        // vendor-neutral channel list for multi-vendor translation
     users?:          string[]

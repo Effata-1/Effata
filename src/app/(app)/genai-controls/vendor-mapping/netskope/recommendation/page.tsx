@@ -28,6 +28,7 @@ export default async function NetskopeRecommendationPage() {
     { data: categories },
     { data: coachingTemplates },
     { data: manualPolicyRows },
+    { data: appCatalog },
   ] = await Promise.all([
     supabase
       .from('org_genai_policies')
@@ -54,7 +55,16 @@ export default async function NetskopeRecommendationPage() {
       .eq('is_active', true)
       .eq('approval_status', 'approved')
       .eq('policy_source', 'manual'),
+    // App catalog — used to resolve scope.apps IDs to display names in resolveNpjScope
+    supabase
+      .from('genai_apps')
+      .select('app_id, app_name'),
   ])
+
+  // Build app_id → app_name lookup map for scope.apps resolution in resolveNpjScope
+  const appMap: Record<string, string> = Object.fromEntries(
+    (appCatalog ?? []).map(a => [a.app_id as string, a.app_name as string])
+  )
 
   // UUID → display name map for coaching templates
   const coachingNameMap = new Map<string, string>(
@@ -76,6 +86,11 @@ export default async function NetskopeRecommendationPage() {
   const validNpjs:  NpjInput[]       = []
   const scopedNpjs: ScopedNpjInput[] = []
   const skipped:    SkippedPolicy[]  = []
+  // Track policy IDs that were actually emitted by the scoped builder so the manual
+  // conversion can skip only those — not every policy that looks scoped.
+  // (A policy with scope.apps but an unsupported family is never in the first query
+  //  and must still appear in the manual section.)
+  const scopedEmittedIds = new Set<string>()
 
   for (const p of policies ?? []) {
     const npj = p.neutral_policy_json as Record<string, unknown> | null
@@ -159,26 +174,42 @@ export default async function NetskopeRecommendationPage() {
 
     // ── Phase 3: Classify scoped vs default before pushing to category buckets ──
     if (isScopedNpj(npj)) {
-      const resolved = resolveNpjScope(npj)
-      if (resolved) {
-        scopedNpjs.push({
-          policy_id:              p.id,
-          policy_name:            p.name,
-          policy_family:          p.policy_family ?? '',
-          risk_family_key:        rfKey,
-          risk_family_label:      rfLabel,
-          actions_by_category:    abc,
-          coaching_by_category:   resolvedCoaching,
-          source:                 resolved.source,
-          destination:            resolved.destination,
-          destination_defaulted:  resolved.destinationDefaulted,
-          source_activities:      sourceActivities,
-          // Phase 4.5: source identity exclusions (User / User Group / OU narrowing).
-          ...(resolved.exclusions.length > 0 && { source_exclusions: resolved.exclusions }),
-        })
+      // scope.apps may list multiple specific apps — expand into one ScopedNpjInput per app
+      // so each gets its own Netskope cloud_app policy instead of silently targeting only the first.
+      const npjScopeApps = Array.isArray(npjScope?.apps) ? (npjScope!.apps as string[]) : []
+      const appIdsToExpand = npjScopeApps.length > 1 ? npjScopeApps : [null]
+
+      let anyResolved = false
+      for (const singleAppId of appIdsToExpand) {
+        // When expanding multi-app, create a single-app NPJ slice for each app ID.
+        const npjForResolve = singleAppId
+          ? { ...npj, scope: { ...(npj.scope as Record<string, unknown>), apps: [singleAppId] } }
+          : npj
+        const resolved = resolveNpjScope(npjForResolve as Record<string, unknown>, appMap)
+        if (resolved) {
+          scopedNpjs.push({
+            policy_id:              p.id,
+            policy_name:            p.name,
+            policy_family:          p.policy_family ?? '',
+            risk_family_key:        rfKey,
+            risk_family_label:      rfLabel,
+            actions_by_category:    abc,
+            coaching_by_category:   resolvedCoaching,
+            source:                 resolved.source,
+            destination:            resolved.destination,
+            destination_defaulted:  resolved.destinationDefaulted,
+            source_activities:      sourceActivities,
+            // Phase 4.5: source identity exclusions (User / User Group / OU narrowing).
+            ...(resolved.exclusions.length > 0 && { source_exclusions: resolved.exclusions }),
+          })
+          anyResolved = true
+        }
+      }
+      if (anyResolved) {
+        scopedEmittedIds.add(p.id)  // record so manual path can skip the exact same ID
         continue  // exclude from category buckets
       }
-      // resolveNpjScope returned null (source is all_users, no destination) → fall through
+      // All resolveNpjScope calls returned null → fall through to validNpjs
     }
 
     validNpjs.push({
@@ -232,17 +263,23 @@ export default async function NetskopeRecommendationPage() {
   const scoped_policies = scopedNpjs.length > 0 ? buildScopedPolicies(scopedNpjs) : null
 
   // ── Manual policy conversion ────────────────────────────────────────────────
+  // flatMap because a multi-app scoped NPJ (scope.apps.length > 1) expands into one policy per app.
   const manual_policies: NetskopePolicy[] = (manualPolicyRows ?? [])
-    .map((p, idx) => {
+    .flatMap((p, idx) => {
       const npj = p.neutral_policy_json as Record<string, unknown> | null
-      if (!npj || typeof npj !== 'object') return null
+      if (!npj || typeof npj !== 'object') return []
 
-      const scope    = (npj.scope as Record<string, unknown> | undefined) ?? {}
-      const decision = (npj.decision as Record<string, unknown> | undefined) ?? {}
-      const content  = (npj.content as Record<string, unknown> | undefined) ?? {}
-      const conds    = (content.conditions as Array<Record<string, unknown>> | undefined) ?? []
-      const users    = (scope.users as string[] | undefined) ?? []
-      const appCats  = (scope.app_categories as Array<Record<string, unknown>> | undefined) ?? []
+      // Skip policies that were already emitted by the scoped path (supported family + scoped NPJ).
+      // Unsupported-family scoped policies (e.g. genai_app_access) are never in the first query
+      // so scopedEmittedIds will not contain their IDs — they must be handled here.
+      if (scopedEmittedIds.has(p.id)) return []
+
+      const scope      = (npj.scope as Record<string, unknown> | undefined) ?? {}
+      const decision   = (npj.decision as Record<string, unknown> | undefined) ?? {}
+      const content    = (npj.content as Record<string, unknown> | undefined) ?? {}
+      const conds      = (content.conditions as Array<Record<string, unknown>> | undefined) ?? []
+      const users      = (scope.users as string[] | undefined) ?? []
+      const appCats    = (scope.app_categories as Array<Record<string, unknown>> | undefined) ?? []
       const activities = (scope.activities as string[] | undefined) ?? ['prompt_submit', 'upload']
       const action     = (decision.mode as string | undefined) ?? 'alert'
       const firstUser  = users.find(u => u !== 'All Users')
@@ -265,10 +302,64 @@ export default async function NetskopeRecommendationPage() {
           })
         : [{ profile: p.name, profile_type: 'content_detection' as NpjProfileType, profile_action: action, coaching_template: null }]
 
-      return {
-        // Guard: DB default is 99, which would sort before header/block policies.
-        // Only use the stored priority when it's >= 100; otherwise fall back to safe manual range.
-        priority:    (typeof p.priority === 'number' && p.priority >= 100) ? p.priority : 500 + idx * 10,
+      const basePriority = (typeof p.priority === 'number' && p.priority >= 100) ? p.priority : 500 + idx * 10
+
+      // ── Scoped NPJ: use resolveNpjScope for accurate destination/source ──
+      // This handles any policy that isn't in the first query's supported families but still
+      // has a specific scope (scope.apps, app_instances, source identity, etc.).
+      // Multi-app NPJs are expanded: one NetskopePolicy per app, same as the scoped path.
+      if (isScopedNpj(npj)) {
+        const scopeAppsArr    = Array.isArray(scope.apps) ? (scope.apps as string[]) : []
+        const appIdsToExpand  = scopeAppsArr.length > 1 ? scopeAppsArr : [null]
+
+        return appIdsToExpand.flatMap((singleAppId, expandIdx): NetskopePolicy[] => {
+          const npjForResolve = singleAppId
+            ? { ...npj, scope: { ...scope, apps: [singleAppId] } }
+            : npj
+          const resolved = resolveNpjScope(npjForResolve as Record<string, unknown>, appMap)
+
+          const destination = resolved
+            ? {
+                strategy:        resolved.destination.type,
+                tag_or_category: resolved.destination.value,
+                ...(resolved.destination.cci_app_tag != null && { cci_app_tag: resolved.destination.cci_app_tag }),
+                note: resolved.destination.app && resolved.destination.instance
+                  ? `${resolved.destination.app} — ${resolved.destination.instance} instance`
+                  : null,
+              }
+            : {
+                // resolveNpjScope returned null — fall back to broad category rather than dropping
+                strategy:        'app_category' as const,
+                tag_or_category: 'Generative AI',
+                ...(destCciTag ? { cci_app_tag: destCciTag } : {}),
+                note:            null,
+              }
+
+          const source = resolved
+            ? { type: resolved.source.type, value: resolved.source.value }
+            : firstUser
+              ? { type: 'user_group' as const, value: firstUser }
+              : { type: 'all_users' as const, value: null }
+
+          return [{
+            priority:    basePriority + expandIdx,
+            policy_key:  singleAppId ? `manual:${p.id}:${singleAppId}` : `manual:${p.id}`,
+            name:        p.name,
+            policy_type: 'realtime_protection' as const,
+            destination,
+            source,
+            activities,
+            profiles,
+            no_match_action:            null,
+            continue_policy_evaluation: null,
+            notification:               null,
+          }]
+        })
+      }
+
+      // ── Unscoped NPJ: broad category destination (existing behaviour) ──
+      return [{
+        priority:    basePriority,
         policy_key:  `manual:${p.id}`,
         name:        p.name,
         policy_type: 'realtime_protection' as const,
@@ -286,9 +377,8 @@ export default async function NetskopeRecommendationPage() {
         no_match_action:            null,
         continue_policy_evaluation: null,
         notification:               null,
-      }
+      }]
     })
-    .filter((p): p is NonNullable<typeof p> => p !== null)
 
   const recommendation = {
     ...partial,

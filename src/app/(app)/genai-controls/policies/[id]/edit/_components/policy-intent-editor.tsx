@@ -63,6 +63,8 @@ interface NeutralPolicyJson {
     activities?:     string[]
     channels?:       string[]
     app_categories?: Array<{ id: string; system_tag: string | null; name: string }>
+    apps?:           string[]   // specific app catalog IDs (genai_apps.app_id)
+    app_instances?:  string[]   // instance identifiers
   }
   content?: {
     operator?:   string
@@ -705,7 +707,9 @@ export function PolicyIntentEditor({
       warnings.push('Label detection applies to file metadata only. Prompt/Post is not recommended for label detection policies.')
     }
     if (npj.intent === 'allow_approved_use' &&
-      !formAppIds.length && !(npj.scope?.app_categories?.length)) {
+      !formAppIds.length &&
+      !(npj.scope?.app_categories?.length) &&
+      !(npj.scope?.apps?.length)) {
       warnings.push('Allow policy is not scoped to a specific app or user group. Tightly scope allow policies before enabling.')
     }
   } else if (status === 'legacy' || status === 'invalid') {
@@ -1056,6 +1060,26 @@ export function PolicyIntentEditor({
         tooltip={isRecommended ? 'App categories, channels, and activities are derived from the Control Matrix. Edit detection settings there to change them.' : undefined}
       >
         <div className="space-y-5 px-5 py-4">
+          {npj?.scope?.apps && npj.scope.apps.length > 0 && (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-2 flex items-center gap-1">
+                App Scope <Lock className="h-2.5 w-2.5 text-muted-foreground/30" />
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {npj.scope.apps.map((appId, i) => {
+                  const found = apps.find(a => a.app_id === appId)
+                  return found ? (
+                    <span key={i} className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-blue-500/25 bg-blue-500/10 text-xs text-blue-400">
+                      <span className="w-3 h-3 rounded flex items-center justify-center text-[7px] font-bold text-foreground shrink-0" style={{ backgroundColor: found.logo_bg }}>{found.logo_letter}</span>
+                      {found.app_name}
+                    </span>
+                  ) : (
+                    <Chip key={i} label={appId} color="zinc" />
+                  )
+                })}
+              </div>
+            </div>
+          )}
           {npj?.scope?.app_categories && npj.scope.app_categories.length > 0 && (
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-2 flex items-center gap-1">

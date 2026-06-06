@@ -105,6 +105,14 @@ describe('isScopedNpj', () => {
     // app_category + cci_app_tag = scoped to a specific approval category (Phase 4.7).
     assert.equal(isScopedNpj(makeNpj({ destination: { type: 'app_category', value: 'Generative AI', cci_app_tag: 'Approved & Supported GenAI' } })), true)
   })
+
+  test('returns true for scope.apps with at least one app ID (vendor-neutral specific app)', () => {
+    assert.equal(isScopedNpj(makeNpj({ apps: ['claude-code-uuid'] })), true)
+  })
+
+  test('returns false for empty scope.apps', () => {
+    assert.equal(isScopedNpj(makeNpj({ apps: [] })), false)
+  })
 })
 
 // ── resolveNpjScope ───────────────────────────────────────────────────────────
@@ -202,6 +210,48 @@ describe('resolveNpjScope', () => {
     assert.equal(result.destination.type, 'app_category')
     assert.equal(result.destination.value, 'Generative AI')
     assert.equal(result.destinationDefaulted, true)
+  })
+
+  test('scope.apps resolves to cloud_app destination using appMap', () => {
+    const appMap = { 'claude-code-uuid': 'Claude Code', 'chatgpt-uuid': 'ChatGPT' }
+    const result = resolveNpjScope(makeNpj({ apps: ['claude-code-uuid'] }), appMap)
+    assert.ok(result)
+    assert.equal(result.destination.type, 'cloud_app')
+    assert.equal(result.destination.value, 'Claude Code')
+    assert.equal(result.destinationDefaulted, false)
+  })
+
+  test('scope.apps falls back to raw app ID when appMap is absent', () => {
+    const result = resolveNpjScope(makeNpj({ apps: ['claude-code-uuid'] }))
+    assert.ok(result)
+    assert.equal(result.destination.type, 'cloud_app')
+    assert.equal(result.destination.value, 'claude-code-uuid')
+  })
+
+  test('scope.apps with all_users source still resolves (apps is not source-only)', () => {
+    // scope.apps alone is a scoped trigger — destination resolves from apps, not defaulted
+    const result = resolveNpjScope(makeNpj({ apps: ['chatgpt-uuid'] }), { 'chatgpt-uuid': 'ChatGPT' })
+    assert.ok(result)
+    assert.equal(result.source.type, 'all_users')
+    assert.equal(result.destination.type, 'cloud_app')
+    assert.equal(result.destination.value, 'ChatGPT')
+    assert.equal(result.destinationDefaulted, false)
+  })
+
+  test('scope.apps with multiple IDs: each resolves independently (multi-app expansion contract)', () => {
+    // The page.tsx expands multi-app NPJs by calling resolveNpjScope once per app ID.
+    // Verify that each single-app call returns the correct individual destination.
+    const appMap = { 'chatgpt-uuid': 'ChatGPT', 'claude-code-uuid': 'Claude Code' }
+    const ids = ['chatgpt-uuid', 'claude-code-uuid']
+    const results = ids.map(id => resolveNpjScope(makeNpj({ apps: [id] }), appMap))
+
+    assert.ok(results[0])
+    assert.equal(results[0]!.destination.type,  'cloud_app')
+    assert.equal(results[0]!.destination.value, 'ChatGPT')
+
+    assert.ok(results[1])
+    assert.equal(results[1]!.destination.type,  'cloud_app')
+    assert.equal(results[1]!.destination.value, 'Claude Code')
   })
 })
 

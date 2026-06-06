@@ -62,14 +62,17 @@ function lintNpjPolicy(policy: GenAIPolicy, npj: NpjShape): LintIssue[] {
   }
 
   // 2. No content conditions and no app scope — policy won't match any traffic
+  // App scope can be expressed as category (app_categories), specific apps (apps), or instances (app_instances).
   const hasConditions = (npj.content?.conditions ?? []).length > 0
   const hasAppScope   = (npj.scope?.app_categories ?? []).length > 0
+                      || (npj.scope?.apps           ?? []).length > 0
+                      || (npj.scope?.app_instances  ?? []).length > 0
   if (!hasConditions && !hasAppScope) {
     issues.push({
       id:        `${policy.id}-npj-no-scope`,
       severity:  'warning',
       title:     'No content conditions or app scope',
-      detail:    `"${policy.name}" has no content conditions and no app category scope — it may not match any traffic.`,
+      detail:    `"${policy.name}" has no content conditions and no app scope — it may not match any traffic.`,
       policyIds: [policy.id],
     })
   }
