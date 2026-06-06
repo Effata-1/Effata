@@ -49,7 +49,7 @@ export default async function NetskopeRecommendationPage() {
     // Manual / AI-generated policies — shown in their own section, not fed into the topology engine
     supabase
       .from('org_genai_policies')
-      .select('id, name, policy_family, neutral_policy_json')
+      .select('id, name, policy_family, neutral_policy_json, priority')
       .eq('org_id', user.orgId)
       .eq('is_active', true)
       .eq('approval_status', 'approved')
@@ -266,7 +266,9 @@ export default async function NetskopeRecommendationPage() {
         : [{ profile: p.name, profile_type: 'content_detection' as NpjProfileType, profile_action: action, coaching_template: null }]
 
       return {
-        priority:    500 + idx * 10,
+        // Guard: DB default is 99, which would sort before header/block policies.
+        // Only use the stored priority when it's >= 100; otherwise fall back to safe manual range.
+        priority:    (typeof p.priority === 'number' && p.priority >= 100) ? p.priority : 500 + idx * 10,
         policy_key:  `manual:${p.id}`,
         name:        p.name,
         policy_type: 'realtime_protection' as const,

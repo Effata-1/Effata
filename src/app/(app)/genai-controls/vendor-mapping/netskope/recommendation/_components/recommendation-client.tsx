@@ -3,7 +3,10 @@
 import { useState, useMemo, memo } from 'react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { AlertTriangle, CheckCircle2, Info, ChevronDown, ChevronRight, ExternalLink, User, ArrowDownToLine, Wrench, FileText, ToggleRight } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Info, ChevronDown, ChevronRight, ExternalLink, User, ArrowDownToLine, Wrench, FileText, ToggleRight, GripVertical } from 'lucide-react'
+import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import type {
   NetskopeRecommendation, NetskopePolicy, NetskopeProfileEntry,
   NpjProfileType, RecommendationIssue, TopologyMode, TopologyOptionSummary,
@@ -37,14 +40,23 @@ const PROFILE_TYPE_DOT: Record<NpjProfileType, string> = {
   filetype_detection:   'bg-teal-400',
 }
 
-function priorityBadgeClass(p: number): string {
-  if (p === 100) return 'bg-red-500/15 text-red-400 border-red-500/25'
-  if (p === 200) return 'bg-red-500/10 text-red-300/80 border-red-500/15'
-  if (p >= 210 && p <= 290) return 'bg-violet-500/10 text-violet-400 border-violet-500/20' // scoped (P210–P290)
-  if (p === 300) return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-  if (p === 400) return 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-  if (p >= 450 && p < 900) return 'bg-blue-500/10 text-blue-400 border-blue-500/20' // custom categories (P450–P890)
-  return 'bg-muted/60 text-muted-foreground/70 border-border/60' // P900 = R/U fallback
+// Semantic badge class derived from policy_key — safe after drag renumbering.
+function policyKeyBadgeClass(key: string): string {
+  if (key === 'netskope:prohibited_access_block')   return 'bg-red-500/15 text-red-400 border-red-500/25'
+  if (key === 'netskope:always_block_global_dlp')   return 'bg-red-500/10 text-red-300/80 border-red-500/15'
+  if (key.startsWith('netskope:scoped:'))            return 'bg-violet-500/10 text-violet-400 border-violet-500/20'
+  if (key === 'netskope:approved_supported')         return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+  if (key === 'netskope:approved_with_conditions')   return 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+  if (key.startsWith('netskope:custom:'))            return 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+  if (key === 'netskope:restricted_unassessed')      return 'bg-muted/60 text-muted-foreground/70 border-border/60'
+  return 'bg-muted/60 text-muted-foreground/70 border-border/60'
+}
+
+// Source section badge for unified policy list (Scoped / Category / Manual).
+function sourceBadge(key: string): { label: string; className: string } {
+  if (key.startsWith('netskope:scoped:')) return { label: 'Scoped',   className: 'bg-violet-500/10 text-violet-400 border-violet-500/20' }
+  if (key.startsWith('manual:'))          return { label: 'Manual',   className: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20' }
+  return                                           { label: 'Category', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20' }
 }
 
 const CONFIDENCE_CHIP: Record<string, string> = {
@@ -150,25 +162,27 @@ const NativePolicyCard = memo(function NativePolicyCard({ policy }: { policy: Ne
   const typesPresent = Object.keys(profilesByType) as NpjProfileType[]
 
   const policyGroupLabel = (() => {
-    if (policy.priority === 100)                                    return '1. Header Policies'
-    if (policy.priority === 200)                                    return '2. Global DLP Block'
-    if (policy.priority >= 210 && policy.priority <= 290)          return 'Scoped — Pre-Category (P210–P290)'
-    if (policy.priority === 300)                                    return '3. Approved Category Policies'
-    if (policy.priority === 400)                                    return '4. Conditional Category Policies'
-    if (policy.priority >= 450 && policy.priority < 900)           return `${policy.priority}. Custom Category Policies`
-    return '9. Fallback Policies'
+    if (policy.policy_key === 'netskope:prohibited_access_block')  return '1. Header Policies'
+    if (policy.policy_key === 'netskope:always_block_global_dlp')  return '2. Global DLP Block'
+    if (policy.policy_key.startsWith('netskope:scoped:'))          return 'Scoped — Pre-Category (P210–P290)'
+    if (policy.policy_key === 'netskope:approved_supported')       return '3. Approved Category Policies'
+    if (policy.policy_key === 'netskope:approved_with_conditions') return '4. Conditional Category Policies'
+    if (policy.policy_key.startsWith('netskope:custom:'))          return 'Custom Category Policies'
+    if (policy.policy_key === 'netskope:restricted_unassessed')    return '9. Fallback Policies'
+    if (policy.policy_key.startsWith('manual:'))                   return 'Custom / Manual Policy'
+    return 'Category Policy'
   })()
 
   const noMatchText = policy.no_match_action
     ? policy.no_match_action.charAt(0).toUpperCase() + policy.no_match_action.slice(1)
     : 'Not configured'
 
-  // P200 and scoped (P210–P290): pass-through — no config needed.
+  // P200 and scoped: pass-through — no config needed.
   // Custom/unconfigured categories: admin must set no-match before deploying.
   const noMatchImplNote = policy.no_match_action === null
-    ? policy.priority === 200
+    ? policy.policy_key === 'netskope:always_block_global_dlp'
       ? 'No DLP profile match = no decision — standard Netskope DLP pass-through to the next category policy. No additional configuration required for this behaviour.'
-      : (policy.priority >= 210 && policy.priority <= 290)
+      : policy.policy_key.startsWith('netskope:scoped:')
         ? 'Source/destination criteria not met or no DLP profile match = no decision — traffic passes through to the next policy. This is correct behaviour for a scoped policy.'
         : 'No-match action is not configured. Decide the no-match behaviour (Allow / Alert / Block) for this category before deploying.'
     : ''
@@ -208,7 +222,7 @@ const NativePolicyCard = memo(function NativePolicyCard({ policy }: { policy: Ne
   const autoDescription = policy.policy_type === 'access_control'
     ? `Blocks access to ${policy.destination.tag_or_category} apps at the network layer before content inspection runs.`
     : `Enforces DLP controls for ${policy.destination.tag_or_category} GenAI apps. No-match: ${
-        policy.no_match_action ?? (policy.priority === 200 ? 'no decision — pass-through to category policies' : 'not configured')
+        policy.no_match_action ?? (policy.policy_key === 'netskope:always_block_global_dlp' ? 'no decision — pass-through to category policies' : 'not configured')
       }.`
 
   return (
@@ -217,7 +231,7 @@ const NativePolicyCard = memo(function NativePolicyCard({ policy }: { policy: Ne
       {/* Title bar — priority badge + policy type chip */}
       <div className="flex items-center justify-between px-5 py-3 bg-muted/10 border-b border-border/50">
         <div className="flex items-center gap-2.5">
-          <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-bold', priorityBadgeClass(policy.priority))}>
+          <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-bold', policyKeyBadgeClass(policy.policy_key))}>
             P{policy.priority}
           </span>
           <span className="text-sm font-bold text-foreground">{policy.name}</span>
@@ -491,7 +505,7 @@ const NativePolicyCard = memo(function NativePolicyCard({ policy }: { policy: Ne
                 <div className="space-y-1 px-1">
                   <p className="text-[11px] font-semibold text-blue-400/70">+ ADD TRAFFIC ACTION</p>
                   <p className="text-[10px] text-muted-foreground/40">
-                    {policy.priority === 200 || policy.policy_key.startsWith('netskope:scoped:')
+                    {policy.policy_key === 'netskope:always_block_global_dlp' || policy.policy_key.startsWith('netskope:scoped:')
                       ? 'No profile match = pass-through to next policy (correct Netskope default — no action needed).'
                       : policy.policy_key.startsWith('netskope:rf:')
                         ? 'No profile match = continue to next risk-family policy (Netskope default — no action needed).'
@@ -585,6 +599,39 @@ const NativePolicyCard = memo(function NativePolicyCard({ policy }: { policy: Ne
     </div>
   )
 })
+
+// ── Sortable policy card wrapper (drag handle + NativePolicyCard) ─────────────
+
+function SortablePolicyCard({ policy }: { policy: NetskopePolicy }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: policy.policy_key,
+  })
+  const badge = sourceBadge(policy.policy_key)
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+      className="flex items-start gap-1.5"
+    >
+      <div
+        {...attributes}
+        {...listeners}
+        className="mt-4 cursor-grab active:cursor-grabbing text-muted-foreground/30 hover:text-muted-foreground/60 shrink-0 p-0.5"
+        title="Drag to reorder"
+      >
+        <GripVertical className="h-3.5 w-3.5" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-medium', badge.className)}>
+            {badge.label}
+          </span>
+        </div>
+        <NativePolicyCard policy={policy} />
+      </div>
+    </div>
+  )
+}
 
 // ── Static why-selected copy for non-hybrid options ──────────────────────────
 
@@ -696,6 +743,67 @@ function applyStrategyOverrides(
   })
 }
 
+// ── Required object collector for manual/custom policies ─────────────────────
+// The topology and scoped engines collect their own required objects. Manual policies
+// go through neither, so their DLP profiles, source identities, and destinations
+// must be collected separately and merged before the Required Objects tab renders.
+
+function collectManualRequiredObjects(policies: NetskopePolicy[]) {
+  const dlp                  = new Set<string>()
+  const classLabel           = new Set<string>()
+  const filename             = new Set<string>()
+  const filetype             = new Set<string>()
+  const notifications        = new Set<string>()
+  const cciTags              = new Set<string>()
+  const appCategories        = new Set<string>()
+  const appInstances         = new Set<string>()
+  const destProfiles         = new Set<string>()
+  const cloudApps            = new Set<string>()
+  const userGroups           = new Set<string>()
+  const adGroups             = new Set<string>()
+  const users                = new Set<string>()
+  const orgUnits             = new Set<string>()
+
+  for (const policy of policies) {
+    for (const prof of policy.profiles) {
+      if      (prof.profile_type === 'content_detection')    dlp.add(prof.profile)
+      else if (prof.profile_type === 'classification_label') classLabel.add(prof.profile)
+      else if (prof.profile_type === 'filename_detection')   filename.add(prof.profile)
+      else if (prof.profile_type === 'filetype_detection')   filetype.add(prof.profile)
+      if (prof.coaching_template) notifications.add(prof.coaching_template)
+    }
+    const src = policy.source
+    if      (src.type === 'user_group'          && src.value) userGroups.add(src.value)
+    else if (src.type === 'ad_group'            && src.value) adGroups.add(src.value)
+    else if (src.type === 'user'                && src.value) users.add(src.value)
+    else if (src.type === 'organizational_unit' && src.value) orgUnits.add(src.value)
+    const dst = policy.destination
+    if (dst.strategy === 'app_category') {
+      appCategories.add(dst.tag_or_category)
+      if (dst.cci_app_tag) cciTags.add(dst.cci_app_tag)
+    } else if (dst.strategy === 'app_instance')        appInstances.add(dst.tag_or_category)
+    else if   (dst.strategy === 'destination_profile') destProfiles.add(dst.tag_or_category)
+    else if   (dst.strategy === 'cloud_app')           cloudApps.add(dst.tag_or_category)
+  }
+
+  return {
+    dlp_profiles:                  [...dlp],
+    classification_label_profiles: [...classLabel],
+    filename_profiles:             [...filename],
+    filetype_profiles:             [...filetype],
+    notification_templates:        [...notifications],
+    cci_app_tags:                  [...cciTags],
+    app_categories:                [...appCategories],
+    app_instances:                 [...appInstances],
+    destination_profiles:          [...destProfiles],
+    cloud_apps:                    [...cloudApps],
+    user_groups:                   [...userGroups],
+    ad_groups:                     [...adGroups],
+    users:                         [...users],
+    organizational_units:          [...orgUnits],
+  }
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export function RecommendationClient({ recommendation: r, orgCategories = [] }: { recommendation: NetskopeRecommendation; orgCategories?: { system_tag: string | null; name: string }[] }) {
@@ -717,10 +825,46 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
     ? r.why_selected
     : WHY_SELECTED[selectedMode]
 
+  // Unified policy list — all sections merged and sorted by priority.
+  // Uses activeOption.policies (not r.recommended_policies) so topology selection is respected.
+  const allPolicies = useMemo<NetskopePolicy[]>(() => {
+    const combined = [
+      ...(r.scoped_policies?.policies ?? []),
+      ...activeOption.policies,
+      ...r.manual_policies,
+    ]
+    return combined.sort((a, b) => a.priority - b.priority)
+  }, [r, activeOption])
+
+  // Drag-reorder state — null means "use allPolicies order" (no custom order applied).
+  // Storing only keys (not the full policy objects) means allPolicies changes (topology switch)
+  // automatically reset the order without needing a useEffect setState-in-effect.
+  const [orderKeys, setOrderKeys] = useState<string[] | null>(null)
+
+  const orderedPolicies = useMemo<NetskopePolicy[]>(() => {
+    if (!orderKeys) return allPolicies
+    const byKey = new Map(allPolicies.map(p => [p.policy_key, p]))
+    const ordered = orderKeys.map(k => byKey.get(k)).filter(Boolean) as NetskopePolicy[]
+    // Renumber priorities sequentially so policy cards show the correct deployment order.
+    // Semantics (labels, notes) derive from policy_key, not priority, so this is safe.
+    return ordered.map((p, i) => ({ ...p, priority: 100 + i * 10 }))
+  }, [allPolicies, orderKeys])
+
   const patchedPolicies = useMemo(
-    () => applyStrategyOverrides(activeOption.policies, strategyOverrides),
-    [activeOption.policies, strategyOverrides],
+    () => applyStrategyOverrides(orderedPolicies, strategyOverrides),
+    [orderedPolicies, strategyOverrides],
   )
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    // orderedPolicies is a stable memo value — safe to read directly here.
+    const currentKeys = orderedPolicies.map(p => p.policy_key)
+    const oldIdx = currentKeys.indexOf(active.id as string)
+    const newIdx = currentKeys.indexOf(over.id as string)
+    if (oldIdx === -1 || newIdx === -1) return
+    setOrderKeys(arrayMove(currentKeys, oldIdx, newIdx))
+  }
 
   const allIssues = useMemo(
     () => [...r.issues, ...(r.scoped_policies?.issues ?? [])],
@@ -728,8 +872,9 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
   )
 
   const combinedRequiredObjects = useMemo((): RequiredObjects => {
-    const base  = activeOption.required_objects
+    const base   = activeOption.required_objects
     const scoped = r.scoped_policies?.required_objects
+    const manual = collectManualRequiredObjects(r.manual_policies)
 
     const adGroupsFromOverrides = (Object.values(strategyOverrides) as (CategoryStrategyOverride | undefined)[])
       .filter((o): o is CategoryStrategyOverride => !!o && o.source_type === 'ad_group' && !!o.source_value)
@@ -741,31 +886,42 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
     if (!scoped) {
       return {
         ...base,
-        ad_groups:     [...new Set([...(base.ad_groups     ?? []), ...adGroupsFromOverrides])],
-        app_instances: [...new Set([...(base.app_instances ?? []), ...appInstancesFromOverrides])],
-        destination_profiles: base.destination_profiles ?? [],
-        cloud_apps:           base.cloud_apps           ?? [],
+        dlp_profiles:                  [...new Set([...base.dlp_profiles,                  ...manual.dlp_profiles])],
+        classification_label_profiles: [...new Set([...base.classification_label_profiles, ...manual.classification_label_profiles])],
+        filename_profiles:             [...new Set([...base.filename_profiles,             ...manual.filename_profiles])],
+        filetype_profiles:             [...new Set([...base.filetype_profiles,             ...manual.filetype_profiles])],
+        notification_templates:        [...new Set([...base.notification_templates,        ...manual.notification_templates])],
+        cci_app_tags:                  [...new Set([...(base.cci_app_tags ?? []),           ...manual.cci_app_tags])],
+        app_categories:                [...new Set([...(base.app_categories ?? []),         ...manual.app_categories])],
+        ad_groups:                     [...new Set([...(base.ad_groups ?? []),              ...adGroupsFromOverrides, ...manual.ad_groups])],
+        app_instances:                 [...new Set([...(base.app_instances ?? []),          ...appInstancesFromOverrides, ...manual.app_instances])],
+        destination_profiles:          [...new Set([...(base.destination_profiles ?? []),   ...manual.destination_profiles])],
+        cloud_apps:                    [...new Set([...(base.cloud_apps ?? []),             ...manual.cloud_apps])],
+        user_groups:                   [...new Set([...(base.user_groups ?? []),            ...manual.user_groups])],
+        users:                         [...new Set([...(base.users ?? []),                  ...manual.users])],
+        organizational_units:          [...new Set([...(base.organizational_units ?? []),   ...manual.organizational_units])],
+        policy_order:                  orderedPolicies.map(p => p.name),
       }
     }
     return {
-      dlp_profiles:                  [...new Set([...base.dlp_profiles,                  ...scoped.dlp_profiles])],
-      classification_label_profiles: [...new Set([...base.classification_label_profiles, ...scoped.classification_label_profiles])],
-      filename_profiles:             [...new Set([...base.filename_profiles,             ...scoped.filename_profiles])],
-      filetype_profiles:             [...new Set([...base.filetype_profiles,             ...scoped.filetype_profiles])],
-      notification_templates:        [...new Set([...base.notification_templates,        ...scoped.notification_templates])],
-      cci_app_tags:                  [...new Set([...base.cci_app_tags,                  ...scoped.cci_app_tags])],
-      app_categories:                [...new Set([...base.app_categories,                ...scoped.app_categories])],
-      app_instances:                 [...new Set([...scoped.app_instances,               ...appInstancesFromOverrides])],
+      dlp_profiles:                  [...new Set([...base.dlp_profiles,                  ...scoped.dlp_profiles,  ...manual.dlp_profiles])],
+      classification_label_profiles: [...new Set([...base.classification_label_profiles, ...scoped.classification_label_profiles, ...manual.classification_label_profiles])],
+      filename_profiles:             [...new Set([...base.filename_profiles,             ...scoped.filename_profiles, ...manual.filename_profiles])],
+      filetype_profiles:             [...new Set([...base.filetype_profiles,             ...scoped.filetype_profiles, ...manual.filetype_profiles])],
+      notification_templates:        [...new Set([...base.notification_templates,        ...scoped.notification_templates, ...manual.notification_templates])],
+      cci_app_tags:                  [...new Set([...base.cci_app_tags,                  ...scoped.cci_app_tags,  ...manual.cci_app_tags])],
+      app_categories:                [...new Set([...base.app_categories,                ...scoped.app_categories, ...manual.app_categories])],
+      app_instances:                 [...new Set([...scoped.app_instances,               ...appInstancesFromOverrides, ...manual.app_instances])],
       app_instance_tags:             [...base.app_instance_tags],
-      destination_profiles:          [...scoped.destination_profiles],
-      cloud_apps:                    [...scoped.cloud_apps],
-      user_groups:                   [...scoped.user_groups],
-      ad_groups:                     [...new Set([...scoped.ad_groups, ...adGroupsFromOverrides])],
-      users:                         [...scoped.users],
-      organizational_units:          [...scoped.organizational_units],
-      policy_order:                  [...(r.scoped_policies?.policies.map(p => p.name) ?? []), ...base.policy_order],
+      destination_profiles:          [...new Set([...scoped.destination_profiles,        ...manual.destination_profiles])],
+      cloud_apps:                    [...new Set([...scoped.cloud_apps,                  ...manual.cloud_apps])],
+      user_groups:                   [...new Set([...scoped.user_groups,                 ...manual.user_groups])],
+      ad_groups:                     [...new Set([...scoped.ad_groups,                   ...adGroupsFromOverrides, ...manual.ad_groups])],
+      users:                         [...new Set([...scoped.users,                       ...manual.users])],
+      organizational_units:          [...new Set([...scoped.organizational_units,        ...manual.organizational_units])],
+      policy_order:                  orderedPolicies.map(p => p.name),
     }
-  }, [activeOption.required_objects, r.scoped_policies, strategyOverrides])
+  }, [activeOption.required_objects, r.scoped_policies, r.manual_policies, strategyOverrides, orderedPolicies])
 
   const activeLimitations = useMemo(() => {
     const hasAppInstanceOverride = (Object.values(strategyOverrides) as (CategoryStrategyOverride | undefined)[])
@@ -796,9 +952,12 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
           </Link>
           <h1 className="text-xl font-bold text-foreground">Netskope Policy Recommendation</h1>
           <p className="text-sm text-muted-foreground/60 mt-0.5">
-            {activeOption.label} · {activeOption.policy_count} category {activeOption.policy_count === 1 ? 'policy' : 'policies'}
+            {activeOption.label} · {allPolicies.length} {allPolicies.length === 1 ? 'policy' : 'policies'} total
             {r.scoped_policies && r.scoped_policies.policies.length > 0 && (
               <span className="ml-1 text-violet-400/80">· {r.scoped_policies.policies.length} scoped</span>
+            )}
+            {r.manual_policies.length > 0 && (
+              <span className="ml-1 text-zinc-400/80">· {r.manual_policies.length} manual</span>
             )}
             {r.is_partial && <span className="ml-2 text-amber-400/80">· Partial</span>}
           </p>
@@ -813,59 +972,13 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
         </div>
       </div>
 
-      {/* Scoped Policies Section — topology-agnostic, only shown when scoped NPJs detected */}
-      {r.scoped_policies && r.scoped_policies.policies.length > 0 && (
-        <div className="rounded-xl border border-violet-500/25 bg-card overflow-hidden shadow-sm">
-          <div className="px-5 py-3.5 border-b border-border/50 bg-muted/5 flex items-center gap-2.5">
-            <span className="text-sm font-bold text-foreground">Scoped Policies · P210–P290</span>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-violet-500/20 bg-violet-500/10 text-[10px] font-semibold text-violet-400">
-              {r.scoped_policies.policies.length} {r.scoped_policies.policies.length === 1 ? 'policy' : 'policies'}
-            </span>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-border/40 bg-muted/30 text-[10px] font-medium text-muted-foreground/50">
-              Topology-Agnostic
-            </span>
-          </div>
-          <div className="px-5 py-2 border-b border-border/20 bg-muted/5">
-            <p className="text-[11px] text-muted-foreground/50">
-              Generated from NPJs with custom source or destination scope. Execute before category policies (P300+) — deploy these first.
-            </p>
-          </div>
-          {r.scoped_policies.overflow_count > 0 && (
-            <div className="px-5 py-2 border-b border-amber-500/20 bg-amber-500/5 flex items-center gap-2">
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <p className="text-[11px] text-amber-400/80">
-                {r.scoped_policies.overflow_count} scoped {r.scoped_policies.overflow_count === 1 ? 'policy group' : 'policy groups'} exceeded the 8-policy slot limit and were not generated. Reduce scoped NPJs or adjust priorities manually in Netskope.
-              </p>
-            </div>
-          )}
-          <div className="p-5 space-y-4">
-            {r.scoped_policies.policies.map(p => (
-              <NativePolicyCard key={p.policy_key} policy={p} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Manual / Custom Policies section */}
-      {r.manual_policies.length > 0 && (
-        <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
-          <div className="px-5 py-3 border-b border-border/50 bg-muted/5 flex items-center gap-3">
-            <span className="text-sm font-bold text-foreground">Custom Policies</span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-500/10 border border-zinc-500/20 text-zinc-400 font-medium">
-              {r.manual_policies.length} {r.manual_policies.length === 1 ? 'policy' : 'policies'}
-            </span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted/40 border border-border/40 text-muted-foreground/60 font-medium">
-              Manual / AI-Generated
-            </span>
-            <span className="text-[11px] text-muted-foreground/40 ml-auto">
-              Deploy after category topology policies
-            </span>
-          </div>
-          <div className="divide-y divide-border/40">
-            {r.manual_policies.map(p => (
-              <NativePolicyCard key={p.policy_key} policy={p} />
-            ))}
-          </div>
+      {/* Scoped overflow warning — still shown above tabs when relevant */}
+      {r.scoped_policies && r.scoped_policies.overflow_count > 0 && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-2.5 flex items-center gap-2">
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          <p className="text-[11px] text-amber-400/80">
+            {r.scoped_policies.overflow_count} scoped {r.scoped_policies.overflow_count === 1 ? 'policy group' : 'policy groups'} exceeded the 8-policy slot limit and were not generated. Reduce scoped NPJs or adjust priorities manually in Netskope.
+          </p>
         </div>
       )}
 
@@ -881,7 +994,7 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
               key={option.mode}
               option={option}
               selected={option.mode === selectedMode}
-              onSelect={() => setSelectedMode(option.mode)}
+              onSelect={() => { setSelectedMode(option.mode); setOrderKeys(null) }}
             />
           ))}
         </div>
@@ -1124,7 +1237,31 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
               <p className="text-sm text-muted-foreground/60">No valid policies found. Resolve NPJ issues in the Policy Editor before generating a recommendation.</p>
             </div>
           ) : (
-            patchedPolicies.map(p => <NativePolicyCard key={p.policy_key} policy={p} />)
+            <>
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] text-muted-foreground/40">
+                  {patchedPolicies.length} {patchedPolicies.length === 1 ? 'policy' : 'policies'} · drag to reorder before export
+                </p>
+                {orderKeys && (
+                  <button
+                    type="button"
+                    onClick={() => setOrderKeys(null)}
+                    className="text-[11px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
+                  >
+                    Reset order
+                  </button>
+                )}
+              </div>
+              <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={patchedPolicies.map(p => p.policy_key)} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-4">
+                    {patchedPolicies.map(p => (
+                      <SortablePolicyCard key={p.policy_key} policy={p} />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            </>
           )}
         </div>
       )}

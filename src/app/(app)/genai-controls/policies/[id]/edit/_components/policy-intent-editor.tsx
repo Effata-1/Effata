@@ -142,6 +142,7 @@ export interface PolicyIntentEditorProps {
     policy_key:                string | null
     neutral_policy_hash:       string | null
     updated_at:                string
+    priority:                  number
     policy_source:             'recommended' | 'manual'
     matrix_basis:              'default' | 'customized' | null
     last_synced_from_matrix_at: string | null
@@ -462,6 +463,12 @@ export function PolicyIntentEditor({
     const dest  = scope?.destination as Record<string, unknown> | undefined
     return (dest?.cci_app_tag as string | undefined) ?? ''
   })
+  // Phase 5: Netskope priority (manual policies only).
+  // String state avoids Number('') = 0 on blank input; clamped only when touched.
+  // priorityTouched guards against writing priority on unrelated saves when DB default is 99.
+  const [formPriorityStr, setFormPriorityStr] = useState<string>(String(policy.priority ?? 99))
+  const [priorityTouched, setPriorityTouched] = useState<boolean>(false)
+  const formPriority = Math.min(990, Math.max(100, parseInt(formPriorityStr, 10) || 99))
   const [translationStatus,    setTranslationStatus]    = useState(policy.vendor_translation_status)
   const [saving,               setSaving]               = useState(false)
   const [saveError,            setSaveError]            = useState('')
@@ -596,6 +603,11 @@ export function PolicyIntentEditor({
         fields.vendor_translation_status = 'pending'
         setTranslationStatus('pending')
       }
+    }
+    // Priority (manual policies only) — only write when the user has explicitly touched the field.
+    // Guards against accidentally writing on unrelated saves when the DB default is 99.
+    if (!isRecommended && priorityTouched) {
+      fields.priority = formPriority
     }
     const res = await upsertPolicy(policy.id, fields)
     setSaving(false)
@@ -1889,6 +1901,26 @@ export function PolicyIntentEditor({
               className="block w-full rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-border-strong resize-none disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
+
+          {/* Netskope priority — manual policies only */}
+          {!isRecommended && (
+            <div className="flex items-center gap-2">
+              <label className="w-32 text-xs text-muted-foreground/60 shrink-0">Netskope Priority</label>
+              <input
+                type="number"
+                min={100}
+                max={990}
+                step={10}
+                value={formPriorityStr}
+                onChange={e => { setFormPriorityStr(e.target.value); setPriorityTouched(true) }}
+                onBlur={() => { if (priorityTouched) setFormPriorityStr(String(formPriority)) }}
+                className="w-24 rounded-lg border border-border bg-muted/30 px-3 py-1 text-xs text-foreground focus:outline-none focus:border-border-strong"
+              />
+              <span className="text-[10px] text-muted-foreground/40">
+                Lower = evaluated first. 100–290 reserved for scoped/access, 300–490 for category policies.
+              </span>
+            </div>
+          )}
         </div>
       </SectionCard>}
 
