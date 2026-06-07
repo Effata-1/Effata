@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation'
 import { generatePresentation, revokePresentation } from '../actions'
 
 interface Props {
-  existing: { id: string; public_token: string; revoked_at: string | null; created_at: string } | null
+  existing:  { id: string; public_token: string; revoked_at: string | null; created_at: string } | null
+  onPresent?: () => void
 }
 
-export function PresentationActionsBar({ existing }: Props) {
+export function PresentationActionsBar({ existing, onPresent }: Props) {
   const router                    = useRouter()
   const [isPending, start]        = useTransition()
   const [shareToken, setShareToken] = useState<string | null>(
@@ -68,6 +69,18 @@ export function PresentationActionsBar({ existing }: Props) {
   return (
     <div className="print:hidden space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
+        {onPresent && (
+          <button
+            type="button"
+            onClick={onPresent}
+            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+            Present
+          </button>
+        )}
         <button
           type="button"
           onClick={handlePrint}
