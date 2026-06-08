@@ -195,12 +195,19 @@ export default async function PresentationPage() {
                         <p className="text-xs text-muted-foreground/60 mt-1 leading-relaxed">{policy.description as string}</p>
                       )}
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/40 border border-border text-muted-foreground/60 capitalize">
-                          {(policy.policy_type as string).replace('-', ' ')}
-                        </span>
-                        {(policy.data_classification_label as string | null) && (
+                        {(policy.policy_family as string | null) ? (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/40 border border-border text-muted-foreground/60">
+                            {(policy.policy_family as string).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                          </span>
+                        ) : (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/40 border border-border text-muted-foreground/60 capitalize">
-                            {(policy.data_classification_label as string) === 'all' ? 'All data' : (policy.data_classification_label as string)}
+                            {(policy.policy_type as string).replace(/-/g, ' ')}
+                          </span>
+                        )}
+                        {(policy.data_classification_label as string | null) &&
+                         (policy.data_classification_label as string) !== 'all' && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/40 border border-border text-muted-foreground/50 capitalize">
+                            {(policy.data_classification_label as string).replace(/-/g, ' ')}
                           </span>
                         )}
                       </div>
