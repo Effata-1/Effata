@@ -7,9 +7,10 @@ import { cn } from '@/lib/utils'
 import { Shield, ArrowLeft, LogOut } from 'lucide-react'
 
 interface NavItem {
-  label:   string
-  href?:   string   // omit for group headers
-  isGroup?: boolean // renders as a non-link section label
+  label:    string
+  href?:    string    // omit for group headers
+  isGroup?: boolean   // renders as a non-link section label
+  indent?:  boolean   // visually nested under the previous item
 }
 
 interface Props {
@@ -58,12 +59,14 @@ export function SectionSidebar({ title, items, backHref = '/dashboard' }: Props)
               key={item.href}
               href={item.href!}
               className={cn(
-                'block pl-[10px] pr-3 py-2 rounded-md text-sm transition-all border-l-2',
+                'block pr-3 py-1.5 rounded-md transition-all border-l-2',
+                item.indent ? 'pl-5 text-xs' : 'pl-[10px] py-2 text-sm',
                 isActive
                   ? 'bg-sidebar-accent text-foreground font-medium border-blue-500'
                   : 'text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50 border-transparent'
               )}
             >
+              {item.indent && <span className="mr-1 text-muted-foreground/40">↳</span>}
               {item.label}
             </Link>
           )

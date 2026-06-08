@@ -11,7 +11,7 @@ const ITEMS = [
   { label: 'Policy Library',        href: '/genai-controls/policies' },
   { label: 'Coaching Templates',    href: '/genai-controls/notifications' },
   { label: 'Netskope Policies',     href: '/genai-controls/vendor-mapping/netskope/recommendation' },
-  { label: 'Netskope Policy Flow',  href: '/genai-controls/vendor-mapping/netskope/architecture' },
+  { label: 'Policy Flow',           href: '/genai-controls/vendor-mapping/netskope/architecture', indent: true },
   { label: 'Presentation',          href: '/genai-controls/presentation' },
 ]
 
