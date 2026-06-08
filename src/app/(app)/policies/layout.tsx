@@ -8,6 +8,7 @@ const ITEMS = [
   { label: 'Destinations',           href: '/policies/destinations' },
   { label: 'Classification Labels',  href: '/policies/classifications' },
   { label: 'Sensitivity Labels',     href: '/policies/sensitivity-labels' },
+  { label: 'Coaching Templates',     href: '/policies/coaching-templates' },
   { label: 'Identity Context',       href: '/policies/identity' },
   { label: 'Channels',               isGroup: true as const },
   ...CHANNELS.map(c => ({ label: c.shortName, href: `/policies/channels/${c.slug}` })),

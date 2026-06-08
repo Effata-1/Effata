@@ -595,10 +595,10 @@ export function PolicyFlowDiagram({ orgName, recommendation, categories }: Props
       {/* ── Page header ─────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-4 px-6 py-4 border-b border-border/50 shrink-0">
         <Link
-          href="/genai-controls/architecture"
+          href="/genai-controls/vendor-mapping/netskope/recommendation"
           className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5"
         >
-          <span aria-hidden>←</span> GenAI Architecture
+          <span aria-hidden>←</span> Netskope Policies
         </Link>
         <div className="h-4 w-px bg-border/60" />
         <h1 className="text-sm font-semibold text-foreground">

@@ -96,7 +96,7 @@ export default async function ControlMatrixPage() {
         Changes save instantly. Use the reset icon (↺) on any cell to restore the recommended default. Columns auto-update when you add or rename categories in{' '}
         <a href="/genai-controls/app-governance" className="underline hover:text-muted-foreground/80 transition-colors">App Governance → Manage Categories</a>.
         {' '}Coaching messages are managed in{' '}
-        <a href="/genai-controls/notifications" className="underline hover:text-muted-foreground/80 transition-colors">Coaching Templates</a>.
+        <a href="/policies/coaching-templates" className="underline hover:text-muted-foreground/80 transition-colors">Coaching Templates</a>.
       </p>
     </div>
   )
