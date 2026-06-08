@@ -12,11 +12,12 @@ import type { OrgCategory } from '@/lib/genai/netskope/get-recommendation'
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const LANE_H    = 220   // px per lane — taller to fit profile list + no-match row
-const X_SPINE   = 480   // horizontal center of spine
+const X_SPINE   = 480   // horizontal center of spine (NO path)
 const X_ACTION  = 760   // left edge of action boxes
 const ACTION_W  = 290   // width of action boxes
 const ACTION_H  = 192   // fixed height — overflow-hidden prevents lane bleed
 const DIAMOND_S = 110   // rotated square size (both w and h)
+const X_COLLECT = X_ACTION + ACTION_W + 32  // right-collection spine (YES paths terminate here)
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -260,10 +261,14 @@ function ActionNode({ laneIdx, policyKey, policy, status, centered, onClick }: A
 }
 
 function ExitNode({ laneIdx }: { laneIdx: number }) {
-  const cy = laneIdx * LANE_H + LANE_H / 2
+  const cy    = laneIdx * LANE_H + LANE_H / 2
+  // Width spans from left of spine area all the way to the collection spine
+  // so both the NO-path spine and the YES-path collection arrow land visibly on this node.
+  const left  = X_SPINE - 140
+  const width = X_COLLECT - left + 10
   return (
     <div
-      style={{ position: 'absolute', left: X_SPINE - 130, top: cy - 22, width: 260 }}
+      style={{ position: 'absolute', left, top: cy - 22, width }}
       className="rounded-lg border border-border/50 bg-muted/20 px-4 py-3 text-center select-none"
     >
       <p className="text-xs font-medium text-muted-foreground">Netskope Events / Alerts / Incidents</p>
@@ -294,6 +299,13 @@ function ArrowLayer({ lanes, canvasH, prefersReduced }: ArrowLayerProps) {
   const exitLaneIdx  = lanes.length - 1
   const entryBottomY = entryLane * LANE_H + LANE_H - 10
   const exitTopY     = exitLaneIdx * LANE_H + 10
+  const exitCy       = exitLaneIdx * LANE_H + LANE_H / 2
+
+  // Right-collection spine: all YES-action paths feed into this vertical line
+  // then converge into the exit (events) node at the bottom.
+  const collectFirstCy = diamondLanes.length > 0
+    ? diamondLanes[0].i * LANE_H + LANE_H / 2
+    : exitCy
 
   return (
     <svg
@@ -302,15 +314,21 @@ function ArrowLayer({ lanes, canvasH, prefersReduced }: ArrowLayerProps) {
       height={canvasH}
     >
       <defs>
+        {/* Down-pointing arrowhead for spine */}
         <marker id="arrow-head" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
           <path d="M0,0 L0,6 L8,3 z" fill="rgb(99 102 241 / 0.5)" />
         </marker>
+        {/* Right-pointing arrowhead for YES branches */}
         <marker id="arrow-head-side" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
           <path d="M0,0 L0,6 L8,3 z" fill="rgb(99 102 241 / 0.6)" />
         </marker>
+        {/* Left-pointing arrowhead for collection spine → exit node */}
+        <marker id="arrow-head-left" markerWidth="8" markerHeight="8" refX="2" refY="3" orient="auto">
+          <path d="M8,0 L8,6 L0,3 z" fill="rgb(99 102 241 / 0.45)" />
+        </marker>
       </defs>
 
-      {/* Vertical spine */}
+      {/* ── Left spine (NO path) ──────────────────────────────────────────── */}
       <line
         x1={X_SPINE} y1={entryBottomY}
         x2={X_SPINE} y2={exitTopY}
@@ -320,7 +338,7 @@ function ArrowLayer({ lanes, canvasH, prefersReduced }: ArrowLayerProps) {
         markerEnd="url(#arrow-head)"
       />
 
-      {/* YES branches + labels */}
+      {/* ── YES branches (diamond → action box) ─────────────────────────── */}
       {diamondLanes.map(({ i }) => {
         const cy           = i * LANE_H + LANE_H / 2
         const branchStartX = X_SPINE + DIAMOND_S / 2 - 2
@@ -344,7 +362,45 @@ function ArrowLayer({ lanes, canvasH, prefersReduced }: ArrowLayerProps) {
         )
       })}
 
-      {/* Animated flow dots — skip when reduced motion */}
+      {/* ── Right-collection spine (action box → events) ─────────────────── */}
+      {/* Horizontal tail from right edge of each ActionNode to the collection spine */}
+      {diamondLanes.map(({ i }) => {
+        const cy = i * LANE_H + LANE_H / 2
+        return (
+          <line key={`tail-${i}`}
+            x1={X_ACTION + ACTION_W + 2} y1={cy}
+            x2={X_COLLECT}               y2={cy}
+            stroke="rgb(99 102 241 / 0.2)"
+            strokeWidth="1"
+            strokeDasharray="3 2"
+          />
+        )
+      })}
+
+      {/* Vertical collection spine from first action lane down to exit level */}
+      {diamondLanes.length > 0 && (
+        <line
+          x1={X_COLLECT} y1={collectFirstCy}
+          x2={X_COLLECT} y2={exitCy}
+          stroke="rgb(99 102 241 / 0.2)"
+          strokeWidth="1.5"
+          strokeDasharray="4 3"
+        />
+      )}
+
+      {/* Horizontal arrow from collection spine into exit node (right → left) */}
+      {diamondLanes.length > 0 && (
+        <line
+          x1={X_COLLECT}  y1={exitCy}
+          x2={X_COLLECT - 5} y2={exitCy}
+          stroke="rgb(99 102 241 / 0.35)"
+          strokeWidth="1.5"
+          markerEnd="url(#arrow-head-left)"
+        />
+      )}
+
+      {/* ── Animated dots ────────────────────────────────────────────────── */}
+      {/* YES-branch dots (diamond → action box) */}
       {!prefersReduced && diamondLanes.map(({ i }, dotIdx) => {
         const cy    = i * LANE_H + LANE_H / 2
         const dur   = 1.8 + dotIdx * 0.3
@@ -359,13 +415,23 @@ function ArrowLayer({ lanes, canvasH, prefersReduced }: ArrowLayerProps) {
         )
       })}
 
-      {/* Vertical spine dot */}
+      {/* NO-path spine dot (entry → exit) */}
       {!prefersReduced && (
         <circle r="3.5" fill="rgb(99 102 241 / 0.5)">
           <animate attributeName="cy" from={entryBottomY + 10} to={exitTopY - 10}
             dur="3s" repeatCount="indefinite" />
           <animate attributeName="cx" from={X_SPINE} to={X_SPINE}
             dur="3s" repeatCount="indefinite" />
+        </circle>
+      )}
+
+      {/* Collection spine dot (first action → exit) */}
+      {!prefersReduced && diamondLanes.length > 0 && (
+        <circle r="3" fill="rgb(99 102 241 / 0.4)">
+          <animate attributeName="cy" from={collectFirstCy} to={exitCy}
+            dur="2.5s" begin="0.8s" repeatCount="indefinite" />
+          <animate attributeName="cx" from={X_COLLECT} to={X_COLLECT}
+            dur="2.5s" begin="0.8s" repeatCount="indefinite" />
         </circle>
       )}
     </svg>
