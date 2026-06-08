@@ -388,11 +388,14 @@ function ArrowLayer({ lanes, canvasH, prefersReduced, yesColors }: ArrowLayerPro
       />
 
       {/* ── YES branches (diamond → action box) ─────────────────────────── */}
-      {diamondLanes.map(({ i }) => {
+      {diamondLanes.map(({ i }, dotIdx) => {
         const cy           = i * LANE_H + LANE_H / 2
         const branchStartX = X_SPINE + DIAMOND_S / 2 - 2
         const branchEndX   = X_ACTION - 8
         const yesColor     = yesColors[i] ?? 'rgb(99 102 241 / 0.55)'
+        // P900 (restricted) is the catch-all — every request that reaches it is evaluated.
+        // There is no "NO" path after it, so suppress the NO label on the last diamond.
+        const isLastDiamond = dotIdx === diamondLanes.length - 1
         return (
           <g key={`branch-${i}`}>
             {/* Colored YES arrow — hue matches the action type of the target policy */}
@@ -412,16 +415,18 @@ function ArrowLayer({ lanes, canvasH, prefersReduced, yesColors }: ArrowLayerPro
             <text x={branchStartX + 8} y={cy - 6} fontSize="9" fill={yesColor} fontWeight="700">
               YES ✓
             </text>
-            {/* NO label — clear directional indicator */}
-            <text
-              x={X_SPINE - 22}
-              y={i * LANE_H + LANE_H - 4}
-              fontSize="9"
-              fill="rgb(148 163 184 / 0.6)"
-              fontWeight="600"
-            >
-              NO ↓
-            </text>
+            {/* NO label — only on non-terminal diamonds */}
+            {!isLastDiamond && (
+              <text
+                x={X_SPINE - 22}
+                y={i * LANE_H + LANE_H - 4}
+                fontSize="9"
+                fill="rgb(148 163 184 / 0.6)"
+                fontWeight="600"
+              >
+                NO ↓
+              </text>
+            )}
           </g>
         )
       })}
