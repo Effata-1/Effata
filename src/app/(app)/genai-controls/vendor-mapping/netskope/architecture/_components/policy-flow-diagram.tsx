@@ -34,6 +34,7 @@ type LaneKind =
   | { kind: 'diamond_prohibited'; cat: OrgCategory }
   | { kind: 'diamond_secrets' }
   | { kind: 'diamond_category'; cat: OrgCategory; index: number }
+  | { kind: 'diamond_manual';    policy: NetskopePolicy; index: number }
   | { kind: 'restricted' }
   | { kind: 'exit' }
 
@@ -339,6 +340,7 @@ function ArrowLayer({ lanes, canvasH, prefersReduced, yesColors }: ArrowLayerPro
       l.kind === 'diamond_prohibited' ||
       l.kind === 'diamond_secrets'    ||
       l.kind === 'diamond_category'   ||
+      l.kind === 'diamond_manual'     ||
       l.kind === 'restricted'
     )
 
@@ -519,14 +521,20 @@ export function PolicyFlowDiagram({ orgName, recommendation, categories }: Props
       })
       .sort((a, b) => a.priority - b.priority)
 
+    // Manual policies (priority 500+) slot between category policies and P900 fallback.
+    const manualSorted = recommendation.manual_policies
+      .slice()
+      .sort((a, b) => a.priority - b.priority)
+
     const result: LaneKind[] = [{ kind: 'entry' }]
     if (prohibitedCat) result.push({ kind: 'diamond_prohibited', cat: prohibitedCat })
     result.push({ kind: 'diamond_secrets' })
     allowedCats.forEach((cat, index) => result.push({ kind: 'diamond_category', cat, index }))
+    manualSorted.forEach((policy, index) => result.push({ kind: 'diamond_manual', policy, index }))
     result.push({ kind: 'restricted' })
     result.push({ kind: 'exit' })
     return result
-  }, [categories])
+  }, [categories, recommendation.manual_policies])
 
   const canvasH = lanes.length * LANE_H + 40
 
@@ -558,6 +566,14 @@ export function PolicyFlowDiagram({ orgName, recommendation, categories }: Props
                    : tag === 'approved_with_conditions' ? 'netskope:approved_with_conditions'
                    : `netskope:custom:${tag || lane.cat.id}`
         m[i] = yesArrowRgb(pKey)
+      } else if (lane.kind === 'diamond_manual') {
+        // Derive arrow color from the manual policy's primary action
+        const acts = lane.policy.profiles.map(p => p.profile_action.toLowerCase())
+        const hasBlk = acts.some(a => a === 'block' || a === 'quarantine')
+        const hasCoach = acts.some(a => a.startsWith('coach'))
+        m[i] = hasBlk   ? 'rgb(239 68 68 / 0.65)'   // red
+             : hasCoach ? 'rgb(245 158 11 / 0.65)'   // amber
+             :            'rgb(99 102 241 / 0.55)'   // indigo (allow/monitor)
       } else if (lane.kind === 'restricted') {
         m[i] = yesArrowRgb('netskope:restricted_unassessed')
       }
@@ -707,6 +723,34 @@ export function PolicyFlowDiagram({ orgName, recommendation, categories }: Props
                   <div key={`cat-${cat.id}`}>
                     <DiamondNode laneIdx={idx} label={`Is app ${cat.name}?`} priority={pLabel} />
                     <ActionNode laneIdx={idx} policyKey={pKey} policy={policy} status={status} onClick={setSelectedPolicyKey} />
+                  </div>
+                )
+              }
+
+              case 'diamond_manual': {
+                const policy = lane.policy
+                const pKey   = policy.policy_key
+                const status = getSlotStatus(pKey, recommendation)
+                // Manual policy priority as "P510", "P520", etc.
+                const pLabel = `P${policy.priority}`
+                // Short label for the diamond — use destination app/category if set, else policy name
+                const destLabel = policy.destination.cci_app_tag
+                  ?? policy.destination.tag_or_category
+                  ?? policy.name
+                return (
+                  <div key={`manual-${lane.index}`}>
+                    <DiamondNode
+                      laneIdx={idx}
+                      label={`Manual: ${destLabel}`}
+                      priority={pLabel}
+                    />
+                    <ActionNode
+                      laneIdx={idx}
+                      policyKey={pKey}
+                      policy={policy}
+                      status={status === 'missing' ? 'configured' : status}
+                      onClick={setSelectedPolicyKey}
+                    />
                   </div>
                 )
               }

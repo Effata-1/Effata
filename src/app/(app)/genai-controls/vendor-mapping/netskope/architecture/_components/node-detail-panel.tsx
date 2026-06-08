@@ -131,11 +131,17 @@ export function NodeDetailPanel({ policyKey, recommendation, onClose }: PanelPro
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
 
+  // Search recommended policies first, then manual policies (manual keys start with "manual:")
   const policy = policyKey
-    ? recommendation.recommended_policies.find(p => p.policy_key === policyKey)
+    ? (recommendation.recommended_policies.find(p => p.policy_key === policyKey)
+       ?? recommendation.manual_policies.find(p => p.policy_key === policyKey))
     : undefined
 
-  const status = policyKey ? getSlotStatus(policyKey, recommendation) : 'missing'
+  const isManual = policyKey?.startsWith('manual:') ?? false
+  // Manual policies are always "configured" — getSlotStatus only knows topology slots
+  const status = policyKey
+    ? (isManual ? 'configured' : getSlotStatus(policyKey, recommendation))
+    : 'missing'
 
   const typeBadge = policy ? policyTypeBadge(policy.policy_type) : null
 
@@ -187,8 +193,13 @@ export function NodeDetailPanel({ policyKey, recommendation, onClose }: PanelPro
                 {policyKey && (
                   <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded border text-[10px] font-bold tracking-widest uppercase ${badgeClassForKey(policyKey)}`}>
-                      {priorityFromKey(policyKey)}
+                      {isManual ? `P${policy?.priority ?? '5xx'}` : priorityFromKey(policyKey)}
                     </span>
+                    {isManual && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded border text-[10px] font-medium bg-indigo-500/10 text-indigo-400 border-indigo-500/20">
+                        Manual
+                      </span>
+                    )}
                     {typeBadge && (
                       <span className={`inline-flex items-center px-2 py-0.5 rounded border text-[10px] font-medium ${typeBadge.className}`}>
                         {typeBadge.label}
