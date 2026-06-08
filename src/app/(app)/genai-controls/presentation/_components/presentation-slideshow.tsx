@@ -72,6 +72,12 @@ const ACCEPTED_RISKS = [
     status: 'Accepted',
   },
   {
+    area: 'Large File / Timeout Limits',
+    limitation: 'Inline inspection is constrained by file size (128 MB) and scanning time limits.',
+    impact: 'Large files may cause latency, missed detections, or inconsistent enforcement.',
+    status: 'Accepted',
+  },
+  {
     area: 'Keyword False Positives',
     limitation: 'Generic keywords (e.g. "confidential") may trigger on non-sensitive content.',
     impact: 'Alert or coach fatigue risk if thresholds are not tuned post-pilot.',
@@ -131,26 +137,33 @@ function ActionChip({ action, coachLabel }: { action: string; coachLabel?: strin
 function SlideShell({
   section,
   title,
+  why,
   slideNum,
   children,
 }: {
   section?: string
   title?:   string
+  why?:     string   // one-line rationale shown below the section label
   slideNum: number
   children: React.ReactNode
 }) {
   return (
     <div className="relative w-full h-full flex flex-col px-14 py-10">
-      {/* Section label */}
+      {/* Section label + why */}
       {section && (
         <FadeIn delay={0.05}>
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-400 mb-2">{section}</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-400 mb-1">{section}</p>
+        </FadeIn>
+      )}
+      {why && (
+        <FadeIn delay={0.07}>
+          <p className="text-[11px] text-white/35 italic mb-3">{why}</p>
         </FadeIn>
       )}
       {/* Title */}
       {title && (
         <FadeIn delay={0.1}>
-          <h2 className="text-2xl font-bold text-white mb-6 leading-tight">{title}</h2>
+          <h2 className="text-2xl font-bold text-white mb-5 leading-tight">{title}</h2>
         </FadeIn>
       )}
       {/* Content */}
@@ -234,7 +247,9 @@ function SlideMatrix({
   coachingTemplates,
 }: Pick<Props, 'categories' | 'matrixOverrides' | 'coachingTemplates'>) {
   return (
-    <SlideShell section="ENFORCEMENT DECISIONS" title="Proposed GenAI DLP Matrix" slideNum={4}>
+    <SlideShell section="ENFORCEMENT DECISIONS" title="Proposed GenAI DLP Matrix" slideNum={4}
+      why="Maps every combination of app category × data type to a specific DLP action — this is the single source of truth that drives all generated Netskope policies."
+    >
       <FadeIn delay={0.15}>
         <div className="overflow-auto max-h-full">
           <table className="w-full text-xs border-collapse">
@@ -340,61 +355,96 @@ function SlideMatrix({
 }
 
 function SlideUseCases({ policies }: Pick<Props, 'policies'>) {
-  // Show policies that were created from NPJ (AI-assisted or generated from matrix)
+  // Prefer NPJ-derived policies; fall back to all if none exist
   const npjPolicies = policies.filter(p => p.neutral_policy_json !== null)
-  const rows = (npjPolicies.length > 0 ? npjPolicies : policies).slice(0, 14)
+  const rows = (npjPolicies.length > 0 ? npjPolicies : policies).slice(0, 12)
+
+  function getCategory(p: Props['policies'][number]): string {
+    const npj = p.neutral_policy_json as Record<string, unknown> | null
+    const cats = ((npj?.scope as Record<string, unknown>)?.app_categories as Array<{ name: string }> | undefined)
+    if (cats?.length) return cats.map(c => c.name).join(' / ')
+    return p.policy_family ?? '—'
+  }
+
+  function getDataScope(p: Props['policies'][number]): string {
+    if (p.data_classification_label && p.data_classification_label !== 'all') {
+      return p.data_classification_label.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) + ' data'
+    }
+    const npj = p.neutral_policy_json as Record<string, unknown> | null
+    const conds = ((npj?.content as Record<string, unknown>)?.conditions as Array<Record<string, unknown>> | undefined)
+    if (conds?.length) {
+      const labels = conds.map(c => (c.risk_family ?? c.sensitivity ?? '') as string).filter(Boolean).slice(0, 2)
+      if (labels.length) return labels.join(', ')
+    }
+    return 'Any'
+  }
+
+  function getEnforcement(p: Props['policies'][number]): { text: string; action: string } {
+    const base = p.primary_action ?? 'not-set'
+    const labelMap: Record<string, string> = {
+      'block':      'Block + Coaching',
+      'allow':      'Allow',
+      'monitor':    'Allow + Monitoring',
+      'alert':      'Alert',
+      'coach-ack':  'Allow + Coaching (Ack)',
+      'coach-just': 'Allow + Coaching (Just)',
+    }
+    return { text: labelMap[base] ?? base, action: base }
+  }
+
+  function getImplStatus(p: Props['policies'][number]): { label: string; color: string } {
+    if (p.is_active && p.approval_status === 'approved')  return { label: 'Active in PROD',   color: 'text-emerald-400 font-semibold' }
+    if (p.approval_status === 'approved')                  return { label: 'Ready to Deploy',  color: 'text-blue-400' }
+    if (p.test_status === 'passed')                        return { label: 'Ready to Test',    color: 'text-indigo-400' }
+    if (p.test_status === 'in-progress')                   return { label: 'In Testing',       color: 'text-amber-400' }
+    return { label: 'Draft', color: 'text-white/35' }
+  }
+
   return (
-    <SlideShell section="USE CASES — NPJ DERIVED" title="Policy Use Cases from Neutral Policy JSON" slideNum={5}>
+    <SlideShell section="USE CASES — NPJ DERIVED" title="Use Cases List & Testing Status" slideNum={5}
+      why="Translates each enforcement decision from the control matrix into a testable real-world scenario — validating that policies work as intended before org-wide rollout."
+    >
       <FadeIn delay={0.1}>
         <div className="overflow-auto max-h-full">
           <table className="w-full text-[11px] border-collapse">
             <thead>
-              <tr className="border-b border-white/10">
-                {['#', 'Use Case', 'Family', 'Data Scope', 'Enforcement', 'Test', 'Status'].map(h => (
-                  <th key={h} className="text-left py-2 px-2 text-white/40 font-medium whitespace-nowrap">
-                    {h}
-                  </th>
+              <tr className="border-b border-white/10 bg-white/3">
+                {['#', 'Use Case', 'Business Intent', 'GenAI Category', 'Data Scope', 'Expected Enforcement', 'Implementation Status'].map(h => (
+                  <th key={h} className="text-left py-2 px-2.5 text-white/50 font-semibold text-[10px] whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {rows.map((p, i) => {
-                const test = TEST_STYLE[p.test_status ?? 'untested'] ?? TEST_STYLE['untested']
-                const approvalColor = APPROVAL_STYLE[p.approval_status] ?? 'text-white/40'
+                const cat    = getCategory(p)
+                const scope  = getDataScope(p)
+                const enf    = getEnforcement(p)
+                const impl   = getImplStatus(p)
                 return (
                   <tr key={p.id} className={`border-b border-white/5 ${i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                    <td className="py-2 px-2 text-white/30 font-mono">{String(i + 1).padStart(2, '0')}</td>
-                    <td className="py-2 px-2 text-white/80 font-medium max-w-[180px]">
-                      <span className="block truncate" title={p.name}>{p.name}</span>
+                    <td className="py-2 px-2.5 text-white/40 font-mono font-bold">{i + 1}</td>
+                    <td className="py-2 px-2.5 text-white/85 font-semibold max-w-[160px]">
+                      <span className="block leading-tight" title={p.name}>{p.name}</span>
                     </td>
-                    <td className="py-2 px-2 text-white/40 max-w-[120px]">
-                      <span className="block truncate" title={p.policy_family ?? ''}>{p.policy_family ?? '—'}</span>
+                    <td className="py-2 px-2.5 text-white/45 max-w-[120px] leading-tight">
+                      {p.description ?? '—'}
                     </td>
-                    <td className="py-2 px-2 text-white/40">
-                      {p.data_classification_label
-                        ? <span className="capitalize">{p.data_classification_label === 'all' ? 'All data' : p.data_classification_label}</span>
-                        : '—'}
+                    <td className="py-2 px-2.5 text-white/55 whitespace-nowrap">{cat}</td>
+                    <td className="py-2 px-2.5 text-white/55 whitespace-nowrap">{scope}</td>
+                    <td className="py-2 px-2.5">
+                      <ActionChip action={enf.action} />
                     </td>
-                    <td className="py-2 px-2">
-                      {p.primary_action ? <ActionChip action={p.primary_action} /> : <span className="text-white/20">—</span>}
-                    </td>
-                    <td className="py-2 px-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${test.dot}`} />
-                        <span className="text-white/50">{test.label}</span>
-                      </div>
-                    </td>
-                    <td className={`py-2 px-2 font-semibold capitalize ${approvalColor}`}>
-                      {p.approval_status.replace('-', ' ')}
+                    <td className={`py-2 px-2.5 text-[10px] whitespace-nowrap ${impl.color}`}>
+                      {impl.label}
                     </td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
-          {rows.length === 14 && (npjPolicies.length > 14 || (npjPolicies.length === 0 && policies.length > 14)) && (
+          {(npjPolicies.length > 12 || (npjPolicies.length === 0 && policies.length > 12)) && (
             <p className="text-[10px] text-white/25 mt-2 px-2">
-              +{(npjPolicies.length > 0 ? npjPolicies.length : policies.length) - 14} more not shown
+              +{(npjPolicies.length > 0 ? npjPolicies.length : policies.length) - 12} more not shown
             </p>
           )}
         </div>
@@ -430,7 +480,9 @@ function SlideAppCategories({ categories, appCounts }: { categories: Props['cate
   const totalApps = Object.values(appCounts).reduce((a, b) => a + b, 0)
 
   return (
-    <SlideShell section="APP GOVERNANCE" title="GenAI App Categories" slideNum={3}>
+    <SlideShell section="APP GOVERNANCE" title="GenAI App Categories" slideNum={3}
+      why="Governance tiers define network-level access posture and which DLP policies apply — every enforcement decision traces back to how an app is classified."
+    >
       <div className="space-y-5">
         <FadeIn delay={0.05}>
           <p className="text-sm text-white/40">
@@ -479,7 +531,9 @@ function SlideAppCategories({ categories, appCounts }: { categories: Props['cate
 
 function SlideLimitations({ lintCount }: Pick<Props, 'lintCount'>) {
   return (
-    <SlideShell section="RISK ACCEPTANCE" title="Key Limitations & Accepted Risks" slideNum={7}>
+    <SlideShell section="RISK ACCEPTANCE" title="Key Limitations & Accepted Risks" slideNum={7}
+      why="No DLP implementation achieves complete coverage. These gaps are documented so leadership can make informed risk acceptance decisions before rollout."
+    >
       <FadeIn delay={0.1}>
         <div className="overflow-auto max-h-full">
           <table className="w-full text-[11px] border-collapse mb-4">
@@ -522,81 +576,108 @@ function SlideLimitations({ lintCount }: Pick<Props, 'lintCount'>) {
 }
 
 function SlideNetskopeRecommended({ policies }: Pick<Props, 'policies'>) {
-  const recommended = policies.filter(p => p.policy_source === 'recommended')
-  const rows        = recommended.slice(0, 14)
+  const recommended = policies
+    .filter(p => p.policy_source === 'recommended')
+    .slice(0, 8) // max 8 nodes before it becomes too crowded
 
-  const TRANSLATION_STYLE: Record<string, { dot: string; label: string }> = {
-    'translated': { dot: 'bg-emerald-400', label: 'Ready' },
-    'verified':   { dot: 'bg-blue-400',    label: 'Verified' },
-    'pending':    { dot: 'bg-amber-400',   label: 'Pending' },
-    'not-applicable': { dot: 'bg-white/20', label: 'N/A' },
+  const nodeAction = (p: Props['policies'][number]) => p.primary_action ?? 'not-set'
+
+  const nodeBorder: Record<string, string> = {
+    'block':      'border-red-500/40 bg-red-500/8',
+    'allow':      'border-emerald-500/40 bg-emerald-500/8',
+    'monitor':    'border-blue-500/40 bg-blue-500/8',
+    'alert':      'border-amber-500/40 bg-amber-500/8',
+    'coach-ack':  'border-orange-500/40 bg-orange-500/8',
+    'coach-just': 'border-orange-600/40 bg-orange-600/8',
+    'not-set':    'border-white/15 bg-white/3',
+  }
+
+  const nodeText: Record<string, string> = {
+    'block':      'text-red-300',
+    'allow':      'text-emerald-300',
+    'monitor':    'text-blue-300',
+    'alert':      'text-amber-300',
+    'coach-ack':  'text-orange-300',
+    'coach-just': 'text-orange-200',
+    'not-set':    'text-white/60',
+  }
+
+  function getDesc(p: Props['policies'][number]): string {
+    if (p.description) return p.description
+    const actionDesc: Record<string, string> = {
+      'block':      'Blocks upload and prompt activity — no data exits.',
+      'allow':      'Allows access — permitted after higher-priority controls pass.',
+      'monitor':    'Logs activity for security review — no blocking.',
+      'alert':      'Alerts security team — no blocking.',
+      'coach-ack':  'Displays coaching message — user must acknowledge.',
+      'coach-just': 'Requires user justification before proceeding.',
+    }
+    return actionDesc[p.primary_action ?? ''] ?? ''
   }
 
   return (
-    <SlideShell section="NETSKOPE RECOMMENDED POLICIES" title="Generated Policy Set" slideNum={6}>
-      <FadeIn delay={0.05}>
-        <p className="text-xs text-white/40 mb-3">
-          {recommended.length} recommended polic{recommended.length !== 1 ? 'ies' : 'y'} generated from the control matrix.
-          {recommended.filter(p => p.is_active).length} active and enforcing.
-        </p>
-      </FadeIn>
-      <FadeIn delay={0.1}>
-        {rows.length === 0 ? (
-          <p className="text-sm text-white/30 italic">No recommended policies generated yet. Configure the control matrix to generate policies.</p>
-        ) : (
-          <div className="overflow-auto max-h-full">
-            <table className="w-full text-[11px] border-collapse">
-              <thead>
-                <tr className="border-b border-white/10">
-                  {['#', 'Policy Name', 'Risk Family', 'Enforcement', 'Translation', 'Test', 'Active'].map(h => (
-                    <th key={h} className="text-left py-2 px-2 text-white/40 font-medium whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((p, i) => {
-                  const test        = TEST_STYLE[p.test_status ?? 'untested'] ?? TEST_STYLE['untested']
-                  const translation = TRANSLATION_STYLE[(p as unknown as Record<string, string>).vendor_translation_status ?? 'pending'] ?? TRANSLATION_STYLE['pending']
-                  return (
-                    <tr key={p.id} className={`border-b border-white/5 ${i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                      <td className="py-2 px-2 text-white/30 font-mono">{String(i + 1).padStart(2, '0')}</td>
-                      <td className="py-2 px-2 text-white/80 font-medium max-w-[200px]">
-                        <span className="block truncate" title={p.name}>{p.name}</span>
-                      </td>
-                      <td className="py-2 px-2 text-white/40 max-w-[120px]">
-                        <span className="block truncate text-[10px]" title={p.policy_family ?? ''}>{p.policy_family ?? '—'}</span>
-                      </td>
-                      <td className="py-2 px-2">
-                        {p.primary_action ? <ActionChip action={p.primary_action} /> : <span className="text-white/20">—</span>}
-                      </td>
-                      <td className="py-2 px-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${translation.dot}`} />
-                          <span className="text-white/50">{translation.label}</span>
-                        </div>
-                      </td>
-                      <td className="py-2 px-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${test.dot}`} />
-                          <span className="text-white/50">{test.label}</span>
-                        </div>
-                      </td>
-                      <td className="py-2 px-2">
-                        <span className={p.is_active ? 'text-emerald-400 font-semibold' : 'text-white/25'}>
-                          {p.is_active ? '✓' : '—'}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-            {recommended.length > 14 && (
-              <p className="text-[10px] text-white/25 mt-2 px-2">+{recommended.length - 14} more not shown</p>
-            )}
-          </div>
-        )}
-      </FadeIn>
+    <SlideShell section="NETSKOPE RECOMMENDED POLICIES" title="Policy Design" slideNum={6}
+      why="Shows how the control matrix translates into an ordered chain of Netskope policies — each policy handles a specific enforcement scenario at the right priority level."
+    >
+      {recommended.length === 0 ? (
+        <FadeIn>
+          <p className="text-sm text-white/30 italic mt-8">No recommended policies generated yet. Configure the control matrix first.</p>
+        </FadeIn>
+      ) : (
+        <div className="flex flex-col justify-center h-full gap-6">
+          {/* Flow diagram */}
+          <FadeIn delay={0.1}>
+            <div className="flex items-stretch gap-0 overflow-x-auto pb-2">
+              {recommended.map((p, i) => {
+                const action  = nodeAction(p)
+                const borders = nodeBorder[action] ?? nodeBorder['not-set']
+                const text    = nodeText[action]   ?? nodeText['not-set']
+                const desc    = getDesc(p)
+                return (
+                  <div key={p.id} className="flex items-center shrink-0">
+                    {/* Node */}
+                    <div className={`flex flex-col items-center gap-2 w-36`}>
+                      {/* Description above */}
+                      <p className="text-[9px] text-white/35 text-center leading-tight h-8 flex items-end justify-center px-1">
+                        {desc}
+                      </p>
+                      {/* Box */}
+                      <div className={`rounded-xl border-2 ${borders} px-3 py-2.5 w-full text-center`}>
+                        <p className={`text-[10px] font-bold leading-tight ${text}`}>{p.name}</p>
+                        {p.is_active && (
+                          <span className="inline-block mt-1 text-[8px] text-emerald-400/70 border border-emerald-500/20 rounded px-1">Active</span>
+                        )}
+                      </div>
+                      {/* Action below */}
+                      <div className="mt-1">
+                        {p.primary_action && <ActionChip action={p.primary_action} />}
+                      </div>
+                    </div>
+                    {/* Connector */}
+                    {i < recommended.length - 1 && (
+                      <div className="flex items-center shrink-0 w-6 mt-10">
+                        <div className="flex-1 h-px bg-white/20" />
+                        <svg className="w-2.5 h-2.5 text-white/20 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M7 4l6 6-6 6V4z" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </FadeIn>
+
+          {/* Summary line */}
+          <FadeIn delay={0.2}>
+            <p className="text-[11px] text-white/30">
+              {policies.filter(p => p.policy_source === 'recommended').length} total recommended policies ·{' '}
+              {policies.filter(p => p.policy_source === 'recommended' && p.is_active).length} active ·{' '}
+              Ordered by enforcement priority (highest to lowest, left to right)
+            </p>
+          </FadeIn>
+        </div>
+      )}
     </SlideShell>
   )
 }
@@ -639,7 +720,9 @@ function SlideRollout() {
   ]
 
   return (
-    <SlideShell section="PHASED ROLLOUT" title="Next Step — Pilot Implementation" slideNum={8}>
+    <SlideShell section="PHASED ROLLOUT" title="Next Step — Pilot Implementation" slideNum={8}
+      why="A phased approach validates controls with a small group before org-wide enforcement — reducing user disruption, false positives, and operational risk."
+    >
       <div className="grid grid-cols-3 gap-4 h-full">
         {phases.map((ph, i) => (
           <FadeIn key={ph.n} delay={0.1 + i * 0.1}>
