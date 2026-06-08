@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Edit3, Eye, Printer, Plus, Trash2, Pencil, Loader2,
   CheckCircle2, XCircle, AlertCircle, Save, Copy,
+  Paperclip, FileText, FileSpreadsheet, File, X,
 } from 'lucide-react'
-import { updateReport, deleteTest, addTest, getTests } from '../actions'
+import { updateReport, deleteTest, addTest, getTests, uploadAttachment, deleteAttachment } from '../actions'
 import type {
   EvidenceReport, ReportTest, OverallResult, ReportType,
-  Severity, ActualResult, FinalStatus, GapReason,
+  Severity, ActualResult, FinalStatus, GapReason, Attachment,
 } from '../actions'
 import { AddTestModal } from './add-test-modal'
 
@@ -570,13 +571,182 @@ function HeaderEditForm({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-interface Props {
-  report:      EvidenceReport
-  tests:       ReportTest[]
-  initialMode: 'view' | 'edit'
+// ── Attachments section ───────────────────────────────────────────────────────
+
+const MAX_FILE_BYTES = 10 * 1024 * 1024
+
+const MIME_ICON: Record<string, React.ReactNode> = {}
+function AttachmentIcon({ type }: { type: string }) {
+  if (type.startsWith('image/'))       return <File className="w-4 h-4 text-blue-400" />
+  if (type === 'text/csv' || type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                                        return <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+  if (type === 'application/pdf')      return <FileText className="w-4 h-4 text-red-400" />
+  return                                      <File className="w-4 h-4 text-muted-foreground/60" />
+}
+void MIME_ICON // suppress unused
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024)        return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export function ReportDetailClient({ report: initialReport, tests: initialTests, initialMode }: Props) {
+function AttachmentsSection({
+  reportId,
+  initialAttachments,
+}: {
+  reportId: string
+  initialAttachments: Attachment[]
+}) {
+  const [attachments, setAttachments] = useState<Attachment[]>(initialAttachments)
+  const [uploading, setUploading]     = useState(false)
+  const [uploadErr, setUploadErr]     = useState<string | null>(null)
+  const [, startDelete]               = useTransition()
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''  // reset so same file can be re-selected
+    if (!file) return
+
+    // Client-side size check
+    if (file.size > MAX_FILE_BYTES) {
+      setUploadErr(`File too large — maximum is 10 MB (this file is ${formatBytes(file.size)})`)
+      return
+    }
+    setUploadErr(null)
+    setUploading(true)
+
+    const reader = new FileReader()
+    reader.onload = async () => {
+      const base64 = (reader.result as string).split(',')[1]
+      const result = await uploadAttachment(reportId, {
+        name:   file.name,
+        type:   file.type,
+        size:   file.size,
+        base64,
+      })
+      setUploading(false)
+      if (result.error) { setUploadErr(result.error); return }
+      // Optimistically add to list
+      setAttachments(prev => [
+        ...prev,
+        {
+          id:         result.id!,
+          file_name:  file.name,
+          file_type:  file.type,
+          file_size:  file.size,
+          signedUrl:  result.signedUrl ?? '',
+          test_id:    null,
+          created_at: new Date().toISOString(),
+        },
+      ])
+    }
+    reader.onerror = () => { setUploading(false); setUploadErr('Failed to read file') }
+    reader.readAsDataURL(file)
+  }
+
+  function handleDelete(id: string, filePath?: string) {
+    setAttachments(prev => prev.filter(a => a.id !== id))  // optimistic
+    startDelete(async () => {
+      const result = await deleteAttachment(id)
+      if (result.error) {
+        // restore on error
+        setUploadErr(result.error)
+      }
+    })
+    void filePath
+  }
+
+  return (
+    <div className="mt-8 pt-6 border-t border-border">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Paperclip className="w-4 h-4 text-muted-foreground" />
+          Attachments
+          {attachments.length > 0 && (
+            <span className="text-xs text-muted-foreground/60 font-normal">({attachments.length})</span>
+          )}
+        </h3>
+        <label className="flex items-center gap-1.5 px-3 py-1.5 bg-muted hover:bg-accent border border-border text-xs font-medium text-foreground/80 rounded cursor-pointer transition-colors">
+          {uploading
+            ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading…</>
+            : <><Paperclip className="w-3.5 h-3.5" /> Attach file or photo</>
+          }
+          <input
+            type="file"
+            accept="image/*,.pdf,.doc,.docx,.csv,.txt"
+            className="hidden"
+            onChange={handleFileChange}
+            disabled={uploading}
+          />
+        </label>
+      </div>
+
+      {uploadErr && (
+        <div className="mb-3 px-3 py-2 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-xs flex items-center justify-between">
+          {uploadErr}
+          <button onClick={() => setUploadErr(null)}><X className="w-3 h-3" /></button>
+        </div>
+      )}
+
+      {attachments.length === 0 && !uploading ? (
+        <p className="text-xs text-muted-foreground/50 italic py-2">
+          No attachments — attach screenshots, PDF reports, or CSV exports as evidence.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {attachments.map(a => (
+            <div key={a.id} className="flex items-center gap-3 p-2.5 bg-card/50 border border-border rounded-lg">
+              {a.file_type.startsWith('image/') && a.signedUrl ? (
+                <a href={a.signedUrl} target="_blank" rel="noreferrer">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={a.signedUrl}
+                    alt={a.file_name}
+                    className="w-12 h-12 object-cover rounded border border-border flex-shrink-0"
+                  />
+                </a>
+              ) : (
+                <div className="w-12 h-12 flex items-center justify-center bg-muted rounded border border-border flex-shrink-0">
+                  <AttachmentIcon type={a.file_type} />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <a
+                  href={a.signedUrl || '#'}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs font-medium text-foreground hover:text-blue-400 transition-colors truncate block"
+                >
+                  {a.file_name}
+                </a>
+                <p className="text-[10px] text-muted-foreground/50 mt-0.5">{formatBytes(a.file_size)}</p>
+              </div>
+              <button
+                onClick={() => handleDelete(a.id)}
+                className="p-1.5 text-muted-foreground/50 hover:text-red-400 hover:bg-muted rounded transition-colors flex-shrink-0"
+                title="Delete attachment"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Component props ───────────────────────────────────────────────────────────
+
+interface Props {
+  report:             EvidenceReport
+  tests:              ReportTest[]
+  initialMode:        'view' | 'edit'
+  initialAttachments: Attachment[]
+}
+
+export function ReportDetailClient({ report: initialReport, tests: initialTests, initialMode, initialAttachments }: Props) {
   const router = useRouter()
   const [mode, setMode]       = useState<'view' | 'edit'>(initialMode)
   const [report, setReport]   = useState<EvidenceReport>(initialReport)
@@ -762,6 +932,12 @@ export function ReportDetailClient({ report: initialReport, tests: initialTests,
           <ViewMode report={report} tests={tests} />
         </div>
       )}
+
+      {/* Attachments — always shown regardless of view/edit mode */}
+      <AttachmentsSection
+        reportId={report.id}
+        initialAttachments={initialAttachments}
+      />
 
       {/* Add/Edit Test Modal */}
       {modalOpen && (
