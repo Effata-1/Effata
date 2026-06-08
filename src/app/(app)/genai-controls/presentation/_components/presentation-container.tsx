@@ -48,6 +48,13 @@ export interface PolicySlide {
   priority:                 number | null
 }
 
+export interface AppCounts {
+  enterpriseApproved:       number
+  approvedWithConditions:   number
+  permittedWithRestriction: number
+  prohibited:               number
+}
+
 export interface SlideData {
   orgName:           string
   industry:          string
@@ -56,6 +63,7 @@ export interface SlideData {
   coachingTemplates: CoachingSlide[]
   policies:          PolicySlide[]
   lintCount:         number
+  appCounts:         AppCounts
 }
 
 interface Props extends SlideData {

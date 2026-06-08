@@ -4,7 +4,7 @@ import { cn }                                             from '@/lib/utils'
 import { lintAllPolicies }                                from '@/lib/genai/lint'
 import type { GenAIPolicy }                               from '@/lib/genai/types'
 import { PresentationContainer }                          from './_components/presentation-container'
-import type { PolicySlide, CategorySlide, OverrideSlide, CoachingSlide } from './_components/presentation-container'
+import type { PolicySlide, CategorySlide, OverrideSlide, CoachingSlide, AppCounts } from './_components/presentation-container'
 import { getLatestPresentation }                          from './actions'
 
 const ACTION_CHIP: Record<string, string> = {
@@ -115,6 +115,7 @@ export default async function PresentationPage() {
       matrixOverrides={overrides}
       coachingTemplates={coaching}
       policies={policies}
+      appCounts={appCounts as AppCounts}
       lintCount={lintCount}
     >
       {/* ── Print document (unchanged) ──────────────────────────────────────── */}

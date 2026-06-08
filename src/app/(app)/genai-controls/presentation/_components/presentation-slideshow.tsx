@@ -6,13 +6,16 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { FadeIn } from '@/components/ui/fade-in'
 import {
   RF_KEY, RF_DEFAULTS, TAG_ALIAS, CONTENT_DETECTION_ROWS,
+  UL_FN_DEFAULTS, FILENAME_DETECTION_LEVELS,
 } from '@/lib/genai/control-matrix-rows'
-import type { SlideData } from './presentation-container'
+import type { SlideData, CoachingSlide, AppCounts } from './presentation-container'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Props extends SlideData {
-  onClose: () => void
+  onClose:      () => void
+  isSharedView?: boolean   // true on the public share page — hides the Esc close button
+  sharedAt?:    string     // displayed in share view footer
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -91,25 +94,35 @@ const ACCEPTED_RISKS = [
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getCellAction(
-  rfKey: string,
+  dataType: string,          // full data_type key e.g. 'pp|rf:credentials_keys_secrets'
   categoryId: string,
   systemTag: string,
   overrides: Props['matrixOverrides'],
-): string {
+  defaultLookup: () => string,
+): { action: string; coachingId: string | null } {
   const override = overrides.find(
-    o => o.data_type === `pp|rf:${rfKey}` && o.category_id === categoryId,
+    o => o.data_type === dataType && o.category_id === categoryId,
   )
-  if (override) return override.action_code
-  const alias = TAG_ALIAS[systemTag] ?? systemTag
-  return RF_DEFAULTS[alias]?.[rfKey] ?? 'not-set'
+  if (override) return { action: override.action_code, coachingId: override.coaching_notification_id }
+  return { action: defaultLookup(), coachingId: null }
 }
 
-function ActionChip({ action }: { action: string }) {
+function resolveCoachLabel(coachingId: string | null, templates: CoachingSlide[]): string | null {
+  if (!coachingId) return null
+  return templates.find(t => t.id === coachingId)?.coach_label ?? null
+}
+
+function ActionChip({ action, coachLabel }: { action: string; coachLabel?: string | null }) {
   const s = ACTION_STYLE[action] ?? ACTION_STYLE['not-set']
   return (
-    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold border ${s.bg} ${s.text} ${s.border}`}>
-      {s.label}
-    </span>
+    <div className="flex flex-col items-center gap-0.5">
+      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold border ${s.bg} ${s.text} ${s.border}`}>
+        {s.label}
+      </span>
+      {coachLabel && (
+        <span className="text-[9px] text-white/30 leading-none">{coachLabel}</span>
+      )}
+    </div>
   )
 }
 
@@ -189,11 +202,12 @@ function SlideCover({ orgName, industry }: { orgName: string; industry: string }
 
 function SlideAgenda() {
   const items = [
-    { n: '01', title: 'GenAI DLP Matrix',            sub: 'Enforcement decisions by category × data label' },
-    { n: '02', title: 'Use Cases & Testing Status',  sub: 'Enforcement scenarios with readiness state' },
-    { n: '03', title: 'Demo',                        sub: 'Representative use cases walkthrough' },
-    { n: '04', title: 'Key Limitations & Accepted Risks', sub: 'Coverage gaps requiring leadership decisions' },
-    { n: '05', title: 'Phased Rollout Plan',         sub: 'Pilot deployment through full organisation' },
+    { n: '01', title: 'GenAI App Categories',              sub: 'Governance tiers — approved, conditional, restricted, prohibited' },
+    { n: '02', title: 'Control Matrix',                    sub: 'Enforcement decisions by category × data label' },
+    { n: '03', title: 'Use Cases (from NPJ)',              sub: 'Policy intents derived from Neutral Policy JSON' },
+    { n: '04', title: 'Netskope Recommended Policies',     sub: 'Generated policy set ready for deployment' },
+    { n: '05', title: 'Key Limitations & Accepted Risks',  sub: 'Coverage gaps requiring leadership decisions' },
+    { n: '06', title: 'Phased Rollout Plan',               sub: 'Pilot deployment through full organisation' },
   ]
   return (
     <SlideShell section="OVERVIEW" title="Agenda" slideNum={2}>
@@ -217,9 +231,10 @@ function SlideAgenda() {
 function SlideMatrix({
   categories,
   matrixOverrides,
-}: Pick<Props, 'categories' | 'matrixOverrides'>) {
+  coachingTemplates,
+}: Pick<Props, 'categories' | 'matrixOverrides' | 'coachingTemplates'>) {
   return (
-    <SlideShell section="ENFORCEMENT DECISIONS" title="Proposed GenAI DLP Matrix" slideNum={3}>
+    <SlideShell section="ENFORCEMENT DECISIONS" title="Proposed GenAI DLP Matrix" slideNum={4}>
       <FadeIn delay={0.15}>
         <div className="overflow-auto max-h-full">
           <table className="w-full text-xs border-collapse">
@@ -236,6 +251,7 @@ function SlideMatrix({
               </tr>
             </thead>
             <tbody>
+              {/* ── Content / Risk-Family rows ─────────────────────────────── */}
               {MATRIX_ROWS.map((rowName, ri) => {
                 const rfKey = RF_KEY[rowName]
                 if (!rfKey) return null
@@ -246,19 +262,68 @@ function SlideMatrix({
                     </td>
                     {categories.map(cat => {
                       const isBlocked = cat.access_posture === 'block'
-                      const action = isBlocked
-                        ? 'block'
-                        : getCellAction(rfKey, cat.id, cat.system_tag, matrixOverrides)
+                      if (isBlocked) {
+                        return (
+                          <td key={cat.id} className="py-2.5 px-2 text-center border-b border-white/5">
+                            <ActionChip action="block" />
+                          </td>
+                        )
+                      }
+                      const alias = TAG_ALIAS[cat.system_tag] ?? cat.system_tag
+                      const { action, coachingId } = getCellAction(
+                        `pp|rf:${rfKey}`, cat.id, cat.system_tag, matrixOverrides,
+                        () => RF_DEFAULTS[alias]?.[rfKey] ?? 'not-set',
+                      )
+                      const coachLabel = resolveCoachLabel(coachingId, coachingTemplates)
                       return (
                         <td key={cat.id} className="py-2.5 px-2 text-center border-b border-white/5">
-                          <ActionChip action={action} />
+                          <ActionChip action={action} coachLabel={coachLabel} />
                         </td>
                       )
                     })}
                   </tr>
                 )
               })}
-              {/* Prohibited note row if any category has access_posture=block */}
+
+              {/* ── Filename detection separator ───────────────────────────── */}
+              <tr>
+                <td colSpan={1 + categories.length} className="py-1.5 px-3 text-[9px] font-bold uppercase tracking-widest text-indigo-400/60 bg-indigo-500/5 border-y border-white/5">
+                  Upload — Filename Detection
+                </td>
+              </tr>
+              {FILENAME_DETECTION_LEVELS.map((level, ri) => {
+                const label = level === 'highly_confidential' ? 'Highly Confidential filename' : 'Secret / Credential filename'
+                return (
+                  <tr key={level} className={ri % 2 === 0 ? 'bg-white/[0.02]' : ''}>
+                    <td className="py-2.5 px-3 text-white/50 font-medium border-b border-white/5 text-[11px]">
+                      {label}
+                    </td>
+                    {categories.map(cat => {
+                      const isBlocked = cat.access_posture === 'block'
+                      if (isBlocked) {
+                        return (
+                          <td key={cat.id} className="py-2.5 px-2 text-center border-b border-white/5">
+                            <ActionChip action="block" />
+                          </td>
+                        )
+                      }
+                      const alias = TAG_ALIAS[cat.system_tag] ?? cat.system_tag
+                      const { action, coachingId } = getCellAction(
+                        `ul|fn|${level}`, cat.id, cat.system_tag, matrixOverrides,
+                        () => UL_FN_DEFAULTS[alias]?.[level] ?? 'not-set',
+                      )
+                      const coachLabel = resolveCoachLabel(coachingId, coachingTemplates)
+                      return (
+                        <td key={cat.id} className="py-2.5 px-2 text-center border-b border-white/5">
+                          <ActionChip action={action} coachLabel={coachLabel} />
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )
+              })}
+
+              {/* Prohibited note */}
               {categories.some(c => c.access_posture === 'block') && (
                 <tr className="bg-red-500/5">
                   <td colSpan={1 + categories.length} className="py-2 px-3 text-[10px] text-red-400/60 italic">
@@ -275,9 +340,11 @@ function SlideMatrix({
 }
 
 function SlideUseCases({ policies }: Pick<Props, 'policies'>) {
-  const rows = policies.slice(0, 14)
+  // Show policies that were created from NPJ (AI-assisted or generated from matrix)
+  const npjPolicies = policies.filter(p => p.neutral_policy_json !== null)
+  const rows = (npjPolicies.length > 0 ? npjPolicies : policies).slice(0, 14)
   return (
-    <SlideShell section="ENFORCEMENT SCENARIOS" title="Use Cases & Testing Status" slideNum={4}>
+    <SlideShell section="USE CASES — NPJ DERIVED" title="Policy Use Cases from Neutral Policy JSON" slideNum={5}>
       <FadeIn delay={0.1}>
         <div className="overflow-auto max-h-full">
           <table className="w-full text-[11px] border-collapse">
@@ -325,9 +392,9 @@ function SlideUseCases({ policies }: Pick<Props, 'policies'>) {
               })}
             </tbody>
           </table>
-          {policies.length > 14 && (
+          {rows.length === 14 && (npjPolicies.length > 14 || (npjPolicies.length === 0 && policies.length > 14)) && (
             <p className="text-[10px] text-white/25 mt-2 px-2">
-              +{policies.length - 14} more policies not shown
+              +{(npjPolicies.length > 0 ? npjPolicies.length : policies.length) - 14} more not shown
             </p>
           )}
         </div>
@@ -336,51 +403,75 @@ function SlideUseCases({ policies }: Pick<Props, 'policies'>) {
   )
 }
 
-function SlideDemo({ policies }: Pick<Props, 'policies'>) {
-  const demo = policies
-    .filter(p => p.is_active && p.approval_status === 'approved')
-    .slice(0, 3)
-    .concat(policies.filter(p => p.approval_status === 'approved' && !p.is_active).slice(0, Math.max(0, 3 - policies.filter(p => p.is_active && p.approval_status === 'approved').length)))
-    .slice(0, 3)
+function SlideAppCategories({ categories, appCounts }: { categories: Props['categories']; appCounts: AppCounts }) {
+  // Map system_tag → appCounts bucket
+  function getCount(cat: Props['categories'][number]): number {
+    const alias = TAG_ALIAS[cat.system_tag] ?? cat.system_tag
+    if (alias === 'approved_supported')       return appCounts.enterpriseApproved
+    if (alias === 'approved_with_conditions') return appCounts.approvedWithConditions
+    if (alias === 'restricted_unassessed')    return appCounts.permittedWithRestriction
+    if (cat.system_tag === 'prohibited')      return appCounts.prohibited
+    return 0
+  }
+
+  const postureLabel: Record<string, string> = {
+    allow:     'Full access — traffic allowed through',
+    allow_dlp: 'Access allowed with DLP inspection',
+    block:     'Access blocked at network layer',
+  }
+
+  const categoryColor: Record<string, { text: string; border: string; bg: string; dot: string }> = {
+    approved_supported:       { text: 'text-emerald-300', border: 'border-emerald-500/25', bg: 'bg-emerald-500/8',  dot: 'bg-emerald-400' },
+    approved_with_conditions: { text: 'text-blue-300',    border: 'border-blue-500/25',    bg: 'bg-blue-500/8',     dot: 'bg-blue-400' },
+    restricted_unassessed:    { text: 'text-amber-300',   border: 'border-amber-500/25',   bg: 'bg-amber-500/8',    dot: 'bg-amber-400' },
+    prohibited:               { text: 'text-red-300',     border: 'border-red-500/25',     bg: 'bg-red-500/8',      dot: 'bg-red-400' },
+  }
+
+  const totalApps = Object.values(appCounts).reduce((a, b) => a + b, 0)
 
   return (
-    <SlideShell section="LIVE WALKTHROUGH" title="Demo Scenarios" slideNum={5}>
-      <div className="mb-4">
+    <SlideShell section="APP GOVERNANCE" title="GenAI App Categories" slideNum={3}>
+      <div className="space-y-5">
         <FadeIn delay={0.05}>
-          <p className="text-sm text-white/50">
-            Representative use cases — covering blocking, allow, conditional, and threshold-based enforcement.
+          <p className="text-sm text-white/40">
+            {totalApps} GenAI apps classified across {categories.length} governance tier{categories.length !== 1 ? 's' : ''}.
+            Category determines which enforcement actions apply.
           </p>
         </FadeIn>
-      </div>
-      <div className="grid grid-cols-3 gap-4">
-        {demo.length === 0 && (
-          <FadeIn>
-            <p className="text-sm text-white/30 italic col-span-3">No active approved policies to demo yet.</p>
-          </FadeIn>
-        )}
-        {demo.map((p, i) => (
-          <FadeIn key={p.id} delay={0.1 + i * 0.1}>
-            <div className="rounded-xl border border-white/10 bg-white/3 p-5 h-full flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-widest">UC {i + 1}</span>
-                {p.primary_action && <ActionChip action={p.primary_action} />}
-              </div>
-              <p className="text-sm font-semibold text-white leading-snug flex-1">{p.name}</p>
-              {p.description && (
-                <p className="text-[11px] text-white/40 leading-relaxed line-clamp-3">{p.description}</p>
-              )}
-              <div className="flex items-center gap-2 flex-wrap mt-auto pt-2 border-t border-white/8">
-                <span className="text-[10px] text-white/30 capitalize">{p.policy_family ?? p.policy_type}</span>
-                {p.test_status === 'passed' && (
-                  <span className="flex items-center gap-1 text-[10px] text-emerald-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    Ready in PROD
-                  </span>
-                )}
-              </div>
-            </div>
-          </FadeIn>
-        ))}
+        <div className="grid grid-cols-2 gap-4">
+          {categories.map((cat, i) => {
+            const alias  = TAG_ALIAS[cat.system_tag] ?? cat.system_tag
+            const colors = categoryColor[alias] ?? categoryColor['restricted_unassessed']
+            const count  = getCount(cat)
+            const pct    = totalApps > 0 ? Math.round((count / totalApps) * 100) : 0
+            return (
+              <FadeIn key={cat.id} delay={0.1 + i * 0.08}>
+                <div className={`rounded-xl border ${colors.border} ${colors.bg} p-5 flex flex-col gap-3`}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2.5 h-2.5 rounded-full ${colors.dot} shrink-0`} />
+                      <p className={`text-sm font-bold ${colors.text}`}>{cat.name}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-3xl font-extrabold leading-none ${colors.text}`}>{count}</p>
+                      <p className="text-[10px] text-white/30 mt-0.5">{pct}% of apps</p>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[11px] text-white/50">
+                      <span className="text-white/25 mr-1">Network:</span>
+                      {postureLabel[cat.access_posture] ?? cat.access_posture}
+                    </p>
+                  </div>
+                  {/* Mini progress bar */}
+                  <div className="h-1 w-full rounded-full bg-white/8">
+                    <div className={`h-full rounded-full ${colors.dot}`} style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              </FadeIn>
+            )
+          })}
+        </div>
       </div>
     </SlideShell>
   )
@@ -388,7 +479,7 @@ function SlideDemo({ policies }: Pick<Props, 'policies'>) {
 
 function SlideLimitations({ lintCount }: Pick<Props, 'lintCount'>) {
   return (
-    <SlideShell section="RISK ACCEPTANCE" title="Key Limitations & Accepted Risks" slideNum={6}>
+    <SlideShell section="RISK ACCEPTANCE" title="Key Limitations & Accepted Risks" slideNum={7}>
       <FadeIn delay={0.1}>
         <div className="overflow-auto max-h-full">
           <table className="w-full text-[11px] border-collapse mb-4">
@@ -430,66 +521,82 @@ function SlideLimitations({ lintCount }: Pick<Props, 'lintCount'>) {
   )
 }
 
-function SlideImplementation({ policies }: Pick<Props, 'policies'>) {
-  const counts = {
-    draft:         policies.filter(p => p.approval_status === 'draft').length,
-    underReview:   policies.filter(p => p.approval_status === 'under-review').length,
-    approved:      policies.filter(p => p.approval_status === 'approved').length,
-    active:        policies.filter(p => p.approval_status === 'approved' && p.is_active).length,
+function SlideNetskopeRecommended({ policies }: Pick<Props, 'policies'>) {
+  const recommended = policies.filter(p => p.policy_source === 'recommended')
+  const rows        = recommended.slice(0, 14)
+
+  const TRANSLATION_STYLE: Record<string, { dot: string; label: string }> = {
+    'translated': { dot: 'bg-emerald-400', label: 'Ready' },
+    'verified':   { dot: 'bg-blue-400',    label: 'Verified' },
+    'pending':    { dot: 'bg-amber-400',   label: 'Pending' },
+    'not-applicable': { dot: 'bg-white/20', label: 'N/A' },
   }
-  const total   = policies.length
-  const stages = [
-    { label: 'Draft',        count: counts.draft,       color: 'bg-white/20',        text: 'text-white/50' },
-    { label: 'Under Review', count: counts.underReview,  color: 'bg-blue-500',        text: 'text-blue-300' },
-    { label: 'Approved',     count: counts.approved,     color: 'bg-emerald-600',     text: 'text-emerald-300' },
-    { label: 'Active',       count: counts.active,       color: 'bg-indigo-500',      text: 'text-indigo-300' },
-  ]
 
   return (
-    <SlideShell section="IMPLEMENTATION PLAN" title="Policy Deployment Status" slideNum={7}>
-      <div className="space-y-8">
-        {/* Pipeline funnel */}
-        <FadeIn delay={0.1}>
-          <div className="flex items-end gap-3">
-            {stages.map((s, i) => {
-              const pct = total > 0 ? (s.count / total) * 100 : 0
-              const h   = Math.max(24, Math.round(pct * 1.4))
-              return (
-                <div key={s.label} className="flex-1 flex flex-col items-center gap-2">
-                  <span className={`text-2xl font-extrabold ${s.text}`}>{s.count}</span>
-                  <div className="w-full rounded-t-md" style={{ height: `${h}px`, minHeight: 24 }}>
-                    <div className={`w-full h-full rounded-t-md ${s.color} opacity-80`} />
-                  </div>
-                  <span className="text-[10px] text-white/40 text-center">{s.label}</span>
-                  {i < stages.length - 1 && (
-                    <span className="absolute text-white/20 text-lg" style={{ marginLeft: '50%' }}>→</span>
-                  )}
-                </div>
-              )
-            })}
+    <SlideShell section="NETSKOPE RECOMMENDED POLICIES" title="Generated Policy Set" slideNum={6}>
+      <FadeIn delay={0.05}>
+        <p className="text-xs text-white/40 mb-3">
+          {recommended.length} recommended polic{recommended.length !== 1 ? 'ies' : 'y'} generated from the control matrix.
+          {recommended.filter(p => p.is_active).length} active and enforcing.
+        </p>
+      </FadeIn>
+      <FadeIn delay={0.1}>
+        {rows.length === 0 ? (
+          <p className="text-sm text-white/30 italic">No recommended policies generated yet. Configure the control matrix to generate policies.</p>
+        ) : (
+          <div className="overflow-auto max-h-full">
+            <table className="w-full text-[11px] border-collapse">
+              <thead>
+                <tr className="border-b border-white/10">
+                  {['#', 'Policy Name', 'Risk Family', 'Enforcement', 'Translation', 'Test', 'Active'].map(h => (
+                    <th key={h} className="text-left py-2 px-2 text-white/40 font-medium whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((p, i) => {
+                  const test        = TEST_STYLE[p.test_status ?? 'untested'] ?? TEST_STYLE['untested']
+                  const translation = TRANSLATION_STYLE[(p as unknown as Record<string, string>).vendor_translation_status ?? 'pending'] ?? TRANSLATION_STYLE['pending']
+                  return (
+                    <tr key={p.id} className={`border-b border-white/5 ${i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
+                      <td className="py-2 px-2 text-white/30 font-mono">{String(i + 1).padStart(2, '0')}</td>
+                      <td className="py-2 px-2 text-white/80 font-medium max-w-[200px]">
+                        <span className="block truncate" title={p.name}>{p.name}</span>
+                      </td>
+                      <td className="py-2 px-2 text-white/40 max-w-[120px]">
+                        <span className="block truncate text-[10px]" title={p.policy_family ?? ''}>{p.policy_family ?? '—'}</span>
+                      </td>
+                      <td className="py-2 px-2">
+                        {p.primary_action ? <ActionChip action={p.primary_action} /> : <span className="text-white/20">—</span>}
+                      </td>
+                      <td className="py-2 px-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${translation.dot}`} />
+                          <span className="text-white/50">{translation.label}</span>
+                        </div>
+                      </td>
+                      <td className="py-2 px-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${test.dot}`} />
+                          <span className="text-white/50">{test.label}</span>
+                        </div>
+                      </td>
+                      <td className="py-2 px-2">
+                        <span className={p.is_active ? 'text-emerald-400 font-semibold' : 'text-white/25'}>
+                          {p.is_active ? '✓' : '—'}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            {recommended.length > 14 && (
+              <p className="text-[10px] text-white/25 mt-2 px-2">+{recommended.length - 14} more not shown</p>
+            )}
           </div>
-        </FadeIn>
-
-        {/* Summary cards */}
-        <FadeIn delay={0.2}>
-          <div className="grid grid-cols-4 gap-3">
-            {stages.map(s => (
-              <div key={s.label} className="rounded-xl border border-white/8 bg-white/3 px-4 py-3">
-                <p className={`text-3xl font-extrabold ${s.text}`}>{s.count}</p>
-                <p className="text-[10px] text-white/40 mt-1">{s.label}</p>
-                <p className="text-[10px] text-white/25 mt-0.5">{total > 0 ? Math.round((s.count / total) * 100) : 0}% of total</p>
-              </div>
-            ))}
-          </div>
-        </FadeIn>
-
-        <FadeIn delay={0.3}>
-          <p className="text-xs text-white/30">
-            {counts.active} of {counts.approved} approved policies are currently active and enforcing.{' '}
-            {counts.approved - counts.active > 0 && `${counts.approved - counts.active} approved but not yet enabled.`}
-          </p>
-        </FadeIn>
-      </div>
+        )}
+      </FadeIn>
     </SlideShell>
   )
 }
@@ -511,7 +618,7 @@ function SlideRollout() {
       n: '2',
       label: 'Phase 1',
       scope: 'Security and key business units',
-      responsibility: 'Netskope owners',
+      responsibility: 'DLP team & tool owners',
       objectives: [
         'Controlled expansion across security teams',
         'Monitor policy effectiveness',
@@ -522,7 +629,7 @@ function SlideRollout() {
       n: '3',
       label: 'Phase 2',
       scope: 'Broader technical teams and org-wide',
-      responsibility: 'Netskope owners',
+      responsibility: 'DLP team & tool owners',
       objectives: [
         'Broader adoption across technical teams',
         'Strengthen enforcement based on pilot learnings',
@@ -584,6 +691,9 @@ export function PresentationSlideshow({
   coachingTemplates,
   policies,
   lintCount,
+  appCounts,
+  isSharedView = false,
+  sharedAt,
 }: Props) {
   const [current, setCurrent]     = useState(1)
   const [direction, setDirection] = useState(1)
@@ -602,7 +712,7 @@ export function PresentationSlideshow({
     function onKey(e: KeyboardEvent) {
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); next() }
       if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')                    { e.preventDefault(); prev() }
-      if (e.key === 'Escape')                                                { onClose() }
+      if (e.key === 'Escape' && !isSharedView)                              { onClose() }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -616,14 +726,14 @@ export function PresentationSlideshow({
 
   const renderSlide = () => {
     switch (current) {
-      case 1: return <SlideCover    orgName={orgName} industry={industry} />
-      case 2: return <SlideAgenda   />
-      case 3: return <SlideMatrix   categories={categories} matrixOverrides={matrixOverrides} />
-      case 4: return <SlideUseCases policies={policies} />
-      case 5: return <SlideDemo     policies={policies} />
-      case 6: return <SlideLimitations lintCount={lintCount} />
-      case 7: return <SlideImplementation policies={policies} />
-      case 8: return <SlideRollout  />
+      case 1: return <SlideCover              orgName={orgName} industry={industry} />
+      case 2: return <SlideAgenda             />
+      case 3: return <SlideAppCategories      categories={categories} appCounts={appCounts} />
+      case 4: return <SlideMatrix             categories={categories} matrixOverrides={matrixOverrides} coachingTemplates={coachingTemplates} />
+      case 5: return <SlideUseCases           policies={policies} />
+      case 6: return <SlideNetskopeRecommended policies={policies} />
+      case 7: return <SlideLimitations        lintCount={lintCount} />
+      case 8: return <SlideRollout            />
       default: return null
     }
   }
@@ -633,17 +743,35 @@ export function PresentationSlideshow({
       className="fixed inset-0 z-50 flex flex-col"
       style={{ backgroundColor: '#0F1117' }}
     >
-      {/* Close button */}
-      <button
-        type="button"
-        onClick={onClose}
-        className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 rounded-md border border-white/10 bg-white/5 text-xs text-white/40 hover:text-white/70 hover:bg-white/10 transition-colors"
-      >
-        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-        Esc
-      </button>
+      {/* Top-left controls */}
+      <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
+        {!isSharedView && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-white/10 bg-white/5 text-xs text-white/40 hover:text-white/70 hover:bg-white/10 transition-colors"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            Esc
+          </button>
+        )}
+        {/* Print / PDF — always visible */}
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-white/10 bg-white/5 text-xs text-white/40 hover:text-white/70 hover:bg-white/10 transition-colors print:hidden"
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+          </svg>
+          PDF
+        </button>
+        {isSharedView && sharedAt && (
+          <span className="text-[10px] text-white/20 ml-1">Shared {sharedAt}</span>
+        )}
+      </div>
 
       {/* Slide area */}
       <div className="flex-1 relative overflow-hidden">
