@@ -64,6 +64,38 @@ function priorityLabel(policyKey: string): string {
   return 'Pxxx'
 }
 
+// Raw SVG color string for the YES-branch arrow, keyed by policy slot.
+// These match the accentForKey bar colors but as rgba for SVG stroke.
+function yesArrowRgb(policyKey: string): string {
+  if (policyKey === 'netskope:prohibited_access_block')   return 'rgb(239 68 68 / 0.7)'
+  if (policyKey === 'netskope:always_block_global_dlp')   return 'rgb(190 18 60 / 0.7)'
+  if (policyKey === 'netskope:approved_supported')        return 'rgb(16 185 129 / 0.7)'
+  if (policyKey === 'netskope:approved_with_conditions')  return 'rgb(59 130 246 / 0.7)'
+  if (policyKey === 'netskope:restricted_unassessed')     return 'rgb(245 158 11 / 0.7)'
+  return 'rgb(99 102 241 / 0.65)'
+}
+
+// Derive a short human-readable outcome for a policy slot — shown in the ActionNode header.
+function deriveOutcome(policy: NetskopePolicy | undefined, policyKey: string): { label: string; cls: string } {
+  if (!policy) return { label: '', cls: '' }
+  if (policyKey === 'netskope:prohibited_access_block')
+    return { label: 'ACCESS BLOCKED', cls: 'text-red-400' }
+  if (policyKey === 'netskope:always_block_global_dlp')
+    return { label: 'UPLOAD BLOCKED', cls: 'text-rose-400' }
+
+  const acts    = policy.profiles.map(p => p.profile_action.toLowerCase())
+  const hasBlk  = acts.some(a => a === 'block' || a === 'quarantine')
+  const hasCoach= acts.some(a => a.startsWith('coach'))
+  const noMatch = (policy.no_match_action ?? '').toLowerCase()
+
+  if (hasBlk && noMatch === 'allow')  return { label: 'DLP ENFORCED',   cls: 'text-orange-400' }
+  if (hasBlk)                         return { label: 'BLOCKED',         cls: 'text-red-400'    }
+  if (hasCoach && noMatch === 'allow')return { label: 'ALLOW + COACH',   cls: 'text-amber-400'  }
+  if (hasCoach)                       return { label: 'COACHED',         cls: 'text-amber-400'  }
+  if (noMatch === 'allow')            return { label: 'ALLOWED',         cls: 'text-emerald-400'}
+  return                                     { label: 'MONITORED',       cls: 'text-slate-400'  }
+}
+
 // ── Action helpers ────────────────────────────────────────────────────────────
 
 // Module-level const so the map is built once, not on every render call.
@@ -123,9 +155,10 @@ function EntryNode({ laneIdx }: { laneIdx: number }) {
 interface DiamondNodeProps {
   laneIdx:  number
   label:    string
+  priority: string   // e.g. "P100" — shown as badge so users know the check order
 }
 
-function DiamondNode({ laneIdx, label }: DiamondNodeProps) {
+function DiamondNode({ laneIdx, label, priority }: DiamondNodeProps) {
   const cy = laneIdx * LANE_H + LANE_H / 2
   return (
     <div
@@ -140,6 +173,10 @@ function DiamondNode({ laneIdx, label }: DiamondNodeProps) {
       className="border-2 border-indigo-500/40 bg-indigo-500/8 flex items-center justify-center"
     >
       <div style={{ transform: 'rotate(-45deg)' }} className="text-center px-2">
+        {/* Priority badge shows evaluation order at a glance */}
+        <span className="block text-[8px] font-bold tracking-widest text-indigo-400/60 uppercase mb-0.5">
+          {priority}
+        </span>
         <p className="text-[10px] leading-tight text-foreground/80 font-medium whitespace-normal max-w-[80px]">
           {label}
         </p>
@@ -186,11 +223,19 @@ function ActionNode({ laneIdx, policyKey, policy, status, centered, onClick }: A
       {/* Content — flex-col so mt-auto pushes no-match to bottom */}
       <div className="px-3 py-2 flex flex-col h-[calc(100%-4px)]">
 
-        {/* Header: priority + status dot */}
+        {/* Header: priority — outcome summary — status dot */}
         <div className="flex items-center justify-between gap-2 shrink-0">
-          <span className={`text-[10px] font-bold tracking-widest ${colors.text} uppercase`}>
+          <span className={`text-[10px] font-bold tracking-widest ${colors.text} uppercase shrink-0`}>
             {priorityLabel(policyKey)}
           </span>
+          {status !== 'missing' && (() => {
+            const { label, cls } = deriveOutcome(policy, policyKey)
+            return label ? (
+              <span className={`text-[9px] font-bold uppercase tracking-wide ${cls} truncate`}>
+                {label}
+              </span>
+            ) : null
+          })()}
           <span className={`w-2 h-2 rounded-full ${statusDot} shrink-0`} />
         </div>
 
@@ -279,12 +324,14 @@ function ExitNode({ laneIdx }: { laneIdx: number }) {
 // ── SVG Arrow Layer ───────────────────────────────────────────────────────────
 
 interface ArrowLayerProps {
-  lanes:          LaneKind[]
-  canvasH:        number
-  prefersReduced: boolean
+  lanes:           LaneKind[]
+  canvasH:         number
+  prefersReduced:  boolean
+  /** rgba color string per lane index — used to color YES branch arrows by action type */
+  yesColors:       Record<number, string>
 }
 
-function ArrowLayer({ lanes, canvasH, prefersReduced }: ArrowLayerProps) {
+function ArrowLayer({ lanes, canvasH, prefersReduced, yesColors }: ArrowLayerProps) {
   // Include 'restricted' so P900 gets a YES branch arrow like all other policy slots.
   const diamondLanes = lanes
     .map((l, i) => ({ l, i }))
@@ -343,20 +390,35 @@ function ArrowLayer({ lanes, canvasH, prefersReduced }: ArrowLayerProps) {
         const cy           = i * LANE_H + LANE_H / 2
         const branchStartX = X_SPINE + DIAMOND_S / 2 - 2
         const branchEndX   = X_ACTION - 8
+        const yesColor     = yesColors[i] ?? 'rgb(99 102 241 / 0.55)'
         return (
           <g key={`branch-${i}`}>
+            {/* Colored YES arrow — hue matches the action type of the target policy */}
+            <defs>
+              <marker id={`arrow-yes-${i}`} markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                <path d="M0,0 L0,6 L8,3 z" fill={yesColor} />
+              </marker>
+            </defs>
             <line
               x1={branchStartX} y1={cy}
               x2={branchEndX}   y2={cy}
-              stroke="rgb(99 102 241 / 0.45)"
-              strokeWidth="1.5"
-              markerEnd="url(#arrow-head-side)"
+              stroke={yesColor}
+              strokeWidth="2"
+              markerEnd={`url(#arrow-yes-${i})`}
             />
-            <text x={branchStartX + 8} y={cy - 5} fontSize="9" fill="rgb(99 102 241 / 0.7)" fontWeight="600">
-              YES
+            {/* YES label — colored to match arrow */}
+            <text x={branchStartX + 8} y={cy - 6} fontSize="9" fill={yesColor} fontWeight="700">
+              YES ✓
             </text>
-            <text x={X_SPINE - 18} y={i * LANE_H + LANE_H - 6} fontSize="9" fill="rgb(148 163 184 / 0.7)" fontWeight="500">
-              NO
+            {/* NO label — clear directional indicator */}
+            <text
+              x={X_SPINE - 22}
+              y={i * LANE_H + LANE_H - 4}
+              fontSize="9"
+              fill="rgb(148 163 184 / 0.6)"
+              fontWeight="600"
+            >
+              NO ↓
             </text>
           </g>
         )
@@ -482,6 +544,27 @@ export function PolicyFlowDiagram({ orgName, recommendation, categories }: Props
     [recommendation.recommended_policies],
   )
 
+  // Per-lane YES-arrow color — computed once per lane layout change.
+  const yesColors = useMemo<Record<number, string>>(() => {
+    const m: Record<number, string> = {}
+    lanes.forEach((lane, i) => {
+      if (lane.kind === 'diamond_prohibited') {
+        m[i] = yesArrowRgb('netskope:prohibited_access_block')
+      } else if (lane.kind === 'diamond_secrets') {
+        m[i] = yesArrowRgb('netskope:always_block_global_dlp')
+      } else if (lane.kind === 'diamond_category') {
+        const tag  = TAG_ALIAS[lane.cat.system_tag ?? ''] ?? lane.cat.system_tag ?? ''
+        const pKey = tag === 'approved_supported'       ? 'netskope:approved_supported'
+                   : tag === 'approved_with_conditions' ? 'netskope:approved_with_conditions'
+                   : `netskope:custom:${tag || lane.cat.id}`
+        m[i] = yesArrowRgb(pKey)
+      } else if (lane.kind === 'restricted') {
+        m[i] = yesArrowRgb('netskope:restricted_unassessed')
+      }
+    })
+    return m
+  }, [lanes])
+
   const scopedCount = recommendation.scoped_policies?.policies.length ?? 0
   const manualCount = recommendation.manual_policies?.length ?? 0
 
@@ -572,7 +655,7 @@ export function PolicyFlowDiagram({ orgName, recommendation, categories }: Props
         <div style={{ minWidth: 1200, height: canvasH, position: 'relative' }}>
 
           {/* Arrow layer (behind nodes) */}
-          <ArrowLayer lanes={lanes} canvasH={canvasH} prefersReduced={prefersReduced} />
+          <ArrowLayer lanes={lanes} canvasH={canvasH} prefersReduced={prefersReduced} yesColors={yesColors} />
 
           {/* Nodes */}
           {lanes.map((lane, idx) => {
@@ -587,7 +670,7 @@ export function PolicyFlowDiagram({ orgName, recommendation, categories }: Props
                 const status = getSlotStatus(pKey, recommendation)
                 return (
                   <div key="prohibited">
-                    <DiamondNode laneIdx={idx} label={`Is app ${lane.cat.name}?`} />
+                    <DiamondNode laneIdx={idx} label={`Is app ${lane.cat.name}?`} priority="P100" />
                     <ActionNode laneIdx={idx} policyKey={pKey} policy={policy} status={status} onClick={setSelectedPolicyKey} />
                   </div>
                 )
@@ -599,7 +682,7 @@ export function PolicyFlowDiagram({ orgName, recommendation, categories }: Props
                 const status = getSlotStatus(pKey, recommendation)
                 return (
                   <div key="secrets">
-                    <DiamondNode laneIdx={idx} label="Secrets or Keys?" />
+                    <DiamondNode laneIdx={idx} label="Secrets or Keys?" priority="P200" />
                     <ActionNode laneIdx={idx} policyKey={pKey} policy={policy} status={status} onClick={setSelectedPolicyKey} />
                   </div>
                 )
@@ -619,9 +702,10 @@ export function PolicyFlowDiagram({ orgName, recommendation, categories }: Props
                     : `netskope:custom:${normalizedTag || cat.id}`
                 const policy = findPolicy(pKey)
                 const status = getSlotStatus(pKey, recommendation)
+                const pLabel = priorityLabel(pKey)
                 return (
                   <div key={`cat-${cat.id}`}>
-                    <DiamondNode laneIdx={idx} label={`Is app ${cat.name}?`} />
+                    <DiamondNode laneIdx={idx} label={`Is app ${cat.name}?`} priority={pLabel} />
                     <ActionNode laneIdx={idx} policyKey={pKey} policy={policy} status={status} onClick={setSelectedPolicyKey} />
                   </div>
                 )
@@ -633,7 +717,7 @@ export function PolicyFlowDiagram({ orgName, recommendation, categories }: Props
                 const status = getSlotStatus(pKey, recommendation)
                 return (
                   <div key="restricted">
-                    <DiamondNode laneIdx={idx} label="Unclassified / Restricted?" />
+                    <DiamondNode laneIdx={idx} label="Unclassified / Restricted?" priority="P900" />
                     <ActionNode laneIdx={idx} policyKey={pKey} policy={policy} status={status} onClick={setSelectedPolicyKey} />
                   </div>
                 )
