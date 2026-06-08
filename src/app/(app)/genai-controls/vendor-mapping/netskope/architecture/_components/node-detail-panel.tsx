@@ -42,12 +42,17 @@ function policyTypeBadge(type: NetskopePolicy['policy_type']): { label: string; 
 }
 
 function actionChipClass(action: string): string {
+  // Must stay in sync with actionChipStyle() in policy-flow-diagram.tsx.
+  // coach-ack (Coach) and coach-just (Justify) are both amber — same coaching family.
   const map: Record<string, string> = {
-    allow:   'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
-    monitor: 'bg-blue-500/15 text-blue-400 border-blue-500/25',
-    alert:   'bg-amber-500/15 text-amber-400 border-amber-500/25',
-    coach:   'bg-orange-500/15 text-orange-400 border-orange-500/25',
-    block:   'bg-red-500/15 text-red-400 border-red-500/25',
+    allow:       'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
+    monitor:     'bg-slate-500/15 text-slate-400 border-slate-500/25',
+    alert:       'bg-orange-500/15 text-orange-400 border-orange-500/25',
+    coach:       'bg-amber-500/15 text-amber-400 border-amber-500/25',
+    'coach-ack': 'bg-amber-500/15 text-amber-400 border-amber-500/25',
+    'coach-just':'bg-amber-500/15 text-amber-400 border-amber-500/25',
+    block:       'bg-red-500/15 text-red-400 border-red-500/25',
+    quarantine:  'bg-red-500/15 text-red-400 border-red-500/25',
   }
   return map[action.toLowerCase()] ?? 'bg-muted/50 text-muted-foreground border-border'
 }

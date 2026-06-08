@@ -159,8 +159,10 @@ export async function getNetskopeRecommendationForOrg(orgId: string): Promise<Re
   )
 
   const activeCoaching   = (coachingTemplatesRaw ?? []).filter(t => t.is_active)
+  // Build name map from active templates only — inactive templates must not appear
+  // in generated Netskope policies even if their UUIDs still exist in old NPJ coaching_by_category.
   const coachingNameMap  = new Map<string, string>(
-    (coachingTemplatesRaw ?? []).map(t => [
+    activeCoaching.map(t => [
       t.id as string,
       (t.coach_label as string | null) ?? (t.name as string),
     ])
@@ -253,11 +255,14 @@ export async function getNetskopeRecommendationForOrg(orgId: string): Promise<Re
     }
 
     const rawCoaching = npj.coaching_by_category as Record<string, string | null> | undefined
-    const resolvedCoaching: Record<string, string | null> | undefined = rawCoaching
+    // If a coaching template UUID is not in coachingNameMap it is inactive (or deleted).
+  // Fall back to null — not the raw UUID — so the generated policy carries no template
+  // rather than referencing a stale/inactive UUID that Netskope would reject.
+  const resolvedCoaching: Record<string, string | null> | undefined = rawCoaching
       ? Object.fromEntries(
           Object.entries(rawCoaching).map(([cat, id]) => [
             cat,
-            id ? (coachingNameMap.get(id) ?? id) : null,
+            id ? (coachingNameMap.get(id) ?? null) : null,
           ])
         )
       : undefined
@@ -381,6 +386,9 @@ export async function getNetskopeRecommendationForOrg(orgId: string): Promise<Re
           })
         : [{ profile: p.name, profile_type: 'content_detection' as NpjProfileType, profile_action: action, coaching_template: null }]
 
+      // P100–P900 are reserved for the topology engine.  Any manual policy that
+      // somehow has priority < 100 (data entry error) is pushed to 500+ to avoid
+      // colliding with the generated topology slots.
       const basePriority = (typeof p.priority === 'number' && p.priority >= 100) ? p.priority : 500 + idx * 10
 
       if (isScopedNpj(npj)) {
@@ -473,7 +481,7 @@ export async function getNetskopeRecommendationForOrg(orgId: string): Promise<Re
     coachingTemplates:       (coachingTemplatesRaw ?? []).length,
     activeCoachingTemplates: activeCoaching.length,
     manualPolicies:          manual_policies.length,
-    scopedPolicies:          scoped_policies?.policies?.length ?? 0,
+    scopedPolicies:          scoped_policies?.policies.length ?? 0,
     lintWarnings,
   }
 
