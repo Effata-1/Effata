@@ -575,109 +575,183 @@ function SlideLimitations({ lintCount }: Pick<Props, 'lintCount'>) {
   )
 }
 
-function SlideNetskopeRecommended({ policies }: Pick<Props, 'policies'>) {
-  const recommended = policies
-    .filter(p => p.policy_source === 'recommended')
-    .slice(0, 8) // max 8 nodes before it becomes too crowded
+function SlideNetskopeRecommended({ policies, categories }: Pick<Props, 'policies' | 'categories'>) {
+  const recommended = [...policies.filter(p => p.policy_source === 'recommended')]
+    .sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999))
 
-  const nodeAction = (p: Props['policies'][number]) => p.primary_action ?? 'not-set'
+  // ── Category colour palette ──────────────────────────────────────────────────
+  const CAT_COLORS: Record<string, { header: string; border: string; bg: string; dot: string }> = {
+    approved_supported:       { header: 'text-emerald-400', border: 'border-emerald-500/25', bg: 'bg-emerald-500/5',  dot: 'bg-emerald-400' },
+    approved_with_conditions: { header: 'text-blue-400',    border: 'border-blue-500/25',    bg: 'bg-blue-500/5',     dot: 'bg-blue-400' },
+    restricted_unassessed:    { header: 'text-amber-400',   border: 'border-amber-500/25',   bg: 'bg-amber-500/5',    dot: 'bg-amber-400' },
+    prohibited:               { header: 'text-red-400',     border: 'border-red-500/25',     bg: 'bg-red-500/5',      dot: 'bg-red-400' },
+    global:                   { header: 'text-indigo-400',  border: 'border-indigo-500/25',  bg: 'bg-indigo-500/5',   dot: 'bg-indigo-400' },
+  }
+  const FALLBACK_COLORS = CAT_COLORS['restricted_unassessed']
 
-  const nodeBorder: Record<string, string> = {
-    'block':      'border-red-500/40 bg-red-500/8',
-    'allow':      'border-emerald-500/40 bg-emerald-500/8',
-    'monitor':    'border-blue-500/40 bg-blue-500/8',
-    'alert':      'border-amber-500/40 bg-amber-500/8',
-    'coach-ack':  'border-orange-500/40 bg-orange-500/8',
-    'coach-just': 'border-orange-600/40 bg-orange-600/8',
-    'not-set':    'border-white/15 bg-white/3',
+  // ── NPJ category lookup ──────────────────────────────────────────────────────
+  function getNpjCatNames(p: Props['policies'][number]): string[] {
+    const npj = p.neutral_policy_json as Record<string, unknown> | null
+    const cats = ((npj?.scope as Record<string, unknown>)?.app_categories as Array<{ name: string }> | undefined)
+    return cats?.map(c => c.name.toLowerCase()) ?? []
   }
 
-  const nodeText: Record<string, string> = {
-    'block':      'text-red-300',
-    'allow':      'text-emerald-300',
-    'monitor':    'text-blue-300',
-    'alert':      'text-amber-300',
-    'coach-ack':  'text-orange-300',
-    'coach-just': 'text-orange-200',
-    'not-set':    'text-white/60',
-  }
+  // ── Assign each policy to a slot ─────────────────────────────────────────────
+  const prohibitedCat = categories.find(c => c.access_posture === 'block')
+  const allowedCats   = categories.filter(c => c.access_posture !== 'block')
 
-  function getDesc(p: Props['policies'][number]): string {
-    if (p.description) return p.description
-    const actionDesc: Record<string, string> = {
-      'block':      'Blocks upload and prompt activity — no data exits.',
-      'allow':      'Allows access — permitted after higher-priority controls pass.',
-      'monitor':    'Logs activity for security review — no blocking.',
-      'alert':      'Alerts security team — no blocking.',
-      'coach-ack':  'Displays coaching message — user must acknowledge.',
-      'coach-just': 'Requires user justification before proceeding.',
+  function assignSlot(p: Props['policies'][number]): string {
+    const npjCats = getNpjCatNames(p)
+    if (npjCats.length === 0) return 'global'
+
+    if (prohibitedCat) {
+      const pl = prohibitedCat.name.toLowerCase()
+      if (npjCats.some(n => n.includes(pl) || pl.includes(n))) return 'prohibited'
     }
-    return actionDesc[p.primary_action ?? ''] ?? ''
+    for (const cat of allowedCats) {
+      const cl = cat.name.toLowerCase()
+      if (npjCats.some(n => n.includes(cl) || cl.includes(n))) return cat.id
+    }
+    return 'global'
   }
+
+  // Build slot → policies map
+  const slotMap: Record<string, Props['policies'][number][]> = {}
+  for (const p of recommended) {
+    const slot = assignSlot(p)
+    ;(slotMap[slot] ??= []).push(p)
+  }
+
+  // ── Build ordered group list ─────────────────────────────────────────────────
+  interface Group {
+    id:           string
+    label:        string
+    sublabel:     string
+    colors:       typeof CAT_COLORS[string]
+    policies:     Props['policies']
+  }
+  const groups: Group[] = []
+
+  if (slotMap['global']?.length) {
+    groups.push({
+      id: 'global', label: 'Global — All GenAI Apps',
+      sublabel: 'Highest priority · before category checks',
+      colors: CAT_COLORS['global'],
+      policies: slotMap['global'],
+    })
+  }
+  if (slotMap['prohibited']?.length && prohibitedCat) {
+    groups.push({
+      id: 'prohibited', label: prohibitedCat.name,
+      sublabel: 'Network-layer block — no content inspection',
+      colors: CAT_COLORS['prohibited'],
+      policies: slotMap['prohibited'],
+    })
+  }
+  for (const cat of allowedCats) {
+    if (!slotMap[cat.id]?.length) continue
+    const alias  = TAG_ALIAS[cat.system_tag] ?? cat.system_tag
+    const colors = CAT_COLORS[alias] ?? FALLBACK_COLORS
+    groups.push({
+      id: cat.id, label: cat.name,
+      sublabel: cat.access_posture === 'allow' ? 'Full access with DLP inspection'
+              : cat.access_posture === 'allow_dlp' ? 'Access allowed with DLP controls'
+              : 'Restricted access posture',
+      colors,
+      policies: slotMap[cat.id],
+    })
+  }
+
+  // ── Single-policy row ────────────────────────────────────────────────────────
+  function PolicyRow({ p }: { p: Props['policies'][number] }) {
+    const action   = p.primary_action ?? 'not-set'
+    const implDot  = p.is_active && p.approval_status === 'approved' ? 'bg-emerald-400'
+                   : p.approval_status === 'approved'                ? 'bg-blue-400'
+                   : 'bg-white/15'
+    const implTxt  = p.is_active && p.approval_status === 'approved' ? 'Active'
+                   : p.approval_status === 'approved'                ? 'Ready'
+                   : 'Draft'
+    return (
+      <div className="flex items-center gap-2 py-1.5 border-b border-white/5 last:border-0">
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-semibold text-white/80 leading-tight truncate" title={p.name}>
+            {p.name}
+          </p>
+          <div className="flex items-center gap-1 mt-0.5">
+            <span className={`w-1.5 h-1.5 rounded-full ${implDot}`} />
+            <span className="text-[8px] text-white/30">{implTxt}</span>
+          </div>
+        </div>
+        <ActionChip action={action} />
+      </div>
+    )
+  }
+
+  // ── Empty state ──────────────────────────────────────────────────────────────
+  if (recommended.length === 0) {
+    return (
+      <SlideShell section="NETSKOPE RECOMMENDED POLICIES" title="Policy Design" slideNum={6}
+        why="Shows how the control matrix translates into category-based Netskope policies — each governance tier gets its own enforcement stack."
+      >
+        <FadeIn>
+          <p className="text-sm text-white/30 italic mt-8">
+            No recommended policies generated yet. Configure the control matrix first.
+          </p>
+        </FadeIn>
+      </SlideShell>
+    )
+  }
+
+  const colCount = Math.min(Math.max(groups.length, 2), 5)
 
   return (
     <SlideShell section="NETSKOPE RECOMMENDED POLICIES" title="Policy Design" slideNum={6}
-      why="Shows how the control matrix translates into an ordered chain of Netskope policies — each policy handles a specific enforcement scenario at the right priority level."
+      why="Shows how the control matrix translates into category-based Netskope policies — each governance tier gets its own enforcement stack."
     >
-      {recommended.length === 0 ? (
-        <FadeIn>
-          <p className="text-sm text-white/30 italic mt-8">No recommended policies generated yet. Configure the control matrix first.</p>
-        </FadeIn>
-      ) : (
-        <div className="flex flex-col justify-center h-full gap-6">
-          {/* Flow diagram */}
-          <FadeIn delay={0.1}>
-            <div className="flex items-stretch gap-0 overflow-x-auto pb-2">
-              {recommended.map((p, i) => {
-                const action  = nodeAction(p)
-                const borders = nodeBorder[action] ?? nodeBorder['not-set']
-                const text    = nodeText[action]   ?? nodeText['not-set']
-                const desc    = getDesc(p)
-                return (
-                  <div key={p.id} className="flex items-center shrink-0">
-                    {/* Node */}
-                    <div className={`flex flex-col items-center gap-2 w-36`}>
-                      {/* Description above */}
-                      <p className="text-[9px] text-white/35 text-center leading-tight h-8 flex items-end justify-center px-1">
-                        {desc}
-                      </p>
-                      {/* Box */}
-                      <div className={`rounded-xl border-2 ${borders} px-3 py-2.5 w-full text-center`}>
-                        <p className={`text-[10px] font-bold leading-tight ${text}`}>{p.name}</p>
-                        {p.is_active && (
-                          <span className="inline-block mt-1 text-[8px] text-emerald-400/70 border border-emerald-500/20 rounded px-1">Active</span>
-                        )}
-                      </div>
-                      {/* Action below */}
-                      <div className="mt-1">
-                        {p.primary_action && <ActionChip action={p.primary_action} />}
-                      </div>
-                    </div>
-                    {/* Connector */}
-                    {i < recommended.length - 1 && (
-                      <div className="flex items-center shrink-0 w-6 mt-10">
-                        <div className="flex-1 h-px bg-white/20" />
-                        <svg className="w-2.5 h-2.5 text-white/20 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M7 4l6 6-6 6V4z" />
-                        </svg>
-                      </div>
-                    )}
+      <div className="flex flex-col h-full gap-3">
+        {/* Swimlane grid */}
+        <div
+          className="flex-1 grid gap-3 min-h-0"
+          style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}
+        >
+          {groups.map((group, gi) => (
+            <FadeIn key={group.id} delay={0.08 + gi * 0.06}>
+              <div className={`h-full rounded-xl border ${group.colors.border} ${group.colors.bg} p-3 flex flex-col gap-2`}>
+                {/* Column header */}
+                <div className="pb-2 border-b border-white/8">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className={`w-2 h-2 rounded-full ${group.colors.dot} shrink-0`} />
+                    <p className={`text-[9px] font-bold uppercase tracking-widest ${group.colors.header} leading-none`}>
+                      {group.label}
+                    </p>
                   </div>
-                )
-              })}
-            </div>
-          </FadeIn>
-
-          {/* Summary line */}
-          <FadeIn delay={0.2}>
-            <p className="text-[11px] text-white/30">
-              {policies.filter(p => p.policy_source === 'recommended').length} total recommended policies ·{' '}
-              {policies.filter(p => p.policy_source === 'recommended' && p.is_active).length} active ·{' '}
-              Ordered by enforcement priority (highest to lowest, left to right)
-            </p>
-          </FadeIn>
+                  <p className="text-[9px] text-white/25 leading-tight pl-3.5">{group.sublabel}</p>
+                </div>
+                {/* Policy rows */}
+                <div className="flex-1 min-h-0 overflow-auto">
+                  {group.policies.slice(0, 7).map(p => (
+                    <PolicyRow key={p.id} p={p} />
+                  ))}
+                  {group.policies.length > 7 && (
+                    <p className="text-[9px] text-white/20 pt-1 pl-1">
+                      +{group.policies.length - 7} more
+                    </p>
+                  )}
+                </div>
+              </div>
+            </FadeIn>
+          ))}
         </div>
-      )}
+
+        {/* Footer summary */}
+        <FadeIn delay={0.3}>
+          <p className="text-[11px] text-white/25">
+            {recommended.length} recommended policies ·{' '}
+            {recommended.filter(p => p.is_active).length} active ·{' '}
+            Grouped by governance tier · ordered by enforcement priority within each tier
+          </p>
+        </FadeIn>
+      </div>
     </SlideShell>
   )
 }
@@ -814,7 +888,7 @@ export function PresentationSlideshow({
       case 3: return <SlideAppCategories      categories={categories} appCounts={appCounts} />
       case 4: return <SlideMatrix             categories={categories} matrixOverrides={matrixOverrides} coachingTemplates={coachingTemplates} />
       case 5: return <SlideUseCases           policies={policies} />
-      case 6: return <SlideNetskopeRecommended policies={policies} />
+      case 6: return <SlideNetskopeRecommended policies={policies} categories={categories} />
       case 7: return <SlideLimitations        lintCount={lintCount} />
       case 8: return <SlideRollout            />
       default: return null
