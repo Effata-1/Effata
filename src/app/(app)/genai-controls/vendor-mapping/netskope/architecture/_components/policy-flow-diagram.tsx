@@ -280,12 +280,14 @@ interface ArrowLayerProps {
 }
 
 function ArrowLayer({ lanes, canvasH, prefersReduced }: ArrowLayerProps) {
+  // Include 'restricted' so P900 gets a YES branch arrow like all other policy slots.
   const diamondLanes = lanes
     .map((l, i) => ({ l, i }))
     .filter(({ l }) =>
       l.kind === 'diamond_prohibited' ||
       l.kind === 'diamond_secrets'    ||
-      l.kind === 'diamond_category'
+      l.kind === 'diamond_category'   ||
+      l.kind === 'restricted'
     )
 
   const entryLane    = 0
@@ -566,7 +568,7 @@ export function PolicyFlowDiagram({ orgName, recommendation, categories }: Props
                 return (
                   <div key="restricted">
                     <DiamondNode laneIdx={idx} label="Unclassified / Restricted?" />
-                    <ActionNode laneIdx={idx} policyKey={pKey} policy={policy} status={status} centered onClick={setSelectedPolicyKey} />
+                    <ActionNode laneIdx={idx} policyKey={pKey} policy={policy} status={status} onClick={setSelectedPolicyKey} />
                   </div>
                 )
               }
