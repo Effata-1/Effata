@@ -24,7 +24,6 @@ export interface CatalogEntry {
 
 interface Props {
   entries: CatalogEntry[]
-  lastRunInfo: { status: string; apps_updated: number; apps_added: number } | null
   totalInDb: number
   orgCategories?: { system_tag: string | null; name: string }[]
 }
@@ -738,7 +737,7 @@ function parseEvalError(rawError: string, searchTerm: string): {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function AppCatalogClient({ entries, lastRunInfo, totalInDb, orgCategories = [] }: Props) {
+export function AppCatalogClient({ entries, totalInDb, orgCategories = [] }: Props) {
   const [search,       setSearch]       = useState('')
   const [view,         setView]         = useState<'table' | 'grid'>('table')
   const [sort,         setSort]         = useState<{ key: SortKey; dir: SortDir }>({ key: 'name', dir: 'asc' })
@@ -938,28 +937,6 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb, orgCategorie
             {scoredCount} fully evaluated GenAI applications
             {pendingCount > 0 && <span className="text-muted-foreground/50"> · {pendingCount} pending</span>}
           </p>
-        </div>
-        <div className="flex flex-col items-end gap-1.5 shrink-0 text-xs text-muted-foreground/60">
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" />Low</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500" />Moderate</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500" />Medium</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" />High Risk</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {lastRunInfo ? (
-              <>
-                <span className={cn('w-1.5 h-1.5 rounded-full',
-                  lastRunInfo.status === 'completed' ? 'bg-green-500' :
-                  lastRunInfo.status === 'failed'    ? 'bg-red-500' : 'bg-yellow-500 animate-pulse',
-                )} />
-                <span>Last refresh: {lastRunInfo.apps_updated} updated · {lastRunInfo.apps_added} added</span>
-              </>
-            ) : (
-              <><span className="w-1.5 h-1.5 rounded-full bg-accent" /><span>No refresh runs yet</span></>
-            )}
-            <Link href="/settings/admin/refresh-logs" className="underline hover:text-muted-foreground/80 ml-1">Logs →</Link>
-          </div>
         </div>
       </div>
 
