@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { ChevronDown, ChevronRight, CheckCircle, AlertTriangle, Clock, Shield, ExternalLink, X, Search, ClipboardCheck } from 'lucide-react'
@@ -39,6 +39,26 @@ const INDUSTRY_OPTIONS = [
   { value: 'media',                   label: 'Media & Entertainment' },
   { value: 'transport',               label: 'Transport / Logistics' },
 ]
+
+const TYPE_TABS = [
+  { value: 'all',           label: 'All' },
+  { value: 'privacy',       label: 'Privacy' },
+  { value: 'security',      label: 'Security' },
+  { value: 'sector',        label: 'Sector' },
+  { value: 'framework',     label: 'Frameworks' },
+  { value: 'standard',      label: 'Standards' },
+  { value: 'ai_governance', label: 'AI Governance' },
+]
+
+const TYPE_DESCRIPTIONS: Record<string, string> = {
+  all:           'Every DLP-relevant obligation in the current filter set.',
+  privacy:       'Data protection and personal information obligations.',
+  security:      'Cybersecurity, incident response, breach reporting, and resilience rules.',
+  sector:        'Industry-specific obligations for finance, healthcare, government, critical infrastructure, and similar sectors.',
+  framework:     'Implementation frameworks and control catalogs used to structure DLP programs.',
+  standard:      'Auditable standards and certification-oriented requirements.',
+  ai_governance: 'AI governance obligations that affect sensitive data use, monitoring, and control evidence.',
+}
 
 const TYPE_COLORS: Record<string, string> = {
   privacy:      'bg-blue-500/15 text-blue-400',
@@ -145,8 +165,16 @@ function RegulationCard({ reg, isRelevant }: { reg: RegulationRow; isRelevant: b
         ? 'border-blue-800/50 bg-card/60'
         : 'border-border bg-card/40 opacity-60 hover:opacity-100'
     )}>
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setExpanded(v => !v)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setExpanded(v => !v)
+          }
+        }}
         className="w-full text-left px-5 py-4 flex items-start gap-4 hover:bg-card/60 transition-colors"
       >
         <div className="flex-1 min-w-0">
@@ -222,7 +250,7 @@ function RegulationCard({ reg, isRelevant }: { reg: RegulationRow; isRelevant: b
             : <ChevronRight className="h-4 w-4 text-muted-foreground/80 mt-1" />
           }
         </div>
-      </button>
+      </div>
 
       {expanded && (
         <div className="border-t border-border">
@@ -292,7 +320,8 @@ export function RegulationsClient({
   const searchParams = useSearchParams()
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const relevantSet = new Set(relevantCodes)
+  const activeType = searchParams.get('type') ?? 'all'
+  const relevantSet = useMemo(() => new Set(relevantCodes), [relevantCodes])
 
   function updateFilter(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString())
@@ -304,7 +333,7 @@ export function RegulationsClient({
   const afterRegion = currentRegion === 'my-regions'
     ? regulations.filter(r => relevantSet.has(r.code))
     : regulations
-  const visible = q
+  const searched = q
     ? afterRegion.filter(r =>
         r.short_name.toLowerCase().includes(q) ||
         r.name.toLowerCase().includes(q) ||
@@ -312,6 +341,25 @@ export function RegulationsClient({
         r.jurisdiction.toLowerCase().includes(q)
       )
     : afterRegion
+
+  const typeCounts = useMemo(() => {
+    const counts = new Map<string, number>([['all', searched.length]])
+    for (const reg of searched) {
+      counts.set(reg.type, (counts.get(reg.type) ?? 0) + 1)
+    }
+    return counts
+  }, [searched])
+
+  const visible = activeType === 'all'
+    ? searched
+    : searched.filter(r => r.type === activeType)
+
+  const visibleOrgCount = useMemo(
+    () => visible.filter(r => relevantSet.has(r.code)).length,
+    [visible, relevantSet]
+  )
+
+  const activeTypeLabel = TYPE_TABS.find(t => t.value === activeType)?.label ?? 'All'
 
   return (
     <div className="space-y-4">
@@ -360,7 +408,7 @@ export function RegulationsClient({
               : PILL_DEFAULT
             )}
           >
-            For my org · {relevantCodes.length}
+            For my org · {visibleOrgCount}
           </button>
         )}
 
@@ -392,10 +440,52 @@ export function RegulationsClient({
         )}
       </div>
 
+      <div className="border-b border-border">
+        <div className="flex items-end gap-1 overflow-x-auto">
+          {TYPE_TABS.filter(tab => tab.value === 'all' || (typeCounts.get(tab.value) ?? 0) > 0).map(tab => {
+            const count = typeCounts.get(tab.value) ?? 0
+            const active = activeType === tab.value
+
+            return (
+              <button
+                key={tab.value}
+                onClick={() => updateFilter('type', tab.value)}
+                className={cn(
+                  'shrink-0 px-4 py-3 text-xs font-semibold border-b-2 transition-colors',
+                  active
+                    ? 'border-blue-500 text-blue-500'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {tab.label}
+                <span className={cn(
+                  'ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+                  active ? 'bg-blue-500/15 text-blue-500' : 'bg-muted text-muted-foreground'
+                )}>
+                  {count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">{activeTypeLabel}</h2>
+          <p className="text-xs text-muted-foreground/70 mt-0.5">
+            {TYPE_DESCRIPTIONS[activeType]}
+          </p>
+        </div>
+        <div className="text-xs text-muted-foreground/60 shrink-0 pt-0.5">
+          {visible.length} shown
+        </div>
+      </div>
+
       {visible.length === 0 ? (
         <div className="py-16 text-center rounded-xl border border-border">
-          <p className="text-sm text-muted-foreground/80">No regulations match your filters.</p>
-          <p className="text-xs text-muted-foreground/60 mt-1">Try selecting a different region, industry, or search term.</p>
+          <p className="text-sm text-muted-foreground/80">No {activeTypeLabel.toLowerCase()} items match your filters.</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">Try selecting another category, region, industry, or search term.</p>
         </div>
       ) : (
         <div className="space-y-3">

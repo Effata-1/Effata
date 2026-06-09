@@ -57,7 +57,7 @@ function regionGroupMatch(regions: string[], group: string): boolean {
 export default async function RegulationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ region?: string; industry?: string }>
+  searchParams: Promise<{ region?: string; industry?: string; type?: string }>
 }) {
   const { region = 'all', industry = 'all' } = await searchParams
 
