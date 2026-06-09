@@ -441,44 +441,24 @@ export function RegulationsClient({
       </div>
 
       <div className="border-b border-border">
-        <div className="flex items-end gap-1 overflow-x-auto">
+        <div className="flex items-end overflow-x-auto">
           {TYPE_TABS.filter(tab => tab.value === 'all' || (typeCounts.get(tab.value) ?? 0) > 0).map(tab => {
-            const count = typeCounts.get(tab.value) ?? 0
             const active = activeType === tab.value
-
             return (
               <button
                 key={tab.value}
                 onClick={() => updateFilter('type', tab.value)}
                 className={cn(
-                  'shrink-0 px-4 py-3 text-xs font-semibold border-b-2 transition-colors',
+                  'shrink-0 px-5 py-3.5 text-[11px] font-bold tracking-widest uppercase border-b-2 transition-colors whitespace-nowrap',
                   active
-                    ? 'border-blue-500 text-blue-500'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                    ? 'border-blue-500 text-blue-400'
+                    : 'border-transparent text-muted-foreground/50 hover:text-muted-foreground'
                 )}
               >
                 {tab.label}
-                <span className={cn(
-                  'ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-medium',
-                  active ? 'bg-blue-500/15 text-blue-500' : 'bg-muted text-muted-foreground'
-                )}>
-                  {count}
-                </span>
               </button>
             )
           })}
-        </div>
-      </div>
-
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">{activeTypeLabel}</h2>
-          <p className="text-xs text-muted-foreground/70 mt-0.5">
-            {TYPE_DESCRIPTIONS[activeType]}
-          </p>
-        </div>
-        <div className="text-xs text-muted-foreground/60 shrink-0 pt-0.5">
-          {visible.length} shown
         </div>
       </div>
 
