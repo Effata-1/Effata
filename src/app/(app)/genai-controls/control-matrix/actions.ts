@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import { upsertLabel, deleteLabel } from '@/lib/data-catalog/actions'
 import { syncRecommendedPolicies } from '@/app/(app)/genai-controls/policies/actions'
+import { logAuditEvent } from '@/lib/audit'
 import { validateActionTemplate } from '@/lib/genai/coaching-validation'
 import type { ControlType } from '@/lib/genai/types'
 
@@ -51,6 +52,15 @@ export async function upsertControlMatrixCell(
     )
 
   if (error) return { error: error.message }
+  await logAuditEvent({
+    action:      'control_matrix.cell_updated',
+    entity_type: 'org_control_matrix_overrides',
+    entity_name: `${dataType} / ${categoryId}`,
+    new_value:   actionCode,
+    details:     { data_type: dataType, category_id: categoryId, coaching_notification_id: coachingNotificationId },
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidatePath('/genai-controls/control-matrix')
 
   // Keep recommended policies live-updated when matrix changes
@@ -72,14 +82,26 @@ export async function deleteControlMatrixCell(
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('org_control_matrix_overrides')
     .delete()
     .eq('org_id', user.orgId)
     .eq('data_type', dataType)
     .eq('category_id', categoryId)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  // No override existed — cell is already at default. No-op, no audit.
+  if (!data) return {}
+  await logAuditEvent({
+    action:      'control_matrix.cell_reset',
+    entity_type: 'org_control_matrix_overrides',
+    entity_name: `${dataType} / ${categoryId}`,
+    details:     { data_type: dataType, category_id: categoryId },
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
 
   let warning: string | undefined
   try {
@@ -102,15 +124,26 @@ export async function updateCategoryAccessPosture(
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
-  // Prohibited categories are locked to 'block' — never allow overriding them.
-  const { error } = await supabase
+  // Prohibited categories are locked to 'block' — neq guard silently blocks them.
+  const { data, error } = await supabase
     .from('org_genai_governance_categories')
     .update({ access_posture: accessPosture })
     .eq('org_id', user.orgId)
     .eq('id', categoryId)
     .neq('system_tag', 'prohibited')
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  if (!data) return { error: 'Category not found or cannot be modified.' }
+  await logAuditEvent({
+    action:      'control_matrix.posture_updated',
+    entity_type: 'org_genai_governance_categories',
+    entity_id:   categoryId,
+    new_value:   accessPosture,
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidatePath('/genai-controls/control-matrix')
 
   // Changing posture may add or remove app-block policies
@@ -138,6 +171,12 @@ export async function resetMatrixToDefaults(): Promise<{ error?: string }> {
     .eq('org_id', user.orgId)
 
   if (error) return { error: error.message }
+  await logAuditEvent({
+    action:      'control_matrix.reset',
+    entity_type: 'org_control_matrix_overrides',
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
 
   try { await syncRecommendedPolicies() } catch (e) { console.error('[control-matrix] reset sync error:', e) }
   revalidatePath('/genai-controls/control-matrix')

@@ -3,6 +3,7 @@
 import { requireRole } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { logAuditEvent } from '@/lib/audit'
 import type { CoverageStatus } from '@/lib/channel-taxonomy'
 
 export async function saveAssessmentAnswers(
@@ -27,5 +28,13 @@ export async function saveAssessmentAnswers(
 
   if (error) throw new Error(error.message)
 
+  await logAuditEvent({
+    action:      'channel.assessment_saved',
+    entity_type: 'channel_coverage',
+    entity_name: channelSlug,
+    details:     { answer_count: Object.keys(answers).length },
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidatePath(`/foundation/channels/${channelSlug}`)
 }

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
+import { logAuditEvent } from '@/lib/audit'
 
 export type IdentityFieldName =
   | 'business_function'
@@ -150,6 +151,14 @@ export async function addIdentityMapping(
     .single()
 
   if (error) return { error: error.message }
+  await logAuditEvent({
+    action:      'identity.mapping_added',
+    entity_type: 'org_identity_mappings',
+    entity_name: sourceName,
+    details:     { catalog_value_id: catalogValueId, source_type: sourceType },
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidate()
   return { id: data.id }
 }
@@ -163,13 +172,24 @@ export async function updateIdentityMapping(
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('org_identity_mappings')
     .update(fields)
     .eq('id', mappingId)
     .eq('org_id', user.orgId)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  if (!data) return { error: 'Mapping not found.' }
+  await logAuditEvent({
+    action:      'identity.mapping_updated',
+    entity_type: 'org_identity_mappings',
+    entity_id:   mappingId,
+    details:     fields as Record<string, unknown>,
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidate()
   return {}
 }
@@ -182,13 +202,23 @@ export async function deleteIdentityMapping(
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('org_identity_mappings')
     .delete()
     .eq('id', mappingId)
     .eq('org_id', user.orgId)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  if (!data) return { error: 'Mapping not found.' }
+  await logAuditEvent({
+    action:      'identity.mapping_deleted',
+    entity_type: 'org_identity_mappings',
+    entity_id:   mappingId,
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidate()
   return {}
 }
@@ -203,12 +233,16 @@ export async function toggleIdentityValueInScope(
   const supabase = await createClient()
 
   if (currentlyInScope) {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('org_identity_scope')
       .delete()
       .eq('org_id', user.orgId)
       .eq('catalog_value_id', catalogValueId)
+      .select('catalog_value_id')
+      .maybeSingle()
     if (error) return { error: error.message }
+    // Already removed — desired state already correct, no audit needed.
+    if (!data) return {}
   } else {
     const { error } = await supabase
       .from('org_identity_scope')
@@ -216,6 +250,14 @@ export async function toggleIdentityValueInScope(
     if (error) return { error: error.message }
   }
 
+  await logAuditEvent({
+    action:      'identity.scope_toggled',
+    entity_type: 'org_identity_scope',
+    entity_id:   catalogValueId,
+    new_value:   currentlyInScope ? 'removed' : 'added',
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidate()
   return {}
 }

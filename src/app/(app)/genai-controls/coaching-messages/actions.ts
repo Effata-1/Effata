@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
+import { logAuditEvent } from '@/lib/audit'
 import type { ControlType, CoachingTone } from '@/lib/genai/types'
 import { SEED_DEFAULTS, SEED_BY_KEY } from './_data/seeds'
 
@@ -117,6 +118,14 @@ export async function upsertNotification(
     : await supabase.from('org_coaching_notifications').insert(payload)
 
   if (error) return { error: error.message }
+  await logAuditEvent({
+    action:      id ? 'coaching_template.updated' : 'coaching_template.created',
+    entity_type: 'org_coaching_notifications',
+    entity_name: fields.name,
+    details:     { control_type: fields.control_type },
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidatePath('/genai-controls/coaching-messages')
   return {}
 }
@@ -125,13 +134,23 @@ export async function deleteNotification(id: string): Promise<{ error?: string }
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('org_coaching_notifications')
     .delete()
     .eq('id', id)
     .eq('org_id', user.orgId)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  if (!data) return { error: 'Template not found.' }
+  await logAuditEvent({
+    action:      'coaching_template.deleted',
+    entity_type: 'org_coaching_notifications',
+    entity_id:   id,
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidatePath('/genai-controls/coaching-messages')
   return {}
 }
@@ -143,13 +162,23 @@ export async function toggleNotificationActive(
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('org_coaching_notifications')
     .update({ is_active, updated_at: new Date().toISOString() })
     .eq('id', id)
     .eq('org_id', user.orgId)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  if (!data) return { error: 'Template not found.' }
+  await logAuditEvent({
+    action:      is_active ? 'coaching_template.activated' : 'coaching_template.deactivated',
+    entity_type: 'org_coaching_notifications',
+    entity_id:   id,
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidatePath('/genai-controls/coaching-messages')
   return {}
 }
@@ -171,7 +200,7 @@ export async function resetNotification(id: string): Promise<{ error?: string }>
   if (!seed) return { error: 'No seed data found for this template' }
 
   const tokens_used = extractTokens(seed.title, seed.subtitle, seed.message)
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from('org_coaching_notifications')
     .update({
       name:                seed.name,
@@ -190,8 +219,18 @@ export async function resetNotification(id: string): Promise<{ error?: string }>
     })
     .eq('id', id)
     .eq('org_id', user.orgId)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  if (!updated) return { error: 'Template not found.' }
+  await logAuditEvent({
+    action:      'coaching_template.reset',
+    entity_type: 'org_coaching_notifications',
+    entity_id:   id,
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidatePath('/genai-controls/coaching-messages')
   return {}
 }

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Filter, X, Download, ChevronRight, Search, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { AUDIT_CATEGORIES, CATEGORY_LABEL_FOR_VALUE } from '../_lib/audit-actions'
 
 interface Props {
   currentRange: string
@@ -21,7 +22,6 @@ const RANGES = [
 ]
 
 const SEVERITIES = ['High', 'Medium', 'Low', 'Info']
-const CATEGORIES  = ['Auth', 'GenAI', 'Onboarding', 'Policies']
 
 export function AuditFilters({ currentRange, currentSeverity, currentCategory, currentUser }: Props) {
   const router = useRouter()
@@ -186,14 +186,14 @@ export function AuditFilters({ currentRange, currentSeverity, currentCategory, c
               )}
 
               {activeMenu === 'category' && (
-                <div className="w-36 bg-muted border border-border-strong rounded-lg overflow-hidden ml-px">
-                  {CATEGORIES.map(c => (
+                <div className="w-44 bg-muted border border-border-strong rounded-lg overflow-hidden ml-px max-h-72 overflow-y-auto">
+                  {AUDIT_CATEGORIES.map(c => (
                     <button
-                      key={c}
-                      onClick={() => selectFilter('category', c)}
+                      key={c.value}
+                      onClick={() => { navigate({ category: c.value }); setOpenDropdown(null) }}
                       className="w-full px-4 py-2.5 text-sm text-left text-foreground/70 hover:bg-accent transition-colors"
                     >
-                      {c}
+                      {c.label}
                     </button>
                   ))}
                 </div>
@@ -225,7 +225,7 @@ export function AuditFilters({ currentRange, currentSeverity, currentCategory, c
 
         {currentCategory !== 'all' && (
           <span className="flex items-center gap-1 px-2 py-1 text-xs bg-muted border border-border-strong rounded-lg text-foreground/70">
-            <span className="capitalize">{currentCategory}</span>
+            <span>{CATEGORY_LABEL_FOR_VALUE[currentCategory] ?? currentCategory}</span>
             <button onClick={() => navigate({ category: 'all' })} className="text-muted-foreground/80 hover:text-foreground/70 ml-1">
               <X className="w-3 h-3" />
             </button>

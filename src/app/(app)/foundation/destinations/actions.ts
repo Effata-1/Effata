@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
+import { logAuditEvent } from '@/lib/audit'
 
 export type TrustTag =
   | 'enterprise_approved'
@@ -170,13 +171,17 @@ export async function toggleDestinationInScope(
   const supabase = await createClient()
 
   if (currentlyInScope) {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('org_destination_profiles')
       .delete()
       .eq('org_id', user.orgId)
       .eq('catalog_destination_id', catalogId)
       .eq('is_custom', false)
+      .select('id')
+      .maybeSingle()
     if (error) return { error: error.message }
+    // Already removed — desired state already correct, no audit needed.
+    if (!data) return {}
   } else {
     const { error } = await supabase
       .from('org_destination_profiles')
@@ -192,6 +197,14 @@ export async function toggleDestinationInScope(
     if (error) return { error: error.message }
   }
 
+  await logAuditEvent({
+    action:      'destination.scope_toggled',
+    entity_type: 'org_destination_profiles',
+    entity_name: catalogName,
+    new_value:   currentlyInScope ? 'removed' : 'added',
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidate()
   return {}
 }
@@ -205,13 +218,24 @@ export async function updateDestinationProfile(
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('org_destination_profiles')
     .update(fields)
     .eq('id', orgProfileId)
     .eq('org_id', user.orgId)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  if (!data) return { error: 'Destination not found.' }
+  await logAuditEvent({
+    action:      'destination.profile_updated',
+    entity_type: 'org_destination_profiles',
+    entity_id:   orgProfileId,
+    details:     fields as Record<string, unknown>,
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidate()
   return {}
 }
@@ -245,6 +269,14 @@ export async function addCustomDestination(fields: {
     })
 
   if (error) return { error: error.message }
+  await logAuditEvent({
+    action:      'destination.custom_added',
+    entity_type: 'org_destination_profiles',
+    entity_name: fields.name,
+    details:     { trust_tag: fields.trust_tag, subcategory: fields.subcategory },
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidate()
   return {}
 }
@@ -257,14 +289,24 @@ export async function deleteCustomDestination(
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('org_destination_profiles')
     .delete()
     .eq('id', orgProfileId)
     .eq('org_id', user.orgId)
     .eq('is_custom', true)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  if (!data) return { error: 'Destination not found or cannot be deleted.' }
+  await logAuditEvent({
+    action:      'destination.custom_deleted',
+    entity_type: 'org_destination_profiles',
+    entity_id:   orgProfileId,
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidate()
   return {}
 }

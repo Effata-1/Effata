@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { requireRole } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
+import { logAuditEvent } from '@/lib/audit'
 
 export async function triggerComplianceCheck(): Promise<{
   error?: string
@@ -26,7 +27,8 @@ export async function triggerComplianceCheck(): Promise<{
 // ── Proposal review actions ───────────────────────────────────────────────────
 
 export async function approveProposal(proposalId: string): Promise<{ error?: string }> {
-  const { id: reviewedBy } = await requireRole('admin')
+  const user = await requireRole('admin')
+  const reviewedBy = user.id
   const supabase = await createClient()
 
   // All writes (compliance_regulations, compliance_requirements,
@@ -39,16 +41,23 @@ export async function approveProposal(proposalId: string): Promise<{ error?: str
   })
 
   if (error) return { error: error.message }
-
+  await logAuditEvent({
+    action:      'compliance_proposal.approved',
+    entity_type: 'compliance_proposed_changes',
+    entity_id:   proposalId,
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidatePath('/settings/admin/cron-runs')
   return {}
 }
 
 export async function rejectProposal(proposalId: string): Promise<{ error?: string }> {
-  const { id: reviewedBy } = await requireRole('admin')
+  const user = await requireRole('admin')
+  const reviewedBy = user.id
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('compliance_proposed_changes')
     .update({
       status:      'rejected',
@@ -57,9 +66,19 @@ export async function rejectProposal(proposalId: string): Promise<{ error?: stri
     })
     .eq('id', proposalId)
     .eq('status', 'pending')  // guard: can't reject something already reviewed
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
-
+  // Supabase returns no error when 0 rows match — guard explicitly so we don't log a phantom rejection.
+  if (!data) return { error: 'Proposal not found or already reviewed.' }
+  await logAuditEvent({
+    action:      'compliance_proposal.rejected',
+    entity_type: 'compliance_proposed_changes',
+    entity_id:   proposalId,
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidatePath('/settings/admin/cron-runs')
   return {}
 }

@@ -127,6 +127,18 @@ export async function upsertPolicy(
     : await supabase.from('org_genai_policies').insert(basePayload).select('id').maybeSingle()
 
   if (error) return { error: error.message }
+  // For updates: if no row was returned the policy doesn't exist or belongs to another org.
+  // Supabase returns no error on 0-row writes, so guard explicitly before logging.
+  if (id && !data) return { error: 'Policy not found.' }
+  await logAuditEvent({
+    action:      id ? 'policy.updated' : 'policy.created',
+    entity_type: 'org_genai_policies',
+    entity_id:   (data as { id: string } | null)?.id ?? id ?? undefined,
+    entity_name: typeof fields.name === 'string' ? fields.name : undefined,
+    details:     { changedFields: Object.keys(fields) },
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidatePath('/genai-controls/policies')
   return { id: (data as { id: string } | null)?.id }
 }
@@ -345,6 +357,14 @@ export async function duplicatePolicy(id: string): Promise<{ error?: string }> {
     })
 
   if (error) return { error: error.message }
+  await logAuditEvent({
+    action:      'policy.duplicated',
+    entity_type: 'org_genai_policies',
+    entity_id:   id,
+    entity_name: `${String(rest.name ?? '')} (copy)`,
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidatePath('/genai-controls/policies')
   return {}
 }
@@ -353,13 +373,23 @@ export async function deletePolicy(id: string): Promise<{ error?: string }> {
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('org_genai_policies')
     .delete()
     .eq('id', id)
     .eq('org_id', user.orgId)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  if (!data) return { error: 'Policy not found.' }
+  await logAuditEvent({
+    action:      'policy.deleted',
+    entity_type: 'org_genai_policies',
+    entity_id:   id,
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidatePath('/genai-controls/policies')
   return {}
 }
@@ -371,13 +401,23 @@ export async function togglePolicyActive(
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('org_genai_policies')
     .update({ is_active, updated_at: new Date().toISOString() })
     .eq('id', id)
     .eq('org_id', user.orgId)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  if (!data) return { error: 'Policy not found.' }
+  await logAuditEvent({
+    action:      is_active ? 'policy.activated' : 'policy.deactivated',
+    entity_type: 'org_genai_policies',
+    entity_id:   id,
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidatePath('/genai-controls/policies')
   return {}
 }
@@ -1065,6 +1105,14 @@ export async function duplicatePolicyAsManual(policyId: string): Promise<{ newPo
     .single()
 
   if (error) return { error: error.message }
+  await logAuditEvent({
+    action:      'policy.duplicated_as_manual',
+    entity_type: 'org_genai_policies',
+    entity_id:   policyId,
+    entity_name: `Copy of ${String(rest.name ?? '')}`,
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidatePath('/genai-controls/policies')
   return { newPolicyId: (newRow as { id: string }).id }
 }

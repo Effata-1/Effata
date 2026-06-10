@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
+import { logAuditEvent } from '@/lib/audit'
 
 export interface CustomerLabelFields {
   display_name: string
@@ -35,17 +36,37 @@ export async function upsertCustomerLabel(
   }
 
   if (id) {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('org_customer_sensitivity_labels')
       .update(payload)
       .eq('id', id)
       .eq('org_id', user.orgId)
+      .select('id')
+      .maybeSingle()
     if (error) return { error: error.message }
+    if (!data) return { error: 'Label not found.' }
+    await logAuditEvent({
+      action:      'sensitivity_label.updated',
+      entity_type: 'org_customer_sensitivity_labels',
+      entity_id:   id,
+      entity_name: fields.display_name,
+      details:     { system_level: fields.system_level },
+      org_id:  user.orgId,
+      user_id: user.id,
+    })
   } else {
     const { error } = await supabase
       .from('org_customer_sensitivity_labels')
       .insert(payload)
     if (error) return { error: error.message }
+    await logAuditEvent({
+      action:      'sensitivity_label.created',
+      entity_type: 'org_customer_sensitivity_labels',
+      entity_name: fields.display_name,
+      details:     { system_level: fields.system_level },
+      org_id:  user.orgId,
+      user_id: user.id,
+    })
   }
 
   revalidatePath('/foundation/sensitivity-labels')
@@ -59,14 +80,23 @@ export async function deactivateCustomerLabel(id: string): Promise<{ error?: str
   const user     = await requireRole('analyst')
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('org_customer_sensitivity_labels')
     .update({ active: false, updated_at: new Date().toISOString() })
     .eq('id', id)
     .eq('org_id', user.orgId)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
-
+  if (!data) return { error: 'Label not found.' }
+  await logAuditEvent({
+    action:      'sensitivity_label.deactivated',
+    entity_type: 'org_customer_sensitivity_labels',
+    entity_id:   id,
+    org_id:  user.orgId,
+    user_id: user.id,
+  })
   revalidatePath('/foundation/sensitivity-labels')
   revalidatePath('/genai-controls/control-matrix')
   return {}
