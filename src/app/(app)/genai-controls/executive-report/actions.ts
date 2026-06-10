@@ -8,8 +8,6 @@ import { lintAllPolicies } from '@/lib/genai/lint'
 import type { GenAIPolicy }          from '@/lib/genai/types'
 import type { PresentationSnapshot } from '@/lib/genai/presentation-types'
 
-export type { PresentationSnapshot }
-
 export async function generatePresentation(): Promise<{ id?: string; token?: string; error?: string }> {
   const user    = await requireRole('analyst')
   const supabase = await createClient()
