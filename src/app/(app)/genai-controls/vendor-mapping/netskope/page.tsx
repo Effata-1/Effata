@@ -110,7 +110,7 @@ export default async function NetskopeVendorMappingPage() {
           </p>
         </div>
         <Link
-          href={pageById('netskope-policy-pack').route}
+          href={pageById('netskope-pack').route}
           className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-blue-500/30 bg-blue-500/10 text-xs font-medium text-blue-400 hover:bg-blue-500/15 transition-colors"
         >
           View Recommendation →

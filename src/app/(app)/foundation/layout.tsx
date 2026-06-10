@@ -7,7 +7,7 @@ const foundation = NAV.find(s => s.id === 'foundation')!
 // Filter channel-reference from the auto-mapped list — individual channels are shown in the group below
 const ITEMS = [
   ...foundation.pages
-    .filter(p => p.id !== 'channel-reference')
+    .filter(p => p.id !== 'channels')
     .map(p => ({ label: p.label, href: p.route })),
   { label: 'Channels', isGroup: true as const },
   ...CHANNELS.map(c => ({ label: c.shortName, href: `/foundation/channels/${c.slug}` })),

@@ -275,7 +275,7 @@ function SourceSection({
           {!hasAny ? (
             <p className="px-4 py-3 text-xs text-muted-foreground/40 italic">
               No identity values configured. Set them up in{' '}
-              <a href={pageById('identity-context').route} className="underline hover:text-muted-foreground/60">Foundation → Identity</a>.
+              <a href={pageById('identity').route} className="underline hover:text-muted-foreground/60">Foundation → Identity</a>.
             </p>
           ) : (
             IDENTITY_FIELD_ORDER.map(field => {

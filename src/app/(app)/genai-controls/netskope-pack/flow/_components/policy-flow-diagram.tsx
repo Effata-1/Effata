@@ -596,7 +596,7 @@ export function PolicyFlowDiagram({ orgName, recommendation, categories }: Props
       {/* ── Page header ─────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-4 px-6 py-4 border-b border-border/50 shrink-0">
         <Link
-          href={pageById('netskope-policy-pack').route}
+          href={pageById('netskope-pack').route}
           className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5"
         >
           <span aria-hidden>←</span> Netskope Policy Pack
@@ -786,7 +786,7 @@ export function PolicyFlowDiagram({ orgName, recommendation, categories }: Props
           </span>
           <span>→</span>
           <Link
-            href={pageById('netskope-policy-pack').route}
+            href={pageById('netskope-pack').route}
             className="text-indigo-400 hover:text-indigo-300 transition-colors inline-flex items-center gap-1"
           >
             Netskope Policy Pack <span aria-hidden>↗</span>

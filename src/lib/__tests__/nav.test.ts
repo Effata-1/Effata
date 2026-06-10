@@ -123,7 +123,7 @@ test('LEGACY_REDIRECTS: 9 entries after Phase 4 (1 coaching + 6 foundation + 2 g
   assert.ok(LEGACY_REDIRECTS.some(r => r.source === '/policies/data-catalog'),                 'data-catalog redirect present')
   assert.ok(LEGACY_REDIRECTS.some(r => r.source === '/genai-controls/presentation'),           'executive-report redirect present')
   assert.ok(LEGACY_REDIRECTS.some(r => r.source === '/genai-controls/vendor-mapping/netskope/recommendation'), 'netskope-pack redirect present')
-  assert.ok(LEGACY_REDIRECTS.some(r => r.source === '/policies/channels'),                     'channel-reference redirect present')
+  assert.ok(LEGACY_REDIRECTS.some(r => r.source === '/policies/channels'),                     'channels redirect present')
 })
 
 test('every LEGACY_REDIRECTS entry matches a REDIRECT_RULES entry (source + destination)', () => {
