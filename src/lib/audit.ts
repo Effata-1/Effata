@@ -22,7 +22,7 @@ export async function logAuditEvent(params: AuditEventParams): Promise<void> {
 
     let { user_id, user_email, org_id } = params
 
-    if (!org_id || !user_id) {
+    if (!org_id || !user_id || !user_email) {
       const sessionUser = await getSessionUser()
       if (!sessionUser) return // No session — skip silently
 

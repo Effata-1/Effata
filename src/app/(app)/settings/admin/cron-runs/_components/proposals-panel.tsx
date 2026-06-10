@@ -35,6 +35,7 @@ function ProposalCard({ proposal, onDone }: { proposal: ProposedChange; onDone: 
   const [expanded, setExpanded] = useState(false)
   const [approving, startApprove] = useTransition()
   const [rejecting, startReject] = useTransition()
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const proposed = proposal.proposed_data
   const current  = proposal.current_data
@@ -48,16 +49,20 @@ function ProposalCard({ proposal, onDone }: { proposal: ProposedChange; onDone: 
     : (current?.regulation_name as string | undefined) ?? '—'
 
   function handleApprove() {
+    setActionError(null)
     startApprove(async () => {
       const result = await approveProposal(proposal.id)
-      if (!result.error) onDone(proposal.id)
+      if (result.error) setActionError(result.error)
+      else onDone(proposal.id)
     })
   }
 
   function handleReject() {
+    setActionError(null)
     startReject(async () => {
       const result = await rejectProposal(proposal.id)
-      if (!result.error) onDone(proposal.id)
+      if (result.error) setActionError(result.error)
+      else onDone(proposal.id)
     })
   }
 
@@ -87,23 +92,28 @@ function ProposalCard({ proposal, onDone }: { proposal: ProposedChange; onDone: 
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={handleReject}
-            disabled={busy}
-            className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-md border border-border hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-colors disabled:opacity-40"
-          >
-            <XCircle className="h-3 w-3" />
-            Reject
-          </button>
-          <button
-            onClick={handleApprove}
-            disabled={busy}
-            className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-md bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 transition-colors disabled:opacity-40"
-          >
-            <CheckCircle2 className="h-3 w-3" />
-            {approving ? 'Applying…' : 'Approve'}
-          </button>
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleReject}
+              disabled={busy}
+              className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-md border border-border hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-colors disabled:opacity-40"
+            >
+              <XCircle className="h-3 w-3" />
+              Reject
+            </button>
+            <button
+              onClick={handleApprove}
+              disabled={busy}
+              className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-md bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 transition-colors disabled:opacity-40"
+            >
+              <CheckCircle2 className="h-3 w-3" />
+              {approving ? 'Applying…' : 'Approve'}
+            </button>
+          </div>
+          {actionError && (
+            <p className="text-[10px] text-red-400 max-w-[200px] text-right leading-tight">{actionError}</p>
+          )}
         </div>
       </div>
 

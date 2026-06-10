@@ -10,6 +10,7 @@ export async function triggerComplianceCheck(): Promise<{
   regs_checked?: number
   regs_proposed?: number
 }> {
+  await requireRole('admin')
   try {
     const res = await fetch(`${process.env.RAILWAY_API_BASE_URL}/api/internal/compliance-check`, {
       method:  'POST',
