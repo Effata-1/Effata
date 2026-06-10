@@ -19,8 +19,10 @@ export const REDIRECT_RULES: { source: string; destination: string }[] = [
   { source: '/policies',         destination: '/foundation'              },
   { source: '/policies/library', destination: '/genai-controls/policies' },
 
-  // ── Non-NAV page (Policy Flow moved, no nav.ts entry) ──────────────────────
+  // ── Non-NAV pages (moved routes with no nav.ts entry) ────────────────────────
   { source: '/genai-controls/vendor-mapping/netskope/architecture', destination: '/genai-controls/netskope-pack/flow' },
+  // vendor-mapping root 404s; /netskope sub-page stays live (linked as "Netskope Mapping")
+  { source: '/genai-controls/vendor-mapping', destination: '/genai-controls/netskope-pack' },
 
   // ── NAV-backed redirects (must match LEGACY_REDIRECTS from nav.ts) ─────────
   { source: '/policies/coaching-templates',                            destination: '/genai-controls/coaching-messages'    },
@@ -38,4 +40,4 @@ export const REDIRECT_RULES: { source: string; destination: string }[] = [
   { source: '/channels',                    destination: '/foundation/channels'           },
   { source: '/channels/:channel',           destination: '/foundation/channels/:channel'  },
 ]
-// Total: 15 redirects (6 non-NAV-backed + 9 NAV-backed)
+// Total: 16 redirects (7 non-NAV-backed + 9 NAV-backed)

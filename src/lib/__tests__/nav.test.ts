@@ -145,6 +145,7 @@ test('non-NAV manual redirects are all present in REDIRECT_RULES', () => {
   assert.ok(sources.includes('/policies'),         '/policies section root missing from REDIRECT_RULES')
   assert.ok(sources.includes('/policies/library'), '/policies/library stub redirect missing')
   assert.ok(sources.includes('/genai-controls/vendor-mapping/netskope/architecture'), 'Policy Flow redirect missing')
+  assert.ok(sources.includes('/genai-controls/vendor-mapping'),                       'vendor-mapping root redirect missing')
   // Channel wildcards and legacy /channels tree
   assert.ok(sources.includes('/policies/channels/:channel'), '/policies/channels/:channel wildcard missing')
   assert.ok(sources.includes('/channels'),                   '/channels root redirect missing')
