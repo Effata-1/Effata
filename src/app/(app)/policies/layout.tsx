@@ -17,7 +17,7 @@ export default async function PoliciesLayout({ children }: { children: React.Rea
   await requireRole('analyst')
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <SectionSidebar title="Policies" items={ITEMS} />
+      <SectionSidebar title={foundation.label} items={ITEMS} />
       <main className="flex-1 overflow-y-auto">
         <div className="p-8">{children}</div>
       </main>

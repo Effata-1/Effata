@@ -100,7 +100,7 @@ export default async function PresentationPage() {
       {/* Page header */}
       <div className="print:hidden flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">CISO Presentation</h1>
+          <h1 className="text-2xl font-bold text-foreground">Executive Report</h1>
           <p className="text-sm text-muted-foreground/70 mt-0.5">
             Print-ready policy pack for security leadership. Use &quot;Download PDF&quot; to export.
           </p>

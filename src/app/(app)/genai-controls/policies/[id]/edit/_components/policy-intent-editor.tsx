@@ -8,6 +8,7 @@ import {
   Lock, ExternalLink, Copy, Check, Info, Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { pageById } from '@/lib/nav'
 import { colorClasses, SYSTEM_LEVEL_META } from '@/lib/data-catalog/types'
 import {
   upsertPolicy,
@@ -1403,7 +1404,7 @@ export function PolicyIntentEditor({
                     {cond.risk_family && CATALOG_RF_LABELS.has(cond.risk_family) && (
                       <div className="border-t border-border/50 px-4 py-2.5 flex justify-end">
                         <Link
-                          href={`/policies/data-catalog?rf=${encodeURIComponent(cond.risk_family)}`}
+                          href={`${pageById('data-catalog').route}?rf=${encodeURIComponent(cond.risk_family)}`}
                           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border text-[11px] font-medium text-foreground/70 bg-muted/40 hover:bg-muted/70 hover:text-foreground transition-colors"
                         >
                           <ExternalLink className="h-3 w-3" />

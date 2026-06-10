@@ -28,7 +28,7 @@ export default async function GenAIControlsLayout({ children }: { children: Reac
   await requireRole('analyst')
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <SectionSidebar title="GenAI Controls" items={ITEMS} />
+      <SectionSidebar title={NAV.find(s => s.id === 'genai-controls')!.label} items={ITEMS} />
       <main className="flex-1 overflow-y-auto">
         <div className="p-8">{children}</div>
       </main>

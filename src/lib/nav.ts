@@ -70,7 +70,7 @@ export const NAV: NavSection[] = [
   },
   {
     id:    'test-evidence',
-    label: 'Tools',
+    label: 'Test & Evidence',
     pages: [
       { id: 'control-validator', label: 'Control Validator', route: '/tools/control-validator' },
       { id: 'evidence-report',   label: 'Evidence Report',   route: '/tools/evidence-report', badge: 'deliverable' },

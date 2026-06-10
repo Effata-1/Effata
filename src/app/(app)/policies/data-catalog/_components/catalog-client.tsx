@@ -7,6 +7,7 @@ import { Search, X, Plus, ChevronDown, ChevronRight, Info, AlertTriangle, Wand2,
 import { toggleInScope, setClassification, addCustomDataType, batchToggleInScope } from '@/lib/data-catalog/actions'
 import { colorClasses, SYSTEM_LEVEL_META, RISK_FAMILIES, RISK_FAMILY_META } from '@/lib/data-catalog/types'
 import type { OrgClassificationLabel, SystemLevel, RiskFamily } from '@/lib/data-catalog/types'
+import { pageById } from '@/lib/nav'
 import { FilterSelect, MultiFilterSelect } from '@/components/ui/filter-select'
 import { FILENAME_DETECTION_ENTRIES } from '@/lib/data-catalog/filename-keywords'
 import type { FilenameDetectionEntry, FilenameKeywordGroup } from '@/lib/data-catalog/filename-keywords'
@@ -422,7 +423,7 @@ function DataTypeRow({
                       <Wand2 className={cn('w-3 h-3 shrink-0 transition-colors', selectedExample ? 'text-blue-400' : 'text-muted-foreground/40')} />
                       {selectedExample ? (
                         <a
-                          href={`/tools/regex-lab?` + new URLSearchParams({
+                          href={`${pageById('regex-lab').route}?` + new URLSearchParams({
                             name:   `${item.name} — ${selectedExample}`,
                             prompt: `Generate a DLP regex pattern to detect ${selectedExample}. This is a type of ${item.name}.`,
                           }).toString()}

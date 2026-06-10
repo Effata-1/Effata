@@ -1022,7 +1022,7 @@ export function RecommendationClient({ recommendation: r, orgCategories = [] }: 
           >
             ← Netskope Mapping
           </Link>
-          <h1 className="text-xl font-bold text-foreground">Netskope Policy Recommendation</h1>
+          <h1 className="text-xl font-bold text-foreground">Netskope Policy Pack</h1>
           <p className="text-sm text-muted-foreground/60 mt-0.5">
             {activeOption.label} · {allPolicies.length} {allPolicies.length === 1 ? 'policy' : 'policies'} total
             {r.scoped_policies && r.scoped_policies.policies.length > 0 && (
