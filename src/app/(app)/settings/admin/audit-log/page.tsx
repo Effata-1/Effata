@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/auth'
 import { AuditFilters } from './_components/audit-filters'
 import { AuditLogTable } from './_components/audit-log-table'
 import type { AuditLog } from './_components/audit-log-table'
@@ -30,11 +31,8 @@ export default async function AuditLogPage({
 }) {
   const { range = '7', severity = 'all', category = 'all', user: userSearch = '' } = await searchParams
 
+  const { orgId } = await requireRole('admin')
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  const orgId = session?.access_token
-    ? JSON.parse(atob(session.access_token.split('.')[1]))?.org_id
-    : null
 
   let query = supabase
     .from('audit_logs')

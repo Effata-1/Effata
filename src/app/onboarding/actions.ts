@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
 import type { OnboardingData } from './types'
 
@@ -9,20 +10,16 @@ export async function saveOnboardingProgress(
   data: Partial<OnboardingData>,
   step: number
 ): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-
-  // Get org_id from JWT claims
-  const { data: { session } } = await supabase.auth.getSession()
-  const orgId = session?.access_token
-    ? JSON.parse(atob(session.access_token.split('.')[1]))?.org_id
-    : null
+  const sessionUser = await getSessionUser()
+  if (!sessionUser) return { error: 'Not authenticated' }
+  const { id: userId, orgId, email } = sessionUser
   if (!orgId) return { error: 'Organisation not found' }
+
+  const supabase = await createClient()
 
   const payload: Record<string, unknown> = {
     org_id: orgId,
-    user_id: user.id,
+    user_id: userId,
     current_step: step,
     updated_at: new Date().toISOString(),
   }
@@ -47,21 +44,18 @@ export async function saveOnboardingProgress(
 }
 
 export async function completeOnboarding(data: OnboardingData): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-
-  const { data: { session } } = await supabase.auth.getSession()
-  const orgId = session?.access_token
-    ? JSON.parse(atob(session.access_token.split('.')[1]))?.org_id
-    : null
+  const sessionUser = await getSessionUser()
+  if (!sessionUser) return { error: 'Not authenticated' }
+  const { id: userId, orgId, email } = sessionUser
   if (!orgId) return { error: 'Organisation not found' }
+
+  const supabase = await createClient()
 
   const { error } = await supabase
     .from('onboarding_profiles')
     .upsert({
       org_id: orgId,
-      user_id: user.id,
+      user_id: userId,
       industry: data.industry,
       regions: data.regions,
       tools: data.tools,
@@ -84,8 +78,8 @@ export async function completeOnboarding(data: OnboardingData): Promise<{ error?
     action: 'onboarding.completed',
     entity_type: 'onboarding',
     details: { industry: data.industry, tools: data.tools },
-    user_id: user.id,
-    user_email: user.email ?? undefined,
+    user_id: userId,
+    user_email: email || undefined,
     org_id: orgId,
   })
 
@@ -96,14 +90,14 @@ export async function getOnboardingProfile(): Promise<{
   data: Record<string, unknown> | null
   error?: string
 }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { data: null, error: 'Not authenticated' }
+  const sessionUser = await getSessionUser()
+  if (!sessionUser) return { data: null, error: 'Not authenticated' }
 
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('onboarding_profiles')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', sessionUser.id)
     .maybeSingle()
 
   if (error) return { data: null, error: error.message }

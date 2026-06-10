@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, AlertTriangle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/auth'
 import { computeTrustScore, FIELD_LABELS, VALUE_DISPLAY, CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
 import { cn } from '@/lib/utils'
 import type { GenAIApp, GenAIAppProfile, AppFields, DLPActivities, BreachInfo, CustomerClass } from '@/lib/genai/types'
@@ -83,19 +84,15 @@ export default async function GenAIAppProfilePage({
   params: Promise<{ appId: string }>
 }) {
   const { appId } = await params
+  const { orgId } = await requireRole('analyst')
   const supabase = await createClient()
 
-  const [{ data: app }, { data: profiles }, sessionResult] = await Promise.all([
+  const [{ data: app }, { data: profiles }] = await Promise.all([
     supabase.from('genai_apps').select('*').eq('app_id', appId).single(),
     supabase.from('genai_app_profiles').select('*').eq('app_id', appId),
-    supabase.auth.getSession(),
   ])
 
   if (!app) notFound()
-
-  const orgId = sessionResult.data.session?.access_token
-    ? JSON.parse(atob(sessionResult.data.session.access_token.split('.')[1]))?.org_id
-    : null
 
   const { data: classification } = orgId ? await supabase
     .from('genai_customer_classifications')

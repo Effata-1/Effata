@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -95,18 +96,6 @@ export interface ValidatorResult {
   created_at:       string
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-async function getOrgId(supabase: Awaited<ReturnType<typeof createClient>>): Promise<string | null> {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.access_token) return null
-  try {
-    return JSON.parse(atob(session.access_token.split('.')[1]))?.org_id ?? null
-  } catch {
-    return null
-  }
-}
-
 // ── Report CRUD ───────────────────────────────────────────────────────────────
 
 export async function createReport(data: {
@@ -118,11 +107,9 @@ export async function createReport(data: {
   overallResult?: OverallResult
   notes:          string
 }): Promise<{ id?: string; error?: string }> {
+  const user = await requireRole('analyst')
+  const orgId = user.orgId
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-  const orgId = await getOrgId(supabase)
-  if (!orgId) return { error: 'Organisation not found' }
 
   const { data: inserted, error } = await supabase
     .from('evidence_reports')
@@ -145,7 +132,7 @@ export async function createReport(data: {
   await logAuditEvent({
     action: 'evidence_report.created', entity_type: 'evidence_report',
     entity_id: inserted.id, entity_name: data.name.trim(),
-    user_id: user.id, user_email: user.email ?? undefined, org_id: orgId,
+    user_id: user.id, user_email: user.email || undefined, org_id: orgId,
   })
 
   return { id: inserted.id }
@@ -182,10 +169,9 @@ export async function updateReport(
 }
 
 export async function deleteReport(id: string): Promise<{ error?: string }> {
+  const user = await requireRole('analyst')
+  const orgId = user.orgId
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-  const orgId = await getOrgId(supabase)
 
   const { data: existing } = await supabase
     .from('evidence_reports').select('name').eq('id', id).single()
@@ -196,7 +182,7 @@ export async function deleteReport(id: string): Promise<{ error?: string }> {
   await logAuditEvent({
     action: 'evidence_report.deleted', entity_type: 'evidence_report',
     entity_id: id, entity_name: existing?.name ?? id,
-    user_id: user.id, user_email: user.email ?? undefined, org_id: orgId ?? undefined,
+    user_id: user.id, user_email: user.email || undefined, org_id: orgId,
   })
 
   return {}
@@ -282,11 +268,9 @@ export async function addTest(
     sortOrder:           number
   }
 ): Promise<{ id?: string; error?: string }> {
+  const user = await requireRole('analyst')
+  const orgId = user.orgId
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-  const orgId = await getOrgId(supabase)
-  if (!orgId) return { error: 'Organisation not found' }
 
   const { data: inserted, error } = await supabase
     .from('report_tests')
@@ -394,11 +378,9 @@ export async function importFromValidator(
 ): Promise<{ count: number; error?: string }> {
   if (!testResultIds.length) return { count: 0 }
 
+  const user = await requireRole('analyst')
+  const orgId = user.orgId
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { count: 0, error: 'Not authenticated' }
-  const orgId = await getOrgId(supabase)
-  if (!orgId) return { count: 0, error: 'Organisation not found' }
 
   const { data: results, error: fetchErr } = await supabase
     .from('dlp_test_results')
@@ -526,11 +508,9 @@ export async function uploadAttachment(
   file: { name: string; type: string; size: number; base64: string },
   testId?: string,
 ): Promise<{ id?: string; signedUrl?: string; error?: string }> {
+  const user = await requireRole('analyst')
+  const orgId = user.orgId
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-  const orgId = await getOrgId(supabase)
-  if (!orgId) return { error: 'Organisation not found' }
 
   // 1. Verify report ownership before touching storage or inserting rows
   const { data: reportRow, error: reportErr } = await supabase
@@ -623,11 +603,9 @@ export async function uploadAttachment(
 }
 
 export async function deleteAttachment(attachmentId: string): Promise<{ error?: string }> {
+  const user = await requireRole('analyst')
+  const orgId = user.orgId
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-  const orgId = await getOrgId(supabase)
-  if (!orgId) return { error: 'Organisation not found' }
 
   // Fetch row — verify org ownership
   const { data: row, error: fetchErr } = await supabase

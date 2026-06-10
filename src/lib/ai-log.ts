@@ -1,12 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-
-function getOrgId(accessToken: string): string | null {
-  try {
-    return JSON.parse(atob(accessToken.split('.')[1]))?.org_id ?? null
-  } catch {
-    return null
-  }
-}
+import { getSessionUser } from '@/lib/auth'
 
 export async function logAiSearch(
   source: string,
@@ -14,15 +7,12 @@ export async function logAiSearch(
   result?: string
 ): Promise<void> {
   try {
+    const sessionUser = await getSessionUser()
+    if (!sessionUser?.orgId) return
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { data: { session } } = await supabase.auth.getSession()
-    const orgId = session?.access_token ? getOrgId(session.access_token) : null
-    if (!orgId) return
     await supabase.from('ai_search_logs').insert({
-      org_id:  orgId,
-      user_id: user.id,
+      org_id:  sessionUser.orgId,
+      user_id: sessionUser.id,
       source,
       prompt:  prompt.slice(0, 1000),
       result:  result ? result.slice(0, 500) : null,
@@ -40,15 +30,12 @@ export async function saveLearnedTemplate(data: {
   mimeType:    string
 }): Promise<void> {
   try {
+    const sessionUser = await getSessionUser()
+    if (!sessionUser?.orgId) return
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { data: { session } } = await supabase.auth.getSession()
-    const orgId = session?.access_token ? getOrgId(session.access_token) : null
-    if (!orgId) return
     await supabase.from('ai_learned_templates').upsert(
       {
-        org_id:      orgId,
+        org_id:      sessionUser.orgId,
         ext:         data.ext,
         filename:    data.filename,
         description: data.description,

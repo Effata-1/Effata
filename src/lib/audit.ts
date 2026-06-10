@@ -1,5 +1,6 @@
 import 'server-only'
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser } from '@/lib/auth'
 
 export interface AuditEventParams {
   action: string
@@ -22,12 +23,12 @@ export async function logAuditEvent(params: AuditEventParams): Promise<void> {
     let { user_id, user_email, org_id } = params
 
     if (!org_id || !user_id) {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return // No session — skip silently
+      const sessionUser = await getSessionUser()
+      if (!sessionUser) return // No session — skip silently
 
-      org_id  = org_id  ?? (JSON.parse(atob(session.access_token.split('.')[1]))?.org_id ?? null)
-      user_id = user_id ?? session.user.id
-      user_email = user_email ?? session.user.email ?? undefined
+      org_id     = org_id     ?? sessionUser.orgId
+      user_id    = user_id    ?? sessionUser.id
+      user_email = user_email ?? sessionUser.email
     }
 
     if (!org_id) return // RLS requires org_id — skip silently

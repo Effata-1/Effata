@@ -1,11 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { DLP_CONTROLS, computeControlWeights } from '@/lib/compliance/controls'
+import { getSessionUser, ROLE_RANK } from '@/lib/auth'
 import { NextRequest } from 'next/server'
 
 export async function GET(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return new Response('Unauthorized', { status: 401 })
+  if (ROLE_RANK[user.role] < ROLE_RANK.analyst) {
+    return new Response('Forbidden', { status: 403 })
+  }
 
   const { searchParams } = new URL(req.url)
   const regId   = searchParams.get('reg_id')
@@ -13,10 +16,12 @@ export async function GET(req: NextRequest) {
 
   if (!regId) return new Response('Missing reg_id', { status: 400 })
 
+  const supabase = await createClient()
   const [{ data: rows }, { data: reqs }] = await Promise.all([
     supabase
       .from('compliance_assessments')
       .select('control_key, status, notes')
+      .eq('org_id', user.orgId)
       .eq('regulation_id', regId),
     supabase
       .from('compliance_requirements')

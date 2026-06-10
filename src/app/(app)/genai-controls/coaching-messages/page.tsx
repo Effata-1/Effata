@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/auth'
 import { NotificationList } from './_components/notification-list'
 import type { CoachingNotification } from '@/lib/genai/types'
 import { SEED_DEFAULTS } from './_data/seeds'
@@ -53,12 +54,8 @@ async function ensureDefaultTemplates(orgId: string) {
 }
 
 export default async function CoachingNotificationsPage() {
+  const { orgId } = await requireRole('analyst')
   const supabase = await createClient()
-
-  const sessionResult = await supabase.auth.getSession()
-  const orgId: string | null = sessionResult.data.session?.access_token
-    ? (JSON.parse(atob(sessionResult.data.session.access_token.split('.')[1]))?.org_id ?? null)
-    : null
 
   if (orgId) {
     await ensureDefaultTemplates(orgId)

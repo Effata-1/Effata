@@ -2,6 +2,7 @@
 
 import { callAgent } from '@/lib/api-client.server'
 import { createClient } from '@/lib/supabase/server'
+import { requireRole, getSessionUser } from '@/lib/auth'
 import { logAiSearch } from '@/lib/ai-log'
 import type {
   ReportType, OverallResult, Severity, ExpectedResult, ActualResult, FinalStatus, GapReason,
@@ -87,15 +88,9 @@ export async function chatWithAI(
 export async function createReportFromDraft(
   draft: AIDraft
 ): Promise<{ id?: string; error?: string }> {
+  const user = await requireRole('analyst')
+  const orgId = user.orgId
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-
-  const { data: { session } } = await supabase.auth.getSession()
-  const orgId: string | null = session?.access_token
-    ? JSON.parse(atob(session.access_token.split('.')[1]))?.org_id ?? null
-    : null
-  if (!orgId) return { error: 'Organisation not found' }
 
   const tests = draft.tests ?? []
 
@@ -117,6 +112,7 @@ export async function createReportFromDraft(
       name:           draft.name?.trim() || 'AI-Generated Report',
       assessed_on:    draft.assessed_on || today,
       tested_by:      draft.tested_by?.trim() || user.email || 'Unknown',
+
       environment:    draft.environment || 'UAT',
       report_type:    draft.report_type || 'control_validation',
       overall_result: overallResult,
@@ -160,14 +156,10 @@ export async function createReportFromDraft(
 // ── Draft persistence ─────────────────────────────────────────────────────────
 
 async function getOrgAndUser() {
+  const sessionUser = await getSessionUser()
+  if (!sessionUser) return { supabase: await createClient(), user: null, orgId: null }
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { supabase, user: null, orgId: null }
-  const { data: { session } } = await supabase.auth.getSession()
-  const orgId: string | null = session?.access_token
-    ? JSON.parse(atob(session.access_token.split('.')[1]))?.org_id ?? null
-    : null
-  return { supabase, user, orgId }
+  return { supabase, user: sessionUser, orgId: sessionUser.orgId }
 }
 
 export async function saveDraft(

@@ -1,11 +1,13 @@
 import { callAgent } from '@/lib/api-client.server'
-import { createClient } from '@/lib/supabase/server'
+import { getSessionUser, ROLE_RANK } from '@/lib/auth'
 import { NextRequest } from 'next/server'
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return new Response('Unauthorized', { status: 401 })
+  const authUser = await getSessionUser()
+  if (!authUser) return new Response('Unauthorized', { status: 401 })
+  if (ROLE_RANK[authUser.role] < ROLE_RANK.analyst) {
+    return new Response('Forbidden', { status: 403 })
+  }
 
   let toolName: string
   try {

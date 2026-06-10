@@ -10,17 +10,23 @@ export const ROLE_RANK: Record<UserRole, number> = {
   read_only: 1,
 }
 
+function normaliseRole(role: unknown): UserRole {
+  return role === 'admin' || role === 'analyst' || role === 'read_only'
+    ? role
+    : 'read_only'
+}
+
 export async function getSessionUser() {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return null
+  const { data, error } = await supabase.auth.getClaims()
+  if (error || !data?.claims) return null
 
-  const payload = JSON.parse(atob(session.access_token.split('.')[1]))
+  const claims = data.claims as Record<string, unknown>
   return {
-    id:    session.user.id,
-    email: session.user.email ?? '',
-    orgId: (payload.org_id ?? '') as string,
-    role:  ((payload.user_role as UserRole) ?? 'read_only'),
+    id:    data.claims.sub,
+    email: (data.claims.email as string | undefined) ?? '',
+    orgId: (claims.org_id as string | undefined) ?? '',
+    role:  normaliseRole(claims.user_role),
   }
 }
 
