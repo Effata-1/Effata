@@ -5,20 +5,22 @@ import { usePathname } from 'next/navigation'
 import { logout } from '@/app/auth/actions'
 import { cn } from '@/lib/utils'
 import { Shield, ArrowLeft, LogOut } from 'lucide-react'
-import { NAV } from '@/lib/nav'
+import { NAV, canSee, type UserRole } from '@/lib/nav'
 
 const SETTINGS_PAGES = NAV.find(s => s.id === 'settings')!.pages
 
-const GENERAL_ITEMS = SETTINGS_PAGES
-  .filter(p => !p.route.startsWith('/settings/admin'))
-  .map(p => ({ label: p.label, href: p.route }))
-
-const ADMIN_ITEMS = SETTINGS_PAGES
-  .filter(p => p.route.startsWith('/settings/admin'))
-  .map(p => ({ label: p.label, href: p.route }))
-
 export function SettingsSidebar({ role }: { role: string }) {
   const pathname = usePathname()
+  const typedRole = role as UserRole
+
+  // Filter by what this role can actually see, then split general vs admin
+  const visiblePages = SETTINGS_PAGES.filter(p => canSee(p, typedRole))
+  const generalItems = visiblePages
+    .filter(p => !p.route.startsWith('/settings/admin'))
+    .map(p => ({ label: p.label, href: p.route }))
+  const adminItems = visiblePages
+    .filter(p => p.route.startsWith('/settings/admin'))
+    .map(p => ({ label: p.label, href: p.route }))
 
   const navLink = (item: { label: string; href: string }) => (
     <Link
@@ -66,17 +68,17 @@ export function SettingsSidebar({ role }: { role: string }) {
             General
           </p>
           <div className="space-y-0.5">
-            {GENERAL_ITEMS.map(navLink)}
+            {generalItems.map(navLink)}
           </div>
         </div>
 
-        {role === 'admin' && (
+        {adminItems.length > 0 && (
           <div>
             <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest px-3 mb-1">
               Admin
             </p>
             <div className="space-y-0.5">
-              {ADMIN_ITEMS.map(navLink)}
+              {adminItems.map(navLink)}
             </div>
           </div>
         )}

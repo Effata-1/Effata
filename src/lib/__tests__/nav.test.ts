@@ -61,23 +61,24 @@ test('canSee: admin sees all pages', () => {
   }
 })
 
-test('effectiveMinRole: section-level minRole propagates to pages without explicit minRole', () => {
+test('settings: tools and appearance are analyst-visible; team, integrations, and admin/* require admin', () => {
   const settings = NAV.find(s => s.id === 'settings')!
-  assert.equal(settings.minRole, 'admin', 'settings section must have minRole:admin')
+  assert.equal(settings.minRole, undefined, 'settings section must have no section-level minRole')
 
-  for (const page of settings.pages) {
-    // Pages intentionally have no per-page minRole — section level must carry it
-    assert.equal(page.minRole, undefined, `${page.id} should not repeat minRole on the page`)
-    assert.equal(effectiveMinRole(page), 'admin', `effectiveMinRole(${page.id}) must be 'admin'`)
+  const openIds   = ['settings-tools', 'settings-appearance']
+  const openPages = settings.pages.filter(p => openIds.includes(p.id))
+  const adminPages = settings.pages.filter(p => !openIds.includes(p.id))
+
+  for (const p of openPages) {
+    assert.equal(p.minRole, undefined, `${p.id} must have no explicit minRole (defaults to analyst)`)
+    assert.ok( canSee(p, 'analyst'),   `analyst must see ${p.id}`)
+    assert.ok(!canSee(p, 'read_only'), `read_only must not see ${p.id}`)
   }
-})
-
-test('all settings pages require admin — analyst and read_only cannot see them', () => {
-  const settings = NAV.find(s => s.id === 'settings')!
-  for (const page of settings.pages) {
-    assert.ok(!canSee(page, 'analyst'),   `analyst must not see ${page.id}`)
-    assert.ok(!canSee(page, 'read_only'), `read_only must not see ${page.id}`)
-    assert.ok( canSee(page, 'admin'),     `admin must see ${page.id}`)
+  for (const p of adminPages) {
+    assert.equal(p.minRole, 'admin', `${p.id} must have explicit minRole:admin`)
+    assert.ok(!canSee(p, 'analyst'),   `analyst must not see ${p.id}`)
+    assert.ok(!canSee(p, 'read_only'), `read_only must not see ${p.id}`)
+    assert.ok( canSee(p, 'admin'),     `admin must see ${p.id}`)
   }
 })
 

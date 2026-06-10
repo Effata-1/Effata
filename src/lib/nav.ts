@@ -99,19 +99,19 @@ export const NAV: NavSection[] = [
     ],
   },
   {
-    id:      'settings',
-    label:   'Settings',
-    minRole: 'admin',
-    // No per-page minRole needed — section-level 'admin' is inherited by effectiveMinRole()
+    id:    'settings',
+    label: 'Settings',
+    // tools and appearance: no minRole — visible to analyst+
+    // team, integrations, and all admin/* pages: explicit minRole: 'admin'
     pages: [
-      { id: 'settings-tools',        label: 'Tools Connected', route: '/settings/tools'              },
-      { id: 'settings-team',         label: 'Team',            route: '/settings/team'               },
-      { id: 'settings-integrations', label: 'Integrations',    route: '/settings/integrations'       },
-      { id: 'settings-appearance',   label: 'Appearance',      route: '/settings/appearance'         },
-      { id: 'settings-audit-log',    label: 'Audit Log',       route: '/settings/admin/audit-log'    },
-      { id: 'settings-refresh-logs', label: 'Refresh Logs',    route: '/settings/admin/refresh-logs' },
-      { id: 'settings-cron-runs',    label: 'Cron Runs',       route: '/settings/admin/cron-runs'    },
-      { id: 'settings-ai-logs',      label: 'AI Logs',         route: '/settings/admin/ai-logs'      },
+      { id: 'settings-tools',        label: 'Tools Connected', route: '/settings/tools'                                },
+      { id: 'settings-team',         label: 'Team',            route: '/settings/team',               minRole: 'admin' },
+      { id: 'settings-integrations', label: 'Integrations',    route: '/settings/integrations',       minRole: 'admin' },
+      { id: 'settings-appearance',   label: 'Appearance',      route: '/settings/appearance'                           },
+      { id: 'settings-audit-log',    label: 'Audit Log',       route: '/settings/admin/audit-log',    minRole: 'admin' },
+      { id: 'settings-refresh-logs', label: 'Refresh Logs',    route: '/settings/admin/refresh-logs', minRole: 'admin' },
+      { id: 'settings-cron-runs',    label: 'Cron Runs',       route: '/settings/admin/cron-runs',    minRole: 'admin' },
+      { id: 'settings-ai-logs',      label: 'AI Logs',         route: '/settings/admin/ai-logs',      minRole: 'admin' },
     ],
   },
 ]

@@ -2,7 +2,7 @@ import { requireRole } from '@/lib/auth'
 import { SettingsSidebar } from './_components/settings-sidebar'
 
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireRole('admin')
+  const user = await requireRole('analyst')
   const role = user.role
 
   return (
