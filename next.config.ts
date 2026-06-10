@@ -1,14 +1,9 @@
 import type { NextConfig } from "next";
+import { REDIRECT_RULES } from './src/lib/redirects';
 
 const nextConfig: NextConfig = {
   async redirects() {
-    return [
-      {
-        source:      '/policies/coaching-templates',
-        destination: '/genai-controls/coaching-messages',
-        permanent:   false,
-      },
-    ]
+    return REDIRECT_RULES.map(r => ({ ...r, permanent: false }))
   },
 };
 

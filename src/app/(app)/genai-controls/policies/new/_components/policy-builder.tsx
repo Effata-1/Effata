@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Check, ChevronDown, Loader2, Search, Settings, Users2, Target, ShieldCheck, Zap, FileText, ToggleLeft, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { pageById } from '@/lib/nav'
 import { colorClasses } from '@/lib/data-catalog/types'
 import { upsertPolicy } from '../../actions'
 import type { PolicyRule, ActionCode, ApprovalStatus } from '@/lib/genai/types'
@@ -274,7 +275,7 @@ function SourceSection({
           {!hasAny ? (
             <p className="px-4 py-3 text-xs text-muted-foreground/40 italic">
               No identity values configured. Set them up in{' '}
-              <a href="/policies/identity" className="underline hover:text-muted-foreground/60">Policies → Identity</a>.
+              <a href={pageById('identity-context').route} className="underline hover:text-muted-foreground/60">Foundation → Identity</a>.
             </p>
           ) : (
             IDENTITY_FIELD_ORDER.map(field => {

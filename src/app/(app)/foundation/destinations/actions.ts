@@ -81,7 +81,7 @@ export interface CustomDestination {
 }
 
 function revalidate() {
-  revalidatePath('/policies/destinations')
+  revalidatePath('/foundation/destinations')
 }
 
 // ─── Data fetching ────────────────────────────────────────────────────────────

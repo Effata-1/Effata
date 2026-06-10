@@ -1,5 +1,5 @@
 import { createClient }           from '@supabase/supabase-js'
-import type { PresentationSnapshot } from '@/app/(app)/genai-controls/presentation/actions'
+import type { PresentationSnapshot } from '@/lib/genai/presentation-types'
 import { SharedDeck }              from './_components/shared-deck'
 
 export default async function SharePage({ params }: { params: Promise<{ token: string }> }) {

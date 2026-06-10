@@ -16,7 +16,7 @@ const SPINE_ITEMS = NAV
   .map(p => ({ label: p.label, href: p.route, step: p.step, badge: p.badge }))
 
 // Policy Flow is a sub-page of the Netskope policy pack (indented, no step)
-const POLICY_FLOW = { label: 'Policy Flow', href: '/genai-controls/vendor-mapping/netskope/architecture', indent: true as const }
+const POLICY_FLOW = { label: 'Policy Flow', href: '/genai-controls/netskope-pack/flow', indent: true as const }
 
 const ITEMS = [
   ...STATIC_PREFIX,

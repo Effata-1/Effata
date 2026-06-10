@@ -5,57 +5,10 @@ import { createClient }  from '@/lib/supabase/server'
 import { requireRole }   from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
 import { lintAllPolicies } from '@/lib/genai/lint'
-import type { GenAIPolicy }  from '@/lib/genai/types'
+import type { GenAIPolicy }          from '@/lib/genai/types'
+import type { PresentationSnapshot } from '@/lib/genai/presentation-types'
 
-// ── Snapshot type — everything the share page needs to render the full deck ───
-
-export interface PresentationSnapshot {
-  org_name:       string
-  industry:       string
-  coverage_score: number | null
-  app_counts: {
-    enterprise_approved:        number
-    approved_with_conditions:   number
-    permitted_with_restriction: number
-    prohibited:                 number
-    total:                      number
-  }
-  // Slide 3 — DLP matrix
-  categories: Array<{
-    id:             string
-    system_tag:     string
-    name:           string
-    color:          string
-    access_posture: string
-  }>
-  matrix_overrides: Array<{
-    data_type:                string
-    category_id:              string
-    action_code:              string
-    coaching_notification_id: string | null
-  }>
-  coaching_templates: Array<{
-    id:           string
-    coach_label:  string
-    control_type: string
-  }>
-  // Slides 4, 5, 7
-  policies: Array<{
-    id:                       string
-    name:                     string
-    description:              string | null
-    policy_type:              string
-    primary_action:           string | null
-    data_classification_label: string | null
-    approval_status:          string
-    is_active:                boolean
-    policy_family:            string | null
-    test_status:              string | null
-  }>
-  // Slide 6
-  lint_count: number
-  generated_at: string
-}
+export type { PresentationSnapshot }
 
 export async function generatePresentation(): Promise<{ id?: string; token?: string; error?: string }> {
   const user    = await requireRole('analyst')
@@ -194,7 +147,7 @@ export async function generatePresentation(): Promise<{ id?: string; token?: str
     user_id:     user.id,
   })
 
-  revalidatePath('/genai-controls/presentation')
+  revalidatePath('/genai-controls/executive-report')
   revalidatePath('/genai-controls')
   return { id: inserted.id as string, token: inserted.public_token as string }
 }
@@ -219,7 +172,7 @@ export async function revokePresentation(id: string): Promise<{ error?: string }
     user_id:     user.id,
   })
 
-  revalidatePath('/genai-controls/presentation')
+  revalidatePath('/genai-controls/executive-report')
   return {}
 }
 

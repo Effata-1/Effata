@@ -54,7 +54,7 @@ const FIELD_ORDER: IdentityFieldName[] = [
 ]
 
 function revalidate() {
-  revalidatePath('/policies/identity')
+  revalidatePath('/foundation/identity')
 }
 
 // ─── Data fetching ────────────────────────────────────────────────────────────

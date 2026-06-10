@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { NAV, SPINE, canSee, effectiveMinRole, pageById, breadcrumbFor, LEGACY_REDIRECTS } from '../nav'
+import { REDIRECT_RULES } from '../redirects'
 
 test('pageById returns the correct page', () => {
   const page = pageById('app-catalog')
@@ -115,8 +116,30 @@ test('breadcrumbFor: unknown path returns null', () => {
   assert.equal(result, null)
 })
 
-test('LEGACY_REDIRECTS has exactly one entry at Phase 1a (coaching-messages)', () => {
-  assert.equal(LEGACY_REDIRECTS.length, 1, 'Phase 1a: exactly one legacy redirect')
-  assert.equal(LEGACY_REDIRECTS[0].source,      '/policies/coaching-templates')
-  assert.equal(LEGACY_REDIRECTS[0].destination, '/genai-controls/coaching-messages')
+test('LEGACY_REDIRECTS: 8 entries after Phase 3 (1 coaching + 5 foundation + 2 genai)', () => {
+  assert.equal(LEGACY_REDIRECTS.length, 8, 'Phase 3: 8 legacy redirects from NAV legacyRoutes')
+  assert.ok(LEGACY_REDIRECTS.some(r => r.source === '/policies/coaching-templates'),           'coaching-templates redirect present')
+  assert.ok(LEGACY_REDIRECTS.some(r => r.source === '/policies/data-catalog'),                 'data-catalog redirect present')
+  assert.ok(LEGACY_REDIRECTS.some(r => r.source === '/genai-controls/presentation'),           'executive-report redirect present')
+  assert.ok(LEGACY_REDIRECTS.some(r => r.source === '/genai-controls/vendor-mapping/netskope/recommendation'), 'netskope-pack redirect present')
+})
+
+test('every LEGACY_REDIRECTS entry matches a REDIRECT_RULES entry (source + destination)', () => {
+  for (const entry of LEGACY_REDIRECTS) {
+    const match = REDIRECT_RULES.find(
+      r => r.source === entry.source && r.destination === entry.destination,
+    )
+    assert.ok(
+      match,
+      `LEGACY_REDIRECTS entry { source: "${entry.source}", destination: "${entry.destination}" } ` +
+      `is missing or has a drifted destination in redirects.ts`,
+    )
+  }
+})
+
+test('3 non-NAV manual redirects are present in REDIRECT_RULES', () => {
+  const sources = REDIRECT_RULES.map(r => r.source)
+  assert.ok(sources.includes('/policies'),         '/policies section root missing from REDIRECT_RULES')
+  assert.ok(sources.includes('/policies/library'), '/policies/library stub redirect missing')
+  assert.ok(sources.includes('/genai-controls/vendor-mapping/netskope/architecture'), 'Policy Flow redirect missing')
 })

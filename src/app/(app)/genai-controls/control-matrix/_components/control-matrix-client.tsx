@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { colorClasses, RISK_FAMILY_META } from '@/lib/data-catalog/types'
 import type { OrgClassificationLabel, SystemLevel, RiskFamily } from '@/lib/data-catalog/types'
 import { RotateCcw, Lock, ArrowRight, Shield, CheckCircle2, RefreshCw } from 'lucide-react'
+import { pageById } from '@/lib/nav'
 import { upsertControlMatrixCell, deleteControlMatrixCell, updateCategoryAccessPosture, resetMatrixToDefaults } from '../actions'
 import {
   RF_KEY, CONTENT_DETECTION_ROWS, TAG_ALIAS, TAG_DISPLAY_NAMES,
@@ -561,7 +562,7 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
                           <p className="text-xs font-medium">Label detection disabled — no sensitivity labels configured</p>
                           <p className="text-[11px] mt-0.5">
                             Add your MIP or custom sensitivity labels to enable this control.{' '}
-                            <a href="/policies/sensitivity-labels" className="text-primary/60 hover:text-primary transition-colors inline-flex items-center gap-0.5">
+                            <a href={pageById('sensitivity-labels').route} className="text-primary/60 hover:text-primary transition-colors inline-flex items-center gap-0.5">
                               Manage Sensitivity Labels <ArrowRight className="w-3 h-3" />
                             </a>
                           </p>

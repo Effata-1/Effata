@@ -9,8 +9,8 @@ import type { OrgClassificationLabel, AISuggestion, SystemLevel, OrgDestinationT
 import { SYSTEM_TRUST_DEFAULTS } from './types'
 
 function revalidatePolicies() {
-  revalidatePath('/policies/data-catalog')
-  revalidatePath('/policies/classifications')
+  revalidatePath('/foundation/data-catalog')
+  revalidatePath('/foundation/labels')
 }
 
 // ─── Classification label seeding ────────────────────────────────────────────
@@ -601,7 +601,7 @@ export async function moveSubcategoryToTrust(
 
   if (error) return { error: error.message }
   revalidatePolicies()
-  revalidatePath('/policies/destinations')
+  revalidatePath('/foundation/destinations')
   return {}
 }
 
@@ -648,6 +648,6 @@ export async function moveDataTypeSubcategoryToLabel(
   }
 
   revalidatePolicies()
-  revalidatePath('/policies/data-catalog')
+  revalidatePath('/foundation/data-catalog')
   return {}
 }

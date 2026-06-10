@@ -48,7 +48,7 @@ export async function upsertCustomerLabel(
     if (error) return { error: error.message }
   }
 
-  revalidatePath('/policies/sensitivity-labels')
+  revalidatePath('/foundation/sensitivity-labels')
   revalidatePath('/genai-controls/control-matrix')
   return {}
 }
@@ -67,7 +67,7 @@ export async function deactivateCustomerLabel(id: string): Promise<{ error?: str
 
   if (error) return { error: error.message }
 
-  revalidatePath('/policies/sensitivity-labels')
+  revalidatePath('/foundation/sensitivity-labels')
   revalidatePath('/genai-controls/control-matrix')
   return {}
 }

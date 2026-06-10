@@ -1,7 +1,7 @@
 'use client'
 
-import { PresentationSlideshow } from '@/app/(app)/genai-controls/presentation/_components/presentation-slideshow'
-import type { PresentationSnapshot } from '@/app/(app)/genai-controls/presentation/actions'
+import { PresentationSlideshow }   from '@/components/presentation/presentation-slideshow'
+import type { PresentationSnapshot } from '@/lib/genai/presentation-types'
 
 interface Props {
   snapshot:  PresentationSnapshot
