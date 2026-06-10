@@ -15,7 +15,7 @@ export function TriggerButton() {
       if (result.error) {
         setMessage(`Error: ${result.error}`)
       } else {
-        setMessage(`Done — ${result.regs_checked} checked, ${result.regs_updated} updated`)
+        setMessage(`Done — ${result.regs_checked} checked, ${result.regs_proposed ?? 0} proposed`)
         window.location.reload()
       }
     })
