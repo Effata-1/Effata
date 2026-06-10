@@ -1,7 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  async redirects() {
+    return [
+      {
+        source:      '/policies/coaching-templates',
+        destination: '/genai-controls/coaching-messages',
+        permanent:   false,
+      },
+    ]
+  },
 };
 
 export default nextConfig;

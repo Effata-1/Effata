@@ -1,16 +1,15 @@
 import { SectionSidebar } from '@/components/nav/section-sidebar'
 import { requireRole } from '@/lib/auth'
 import { CHANNELS } from '@/lib/channel-taxonomy'
+import { NAV } from '@/lib/nav'
 
+const foundation = NAV.find(s => s.id === 'foundation')!
+const staticItems = foundation.pages.map(p => ({ label: p.label, href: p.route }))
+
+// Channel pages expand dynamically — Phase 4 will collapse these to a single page
 const ITEMS = [
-  { label: 'Policy Library',         href: '/policies/library' },
-  { label: 'Data Catalog',           href: '/policies/data-catalog' },
-  { label: 'Destinations',           href: '/policies/destinations' },
-  { label: 'Classification Labels',  href: '/policies/classifications' },
-  { label: 'Sensitivity Labels',     href: '/policies/sensitivity-labels' },
-  { label: 'Coaching Templates',     href: '/policies/coaching-templates' },
-  { label: 'Identity Context',       href: '/policies/identity' },
-  { label: 'Channels',               isGroup: true as const },
+  ...staticItems,
+  { label: 'Channels', isGroup: true as const },
   ...CHANNELS.map(c => ({ label: c.shortName, href: `/policies/channels/${c.slug}` })),
 ]
 

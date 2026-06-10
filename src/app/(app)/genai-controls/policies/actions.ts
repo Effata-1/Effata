@@ -22,7 +22,7 @@ import {
   UL_DC_DEFAULTS, UL_DC_COACHING_DEFAULTS,
 } from '@/lib/genai/control-matrix-rows'
 import { ensureClassificationLabels } from '@/lib/data-catalog/actions'
-import { ensureDefaultCoachingTemplates } from '@/app/(app)/policies/coaching-templates/actions'
+import { ensureDefaultCoachingTemplates } from '@/app/(app)/genai-controls/coaching-messages/actions'
 import { validateActionTemplate } from '@/lib/genai/coaching-validation'
 import type { ControlType } from '@/lib/genai/types'
 

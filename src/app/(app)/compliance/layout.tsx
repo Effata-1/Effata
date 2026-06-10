@@ -1,12 +1,8 @@
 import { SectionSidebar } from '@/components/nav/section-sidebar'
 import { requireRole } from '@/lib/auth'
+import { NAV } from '@/lib/nav'
 
-const ITEMS = [
-  { label: 'Overview',                 href: '/compliance' },
-  { label: 'Regulations & Frameworks', href: '/compliance/regulations' },
-  { label: 'Gap Report',               href: '/compliance/gap-report' },
-  { label: 'Audit Trail',              href: '/compliance/audit-trail' },
-]
+const ITEMS = NAV.find(s => s.id === 'compliance')!.pages.map(p => ({ label: p.label, href: p.route }))
 
 export default async function ComplianceLayout({ children }: { children: React.ReactNode }) {
   await requireRole('analyst')

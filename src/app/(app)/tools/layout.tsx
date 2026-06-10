@@ -1,12 +1,8 @@
 import { SectionSidebar } from '@/components/nav/section-sidebar'
 import { requireRole } from '@/lib/auth'
+import { NAV } from '@/lib/nav'
 
-const ITEMS = [
-  { label: 'Regex Lab',         href: '/tools/regex-lab' },
-  { label: 'Data Lab',          href: '/tools/test-data' },
-  { label: 'Control Validator', href: '/tools/control-validator' },
-  { label: 'Evidence Report',   href: '/tools/evidence-report' },
-]
+const ITEMS = NAV.find(s => s.id === 'test-evidence')!.pages.map(p => ({ label: p.label, href: p.route, badge: p.badge }))
 
 export default async function ToolsLayout({ children }: { children: React.ReactNode }) {
   await requireRole('analyst')

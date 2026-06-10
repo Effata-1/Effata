@@ -1,6 +1,7 @@
 import { requireRole } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { SetupWizard, type StepConfig } from './_components/setup-wizard'
+import { pageById } from '@/lib/nav'
 
 export default async function GenAIControlsPage() {
   const user    = await requireRole('analyst')
@@ -59,7 +60,7 @@ export default async function GenAIControlsPage() {
       title:         'Select your DLP tools',
       description:   'Tell Effata which DLP products your organisation uses so recommendations are tailored to your stack.',
       completed:     tools.length > 0,
-      href:          '/dlp-tools/my-stack',
+      href:          pageById('dlp-stack').route,
       customizeLabel: 'Go to My Stack',
     },
     {
@@ -67,7 +68,7 @@ export default async function GenAIControlsPage() {
       title:         'Classify your GenAI apps',
       description:   'Categorise the GenAI apps in your environment — Approved, Conditional, Restricted, or Prohibited.',
       completed:     (classifiedAppsResult.count ?? 0) > 0,
-      href:          '/genai-controls/app-governance',
+      href:          pageById('app-governance').route,
       customizeLabel: 'Open App Governance',
       defaultLabel:  'Use Effata Defaults',
       defaultAction: 'app-governance',
@@ -77,7 +78,7 @@ export default async function GenAIControlsPage() {
       title:         'Review data classification labels',
       description:   'Confirm the 5 standard classification levels (Secret → Public) or map your organisation\'s own labels.',
       completed:     setupFlags.labels_reviewed === true,
-      href:          '/policies/classifications',
+      href:          pageById('labels').route,
       customizeLabel: 'Customise Labels',
       defaultLabel:  'Accept Standard Labels',
       defaultAction: 'labels',
@@ -87,7 +88,7 @@ export default async function GenAIControlsPage() {
       title:         'Configure your data catalog',
       description:   'Select which data types are in scope for DLP. Effata defaults to Secret, Highly Confidential, and Confidential types.',
       completed:     (inScopeDataResult.count ?? 0) > 0,
-      href:          '/policies/data-catalog',
+      href:          pageById('data-catalog').route,
       customizeLabel: 'Open Data Catalog',
       defaultLabel:  'Use Recommended Types',
       defaultAction: 'data-catalog',
@@ -97,7 +98,7 @@ export default async function GenAIControlsPage() {
       title:         'Review your control matrix',
       description:   'Review the recommended controls for each governance category and data classification level.',
       completed:     setupFlags.matrix_reviewed === true,
-      href:          '/genai-controls/control-matrix',
+      href:          pageById('control-matrix').route,
       customizeLabel: 'Open Control Matrix',
       defaultLabel:  'Accept Recommendations',
       defaultAction: 'matrix',
@@ -107,7 +108,7 @@ export default async function GenAIControlsPage() {
       title:         'Generate AI policy recommendations',
       description:   'Claude reviews your tool stack, coverage gaps, and org profile to generate targeted draft policies.',
       completed:     (policyPackResult.count ?? 0) > 0,
-      href:          '/genai-controls/policies',
+      href:          pageById('policy-library').route,
       customizeLabel: 'Go to Policy Library',
     },
     {
@@ -115,7 +116,7 @@ export default async function GenAIControlsPage() {
       title:         'Refine policies with AI chat',
       description:   'Chat with Claude to adjust, improve, or add new policies based on your organisation\'s specific needs.',
       completed:     (chatResult.count ?? 0) > 0,
-      href:          '/genai-controls/policies',
+      href:          pageById('policy-library').route,
       customizeLabel: 'Open Policy Library',
       optional:      true,
     },
@@ -124,7 +125,7 @@ export default async function GenAIControlsPage() {
       title:         'Create CISO presentation',
       description:   'Generate a shareable, print-ready policy pack for your security leadership and CISO.',
       completed:     (presentationResult.count ?? 0) > 0,
-      href:          '/genai-controls/presentation',
+      href:          pageById('executive-report').route,
       customizeLabel: 'Go to Presentation',
       optional:      true,
     },

@@ -1,10 +1,7 @@
 import { SectionSidebar } from '@/components/nav/section-sidebar'
+import { NAV } from '@/lib/nav'
 
-const ITEMS = [
-  { label: 'Global Framework',  href: '/architecture/framework' },
-  { label: 'Your Architecture', href: '/architecture/yours' },
-  { label: 'Gap Analysis',      href: '/architecture/gaps' },
-]
+const ITEMS = NAV.find(s => s.id === 'architecture')!.pages.map(p => ({ label: p.label, href: p.route }))
 
 export default function ArchitectureLayout({ children }: { children: React.ReactNode }) {
   return (

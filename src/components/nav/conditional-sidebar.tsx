@@ -2,15 +2,13 @@
 
 import { usePathname } from 'next/navigation'
 import { Sidebar } from './sidebar'
+import { NAV } from '@/lib/nav'
 
+// Derived from NAV — all section base paths suppress the main sidebar
 const SECTION_ROUTES = [
-  '/settings',
-  '/architecture',
-  '/genai-controls',
-  '/policies',
-  '/tools',
-  '/compliance',
-  '/dlp-tools',
+  ...new Set(
+    NAV.flatMap(s => s.pages).map(p => '/' + p.route.split('/')[1])
+  ),
 ]
 
 export function ConditionalSidebar() {

@@ -117,7 +117,7 @@ export async function upsertNotification(
     : await supabase.from('org_coaching_notifications').insert(payload)
 
   if (error) return { error: error.message }
-  revalidatePath('/policies/coaching-templates')
+  revalidatePath('/genai-controls/coaching-messages')
   return {}
 }
 
@@ -132,7 +132,7 @@ export async function deleteNotification(id: string): Promise<{ error?: string }
     .eq('org_id', user.orgId)
 
   if (error) return { error: error.message }
-  revalidatePath('/policies/coaching-templates')
+  revalidatePath('/genai-controls/coaching-messages')
   return {}
 }
 
@@ -150,7 +150,7 @@ export async function toggleNotificationActive(
     .eq('org_id', user.orgId)
 
   if (error) return { error: error.message }
-  revalidatePath('/policies/coaching-templates')
+  revalidatePath('/genai-controls/coaching-messages')
   return {}
 }
 
@@ -192,7 +192,7 @@ export async function resetNotification(id: string): Promise<{ error?: string }>
     .eq('org_id', user.orgId)
 
   if (error) return { error: error.message }
-  revalidatePath('/policies/coaching-templates')
+  revalidatePath('/genai-controls/coaching-messages')
   return {}
 }
 
@@ -224,6 +224,6 @@ export async function duplicateNotification(id: string): Promise<{ error?: strin
     })
 
   if (error) return { error: error.message }
-  revalidatePath('/policies/coaching-templates')
+  revalidatePath('/genai-controls/coaching-messages')
   return {}
 }

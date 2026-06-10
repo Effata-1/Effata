@@ -5,20 +5,17 @@ import { usePathname } from 'next/navigation'
 import { logout } from '@/app/auth/actions'
 import { cn } from '@/lib/utils'
 import { Shield, ArrowLeft, LogOut } from 'lucide-react'
+import { NAV } from '@/lib/nav'
 
-const GENERAL_ITEMS = [
-  { label: 'Tools Connected', href: '/settings/tools'       },
-  { label: 'Team',            href: '/settings/team'        },
-  { label: 'Integrations',    href: '/settings/integrations' },
-  { label: 'Appearance',      href: '/settings/appearance'  },
-]
+const SETTINGS_PAGES = NAV.find(s => s.id === 'settings')!.pages
 
-const ADMIN_ITEMS = [
-  { label: 'Audit Log',    href: '/settings/admin/audit-log'    },
-  { label: 'Refresh Logs', href: '/settings/admin/refresh-logs' },
-  { label: 'Cron Runs',    href: '/settings/admin/cron-runs'    },
-  { label: 'AI Logs',      href: '/settings/admin/ai-logs'      },
-]
+const GENERAL_ITEMS = SETTINGS_PAGES
+  .filter(p => !p.route.startsWith('/settings/admin'))
+  .map(p => ({ label: p.label, href: p.route }))
+
+const ADMIN_ITEMS = SETTINGS_PAGES
+  .filter(p => p.route.startsWith('/settings/admin'))
+  .map(p => ({ label: p.label, href: p.route }))
 
 export function SettingsSidebar({ role }: { role: string }) {
   const pathname = usePathname()

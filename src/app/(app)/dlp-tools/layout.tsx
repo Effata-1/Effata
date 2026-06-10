@@ -1,11 +1,8 @@
 import { SectionSidebar } from '@/components/nav/section-sidebar'
 import { requireRole } from '@/lib/auth'
+import { NAV } from '@/lib/nav'
 
-const ITEMS = [
-  { label: 'Market Overview', href: '/dlp-tools/market' },
-  { label: 'My Stack',        href: '/dlp-tools/my-stack' },
-  { label: 'AI Advisor',      href: '/dlp-tools/advisor' },
-]
+const ITEMS = NAV.find(s => s.id === 'dlp-tools')!.pages.map(p => ({ label: p.label, href: p.route }))
 
 export default async function DlpToolsLayout({ children }: { children: React.ReactNode }) {
   await requireRole('analyst')
