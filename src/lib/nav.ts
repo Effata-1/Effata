@@ -66,6 +66,7 @@ export const NAV: NavSection[] = [
       { id: 'sensitivity-labels', label: 'Sensitivity Labels', route: '/foundation/sensitivity-labels', legacyRoutes: ['/policies/sensitivity-labels'] },
       { id: 'destinations',       label: 'Destinations',       route: '/foundation/destinations',       legacyRoutes: ['/policies/destinations']       },
       { id: 'identity-context',   label: 'Identity Context',   route: '/foundation/identity',           legacyRoutes: ['/policies/identity']           },
+      { id: 'channel-reference',  label: 'Channels',           route: '/foundation/channels',           legacyRoutes: ['/policies/channels']           },
     ],
   },
   {

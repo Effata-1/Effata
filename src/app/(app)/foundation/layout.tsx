@@ -1,10 +1,17 @@
 import { SectionSidebar } from '@/components/nav/section-sidebar'
 import { requireRole }    from '@/lib/auth'
 import { NAV }            from '@/lib/nav'
+import { CHANNELS }       from '@/lib/channel-taxonomy'
 
 const foundation = NAV.find(s => s.id === 'foundation')!
-// Channel pages are still under /policies/channels — deferred to Phase 4
-const ITEMS = foundation.pages.map(p => ({ label: p.label, href: p.route }))
+// Filter channel-reference from the auto-mapped list — individual channels are shown in the group below
+const ITEMS = [
+  ...foundation.pages
+    .filter(p => p.id !== 'channel-reference')
+    .map(p => ({ label: p.label, href: p.route })),
+  { label: 'Channels', isGroup: true as const },
+  ...CHANNELS.map(c => ({ label: c.shortName, href: `/foundation/channels/${c.slug}` })),
+]
 
 export default async function FoundationLayout({ children }: { children: React.ReactNode }) {
   await requireRole('analyst')

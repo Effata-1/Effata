@@ -27,5 +27,5 @@ export async function saveAssessmentAnswers(
 
   if (error) throw new Error(error.message)
 
-  revalidatePath(`/policies/channels/${channelSlug}`)
+  revalidatePath(`/foundation/channels/${channelSlug}`)
 }

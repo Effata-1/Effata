@@ -116,12 +116,13 @@ test('breadcrumbFor: unknown path returns null', () => {
   assert.equal(result, null)
 })
 
-test('LEGACY_REDIRECTS: 8 entries after Phase 3 (1 coaching + 5 foundation + 2 genai)', () => {
-  assert.equal(LEGACY_REDIRECTS.length, 8, 'Phase 3: 8 legacy redirects from NAV legacyRoutes')
+test('LEGACY_REDIRECTS: 9 entries after Phase 4 (1 coaching + 6 foundation + 2 genai)', () => {
+  assert.equal(LEGACY_REDIRECTS.length, 9, 'Phase 4: 9 legacy redirects from NAV legacyRoutes')
   assert.ok(LEGACY_REDIRECTS.some(r => r.source === '/policies/coaching-templates'),           'coaching-templates redirect present')
   assert.ok(LEGACY_REDIRECTS.some(r => r.source === '/policies/data-catalog'),                 'data-catalog redirect present')
   assert.ok(LEGACY_REDIRECTS.some(r => r.source === '/genai-controls/presentation'),           'executive-report redirect present')
   assert.ok(LEGACY_REDIRECTS.some(r => r.source === '/genai-controls/vendor-mapping/netskope/recommendation'), 'netskope-pack redirect present')
+  assert.ok(LEGACY_REDIRECTS.some(r => r.source === '/policies/channels'),                     'channel-reference redirect present')
 })
 
 test('every LEGACY_REDIRECTS entry matches a REDIRECT_RULES entry (source + destination)', () => {
@@ -137,9 +138,14 @@ test('every LEGACY_REDIRECTS entry matches a REDIRECT_RULES entry (source + dest
   }
 })
 
-test('3 non-NAV manual redirects are present in REDIRECT_RULES', () => {
+test('non-NAV manual redirects are all present in REDIRECT_RULES', () => {
   const sources = REDIRECT_RULES.map(r => r.source)
+  // Section roots and one-off moved routes
   assert.ok(sources.includes('/policies'),         '/policies section root missing from REDIRECT_RULES')
   assert.ok(sources.includes('/policies/library'), '/policies/library stub redirect missing')
   assert.ok(sources.includes('/genai-controls/vendor-mapping/netskope/architecture'), 'Policy Flow redirect missing')
+  // Channel wildcards and legacy /channels tree
+  assert.ok(sources.includes('/policies/channels/:channel'), '/policies/channels/:channel wildcard missing')
+  assert.ok(sources.includes('/channels'),                   '/channels root redirect missing')
+  assert.ok(sources.includes('/channels/:channel'),          '/channels/:channel wildcard missing')
 })

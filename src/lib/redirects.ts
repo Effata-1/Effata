@@ -31,5 +31,11 @@ export const REDIRECT_RULES: { source: string; destination: string }[] = [
   { source: '/policies/identity',                                      destination: '/foundation/identity'                  },
   { source: '/genai-controls/presentation',                            destination: '/genai-controls/executive-report'      },
   { source: '/genai-controls/vendor-mapping/netskope/recommendation', destination: '/genai-controls/netskope-pack'         },
+  { source: '/policies/channels',                                      destination: '/foundation/channels'                  },
+
+  // ── Non-NAV wildcards and legacy /channels tree ────────────────────────────
+  { source: '/policies/channels/:channel',  destination: '/foundation/channels/:channel' },
+  { source: '/channels',                    destination: '/foundation/channels'           },
+  { source: '/channels/:channel',           destination: '/foundation/channels/:channel'  },
 ]
-// Total: 11 redirects (3 non-NAV-backed + 8 NAV-backed)
+// Total: 15 redirects (6 non-NAV-backed + 9 NAV-backed)

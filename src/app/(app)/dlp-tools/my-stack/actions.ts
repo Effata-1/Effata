@@ -63,7 +63,7 @@ export async function saveChannelAssessment(
   if (error) throw new Error(error.message)
 
   revalidatePath('/dlp-tools/my-stack')
-  revalidatePath(`/channels/${channelSlug}`)
+  revalidatePath(`/foundation/channels/${channelSlug}`)
 }
 
 export async function requestCoverageReview(): Promise<{ jobId: string }> {
