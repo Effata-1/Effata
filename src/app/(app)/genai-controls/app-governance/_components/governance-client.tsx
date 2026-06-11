@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useTransition, useOptimistic, useMemo } from 'react'
+import { useState, useTransition, useOptimistic, useMemo, useEffect } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import Link from 'next/link'
-import { Plus, Pencil, X, Settings2, ChevronDown, Loader2 } from 'lucide-react'
+import { Plus, Pencil, X, Settings2, ChevronDown, Loader2, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { FilterChip, AddFilterButton } from '@/components/ui/add-filter-button'
 import { colorClasses } from '@/lib/data-catalog/types'
 import { CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
 import { computeTrustScore } from '@/lib/genai/scoring'
@@ -272,14 +273,17 @@ function AppRow({
 // ── Category section (Layer 1) ────────────────────────────────────────────────
 
 function CategorySection({
-  category, apps, clsOptions,
+  category, apps, clsOptions, forceOpen = false,
 }: {
   category:   GenAIGovernanceCategory
   apps:       AppEntry[]
   clsOptions: { value: string; label: string }[]
+  forceOpen?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const shouldReduceMotion = useReducedMotion()
+
+  useEffect(() => { if (forceOpen) setOpen(true) }, [forceOpen])
   const cc = colorClasses(category.color)
 
   const inScopeCount = apps.filter(e =>
@@ -458,8 +462,23 @@ function ManagePanel({
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
+const RISK_OPTIONS = [
+  { value: 'low',      label: 'Low Risk (≥85)'  },
+  { value: 'moderate', label: 'Moderate (70–84)' },
+  { value: 'medium',   label: 'Medium (50–69)'  },
+  { value: 'high',     label: 'High Risk (<50)' },
+]
+
+const SCOPE_OPTIONS = [
+  { value: 'in_scope', label: 'In Scope'  },
+  { value: 'not_set',  label: 'Not Set'   },
+]
+
 export function GovernanceClient({ categories, appsByCategoryTag, userRole }: Props) {
-  const [manageOpen, setManageOpen] = useState(false)
+  const [manageOpen,    setManageOpen]    = useState(false)
+  const [search,        setSearch]        = useState('')
+  const [filterRisk,    setFilterRisk]    = useState('')
+  const [filterScope,   setFilterScope]   = useState('')
   const isAdmin = userRole === 'admin'
   const sorted = [...categories].sort((a, b) => a.priority - b.priority)
 
@@ -471,6 +490,35 @@ export function GovernanceClient({ categories, appsByCategoryTag, userRole }: Pr
       .map(c => ({ value: c.system_tag as string, label: c.name })),
     { value: 'unknown', label: 'Not Set' },
   ], [categories])
+
+  const isFiltering = !!(search.trim() || filterRisk || filterScope)
+
+  const filteredAppsByTag = useMemo(() => {
+    if (!isFiltering) return appsByCategoryTag
+    const q = search.toLowerCase().trim()
+    const result: Record<string, AppEntry[]> = {}
+    for (const [tag, entries] of Object.entries(appsByCategoryTag)) {
+      result[tag] = entries.filter(({ app, profile, classification }) => {
+        if (q && !app.app_name.toLowerCase().includes(q) && !app.vendor.toLowerCase().includes(q) && !app.domain.toLowerCase().includes(q)) return false
+        if (filterRisk) {
+          const s = profile ? computeTrustScore(profile.fields, profile.dlp, profile.breach_info).final_score : 0
+          if (filterRisk === 'low'      && s < 85)              return false
+          if (filterRisk === 'moderate' && (s < 70 || s >= 85)) return false
+          if (filterRisk === 'medium'   && (s < 50 || s >= 70)) return false
+          if (filterRisk === 'high'     && s >= 50)             return false
+        }
+        if (filterScope) {
+          const cls = classification?.customer_classification ?? 'unknown'
+          if (filterScope === 'in_scope' && cls === 'unknown') return false
+          if (filterScope === 'not_set'  && cls !== 'unknown') return false
+        }
+        return true
+      })
+    }
+    return result
+  }, [appsByCategoryTag, search, filterRisk, filterScope])
+
+  const activeFilters = (filterRisk ? 1 : 0) + (filterScope ? 1 : 0)
 
   return (
     <div className="flex gap-0">
@@ -499,20 +547,60 @@ export function GovernanceClient({ categories, appsByCategoryTag, userRole }: Pr
           )}
         </div>
 
+        {/* Search + filter toolbar */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search apps…"
+              className="w-full pl-9 pr-8 py-2 rounded-lg border border-border bg-card/50 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-border-strong transition-all"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-muted-foreground/70">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <AddFilterButton
+            defs={[
+              { key: 'risk',  label: 'Risk',  type: 'single', options: RISK_OPTIONS  },
+              { key: 'scope', label: 'Scope', type: 'single', options: SCOPE_OPTIONS },
+            ]}
+            value={{ risk: filterRisk, scope: filterScope }}
+            onChange={(key, val) => {
+              if (key === 'risk')  setFilterRisk(val as string)
+              if (key === 'scope') setFilterScope(val as string)
+            }}
+          />
+
+          {filterRisk  && <FilterChip label={`Risk: ${RISK_OPTIONS.find(o => o.value === filterRisk)?.label ?? filterRisk}`}    onRemove={() => setFilterRisk('')}  />}
+          {filterScope && <FilterChip label={`Scope: ${SCOPE_OPTIONS.find(o => o.value === filterScope)?.label ?? filterScope}`} onRemove={() => setFilterScope('')} />}
+          {activeFilters >= 2 && (
+            <button onClick={() => { setFilterRisk(''); setFilterScope('') }} className="text-xs text-muted-foreground/50 hover:text-foreground transition-colors">
+              Clear all
+            </button>
+          )}
+        </div>
+
         {/* Category sections */}
         <div className="space-y-3">
           {sorted
             .filter(cat => {
-              const hasApps = (appsByCategoryTag[cat.system_tag ?? cat.id] ?? []).length > 0
+              const hasApps = (filteredAppsByTag[cat.system_tag ?? cat.id] ?? []).length > 0
               const isCustom = !cat.is_system
-              return hasApps || isCustom
+              return isFiltering ? hasApps : (hasApps || isCustom)
             })
             .map(cat => (
               <CategorySection
                 key={cat.id}
                 category={cat}
-                apps={appsByCategoryTag[cat.system_tag ?? cat.id] ?? []}
+                apps={filteredAppsByTag[cat.system_tag ?? cat.id] ?? []}
                 clsOptions={clsOptions}
+                forceOpen={isFiltering}
               />
             ))}
         </div>

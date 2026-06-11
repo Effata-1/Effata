@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { Search, X } from 'lucide-react'
 import type { AuditEntry, RegulationRef } from '../page'
-import { MultiFilterSelect } from '@/components/ui/filter-select'
+import { FilterChip, AddFilterButton } from '@/components/ui/add-filter-button'
 import { usePagination } from '@/hooks/use-pagination'
 
 const STATUS_STYLE: Record<string, { label: string; color: string; bg: string }> = {
@@ -97,19 +97,24 @@ export function AuditTrailClient({
           )}
         </div>
 
-        <MultiFilterSelect
-          options={regulations.map(r => ({ value: r.code, label: r.short_name }))}
-          value={regFilter}
-          onChange={setReg}
-          placeholder="All Regulations"
+        <AddFilterButton
+          defs={[
+            { key: 'reg',  label: 'Regulation', type: 'multi', options: regulations.map(r => ({ value: r.code, label: r.short_name })) },
+            { key: 'ctrl', label: 'Control',    type: 'multi', options: controls.map(c => ({ value: c.key,  label: c.label })) },
+          ]}
+          value={{ reg: regFilter, ctrl: ctrlFilter }}
+          onChange={(key, val) => {
+            if (key === 'reg')  setReg(val as string[])
+            if (key === 'ctrl') setCtrl(val as string[])
+          }}
         />
-
-        <MultiFilterSelect
-          options={controls.map(c => ({ value: c.key, label: c.label }))}
-          value={ctrlFilter}
-          onChange={setCtrl}
-          placeholder="All Controls"
-        />
+        {regFilter.map(r  => <FilterChip key={r} label={`Reg: ${regulations.find(x => x.code === r)?.short_name ?? r}`}  onRemove={() => setReg(prev => prev.filter(v => v !== r))} />)}
+        {ctrlFilter.map(c => <FilterChip key={c} label={`Control: ${controls.find(x => x.key === c)?.label ?? c}`}       onRemove={() => setCtrl(prev => prev.filter(v => v !== c))} />)}
+        {(regFilter.length + ctrlFilter.length) >= 2 && (
+          <button onClick={() => { setReg([]); setCtrl([]) }} className="text-xs text-muted-foreground/50 hover:text-foreground transition-colors">
+            Clear all
+          </button>
+        )}
 
         <span className="text-xs text-muted-foreground/60 ml-auto">
           {pg.total} {pg.total === 1 ? 'entry' : 'entries'}

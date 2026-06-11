@@ -8,7 +8,7 @@ import { toggleInScope, setClassification, addCustomDataType, batchToggleInScope
 import { colorClasses, SYSTEM_LEVEL_META, RISK_FAMILIES, RISK_FAMILY_META } from '@/lib/data-catalog/types'
 import type { OrgClassificationLabel, SystemLevel, RiskFamily } from '@/lib/data-catalog/types'
 import { pageById } from '@/lib/nav'
-import { FilterSelect, MultiFilterSelect } from '@/components/ui/filter-select'
+import { FilterChip, AddFilterButton } from '@/components/ui/add-filter-button'
 import { FILENAME_DETECTION_ENTRIES } from '@/lib/data-catalog/filename-keywords'
 import type { FilenameDetectionEntry, FilenameKeywordGroup } from '@/lib/data-catalog/filename-keywords'
 
@@ -1204,45 +1204,31 @@ export function CatalogClient({
           )}
         </div>
 
-        <MultiFilterSelect
-          value={levelFilter}
-          onChange={setLevelFilter}
-          options={levelFilterOptions}
-          placeholder="All levels"
+        <AddFilterButton
+          defs={[
+            { key: 'level',      label: 'Classification Level', type: 'multi',  options: levelFilterOptions.filter(o => o.value !== 'all') },
+            { key: 'subcat',     label: 'Category',             type: 'single', options: subcatOptions.filter(o => o.value !== 'all') },
+            { key: 'riskFamily', label: 'Risk Family',          type: 'single', options: riskFamilyOptions.filter(o => o.value !== 'all') },
+            { key: 'compliance', label: 'Compliance',           type: 'multi',  options: COMPLIANCE_FILTER_TAGS },
+            { key: 'scope',      label: 'Type',                 type: 'single', options: [{ value: 'in_scope', label: 'In scope' }, { value: 'not_selected', label: 'Not selected' }] },
+          ]}
+          value={{ level: levelFilter, subcat: subcatFilter, riskFamily: riskFamilyFilter, compliance: complianceFilter, scope: scopeFilter }}
+          onChange={(key, val) => {
+            if (key === 'level')      setLevelFilter(val as string[])
+            if (key === 'subcat')     setSubcatFilter(val as string)
+            if (key === 'riskFamily') setRiskFamilyFilter(val as string)
+            if (key === 'compliance') setComplianceFilter(val as string[])
+            if (key === 'scope')      setScopeFilter(val as string)
+          }}
         />
-
-        <FilterSelect
-          value={subcatFilter}
-          onChange={setSubcatFilter}
-          options={subcatOptions}
-          placeholder="All categories"
-        />
-
-        <FilterSelect
-          value={riskFamilyFilter}
-          onChange={setRiskFamilyFilter}
-          options={riskFamilyOptions}
-          placeholder="All risk families"
-        />
-
-        <MultiFilterSelect
-          value={complianceFilter}
-          onChange={setComplianceFilter}
-          options={COMPLIANCE_FILTER_TAGS}
-          placeholder="All compliance"
-        />
-
-        <FilterSelect
-          value={scopeFilter}
-          onChange={setScopeFilter}
-          options={[{ value: 'in_scope', label: 'In scope' }, { value: 'not_selected', label: 'Not selected' }]}
-          placeholder="All types"
-          searchable={false}
-        />
-
-        {(search || levelFilter.length > 0 || subcatFilter || riskFamilyFilter || complianceFilter.length > 0 || scopeFilter) && (
+        {levelFilter.map(v     => <FilterChip key={v} label={`Level: ${levelFilterOptions.find(o => o.value === v)?.label ?? v}`}      onRemove={() => setLevelFilter(prev => prev.filter(f => f !== v))} />)}
+        {subcatFilter          && <FilterChip label={`Category: ${subcatFilter}`}                                                        onRemove={() => setSubcatFilter('')} />}
+        {riskFamilyFilter && riskFamilyFilter !== 'all' && <FilterChip label={`Risk Family: ${riskFamilyFilter}`}                        onRemove={() => setRiskFamilyFilter('')} />}
+        {complianceFilter.map(v => <FilterChip key={v} label={`Compliance: ${COMPLIANCE_FILTER_TAGS.find(o => o.value === v)?.label ?? v}`} onRemove={() => setComplianceFilter(prev => prev.filter(f => f !== v))} />)}
+        {scopeFilter           && <FilterChip label={`Type: ${scopeFilter === 'in_scope' ? 'In scope' : 'Not selected'}`}               onRemove={() => setScopeFilter('')} />}
+        {(levelFilter.length + complianceFilter.length + (subcatFilter ? 1 : 0) + (riskFamilyFilter && riskFamilyFilter !== 'all' ? 1 : 0) + (scopeFilter ? 1 : 0)) >= 2 && (
           <button
-            onClick={() => { setSearch(''); setLevelFilter([]); setSubcatFilter(''); setRiskFamilyFilter(''); setComplianceFilter([]); setScopeFilter('') }}
+            onClick={() => { setLevelFilter([]); setSubcatFilter(''); setRiskFamilyFilter(''); setComplianceFilter([]); setScopeFilter('') }}
             className="text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
           >
             Clear all

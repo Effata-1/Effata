@@ -15,7 +15,7 @@ import {
   searchApps,
 } from '../actions'
 import type { EnrichedDestination, CustomDestination, TrustTag, RiskLevel } from '../actions'
-import { FilterSelect, MultiFilterSelect } from '@/components/ui/filter-select'
+import { FilterChip, AddFilterButton } from '@/components/ui/add-filter-button'
 
 // ─── Trust tag metadata ────────────────────────────────────────────────────────
 
@@ -947,36 +947,28 @@ export function DestinationsClient({
             </button>
           )}
         </div>
-        <MultiFilterSelect
-          placeholder="Trust Tag"
-          value={filterTags}
-          onChange={setFilterTags}
-          options={TRUST_TAG_ORDER.map(t => ({ value: t, label: TRUST_TAGS[t].label }))}
-        />
-        <MultiFilterSelect
-          placeholder="Risk Level"
-          value={filterRisk}
-          onChange={setFilterRisk}
-          options={RISK_LEVEL_ORDER.map(r => ({ value: r, label: RISK_META[r].label }))}
-        />
-        <FilterSelect
-          placeholder="Category"
-          value={filterSub}
-          onChange={setFilterSub}
-          options={allSubcategories.map(s => ({ value: s, label: s.replace(/_/g, ' ') }))}
-        />
-        <FilterSelect
-          placeholder="Scope"
-          value={filterScope}
-          onChange={setFilterScope}
-          options={[
-            { value: 'in_scope',     label: 'In Scope' },
-            { value: 'out_of_scope', label: 'Out of Scope' },
+        <AddFilterButton
+          defs={[
+            { key: 'tags',  label: 'Trust Tag',   type: 'multi',  options: TRUST_TAG_ORDER.map(t => ({ value: t, label: TRUST_TAGS[t].label })) },
+            { key: 'risk',  label: 'Risk Level',  type: 'multi',  options: RISK_LEVEL_ORDER.map(r => ({ value: r, label: RISK_META[r].label })) },
+            { key: 'sub',   label: 'Category',    type: 'single', options: allSubcategories.map(s => ({ value: s, label: s.replace(/_/g, ' ') })) },
+            { key: 'scope', label: 'Scope',       type: 'single', options: [{ value: 'in_scope', label: 'In Scope' }, { value: 'out_of_scope', label: 'Out of Scope' }] },
           ]}
+          value={{ tags: filterTags, risk: filterRisk, sub: filterSub, scope: filterScope }}
+          onChange={(key, val) => {
+            if (key === 'tags')  setFilterTags(val as string[])
+            if (key === 'risk')  setFilterRisk(val as string[])
+            if (key === 'sub')   setFilterSub(val as string)
+            if (key === 'scope') setFilterScope(val as string)
+          }}
         />
-        {hasFilters && (
-          <button onClick={clearFilters} className="text-xs text-muted-foreground/80 hover:text-foreground/70 transition-colors flex items-center gap-1">
-            <X className="w-3 h-3" /> Clear filters
+        {filterTags.map(t  => <FilterChip key={t} label={`Tag: ${TRUST_TAGS[t as TrustTag]?.label ?? t}`}  onRemove={() => setFilterTags(prev => prev.filter(v => v !== t))} />)}
+        {filterRisk.map(r  => <FilterChip key={r} label={`Risk: ${RISK_META[r as RiskLevel]?.label ?? r}`} onRemove={() => setFilterRisk(prev => prev.filter(v => v !== r))} />)}
+        {filterSub   && <FilterChip label={`Category: ${filterSub.replace(/_/g, ' ')}`} onRemove={() => setFilterSub('')} />}
+        {filterScope && <FilterChip label={`Scope: ${filterScope === 'in_scope' ? 'In Scope' : 'Out of Scope'}`} onRemove={() => setFilterScope('')} />}
+        {(filterTags.length + filterRisk.length + (filterSub ? 1 : 0) + (filterScope ? 1 : 0)) >= 2 && (
+          <button onClick={() => { setFilterTags([]); setFilterRisk([]); setFilterSub(''); setFilterScope('') }} className="text-xs text-muted-foreground/50 hover:text-foreground transition-colors">
+            Clear all
           </button>
         )}
       </div>
