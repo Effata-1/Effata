@@ -1058,7 +1058,10 @@ export async function syncRecommendedPolicies(
   if (deleteKeys.length > 0) {
     const { error } = await supabase.from('org_genai_policies')
       .delete().eq('org_id', user.orgId).in('policy_key', deleteKeys)
-    if (error) console.error('[syncRecommendedPolicies] bulk delete:', error.message)
+    if (error) {
+      console.error('[syncRecommendedPolicies] bulk delete:', error.message)
+      throw new Error(`Failed to remove stale policies: ${error.message}`)
+    }
   }
 
   let upsertOk = true

@@ -86,6 +86,7 @@ export function AddFilterButton({ defs, value, onChange, className }: AddFilterB
     setOpen(false)
     setActiveKey(null)
     setSearch('')
+    setDraft({})
   }
 
   function activateDef(key: string) {

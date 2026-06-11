@@ -589,7 +589,7 @@ function DeleteConfirmModal({
 
 export function PolicyList({ policies: initialPolicies, categories, apps, classifications, identityFields, ruleItems }: Props) {
   const router = useRouter()
-  const [policies, setPolicies]               = useState<GenAIPolicy[]>(initialPolicies)
+  const [policies, setPolicies]               = useState<GenAIPolicy[]>([])
 
   // Sync local state when server re-renders with fresh data (e.g. after generate)
   // eslint-disable-next-line react-hooks/set-state-in-effect

@@ -59,7 +59,7 @@ const SYSTEM_DEFAULTS: Omit<GenAIGovernanceCategory, 'id' | 'org_id' | 'created_
 
 function revalidateGenAI() {
   revalidatePath('/genai-controls/app-governance')
-  revalidatePath('/genai-controls/policy-matrix')
+  revalidatePath('/genai-controls/control-matrix')
 }
 
 export async function ensureGenAIGovernanceCategories(): Promise<GenAIGovernanceCategory[]> {
