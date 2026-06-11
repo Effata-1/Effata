@@ -35,6 +35,7 @@ export async function saveAssessmentAnswers(
     details:     { answer_count: Object.keys(answers).length },
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidatePath(`/foundation/channels/${channelSlug}`)
 }

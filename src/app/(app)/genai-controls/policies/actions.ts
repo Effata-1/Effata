@@ -138,6 +138,7 @@ export async function upsertPolicy(
     details:     { changedFields: Object.keys(fields) },
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidatePath('/genai-controls/policies')
   return { id: (data as { id: string } | null)?.id }
@@ -364,6 +365,7 @@ export async function duplicatePolicy(id: string): Promise<{ error?: string }> {
     entity_name: `${String(rest.name ?? '')} (copy)`,
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidatePath('/genai-controls/policies')
   return {}
@@ -389,6 +391,7 @@ export async function deletePolicy(id: string): Promise<{ error?: string }> {
     entity_id:   id,
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidatePath('/genai-controls/policies')
   return {}
@@ -417,6 +420,7 @@ export async function togglePolicyActive(
     entity_id:   id,
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidatePath('/genai-controls/policies')
   return {}
@@ -448,6 +452,7 @@ export async function logPolicyChangeEvent(params: {
     },
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
 }
 
@@ -1112,6 +1117,7 @@ export async function duplicatePolicyAsManual(policyId: string): Promise<{ newPo
     entity_name: `Copy of ${String(rest.name ?? '')}`,
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidatePath('/genai-controls/policies')
   return { newPolicyId: (newRow as { id: string }).id }

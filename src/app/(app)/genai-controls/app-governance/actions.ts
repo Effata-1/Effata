@@ -117,6 +117,7 @@ export async function upsertGenAICategory(
       details:     fields,
       org_id:  user.orgId,
       user_id: user.id,
+    user_email:  user.email,
     })
   } else {
     let baseTag = fields.name
@@ -150,6 +151,7 @@ export async function upsertGenAICategory(
       details:     fields,
       org_id:  user.orgId,
       user_id: user.id,
+    user_email:  user.email,
     })
   }
 
@@ -179,6 +181,7 @@ export async function deleteGenAICategory(categoryId: string): Promise<{ error?:
     entity_id:   categoryId,
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidateGenAI()
   return {}
@@ -234,6 +237,7 @@ export async function setAppGovernanceClassification(
     new_value:   classification,
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidatePath('/genai-controls/app-governance')
   return {}

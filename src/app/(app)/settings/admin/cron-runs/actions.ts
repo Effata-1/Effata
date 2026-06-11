@@ -48,6 +48,7 @@ export async function approveProposal(proposalId: string): Promise<{ error?: str
     entity_id:   proposalId,
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidatePath('/settings/admin/cron-runs')
   return {}
@@ -79,6 +80,7 @@ export async function rejectProposal(proposalId: string): Promise<{ error?: stri
     entity_id:   proposalId,
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidatePath('/settings/admin/cron-runs')
   return {}

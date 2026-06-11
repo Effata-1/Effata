@@ -53,6 +53,7 @@ export async function upsertCustomerLabel(
       details:     { system_level: fields.system_level },
       org_id:  user.orgId,
       user_id: user.id,
+    user_email:  user.email,
     })
   } else {
     const { error } = await supabase
@@ -66,6 +67,7 @@ export async function upsertCustomerLabel(
       details:     { system_level: fields.system_level },
       org_id:  user.orgId,
       user_id: user.id,
+    user_email:  user.email,
     })
   }
 
@@ -96,6 +98,7 @@ export async function deactivateCustomerLabel(id: string): Promise<{ error?: str
     entity_id:   id,
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidatePath('/foundation/sensitivity-labels')
   revalidatePath('/genai-controls/control-matrix')

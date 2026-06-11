@@ -158,6 +158,7 @@ export async function addIdentityMapping(
     details:     { catalog_value_id: catalogValueId, source_type: sourceType },
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidate()
   return { id: data.id }
@@ -189,6 +190,7 @@ export async function updateIdentityMapping(
     details:     fields as Record<string, unknown>,
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidate()
   return {}
@@ -218,6 +220,7 @@ export async function deleteIdentityMapping(
     entity_id:   mappingId,
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidate()
   return {}
@@ -257,6 +260,7 @@ export async function toggleIdentityValueInScope(
     new_value:   currentlyInScope ? 'removed' : 'added',
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidate()
   return {}

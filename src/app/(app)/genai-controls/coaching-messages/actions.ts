@@ -125,6 +125,7 @@ export async function upsertNotification(
     details:     { control_type: fields.control_type },
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidatePath('/genai-controls/coaching-messages')
   return {}
@@ -150,6 +151,7 @@ export async function deleteNotification(id: string): Promise<{ error?: string }
     entity_id:   id,
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidatePath('/genai-controls/coaching-messages')
   return {}
@@ -178,6 +180,7 @@ export async function toggleNotificationActive(
     entity_id:   id,
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidatePath('/genai-controls/coaching-messages')
   return {}
@@ -230,6 +233,7 @@ export async function resetNotification(id: string): Promise<{ error?: string }>
     entity_id:   id,
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidatePath('/genai-controls/coaching-messages')
   return {}

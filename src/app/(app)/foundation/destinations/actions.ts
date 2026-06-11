@@ -204,6 +204,7 @@ export async function toggleDestinationInScope(
     new_value:   currentlyInScope ? 'removed' : 'added',
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidate()
   return {}
@@ -235,6 +236,7 @@ export async function updateDestinationProfile(
     details:     fields as Record<string, unknown>,
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidate()
   return {}
@@ -276,6 +278,7 @@ export async function addCustomDestination(fields: {
     details:     { trust_tag: fields.trust_tag, subcategory: fields.subcategory },
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidate()
   return {}
@@ -306,6 +309,7 @@ export async function deleteCustomDestination(
     entity_id:   orgProfileId,
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidate()
   return {}

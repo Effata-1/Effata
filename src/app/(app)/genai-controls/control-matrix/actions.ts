@@ -60,6 +60,7 @@ export async function upsertControlMatrixCell(
     details:     { data_type: dataType, category_id: categoryId, coaching_notification_id: coachingNotificationId },
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidatePath('/genai-controls/control-matrix')
 
@@ -101,6 +102,7 @@ export async function deleteControlMatrixCell(
     details:     { data_type: dataType, category_id: categoryId },
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
 
   let warning: string | undefined
@@ -143,6 +145,7 @@ export async function updateCategoryAccessPosture(
     new_value:   accessPosture,
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
   revalidatePath('/genai-controls/control-matrix')
 
@@ -176,6 +179,7 @@ export async function resetMatrixToDefaults(): Promise<{ error?: string }> {
     entity_type: 'org_control_matrix_overrides',
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
 
   try { await syncRecommendedPolicies() } catch (e) { console.error('[control-matrix] reset sync error:', e) }
