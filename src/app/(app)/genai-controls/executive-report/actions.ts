@@ -5,6 +5,7 @@ import { createClient }  from '@/lib/supabase/server'
 import { requireRole }   from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
 import { lintAllPolicies } from '@/lib/genai/lint'
+import { TAG_ALIAS }       from '@/lib/genai/control-matrix-rows'
 import type { GenAIPolicy }          from '@/lib/genai/types'
 import type { PresentationSnapshot } from '@/lib/genai/presentation-types'
 
@@ -64,7 +65,10 @@ export async function generatePresentation(): Promise<{ id?: string; token?: str
 
   const classifications = classificationsResult.data ?? []
   const rawPolicies     = ((policiesResult.data ?? []) as unknown[]) as GenAIPolicy[]
-  const countBy = (cls: string) => classifications.filter(c => c.customer_classification === cls).length
+  // Normalise all stored values to canonical key so legacy keys and current keys both count correctly
+  const canonical = (cls: string) => TAG_ALIAS[cls] ?? cls
+  const normCls   = classifications.map(c => canonical(c.customer_classification))
+  const countBy   = (key: string) => normCls.filter(c => c === key).length
 
   const lintIssues = lintAllPolicies(rawPolicies)
   const lintCount  = lintIssues.filter(i => i.severity === 'warning' || i.severity === 'error').length
@@ -74,9 +78,9 @@ export async function generatePresentation(): Promise<{ id?: string; token?: str
     industry:       (profileResult.data?.industry as string | null) ?? 'Not specified',
     coverage_score: (coverageResult.data?.coverage_score as number | null) ?? null,
     app_counts: {
-      enterprise_approved:        countBy('enterprise-approved'),
-      approved_with_conditions:   countBy('approved-with-conditions'),
-      permitted_with_restriction: countBy('permitted-with-restriction'),
+      enterprise_approved:        countBy('approved_supported'),
+      approved_with_conditions:   countBy('approved_with_conditions'),
+      permitted_with_restriction: countBy('restricted_unassessed'),
       prohibited:                 countBy('prohibited'),
       total:                      classifications.length,
     },

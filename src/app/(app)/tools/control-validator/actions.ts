@@ -6,7 +6,10 @@ import { logAuditEvent } from '@/lib/audit'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type TestResult = 'blocked' | 'not_blocked' | 'error' | 'user_alert_proceed' | 'user_alert_stop' | 'blocked_coached'
+export type TestResult =
+  | 'blocked' | 'not_blocked' | 'error'
+  | 'user_alert_proceed' | 'user_alert_stop' | 'blocked_coached'
+  | 'inconclusive'
 
 export interface TestHistoryEntry {
   id:               string

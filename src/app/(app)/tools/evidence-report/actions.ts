@@ -90,7 +90,7 @@ export interface ValidatorResult {
   protocol:         string
   data_type:        string
   destination:      string
-  result:           'blocked' | 'not_blocked' | 'error'
+  result:           'blocked' | 'not_blocked' | 'error' | 'user_alert_proceed' | 'user_alert_stop' | 'blocked_coached' | 'inconclusive'
   response_code:    number | null
   response_time_ms: number | null
   created_at:       string
@@ -422,12 +422,13 @@ export async function importFromValidator(
     if (r === 'user_alert_proceed') return { actual_result: 'allowed_with_coach', final_status: 'failed' }
     if (r === 'user_alert_stop')    return { actual_result: 'allowed_with_coach', final_status: 'inconclusive' }
     if (r === 'blocked_coached')    return { actual_result: 'blocked',            final_status: 'passed' }
+    if (r === 'inconclusive')       return { actual_result: 'test_failed',        final_status: 'inconclusive' }
     return                                 { actual_result: 'test_failed',        final_status: 'inconclusive' }
   }
 
   const rows = (results ?? []).map(r => {
     const mapped = mapResult(r.result)
-    const code = `DLP-${testNum++}`.padStart(3, '0')
+    const code = `DLP-${String(testNum++).padStart(3, '0')}`
     const row = {
       org_id:             orgId,
       report_id:          reportId,
