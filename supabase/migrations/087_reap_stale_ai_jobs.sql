@@ -14,6 +14,7 @@ CREATE OR REPLACE FUNCTION reap_stale_ai_jobs(p_stale_before timestamptz)
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
   -- Jobs with retries remaining → back to pending
@@ -28,7 +29,7 @@ BEGIN
   -- Jobs that exhausted their retry budget → permanently failed
   UPDATE ai_jobs
   SET    status       = 'failed',
-         error        = 'Job timed out and exhausted retry budget',
+         error        = COALESCE(error, 'Job timed out and exhausted retry budget'),
          completed_at = now(),
          locked_at    = NULL,
          locked_by    = NULL

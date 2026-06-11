@@ -474,9 +474,9 @@ export function DlpTestRunner({ initialHistory }: Props) {
         destination: dest, result, response_code: null,
         response_time_ms: ms, created_at: new Date().toISOString(),
       }, ...prev.slice(0, 49)])
+    } finally {
+      setIsRunning(false)
     }
-
-    setIsRunning(false)
   }, [payload, uploadFile, isRunning, selectedWeb, dataType])
 
   // ── Script actions ────────────────────────────────────────────────────────
