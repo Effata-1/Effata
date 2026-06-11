@@ -69,9 +69,6 @@ export function SectionSidebar({ title, items, backHref = '/dashboard' }: Props)
               )}
             >
               {item.indent && <span className="mr-1 text-muted-foreground/40">↳</span>}
-              {item.step !== undefined && (
-                <span className="mr-1.5 text-muted-foreground/40 tabular-nums">{item.step} ·</span>
-              )}
               <span className="flex-1">{item.label}</span>
               {item.badge === 'deliverable' && (
                 <FileOutput className="h-3 w-3 text-muted-foreground/40 shrink-0" />

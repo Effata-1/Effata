@@ -15,13 +15,9 @@ const SPINE_ITEMS = NAV
   .sort((a, b) => (a.step ?? 0) - (b.step ?? 0))
   .map(p => ({ label: p.label, href: p.route, step: p.step, badge: p.badge }))
 
-// Policy Flow is a sub-page of the Netskope policy pack (indented, no step)
-const POLICY_FLOW = { label: 'Policy Flow', href: '/genai-controls/netskope-pack/flow', indent: true as const }
-
 const ITEMS = [
   ...STATIC_PREFIX,
   ...SPINE_ITEMS,
-  POLICY_FLOW,
 ]
 
 export default async function GenAIControlsLayout({ children }: { children: React.ReactNode }) {

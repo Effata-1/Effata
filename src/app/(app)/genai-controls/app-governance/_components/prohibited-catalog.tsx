@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { ChevronDown, ExternalLink, Shield, FileText, Loader2, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { saveRefAppData } from '../actions'
-import { PROHIBITED_GROUPS, RISK_TAG_META, type ProhibitedApp, type ProhibitedGroup } from '../_data/prohibited-apps'
+import { PROHIBITED_GROUPS, RISK_TAG_META, type ProhibitedApp } from '../_data/prohibited-apps'
 import type { RefAppData } from './governance-client'
 
 // ── Classification options ────────────────────────────────────────────────────
@@ -23,17 +23,6 @@ const CLS_STYLE: Record<CatValue, string> = {
   'permitted-with-restriction': 'border-amber-500/40  text-amber-400  bg-amber-500/5',
   'approved-with-conditions':   'border-blue-500/40   text-blue-400   bg-blue-500/5',
   'enterprise-approved':        'border-emerald-500/40 text-emerald-400 bg-emerald-500/5',
-}
-
-// ── Control badge styles ──────────────────────────────────────────────────────
-
-const CONTROL_CLS: Record<string, string> = {
-  'Block':                            'bg-red-500/15 text-red-400 border-red-500/25',
-  'Block (personal tier)':            'bg-red-500/15 text-red-400 border-red-500/25',
-  'Block unless enterprise-approved': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  'Block unless approved':            'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  'Block + Alert SOC':                'bg-red-500/20 text-red-300 border-red-500/30',
-  'Block + Alert':                    'bg-red-500/20 text-red-300 border-red-500/30',
 }
 
 // ── Individual app row ────────────────────────────────────────────────────────
@@ -269,74 +258,6 @@ function AppRow({
   )
 }
 
-// ── Group section (Layer 2) ───────────────────────────────────────────────────
-
-function GroupSection({
-  group, appData, onSaved, clsOptions,
-}: {
-  group:      ProhibitedGroup
-  appData:    Record<string, RefAppData>
-  onSaved:    (slug: string, data: RefAppData) => void
-  clsOptions: { value: string; label: string }[]
-}) {
-  const [open, setOpen] = useState(false)
-  const ctrlCls = CONTROL_CLS[group.dlp_control] ?? 'bg-muted/60 text-muted-foreground border-border'
-  const inScopeCount = group.apps.filter(a => appData[a.slug]?.in_scope).length
-
-  return (
-    <div className="border-t border-border/30 last:border-b-0">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-muted/20 transition-colors"
-      >
-        <ChevronDown className={cn('w-3.5 h-3.5 text-muted-foreground/40 shrink-0 transition-transform', !open && '-rotate-90')} />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold text-foreground/80">{group.name}</span>
-            <span className="text-[10px] text-muted-foreground/40">
-              {group.apps.length} {group.apps.length === 1 ? 'app' : 'apps'}
-            </span>
-            {inScopeCount > 0 && (
-              <span className="text-[10px] font-semibold text-emerald-400">{inScopeCount} in scope</span>
-            )}
-          </div>
-          {!open && (
-            <p className="text-[11px] text-muted-foreground/40 truncate mt-0.5 hidden sm:block">
-              {group.description.split('.')[0]}.
-            </p>
-          )}
-        </div>
-        <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded border shrink-0', ctrlCls)}>
-          {group.dlp_control}
-        </span>
-      </button>
-
-      {open && (
-        <>
-          <div className="px-5 py-2.5 bg-muted/10 border-t border-border/20">
-            <p className="text-xs text-muted-foreground/60 leading-relaxed">{group.description}</p>
-          </div>
-          {/* Column headers */}
-          <div className="flex items-center px-5 py-2 border-t border-border/20 bg-card/10">
-            <span className="flex-1 text-[10px] font-semibold text-muted-foreground/40 uppercase tracking-widest">App</span>
-            <span className="text-[10px] font-semibold text-muted-foreground/40 uppercase tracking-widest pr-1">Classification</span>
-          </div>
-          {group.apps.map(app => (
-            <AppRow
-              key={app.slug}
-              app={app}
-              data={appData[app.slug] ?? { notes: '', in_scope: false, classification: null }}
-              onSaved={onSaved}
-              clsOptions={clsOptions}
-            />
-          ))}
-        </>
-      )}
-    </div>
-  )
-}
-
 // ── Main ProhibitedCatalog (Layer 1 content for prohibited category) ──────────
 
 export function ProhibitedCatalog({
@@ -352,7 +273,8 @@ export function ProhibitedCatalog({
     setAppData(prev => ({ ...prev, [slug]: data }))
   }
 
-  const totalApps    = PROHIBITED_GROUPS.reduce((s, g) => s + g.apps.length, 0)
+  const allApps      = PROHIBITED_GROUPS.flatMap(g => g.apps)
+  const totalApps    = allApps.length
   const inScopeTotal = Object.values(appData).filter(d => d.in_scope).length
 
   return (
@@ -363,7 +285,7 @@ export function ProhibitedCatalog({
         <div className="flex-1">
           <span className="text-xs font-semibold text-foreground/80">Blocked Application Reference Catalog</span>
           <span className="text-[10px] text-muted-foreground/40 ml-2">
-            {PROHIBITED_GROUPS.length} risk groups · {totalApps} applications
+            {totalApps} applications
           </span>
         </div>
         {inScopeTotal > 0 && (
@@ -374,11 +296,17 @@ export function ProhibitedCatalog({
         </span>
       </div>
 
-      {PROHIBITED_GROUPS.map(group => (
-        <GroupSection
-          key={group.slug}
-          group={group}
-          appData={appData}
+      {/* Column headers */}
+      <div className="flex items-center px-5 py-2 border-b border-border/20 bg-card/10">
+        <span className="flex-1 text-[10px] font-semibold text-muted-foreground/40 uppercase tracking-widest">App</span>
+        <span className="text-[10px] font-semibold text-muted-foreground/40 uppercase tracking-widest pr-1">Classification</span>
+      </div>
+
+      {allApps.map(app => (
+        <AppRow
+          key={app.slug}
+          app={app}
+          data={appData[app.slug] ?? { notes: '', in_scope: false, classification: null }}
           onSaved={handleSaved}
           clsOptions={clsOptions}
         />

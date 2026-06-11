@@ -277,48 +277,6 @@ function AppRow({
   )
 }
 
-// ── App group section (Layer 2 — groups DB apps by app_group) ────────────────
-
-function AppGroupSection({
-  groupName, entries, categorySystemTag, clsOptions,
-}: {
-  groupName:         string
-  entries:           AppEntry[]
-  categorySystemTag: string | null
-  clsOptions:        { value: string; label: string }[]
-}) {
-  const [open, setOpen] = useState(true)
-
-  return (
-    <div className="border-t border-border/40 first:border-t-0">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2 px-5 py-2.5 text-left bg-muted/10 hover:bg-muted/20 transition-colors"
-      >
-        <ChevronDown className={cn('w-3.5 h-3.5 text-muted-foreground/40 shrink-0 transition-transform', !open && '-rotate-90')} />
-        <span className="text-xs font-semibold text-foreground/70">{groupName}</span>
-        <span className="text-[10px] text-muted-foreground/40">
-          {entries.length} {entries.length === 1 ? 'app' : 'apps'}
-        </span>
-      </button>
-
-      {open && (
-        <div className="bg-card/5">
-          {entries.map(entry => (
-            <AppRow
-              key={entry.app.app_id}
-              entry={entry}
-              categorySystemTag={categorySystemTag}
-              clsOptions={clsOptions}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ── Category section (Layer 1) ────────────────────────────────────────────────
 
 function CategorySection({
@@ -337,14 +295,6 @@ function CategorySection({
     e.classification?.customer_classification &&
     e.classification.customer_classification !== 'unknown'
   ).length
-
-  // Group DB apps by app_group (Layer 2)
-  const byGroup = new Map<string, AppEntry[]>()
-  for (const entry of apps) {
-    const g = entry.app.app_group ?? 'Other'
-    if (!byGroup.has(g)) byGroup.set(g, [])
-    byGroup.get(g)!.push(entry)
-  }
 
   const isProhibited = category.system_tag === 'prohibited'
 
@@ -382,25 +332,15 @@ function CategorySection({
             transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeOut' }}
             style={{ overflow: 'hidden' }}
           >
-            {/* DB apps — grouped by app_group (Layer 2 → Layer 3) */}
+            {/* DB apps — flat list */}
             {apps.length > 0 && (
               <>
                 <div className="flex items-center px-5 py-2 border-b border-border/60 bg-card/20">
                   <span className="flex-1 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">App</span>
                   <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">Your Classification</span>
                 </div>
-                {[...byGroup.entries()].map(([groupName, entries]) => (
-                  byGroup.size === 1
-                    ? entries.map(entry => (
-                        <AppRow key={entry.app.app_id} entry={entry} categorySystemTag={category.system_tag} clsOptions={clsOptions} />
-                      ))
-                    : <AppGroupSection
-                        key={groupName}
-                        groupName={groupName}
-                        entries={entries}
-                        categorySystemTag={category.system_tag}
-                        clsOptions={clsOptions}
-                      />
+                {apps.map(entry => (
+                  <AppRow key={entry.app.app_id} entry={entry} categorySystemTag={category.system_tag} clsOptions={clsOptions} />
                 ))}
               </>
             )}

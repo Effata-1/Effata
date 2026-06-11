@@ -1,28 +1,16 @@
+import Link                                               from 'next/link'
 import { requireRole }                                    from '@/lib/auth'
 import { createClient }                                   from '@/lib/supabase/server'
 import { cn }                                             from '@/lib/utils'
 import { lintAllPolicies }                                from '@/lib/genai/lint'
 import type { GenAIPolicy }                               from '@/lib/genai/types'
+import { getNetskopeRecommendationForOrg }               from '@/lib/genai/netskope/get-recommendation'
+import { TAG_ALIAS }                                      from '@/lib/genai/control-matrix-rows'
 import { PresentationContainer }                          from './_components/presentation-container'
+import { RecommendedPoliciesSection }                     from './_components/recommended-policies-section'
 import type { PolicySlide, CategorySlide, OverrideSlide, CoachingSlide, AppCounts } from './_components/presentation-container'
 import { getLatestPresentation }                          from './actions'
 
-const ACTION_CHIP: Record<string, string> = {
-  allow:       'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  monitor:     'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  alert:       'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  'coach-ack': 'bg-orange-500/15 text-orange-300 border-orange-500/30',
-  'coach-just':'bg-amber-600/15 text-amber-300 border-amber-600/25',
-  block:       'bg-red-500/10 text-red-400 border-red-500/20',
-}
-
-const APPROVAL_CHIP: Record<string, string> = {
-  approved:       'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  'under-review': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  draft:          'bg-muted/60 text-muted-foreground border-border',
-  rejected:       'bg-red-500/10 text-red-400 border-red-500/20',
-  expired:        'bg-amber-500/10 text-amber-400 border-amber-500/20',
-}
 
 export default async function PresentationPage() {
   const user     = await requireRole('analyst')
@@ -37,6 +25,7 @@ export default async function PresentationPage() {
     categoriesResult,
     overridesResult,
     coachingResult,
+    recommendationResult,
   ] = await Promise.all([
     supabase.from('organisations').select('name').eq('id', user.orgId).maybeSingle(),
     supabase.from('onboarding_profiles').select('industry').eq('org_id', user.orgId).maybeSingle(),
@@ -70,6 +59,7 @@ export default async function PresentationPage() {
       .select('id, coach_label, control_type')
       .eq('org_id', user.orgId)
       .eq('is_active', true),
+    getNetskopeRecommendationForOrg(user.orgId).catch(() => null),
   ])
 
   const orgName         = (orgResult.data?.name ?? 'Your Organisation') as string
@@ -80,20 +70,24 @@ export default async function PresentationPage() {
   const overrides       = ((overridesResult.data ?? []) as unknown[]) as OverrideSlide[]
   const coaching        = ((coachingResult.data ?? []) as unknown[]) as CoachingSlide[]
 
-  const countBy = (cls: string) => classifications.filter(c => c.customer_classification === cls).length
+  const canonical  = (cls: string) => TAG_ALIAS[cls] ?? cls
+  const normCls    = classifications.map(c => canonical(c.customer_classification))
+  const countBy    = (key: string) => normCls.filter(c => c === key).length
   const appCounts = {
-    enterpriseApproved:       countBy('enterprise-approved'),
-    approvedWithConditions:   countBy('approved-with-conditions'),
-    permittedWithRestriction: countBy('permitted-with-restriction'),
+    enterpriseApproved:       countBy('approved_supported'),
+    approvedWithConditions:   countBy('approved_with_conditions'),
+    permittedWithRestriction: countBy('restricted_unassessed'),
     prohibited:               countBy('prohibited'),
   }
-
-  const approvedCount = policies.filter(p => p.approval_status === 'approved').length
-  const draftCount    = policies.filter(p => p.approval_status === 'draft').length
 
   // Lint count for slide 6
   const lintIssues = lintAllPolicies(policies as unknown as GenAIPolicy[])
   const lintCount  = lintIssues.filter(i => i.severity === 'warning' || i.severity === 'error').length
+
+  const recommendedPolicies = recommendationResult?.recommendation?.recommended_policies ?? []
+  const scopedPolicies      = recommendationResult?.recommendation?.scoped_policies?.policies ?? []
+  const manualPolicies      = recommendationResult?.recommendation?.manual_policies ?? []
+  const totalNetskopePolicies = recommendedPolicies.length + scopedPolicies.length + manualPolicies.length
 
   return (
     <div className="space-y-8">
@@ -105,6 +99,16 @@ export default async function PresentationPage() {
             Print-ready policy pack for security leadership. Use &quot;Download PDF&quot; to export.
           </p>
         </div>
+        <Link
+          href="/genai-controls/netskope-pack/flow"
+          className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-border-strong bg-muted text-foreground/70 hover:bg-accent hover:text-foreground transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="12" cy="18" r="3"/>
+            <line x1="6" y1="9" x2="12" y2="15"/><line x1="18" y1="9" x2="12" y2="15"/>
+          </svg>
+          Policy Flow
+        </Link>
       </div>
 
     <PresentationContainer
@@ -131,7 +135,7 @@ export default async function PresentationPage() {
             </div>
             <div className="text-right text-xs text-muted-foreground/60 space-y-0.5">
               <p>Industry: <span className="text-foreground/80 capitalize">{industry}</span></p>
-              <p>Policies: <span className="text-foreground/80">{policies.length}</span></p>
+              <p>Policies: <span className="text-foreground/80">{totalNetskopePolicies}</span></p>
               <p>Generated: <span className="text-foreground/80">{new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span></p>
             </div>
           </div>
@@ -142,10 +146,10 @@ export default async function PresentationPage() {
           <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/50 mb-4">Executive Summary</h3>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {[
-              { label: 'Total Policies',        value: policies.length },
-              { label: 'Approved',               value: approvedCount },
-              { label: 'Draft',                  value: draftCount },
-              { label: 'GenAI Apps Classified',  value: Object.values(appCounts).reduce((a, b) => a + b, 0) },
+              { label: 'Total Policies',        value: totalNetskopePolicies },
+              { label: 'Recommended',           value: recommendedPolicies.length },
+              { label: 'Scoped',                value: scopedPolicies.length },
+              { label: 'Manual',                value: manualPolicies.length },
             ].map(({ label, value }) => (
               <div key={label} className="rounded-lg border border-border bg-muted/20 px-4 py-3">
                 <p className="text-xl font-bold text-foreground">{value}</p>
@@ -173,67 +177,56 @@ export default async function PresentationPage() {
           </div>
         </div>
 
-        {/* Policy list */}
-        <div className="px-10 py-8">
-          <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/50 mb-4">
-            Policy Library <span className="ml-2 normal-case tracking-normal font-normal">({policies.length} {policies.length === 1 ? 'policy' : 'policies'})</span>
-          </h3>
-
-          {policies.length === 0 ? (
-            <p className="text-sm text-muted-foreground/50 italic">No policies have been created yet. Complete the setup wizard to generate your first policy set.</p>
-          ) : (
-            <div className="space-y-3">
-              {policies.map((policy, i) => (
-                <div key={policy.id as string} className="rounded-lg border border-border bg-muted/10 px-4 py-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[10px] text-muted-foreground/40 font-mono">{String(i + 1).padStart(2, '0')}</span>
-                        <p className="text-sm font-semibold text-foreground/90 leading-tight">{policy.name as string}</p>
-                      </div>
-                      {(policy.description as string | null) && (
-                        <p className="text-xs text-muted-foreground/60 mt-1 leading-relaxed">{policy.description as string}</p>
-                      )}
-                      <div className="flex items-center gap-2 mt-2 flex-wrap">
-                        {(policy.policy_family as string | null) ? (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/40 border border-border text-muted-foreground/60">
-                            {(policy.policy_family as string).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/40 border border-border text-muted-foreground/60 capitalize">
-                            {(policy.policy_type as string).replace(/-/g, ' ')}
-                          </span>
-                        )}
-                        {(policy.data_classification_label as string | null) &&
-                         (policy.data_classification_label as string) !== 'all' && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/40 border border-border text-muted-foreground/50 capitalize">
-                            {(policy.data_classification_label as string).replace(/-/g, ' ')}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      {(policy.primary_action as string | null) && (
-                        <span className={cn(
-                          'text-[10px] font-semibold px-2 py-0.5 rounded border whitespace-nowrap',
-                          ACTION_CHIP[policy.primary_action as string] ?? 'bg-muted/40 text-muted-foreground border-border',
-                        )}>
-                          {(policy.primary_action as string).replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                        </span>
-                      )}
-                      <span className={cn(
-                        'text-[10px] font-bold px-2 py-0.5 rounded border whitespace-nowrap',
-                        APPROVAL_CHIP[policy.approval_status as string] ?? 'bg-muted/60 text-muted-foreground border-border',
-                      )}>
-                        {(policy.approval_status as string).replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+        {/* Recommended Netskope Policies */}
+        <div className={cn('px-10 py-8', (scopedPolicies.length > 0 || manualPolicies.length > 0) && 'border-b border-border')}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/50">
+              Recommended Netskope Policies
+              <span className="ml-2 normal-case tracking-normal font-normal">
+                ({recommendedPolicies.length} {recommendedPolicies.length === 1 ? 'policy' : 'policies'})
+              </span>
+            </h3>
+            <Link
+              href="/genai-controls/netskope-pack"
+              className="text-[10px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
+            >
+              View full pack →
+            </Link>
+          </div>
+          <RecommendedPoliciesSection policies={recommendedPolicies} />
         </div>
+
+        {/* Scoped Policies */}
+        {scopedPolicies.length > 0 && (
+          <div className={cn('px-10 py-8', manualPolicies.length > 0 && 'border-b border-border')}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/50">
+                Scoped Policies
+                <span className="ml-2 normal-case tracking-normal font-normal">
+                  ({scopedPolicies.length} {scopedPolicies.length === 1 ? 'policy' : 'policies'})
+                </span>
+              </h3>
+              <span className="text-[10px] text-muted-foreground/40">User or destination-scoped overrides</span>
+            </div>
+            <RecommendedPoliciesSection policies={scopedPolicies} />
+          </div>
+        )}
+
+        {/* Manual Policies */}
+        {manualPolicies.length > 0 && (
+          <div className="px-10 py-8">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/50">
+                Manual Policies
+                <span className="ml-2 normal-case tracking-normal font-normal">
+                  ({manualPolicies.length} {manualPolicies.length === 1 ? 'policy' : 'policies'})
+                </span>
+              </h3>
+              <span className="text-[10px] text-muted-foreground/40">Custom policies not generated from the control matrix</span>
+            </div>
+            <RecommendedPoliciesSection policies={manualPolicies} />
+          </div>
+        )}
 
         {/* Footer */}
         <div className="px-10 py-4 border-t border-border bg-muted/10 flex items-center justify-between">
