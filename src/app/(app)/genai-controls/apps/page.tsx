@@ -4,6 +4,7 @@ export const maxDuration = 300
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import { computeTrustScore } from '@/lib/genai/scoring'
+import { ensureGenAIGovernanceCategories } from '../app-governance/actions'
 import { AppCatalogClient } from './_components/app-catalog-client'
 import type { CatalogEntry } from './_components/app-catalog-client'
 import type { GenAIApp, GenAIAppProfile, CustomerClassification } from '@/lib/genai/types'
@@ -30,12 +31,9 @@ export default async function GenAIAppCatalogPage() {
     .select('*')
     .eq('org_id', user.orgId)
 
-  // Org governance categories — needed for dynamic classification labels
-  const { data: orgCategories } = await supabase
-    .from('org_genai_governance_categories')
-    .select('system_tag, name')
-    .eq('org_id', user.orgId)
-    .eq('active', true)
+  // Org governance categories — seeds defaults if this org hasn't visited App Governance yet,
+  // ensuring the Classification filter and bulk-action options are never empty on first visit.
+  const orgCategories = await ensureGenAIGovernanceCategories()
 
   // One profile per app — first found wins (DB has UNIQUE(app_id, mode))
   const profileMap = new Map<string, GenAIAppProfile>()
@@ -65,7 +63,7 @@ export default async function GenAIAppCatalogPage() {
     <AppCatalogClient
       entries={entries}
       totalInDb={totalInDb}
-      orgCategories={orgCategories ?? []}
+      orgCategories={orgCategories}
     />
   )
 }

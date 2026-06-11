@@ -10,7 +10,6 @@ import { CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
 import { computeTrustScore } from '@/lib/genai/scoring'
 import { deleteGenAICategory, setAppGovernanceClassification } from '../actions'
 import { EditCategoryModal } from './edit-category-modal'
-import { ProhibitedCatalog } from './prohibited-catalog'
 import { AppLogo } from '../../apps/_components/app-logo'
 import type { GenAIGovernanceCategory } from '../actions'
 import type { GenAIApp, GenAIAppProfile, CustomerClassification, CustomerClass, DLPActivities } from '@/lib/genai/types'
@@ -40,17 +39,10 @@ export interface AppEntry {
   classification: CustomerClassification | null
 }
 
-export interface RefAppData {
-  notes:          string
-  in_scope:       boolean
-  classification: string | null
-}
-
 interface Props {
   categories:        GenAIGovernanceCategory[]
   appsByCategoryTag: Record<string, AppEntry[]>
   userRole:          string
-  initialNotes:      Record<string, RefAppData>
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -280,12 +272,11 @@ function AppRow({
 // ── Category section (Layer 1) ────────────────────────────────────────────────
 
 function CategorySection({
-  category, apps, initialNotes, clsOptions,
+  category, apps, clsOptions,
 }: {
-  category:     GenAIGovernanceCategory
-  apps:         AppEntry[]
-  initialNotes: Record<string, RefAppData>
-  clsOptions:   { value: string; label: string }[]
+  category:   GenAIGovernanceCategory
+  apps:       AppEntry[]
+  clsOptions: { value: string; label: string }[]
 }) {
   const [open, setOpen] = useState(false)
   const shouldReduceMotion = useReducedMotion()
@@ -295,8 +286,6 @@ function CategorySection({
     e.classification?.customer_classification &&
     e.classification.customer_classification !== 'unknown'
   ).length
-
-  const isProhibited = category.system_tag === 'prohibited'
 
   return (
     <div className="rounded-xl border border-border overflow-hidden">
@@ -345,13 +334,8 @@ function CategorySection({
               </>
             )}
 
-            {/* Prohibited reference catalog */}
-            {isProhibited && (
-              <ProhibitedCatalog initialNotes={initialNotes} clsOptions={clsOptions} />
-            )}
-
-            {/* Empty state (non-prohibited categories with no DB apps) */}
-            {!isProhibited && apps.length === 0 && (
+            {/* Empty state */}
+            {apps.length === 0 && (
               <div className="px-5 py-8 text-center bg-card/5">
                 <p className="text-sm text-muted-foreground/40">No apps assigned to this category</p>
               </div>
@@ -474,7 +458,7 @@ function ManagePanel({
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
-export function GovernanceClient({ categories, appsByCategoryTag, userRole, initialNotes }: Props) {
+export function GovernanceClient({ categories, appsByCategoryTag, userRole }: Props) {
   const [manageOpen, setManageOpen] = useState(false)
   const isAdmin = userRole === 'admin'
   const sorted = [...categories].sort((a, b) => a.priority - b.priority)
@@ -520,16 +504,14 @@ export function GovernanceClient({ categories, appsByCategoryTag, userRole, init
           {sorted
             .filter(cat => {
               const hasApps = (appsByCategoryTag[cat.system_tag ?? cat.id] ?? []).length > 0
-              const isProhibited = cat.system_tag === 'prohibited'
               const isCustom = !cat.is_system
-              return hasApps || isProhibited || isCustom
+              return hasApps || isCustom
             })
             .map(cat => (
               <CategorySection
                 key={cat.id}
                 category={cat}
                 apps={appsByCategoryTag[cat.system_tag ?? cat.id] ?? []}
-                initialNotes={initialNotes}
                 clsOptions={clsOptions}
               />
             ))}

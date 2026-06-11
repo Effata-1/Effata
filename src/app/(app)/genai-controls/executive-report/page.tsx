@@ -92,23 +92,11 @@ export default async function PresentationPage() {
   return (
     <div className="space-y-8">
       {/* Page header */}
-      <div className="print:hidden flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Executive Report</h1>
-          <p className="text-sm text-muted-foreground/70 mt-0.5">
-            Print-ready policy pack for security leadership. Use &quot;Download PDF&quot; to export.
-          </p>
-        </div>
-        <Link
-          href="/genai-controls/netskope-pack/flow"
-          className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-border-strong bg-muted text-foreground/70 hover:bg-accent hover:text-foreground transition-colors"
-        >
-          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="12" cy="18" r="3"/>
-            <line x1="6" y1="9" x2="12" y2="15"/><line x1="18" y1="9" x2="12" y2="15"/>
-          </svg>
-          Policy Flow
-        </Link>
+      <div className="print:hidden">
+        <h1 className="text-2xl font-bold text-foreground">Executive Report</h1>
+        <p className="text-sm text-muted-foreground/70 mt-0.5">
+          Print-ready policy pack for security leadership. Use &quot;Download PDF&quot; to export.
+        </p>
       </div>
 
     <PresentationContainer

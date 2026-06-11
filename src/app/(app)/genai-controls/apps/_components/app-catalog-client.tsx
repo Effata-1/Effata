@@ -7,13 +7,14 @@ import {
   Search, X, Loader2, Sparkles, LayoutList, LayoutGrid,
   ChevronUp, ChevronDown, ChevronsUpDown, ChevronRight,
   Settings2, ChevronLeft, Tag, AlertTriangle, Lightbulb,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { evaluateApp, bulkSetClassification } from '../actions'
 import type { EvaluatedAppCard } from '../actions'
 import { AppLogo } from './app-logo'
 import { CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
-import { FilterSelect, MultiFilterSelect } from '@/components/ui/filter-select'
+import { FilterSelect } from '@/components/ui/filter-select'
 import type { GenAIApp, CustomerClassification, TrustScores, CustomerClass } from '@/lib/genai/types'
 
 export interface CatalogEntry {
@@ -317,6 +318,172 @@ function ColumnPicker({ visibleCols, onChange }: {
   )
 }
 
+// ── Filter chip (active filter pill) ─────────────────────────────────────────
+
+function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-400 text-xs font-medium whitespace-nowrap">
+      {label}
+      <button
+        type="button"
+        onClick={onRemove}
+        className="ml-0.5 rounded hover:text-blue-200 transition-colors"
+      >
+        <X className="w-3 h-3" />
+      </button>
+    </span>
+  )
+}
+
+// ── Add filter button (unified dropdown panel) ────────────────────────────────
+
+function AddFilterButton({
+  riskOptions, clsOptions, groupOptions,
+  filterRisk, filterCls, filterGroups,
+  onRisk, onCls, onGroups, activeFilters,
+}: {
+  riskOptions:   { value: string; label: string }[]
+  clsOptions:    { value: string; label: string }[]
+  groupOptions:  { value: string; label: string }[]
+  filterRisk:    string
+  filterCls:     string
+  filterGroups:  string[]
+  onRisk:        (v: string) => void
+  onCls:         (v: string) => void
+  onGroups:      (v: string[]) => void
+  activeFilters: number
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className={cn(
+          'flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors',
+          open || activeFilters > 0
+            ? 'border-blue-500/40 bg-blue-500/10 text-blue-400 hover:bg-blue-500/15'
+            : 'border-border bg-card/50 text-muted-foreground/70 hover:border-border-strong hover:text-foreground/80',
+        )}
+      >
+        <SlidersHorizontal className="w-3.5 h-3.5" />
+        Add filter
+        {activeFilters > 0 && (
+          <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">
+            {activeFilters}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-1.5 z-50 w-64 rounded-xl border border-border bg-card shadow-lg max-h-[420px] overflow-y-auto">
+          {/* Risk */}
+          <div className="px-3 pt-3 pb-2">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-1.5">Risk</p>
+            <div className="space-y-0.5">
+              {riskOptions.map(o => (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => onRisk(filterRisk === o.value ? '' : o.value)}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors',
+                    filterRisk === o.value ? 'bg-blue-500/15 text-blue-400' : 'text-foreground/80 hover:bg-muted/40',
+                  )}
+                >
+                  <span className={cn(
+                    'flex h-3 w-3 shrink-0 items-center justify-center rounded-full border',
+                    filterRisk === o.value ? 'border-blue-500 bg-blue-500' : 'border-border',
+                  )}>
+                    {filterRisk === o.value && <span className="h-1 w-1 rounded-full bg-white" />}
+                  </span>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mx-3 border-t border-border/40" />
+
+          {/* Classification */}
+          <div className="px-3 py-2">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-1.5">Classification</p>
+            <div className="space-y-0.5">
+              {clsOptions.map(o => (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => onCls(filterCls === o.value ? '' : o.value)}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors',
+                    filterCls === o.value ? 'bg-blue-500/15 text-blue-400' : 'text-foreground/80 hover:bg-muted/40',
+                  )}
+                >
+                  <span className={cn(
+                    'flex h-3 w-3 shrink-0 items-center justify-center rounded-full border',
+                    filterCls === o.value ? 'border-blue-500 bg-blue-500' : 'border-border',
+                  )}>
+                    {filterCls === o.value && <span className="h-1 w-1 rounded-full bg-white" />}
+                  </span>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Category (multi-select, only if options exist) */}
+          {groupOptions.length > 1 && (
+            <>
+              <div className="mx-3 border-t border-border/40" />
+              <div className="px-3 py-2 pb-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-1.5">App Group</p>
+                <div className="space-y-0.5">
+                  {groupOptions.map(o => {
+                    const checked = filterGroups.includes(o.value)
+                    return (
+                      <button
+                        key={o.value}
+                        type="button"
+                        onClick={() => onGroups(checked ? filterGroups.filter(g => g !== o.value) : [...filterGroups, o.value])}
+                        className={cn(
+                          'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors',
+                          checked ? 'bg-blue-500/15 text-blue-400' : 'text-foreground/80 hover:bg-muted/40',
+                        )}
+                      >
+                        <span className={cn(
+                          'flex h-3 w-3 shrink-0 items-center justify-center rounded border',
+                          checked ? 'border-blue-500 bg-blue-500' : 'border-border',
+                        )}>
+                          {checked && (
+                            <svg width="7" height="5" viewBox="0 0 8 6" fill="none">
+                              <path d="M1 3L3 5L7 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </span>
+                        {o.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Table header ──────────────────────────────────────────────────────────────
 
 function TableHeader({
@@ -415,21 +582,12 @@ function TableHeader({
 
 // ── Bulk action bar ───────────────────────────────────────────────────────────
 
-const BULK_CLS_OPTIONS: { value: CustomerClass; label: string }[] = [
-  { value: 'enterprise-approved',        label: 'Approved & Supported'    },
-  { value: 'approved-with-conditions',   label: 'Approved with Conditions' },
-  { value: 'permitted-with-restriction', label: 'Restricted / Unassessed'  },
-  { value: 'personal',                   label: 'Personal'                 },
-  { value: 'unknown',                    label: 'Unknown'                  },
-  { value: 'prohibited',                 label: 'Prohibited'               },
-]
-
-function BulkActionBar({ count, onClear, onApply, isPending, clsOptions = BULK_CLS_OPTIONS }: {
+function BulkActionBar({ count, onClear, onApply, isPending, clsOptions }: {
   count: number
   onClear: () => void
   onApply: (cls: CustomerClass) => void
   isPending: boolean
-  clsOptions?: { value: string; label: string }[]
+  clsOptions: { value: string; label: string }[]
 }) {
   const [selectedCls, setSelectedCls] = useState<string>('')
 
@@ -910,15 +1068,13 @@ export function AppCatalogClient({ entries, totalInDb, orgCategories = [] }: Pro
   const pendingCount = totalInDb - scoredCount
   const showNotFound = trimmed.length > 2 && filtered.length === 0 && !isPending && !evaluatedApp
 
-  const catNameMap = Object.fromEntries(orgCategories.map(c => [c.system_tag ?? '', c.name]))
-  const clsFilterOptions = [
-    { value: 'not-set',                    label: 'Not Set' },
-    { value: 'enterprise-approved',        label: catNameMap['enterprise-approved']        ?? 'Approved & Supported' },
-    { value: 'approved-with-conditions',   label: catNameMap['approved-with-conditions']   ?? 'Approved w/ Conditions' },
-    { value: 'permitted-with-restriction', label: catNameMap['permitted-with-restriction'] ?? 'Restricted' },
-    { value: 'personal',                   label: 'Personal Only' },
-    { value: 'prohibited',                 label: catNameMap['prohibited']                 ?? 'Prohibited' },
-  ]
+  // Derived from the org's actual governance categories — never shows removed categories
+  const clsFilterOptions = useMemo(() => [
+    { value: 'not-set', label: 'Not Set' },
+    ...orgCategories
+      .filter(c => c.system_tag && c.system_tag !== 'unknown')
+      .map(c => ({ value: c.system_tag as string, label: c.name })),
+  ], [orgCategories])
 
   const riskFilterOptions = [
     { value: 'low',      label: 'Low Risk (≥85)'   },
@@ -942,6 +1098,7 @@ export function AppCatalogClient({ entries, totalInDb, orgCategories = [] }: Pro
 
       {/* Toolbar */}
       <div className="flex items-center gap-2 flex-wrap">
+        {/* Search */}
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
           <input
@@ -959,18 +1116,52 @@ export function AppCatalogClient({ entries, totalInDb, orgCategories = [] }: Pro
           )}
         </div>
 
-        <FilterSelect options={riskFilterOptions} value={filterRisk} onChange={v => { setFilterRisk(v); resetPage() }} placeholder="Risk" />
-        <FilterSelect options={clsFilterOptions} value={filterCls} onChange={v => { setFilterCls(v); resetPage() }} placeholder="Classification" />
-        {groupOptions.length > 1 && (
-          <MultiFilterSelect options={groupOptions} value={filterGroups} onChange={v => { setFilterGroups(v); resetPage() }} placeholder="Category" />
-        )}
+        {/* Unified filter button */}
+        <AddFilterButton
+          riskOptions={riskFilterOptions}
+          clsOptions={clsFilterOptions}
+          groupOptions={groupOptions}
+          filterRisk={filterRisk}
+          filterCls={filterCls}
+          filterGroups={filterGroups}
+          onRisk={v => { setFilterRisk(v); resetPage() }}
+          onCls={v => { setFilterCls(v); resetPage() }}
+          onGroups={v => { setFilterGroups(v); resetPage() }}
+          activeFilters={activeFilters}
+        />
 
-        {activeFilters > 0 && (
-          <button onClick={clearAllFilters} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground/70 hover:text-foreground border border-border hover:border-border-strong transition-colors">
-            <X className="w-3 h-3" />Clear ({activeFilters})
+        {/* Active filter chips */}
+        {filterRisk && (
+          <FilterChip
+            label={`Risk: ${riskFilterOptions.find(o => o.value === filterRisk)?.label ?? filterRisk}`}
+            onRemove={() => { setFilterRisk(''); resetPage() }}
+          />
+        )}
+        {filterCls && (
+          <FilterChip
+            label={`Classification: ${clsFilterOptions.find(o => o.value === filterCls)?.label ?? filterCls}`}
+            onRemove={() => { setFilterCls(''); resetPage() }}
+          />
+        )}
+        {filterGroups.map(g => (
+          <FilterChip
+            key={g}
+            label={`Group: ${g}`}
+            onRemove={() => { setFilterGroups(prev => prev.filter(f => f !== g)); resetPage() }}
+          />
+        ))}
+
+        {/* Clear all (only when 2+ filters active) */}
+        {activeFilters > 1 && (
+          <button
+            onClick={clearAllFilters}
+            className="text-xs text-muted-foreground/50 hover:text-foreground/60 transition-colors px-1"
+          >
+            Clear all
           </button>
         )}
 
+        {/* View toggle */}
         <div className="ml-auto flex items-center gap-0.5 rounded-lg border border-border bg-card/50 p-1">
           <button onClick={() => setView('table')} className={cn('p-1.5 rounded-md transition-colors', view === 'table' ? 'bg-muted text-foreground' : 'text-muted-foreground/50 hover:text-foreground/70')} title="Table view">
             <LayoutList className="w-3.5 h-3.5" />
@@ -987,12 +1178,10 @@ export function AppCatalogClient({ entries, totalInDb, orgCategories = [] }: Pro
 
       {selectedIds.size > 0 && (
         <BulkActionBar count={selectedIds.size} onClear={() => setSelectedIds(new Set())} onApply={handleBulkApply} isPending={isBulkPending} clsOptions={[
-          { value: 'enterprise-approved',        label: catNameMap['enterprise-approved']        ?? 'Approved & Supported' },
-          { value: 'approved-with-conditions',   label: catNameMap['approved-with-conditions']   ?? 'Approved with Conditions' },
-          { value: 'permitted-with-restriction', label: catNameMap['permitted-with-restriction'] ?? 'Restricted / Unassessed' },
-          { value: 'personal',                   label: 'Personal' },
-          { value: 'unknown',                    label: 'Unknown' },
-          { value: 'prohibited',                 label: catNameMap['prohibited']                 ?? 'Prohibited' },
+          ...orgCategories
+            .filter(c => c.system_tag && c.system_tag !== 'unknown')
+            .map(c => ({ value: c.system_tag as string, label: c.name })),
+          { value: 'unknown', label: 'Not Set' },
         ]} />
       )}
 

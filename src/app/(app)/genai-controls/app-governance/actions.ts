@@ -187,31 +187,6 @@ export async function deleteGenAICategory(categoryId: string): Promise<{ error?:
   return {}
 }
 
-export async function saveRefAppData(
-  appSlug: string,
-  data: { notes?: string; in_scope?: boolean; classification?: string | null },
-): Promise<{ error?: string }> {
-  const user = await requireRole('analyst')
-  const supabase = await createClient()
-
-  const { error } = await supabase
-    .from('org_reference_app_notes')
-    .upsert(
-      {
-        org_id:         user.orgId,
-        app_slug:       appSlug,
-        notes:          data.notes ?? null,
-        in_scope:       data.in_scope ?? false,
-        classification: data.classification ?? null,
-        updated_at:     new Date().toISOString(),
-      },
-      { onConflict: 'org_id,app_slug' },
-    )
-
-  if (error) return { error: error.message }
-  revalidatePath('/genai-controls/app-governance')
-  return {}
-}
 
 export async function setAppGovernanceClassification(
   appId: string,
