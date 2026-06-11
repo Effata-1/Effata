@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, Download, ChevronDown, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { AUDIT_CATEGORIES, CATEGORY_LABEL_FOR_VALUE } from '../_lib/audit-actions'
+import { AUDIT_CATEGORIES } from '../_lib/audit-actions'
 import { FilterChip, AddFilterButton } from '@/components/ui/add-filter-button'
 
 interface Props {
@@ -49,11 +49,6 @@ export function AuditFilters({ currentRange, currentSeverity, currentCategory, c
     router.push(`/settings/admin/audit-log${qs ? `?${qs}` : ''}`)
   }, [currentRange, currentSeverity, currentCategory, currentUser, router])
 
-  function clearFilters() {
-    navigate({ severity: 'all', category: 'all', user: '' })
-    if (searchRef.current) searchRef.current.value = ''
-  }
-
   function handleUserSearch(value: string) {
     if (searchTimer.current) clearTimeout(searchTimer.current)
     searchTimer.current = setTimeout(() => navigate({ user: value }), 400)
@@ -67,8 +62,6 @@ export function AuditFilters({ currentRange, currentSeverity, currentCategory, c
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [rangeOpen])
-
-  const activeFilterCount = [currentSeverity !== 'all', currentCategory !== 'all', !!currentUser].filter(Boolean).length
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -98,29 +91,12 @@ export function AuditFilters({ currentRange, currentSeverity, currentCategory, c
         onChange={(key, val) => navigate({ [key]: (val as string) || 'all' })}
       />
 
-      {/* Active filter chips */}
-      {currentSeverity !== 'all' && (
-        <FilterChip
-          label={`Severity: ${SEVERITY_OPTIONS.find(o => o.value === currentSeverity)?.label ?? currentSeverity}`}
-          onRemove={() => navigate({ severity: 'all' })}
-        />
-      )}
-      {currentCategory !== 'all' && (
-        <FilterChip
-          label={`Type: ${CATEGORY_LABEL_FOR_VALUE[currentCategory] ?? currentCategory}`}
-          onRemove={() => navigate({ category: 'all' })}
-        />
-      )}
+      {/* User chip rendered externally (not managed by AddFilterButton) */}
       {currentUser && (
         <FilterChip
           label={`User: ${currentUser}`}
           onRemove={() => { navigate({ user: '' }); if (searchRef.current) searchRef.current.value = '' }}
         />
-      )}
-      {activeFilterCount >= 2 && (
-        <button onClick={clearFilters} className="text-xs text-muted-foreground/50 hover:text-foreground transition-colors">
-          Clear all
-        </button>
       )}
 
       {/* Spacer */}

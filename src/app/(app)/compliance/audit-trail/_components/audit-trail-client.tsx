@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { Search, X } from 'lucide-react'
 import type { AuditEntry, RegulationRef } from '../page'
-import { FilterChip, AddFilterButton } from '@/components/ui/add-filter-button'
+import { AddFilterButton } from '@/components/ui/add-filter-button'
 import { usePagination } from '@/hooks/use-pagination'
 
 const STATUS_STYLE: Record<string, { label: string; color: string; bg: string }> = {
@@ -108,13 +108,6 @@ export function AuditTrailClient({
             if (key === 'ctrl') setCtrl(val as string[])
           }}
         />
-        {regFilter.map(r  => <FilterChip key={r} label={`Reg: ${regulations.find(x => x.code === r)?.short_name ?? r}`}  onRemove={() => setReg(prev => prev.filter(v => v !== r))} />)}
-        {ctrlFilter.map(c => <FilterChip key={c} label={`Control: ${controls.find(x => x.key === c)?.label ?? c}`}       onRemove={() => setCtrl(prev => prev.filter(v => v !== c))} />)}
-        {(regFilter.length + ctrlFilter.length) >= 2 && (
-          <button onClick={() => { setReg([]); setCtrl([]) }} className="text-xs text-muted-foreground/50 hover:text-foreground transition-colors">
-            Clear all
-          </button>
-        )}
 
         <span className="text-xs text-muted-foreground/60 ml-auto">
           {pg.total} {pg.total === 1 ? 'entry' : 'entries'}

@@ -15,7 +15,7 @@ import {
   searchApps,
 } from '../actions'
 import type { EnrichedDestination, CustomDestination, TrustTag, RiskLevel } from '../actions'
-import { FilterChip, AddFilterButton } from '@/components/ui/add-filter-button'
+import { AddFilterButton } from '@/components/ui/add-filter-button'
 
 // ─── Trust tag metadata ────────────────────────────────────────────────────────
 
@@ -962,15 +962,6 @@ export function DestinationsClient({
             if (key === 'scope') setFilterScope(val as string)
           }}
         />
-        {filterTags.map(t  => <FilterChip key={t} label={`Tag: ${TRUST_TAGS[t as TrustTag]?.label ?? t}`}  onRemove={() => setFilterTags(prev => prev.filter(v => v !== t))} />)}
-        {filterRisk.map(r  => <FilterChip key={r} label={`Risk: ${RISK_META[r as RiskLevel]?.label ?? r}`} onRemove={() => setFilterRisk(prev => prev.filter(v => v !== r))} />)}
-        {filterSub   && <FilterChip label={`Category: ${filterSub.replace(/_/g, ' ')}`} onRemove={() => setFilterSub('')} />}
-        {filterScope && <FilterChip label={`Scope: ${filterScope === 'in_scope' ? 'In Scope' : 'Out of Scope'}`} onRemove={() => setFilterScope('')} />}
-        {(filterTags.length + filterRisk.length + (filterSub ? 1 : 0) + (filterScope ? 1 : 0)) >= 2 && (
-          <button onClick={() => { setFilterTags([]); setFilterRisk([]); setFilterSub(''); setFilterScope('') }} className="text-xs text-muted-foreground/50 hover:text-foreground transition-colors">
-            Clear all
-          </button>
-        )}
       </div>
 
       {/* Sections */}

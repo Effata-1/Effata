@@ -8,7 +8,7 @@ import { toggleInScope, setClassification, addCustomDataType, batchToggleInScope
 import { colorClasses, SYSTEM_LEVEL_META, RISK_FAMILIES, RISK_FAMILY_META } from '@/lib/data-catalog/types'
 import type { OrgClassificationLabel, SystemLevel, RiskFamily } from '@/lib/data-catalog/types'
 import { pageById } from '@/lib/nav'
-import { FilterChip, AddFilterButton } from '@/components/ui/add-filter-button'
+import { AddFilterButton } from '@/components/ui/add-filter-button'
 import { FILENAME_DETECTION_ENTRIES } from '@/lib/data-catalog/filename-keywords'
 import type { FilenameDetectionEntry, FilenameKeywordGroup } from '@/lib/data-catalog/filename-keywords'
 
@@ -1221,19 +1221,6 @@ export function CatalogClient({
             if (key === 'scope')      setScopeFilter(val as string)
           }}
         />
-        {levelFilter.map(v     => <FilterChip key={v} label={`Level: ${levelFilterOptions.find(o => o.value === v)?.label ?? v}`}      onRemove={() => setLevelFilter(prev => prev.filter(f => f !== v))} />)}
-        {subcatFilter          && <FilterChip label={`Category: ${subcatFilter}`}                                                        onRemove={() => setSubcatFilter('')} />}
-        {riskFamilyFilter && riskFamilyFilter !== 'all' && <FilterChip label={`Risk Family: ${riskFamilyFilter}`}                        onRemove={() => setRiskFamilyFilter('')} />}
-        {complianceFilter.map(v => <FilterChip key={v} label={`Compliance: ${COMPLIANCE_FILTER_TAGS.find(o => o.value === v)?.label ?? v}`} onRemove={() => setComplianceFilter(prev => prev.filter(f => f !== v))} />)}
-        {scopeFilter           && <FilterChip label={`Type: ${scopeFilter === 'in_scope' ? 'In scope' : 'Not selected'}`}               onRemove={() => setScopeFilter('')} />}
-        {(levelFilter.length + complianceFilter.length + (subcatFilter ? 1 : 0) + (riskFamilyFilter && riskFamilyFilter !== 'all' ? 1 : 0) + (scopeFilter ? 1 : 0)) >= 2 && (
-          <button
-            onClick={() => { setLevelFilter([]); setSubcatFilter(''); setRiskFamilyFilter(''); setComplianceFilter([]); setScopeFilter('') }}
-            className="text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-          >
-            Clear all
-          </button>
-        )}
 
         <span className="ml-auto text-sm text-muted-foreground/60 whitespace-nowrap">
           {filtered.length} of {optimisticCatalog.length} types

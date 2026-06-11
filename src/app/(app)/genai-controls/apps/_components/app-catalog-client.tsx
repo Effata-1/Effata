@@ -14,7 +14,7 @@ import type { EvaluatedAppCard } from '../actions'
 import { AppLogo } from './app-logo'
 import { CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
 import { FilterSelect } from '@/components/ui/filter-select'
-import { FilterChip, AddFilterButton } from '@/components/ui/add-filter-button'
+import { AddFilterButton } from '@/components/ui/add-filter-button'
 import type { FilterSectionDef } from '@/components/ui/add-filter-button'
 import type { GenAIApp, CustomerClassification, TrustScores, CustomerClass } from '@/lib/genai/types'
 
@@ -966,36 +966,6 @@ export function AppCatalogClient({ entries, totalInDb, orgCategories = [] }: Pro
           }}
         />
 
-        {/* Active filter chips */}
-        {filterRisk && (
-          <FilterChip
-            label={`Risk: ${riskFilterOptions.find(o => o.value === filterRisk)?.label ?? filterRisk}`}
-            onRemove={() => { setFilterRisk(''); resetPage() }}
-          />
-        )}
-        {filterCls && (
-          <FilterChip
-            label={`Classification: ${clsFilterOptions.find(o => o.value === filterCls)?.label ?? filterCls}`}
-            onRemove={() => { setFilterCls(''); resetPage() }}
-          />
-        )}
-        {filterGroups.map(g => (
-          <FilterChip
-            key={g}
-            label={`Group: ${g}`}
-            onRemove={() => { setFilterGroups(prev => prev.filter(f => f !== g)); resetPage() }}
-          />
-        ))}
-
-        {/* Clear all (only when 2+ filters active) */}
-        {activeFilters > 1 && (
-          <button
-            onClick={clearAllFilters}
-            className="text-xs text-muted-foreground/50 hover:text-foreground/60 transition-colors px-1"
-          >
-            Clear all
-          </button>
-        )}
 
         {/* View toggle */}
         <div className="ml-auto flex items-center gap-0.5 rounded-lg border border-border bg-card/50 p-1">

@@ -5,7 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import Link from 'next/link'
 import { Plus, Pencil, X, Settings2, ChevronDown, Loader2, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { FilterChip, AddFilterButton } from '@/components/ui/add-filter-button'
+import { AddFilterButton } from '@/components/ui/add-filter-button'
 import { colorClasses } from '@/lib/data-catalog/types'
 import { CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
 import { computeTrustScore } from '@/lib/genai/scoring'
@@ -518,8 +518,6 @@ export function GovernanceClient({ categories, appsByCategoryTag, userRole }: Pr
     return result
   }, [appsByCategoryTag, search, filterRisk, filterScope])
 
-  const activeFilters = (filterRisk ? 1 : 0) + (filterScope ? 1 : 0)
-
   return (
     <div className="flex gap-0">
       <div className="flex-1 min-w-0 space-y-4">
@@ -577,13 +575,6 @@ export function GovernanceClient({ categories, appsByCategoryTag, userRole }: Pr
             }}
           />
 
-          {filterRisk  && <FilterChip label={`Risk: ${RISK_OPTIONS.find(o => o.value === filterRisk)?.label ?? filterRisk}`}    onRemove={() => setFilterRisk('')}  />}
-          {filterScope && <FilterChip label={`Scope: ${SCOPE_OPTIONS.find(o => o.value === filterScope)?.label ?? filterScope}`} onRemove={() => setFilterScope('')} />}
-          {activeFilters >= 2 && (
-            <button onClick={() => { setFilterRisk(''); setFilterScope('') }} className="text-xs text-muted-foreground/50 hover:text-foreground transition-colors">
-              Clear all
-            </button>
-          )}
         </div>
 
         {/* Category sections */}
