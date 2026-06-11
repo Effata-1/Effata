@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
+import { callData } from '@/lib/api-client.server'
 import {
   validateNeutralPolicy,
   NPJ_CHANNELS_CONTENT_DETECTION,
@@ -1059,10 +1060,28 @@ export async function syncRecommendedPolicies(
       .delete().eq('org_id', user.orgId).in('policy_key', deleteKeys)
     if (error) console.error('[syncRecommendedPolicies] bulk delete:', error.message)
   }
+
+  let upsertOk = true
   if (upsertRows.length > 0) {
-    const { error } = await supabase.from('org_genai_policies')
+    const { error: upsertError } = await supabase.from('org_genai_policies')
       .upsert(upsertRows, { onConflict: 'org_id,policy_key' })
-    if (error) console.error('[syncRecommendedPolicies] bulk upsert:', error.message)
+    if (upsertError) {
+      console.error('[syncRecommendedPolicies] bulk upsert:', upsertError.message)
+      upsertOk = false
+    }
+  }
+
+  // ── Auto-enqueue translation for any policies that became pending ─────────────
+  const hasPending = upsertRows.some(r => r.vendor_translation_status === 'pending')
+  if (upsertOk && hasPending) {
+    try {
+      await callData('/api/jobs', {
+        method: 'POST',
+        body: { jobType: 'policy-translate', payload: { vendor_id: 'netskope', policy_source: 'recommended', only_pending: true } },
+      })
+    } catch (e) {
+      console.error('[syncRecommendedPolicies] enqueue translate:', e)
+    }
   }
 
   revalidatePath('/genai-controls/policies')
