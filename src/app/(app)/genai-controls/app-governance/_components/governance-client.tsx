@@ -283,7 +283,8 @@ function CategorySection({
   const [open, setOpen] = useState(false)
   const shouldReduceMotion = useReducedMotion()
 
-  useEffect(() => { if (forceOpen) setOpen(true) }, [forceOpen])
+  // Derived state during render — avoids calling setState synchronously in an effect
+  if (forceOpen && !open) setOpen(true)
   const cc = colorClasses(category.color)
 
   const inScopeCount = apps.filter(e =>
@@ -494,7 +495,7 @@ export function GovernanceClient({ categories, appsByCategoryTag, userRole }: Pr
   const isFiltering = !!(search.trim() || filterRisk || filterScope)
 
   const filteredAppsByTag = useMemo(() => {
-    if (!isFiltering) return appsByCategoryTag
+    if (!search.trim() && !filterRisk && !filterScope) return appsByCategoryTag
     const q = search.toLowerCase().trim()
     const result: Record<string, AppEntry[]> = {}
     for (const [tag, entries] of Object.entries(appsByCategoryTag)) {

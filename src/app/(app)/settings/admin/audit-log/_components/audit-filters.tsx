@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { X, Download, ChevronDown, Search } from 'lucide-react'
+import { Download, ChevronDown, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AUDIT_CATEGORIES } from '../_lib/audit-actions'
 import { FilterChip, AddFilterButton } from '@/components/ui/add-filter-button'
