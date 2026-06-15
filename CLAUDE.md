@@ -38,7 +38,7 @@ A DLP Maturity Assessment SaaS for Netskope customers. It sits above Netskope an
 | **Neutral Policy JSON (NPJ)** | Vendor-agnostic policy representation. Translates to Netskope today, Purview in V5. Never let AI write config steps directly. |
 | `org_id` on every table + RLS | Multi-tenant isolation. Cannot be added later without rebuilding. |
 | `syncRecommendedPolicies` batches upserts | Was 30+ sequential DB calls per page load. Now 2 bulk ops (delete + upsert). |
-| `requireRole()` everywhere | After audit: compliance/regulations/actions.ts was manually decoding JWT. All server actions now use `requireRole`. |
+| `requireRole()` everywhere | `getSessionUser()` calls `getUser()` (server round-trip, verified identity) then `getClaims()` for custom claims (`org_id`, `user_role`). `id` and `email` come from the verified `getUser()` response — not raw JWT claims. 144 callsites across 48 files. |
 | Toast via Sonner | `alert()` removed. `theme="system"` respects OS dark/light preference. |
 | Framer Motion with `useReducedMotion` | All animations skip when OS "reduce motion" is enabled. |
 

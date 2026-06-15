@@ -246,27 +246,54 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
     // Atomically clear coaching if incompatible with new action
     const newCoachingId = templateIncompatible ? null : currentCoachingId
 
-    setLocalOverrides(prev => ({ ...prev, [`${rowKey}::${selectedCat.id}`]: { action, coachingId: newCoachingId } }))
+    const cellKey     = `${rowKey}::${selectedCat.id}`
+    const prevOverride = localOverrides[cellKey] ?? null
+    setLocalOverrides(prev => ({ ...prev, [cellKey]: { action, coachingId: newCoachingId } }))
     startTransition(async () => {
       const r = await upsertControlMatrixCell(rowKey, selectedCat.id, action, newCoachingId)
+      if (r.error) {
+        toast.error('Failed to save', { description: r.error })
+        setLocalOverrides(prev => {
+          const next = { ...prev }
+          if (prevOverride === null) delete next[cellKey]
+          else next[cellKey] = prevOverride
+          return next
+        })
+      }
       if (r.warning) { setSyncWarning(r.warning); toast.warning(r.warning) }
     })
   }
 
   function handleCoaching(rowKey: string, coachingId: string | null, effectiveAction: ActionCode) {
     if (!selectedCat) return
-    setLocalOverrides(prev => ({ ...prev, [`${rowKey}::${selectedCat.id}`]: { action: effectiveAction, coachingId } }))
+    const cellKey      = `${rowKey}::${selectedCat.id}`
+    const prevOverride = localOverrides[cellKey] ?? null
+    setLocalOverrides(prev => ({ ...prev, [cellKey]: { action: effectiveAction, coachingId } }))
     startTransition(async () => {
       const r = await upsertControlMatrixCell(rowKey, selectedCat.id, effectiveAction, coachingId)
+      if (r.error) {
+        toast.error('Failed to save', { description: r.error })
+        setLocalOverrides(prev => {
+          const next = { ...prev }
+          if (prevOverride === null) delete next[cellKey]
+          else next[cellKey] = prevOverride
+          return next
+        })
+      }
       if (r.warning) { setSyncWarning(r.warning); toast.warning(r.warning) }
     })
   }
 
   function handlePostureToggle(catId: string, current: 'allow' | 'allow_dlp' | 'block') {
-    const next = current === 'allow' ? 'allow_dlp' : current === 'allow_dlp' ? 'block' : 'allow'
+    const next         = current === 'allow' ? 'allow_dlp' : current === 'allow_dlp' ? 'block' : 'allow'
+    const prevPosture  = localPostures[catId] ?? current
     setLocalPostures(prev => ({ ...prev, [catId]: next }))
     startTransition(async () => {
       const r = await updateCategoryAccessPosture(catId, next)
+      if (r.error) {
+        toast.error('Failed to save posture', { description: r.error })
+        setLocalPostures(prev => ({ ...prev, [catId]: prevPosture }))
+      }
       if (r.warning) { setSyncWarning(r.warning); toast.warning(r.warning) }
     })
   }
@@ -286,8 +313,16 @@ export function ControlMatrixClient({ categories, overrides, labels, customerLab
 
   function handleReset(rowKey: string) {
     if (!selectedCat) return
-    setLocalOverrides(prev => { const n = { ...prev }; delete n[`${rowKey}::${selectedCat.id}`]; return n })
-    startTransition(async () => { await deleteControlMatrixCell(rowKey, selectedCat.id) })
+    const cellKey      = `${rowKey}::${selectedCat.id}`
+    const prevOverride = localOverrides[cellKey]
+    setLocalOverrides(prev => { const n = { ...prev }; delete n[cellKey]; return n })
+    startTransition(async () => {
+      const r = await deleteControlMatrixCell(rowKey, selectedCat.id)
+      if (r.error) {
+        toast.error('Failed to reset', { description: r.error })
+        if (prevOverride !== undefined) setLocalOverrides(prev => ({ ...prev, [cellKey]: prevOverride }))
+      }
+    })
   }
 
   function renderCell(rowKey: string, defaultAction: ActionCode | null, defaultCoachingId: string | null = null) {

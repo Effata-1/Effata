@@ -62,24 +62,28 @@ export async function createCustomTool(
 export async function updateCustomTool(
   id:       string,
   toolData: CustomToolData,
-): Promise<void> {
+): Promise<{ error?: string }> {
   const user     = await requireRole('analyst')
   const supabase = await createClient()
-  await supabase
+  const { error } = await supabase
     .from('custom_dlp_tools')
     .update({ tool_data: toolData, updated_at: new Date().toISOString() })
     .eq('id', id)
     .eq('org_id', user.orgId)
+  if (error) return { error: error.message }
   revalidatePath('/dlp-tools/market')
+  return {}
 }
 
-export async function deleteCustomTool(id: string): Promise<void> {
+export async function deleteCustomTool(id: string): Promise<{ error?: string }> {
   const user     = await requireRole('analyst')
   const supabase = await createClient()
-  await supabase
+  const { error } = await supabase
     .from('custom_dlp_tools')
     .delete()
     .eq('id', id)
     .eq('org_id', user.orgId)
+  if (error) return { error: error.message }
   revalidatePath('/dlp-tools/market')
+  return {}
 }

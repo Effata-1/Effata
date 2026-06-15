@@ -21,11 +21,12 @@ export async function upsertAdvisorChat(
   const supabase = await createClient()
 
   if (chatId) {
-    await supabase
+    const { error } = await supabase
       .from('dlp_advisor_chats')
       .update({ messages, title })
       .eq('id', chatId)
       .eq('user_id', user.id)
+    if (error) return null
     return chatId
   }
 
@@ -66,12 +67,14 @@ export async function loadAdvisorChat(
   return data as { title: string; messages: MessageRow[] } | null
 }
 
-export async function deleteAdvisorChat(chatId: string): Promise<void> {
+export async function deleteAdvisorChat(chatId: string): Promise<{ error?: string }> {
   const user     = await requireRole('analyst')
   const supabase = await createClient()
-  await supabase
+  const { error } = await supabase
     .from('dlp_advisor_chats')
     .delete()
     .eq('id', chatId)
     .eq('user_id', user.id)
+  if (error) return { error: error.message }
+  return {}
 }
