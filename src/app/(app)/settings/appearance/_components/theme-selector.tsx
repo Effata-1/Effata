@@ -2,7 +2,9 @@
 
 import { useTheme } from 'next-themes'
 import { Sun, Monitor, Moon, Check } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { saveThemePreference } from '../actions'
 
 const OPTIONS = [
   { value: 'light',  Icon: Sun,     label: 'Light',  desc: 'Always use light theme'   },
@@ -13,6 +15,14 @@ const OPTIONS = [
 export function ThemeSelector() {
   const { theme, setTheme } = useTheme()
 
+  async function handleSetTheme(value: string) {
+    setTheme(value)
+    const result = await saveThemePreference(value)
+    if (result.error) {
+      toast.error('Theme preference could not be saved', { description: result.error })
+    }
+  }
+
   return (
     <div className="grid grid-cols-3 gap-3">
       {OPTIONS.map(({ value, Icon, label, desc }) => {
@@ -20,7 +30,7 @@ export function ThemeSelector() {
         return (
           <button
             key={value}
-            onClick={() => setTheme(value)}
+            onClick={() => handleSetTheme(value)}
             className={cn(
               'flex flex-col items-center gap-2.5 p-4 rounded-xl border transition-all text-center',
               active
