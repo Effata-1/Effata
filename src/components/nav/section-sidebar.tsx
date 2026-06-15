@@ -4,12 +4,15 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { logout } from '@/app/auth/actions'
 import { cn } from '@/lib/utils'
-import { Shield, ArrowLeft, LogOut } from 'lucide-react'
+import { Shield, ArrowLeft, LogOut, FileOutput } from 'lucide-react'
 
 interface NavItem {
-  label:   string
-  href?:   string   // omit for group headers
-  isGroup?: boolean // renders as a non-link section label
+  label:    string
+  href?:    string    // omit for group headers
+  isGroup?: boolean   // renders as a non-link section label
+  indent?:  boolean   // visually nested under the previous item
+  step?:    number    // renders "N ·" prefix (GenAI spine)
+  badge?:   'deliverable' // renders a FileOutput icon right-aligned
 }
 
 interface Props {
@@ -58,13 +61,18 @@ export function SectionSidebar({ title, items, backHref = '/dashboard' }: Props)
               key={item.href}
               href={item.href!}
               className={cn(
-                'block pl-[10px] pr-3 py-2 rounded-md text-sm transition-all border-l-2',
+                'flex items-center pr-3 py-1.5 rounded-md transition-all border-l-2',
+                item.indent ? 'pl-5 text-xs' : 'pl-[10px] py-2 text-sm',
                 isActive
                   ? 'bg-sidebar-accent text-foreground font-medium border-blue-500'
                   : 'text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50 border-transparent'
               )}
             >
-              {item.label}
+              {item.indent && <span className="mr-1 text-muted-foreground/40">↳</span>}
+              <span className="flex-1">{item.label}</span>
+              {item.badge === 'deliverable' && (
+                <FileOutput className="h-3 w-3 text-muted-foreground/40 shrink-0" />
+              )}
             </Link>
           )
         })}

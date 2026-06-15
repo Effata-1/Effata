@@ -3,8 +3,8 @@ export const maxDuration = 300
 
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
-import { callData } from '@/lib/api-client.server'
 import { computeTrustScore } from '@/lib/genai/scoring'
+import { ensureGenAIGovernanceCategories } from '../app-governance/actions'
 import { AppCatalogClient } from './_components/app-catalog-client'
 import type { CatalogEntry } from './_components/app-catalog-client'
 import type { GenAIApp, GenAIAppProfile, CustomerClassification } from '@/lib/genai/types'
@@ -12,15 +12,6 @@ import type { GenAIApp, GenAIAppProfile, CustomerClassification } from '@/lib/ge
 export default async function GenAIAppCatalogPage() {
   const user = await requireRole('analyst')
   const supabase = await createClient()
-
-  // Last refresh run via Railway
-  let lastRunInfo: { status: string; apps_updated: number; apps_added: number } | null = null
-  try {
-    const runs = await callData<Array<{ status: string; apps_updated: number; apps_added: number }>>(
-      '/api/data/genai-research-runs',
-    )
-    lastRunInfo = runs[0] ?? null
-  } catch { /* ignore — non-critical */ }
 
   // All active apps
   const { data: allApps } = await supabase
@@ -40,12 +31,9 @@ export default async function GenAIAppCatalogPage() {
     .select('*')
     .eq('org_id', user.orgId)
 
-  // Org governance categories — needed for dynamic classification labels
-  const { data: orgCategories } = await supabase
-    .from('org_genai_governance_categories')
-    .select('system_tag, name')
-    .eq('org_id', user.orgId)
-    .eq('active', true)
+  // Org governance categories — seeds defaults if this org hasn't visited App Governance yet,
+  // ensuring the Classification filter and bulk-action options are never empty on first visit.
+  const orgCategories = await ensureGenAIGovernanceCategories()
 
   // One profile per app — first found wins (DB has UNIQUE(app_id, mode))
   const profileMap = new Map<string, GenAIAppProfile>()
@@ -74,9 +62,8 @@ export default async function GenAIAppCatalogPage() {
   return (
     <AppCatalogClient
       entries={entries}
-      lastRunInfo={lastRunInfo}
       totalInDb={totalInDb}
-      orgCategories={orgCategories ?? []}
+      orgCategories={orgCategories}
     />
   )
 }

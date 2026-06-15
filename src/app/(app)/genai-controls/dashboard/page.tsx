@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { BarChart3, Clock, Globe, ShieldCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/auth'
 import { computeTrustScore } from '@/lib/genai/scoring'
 import type { AppFields, DLPActivities, BreachInfo, ApprovalStatus } from '@/lib/genai/types'
 import { StatCard } from './_components/stat-card'
@@ -12,12 +13,8 @@ import { ResearchStatus } from './_components/research-status'
 import { FadeIn } from '@/components/ui/fade-in'
 
 export default async function GenAIDashboardPage() {
+  const { orgId } = await requireRole('analyst')
   const supabase = await createClient()
-
-  const sessionResult = await supabase.auth.getSession()
-  const orgId: string | null = sessionResult.data.session?.access_token
-    ? (JSON.parse(atob(sessionResult.data.session.access_token.split('.')[1]))?.org_id ?? null)
-    : null
 
   const today = new Date().toISOString().split('T')[0]
 

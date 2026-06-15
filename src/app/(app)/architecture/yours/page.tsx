@@ -44,7 +44,7 @@ export default async function YourArchitecturePage() {
       coveredBy:   hasTools ? cov.coveredBy : [],
       activities:  (channel?.activities ?? []).slice(0, 5).map(a => a.name),
       risks:       (channel?.risks      ?? []).slice(0, 5).map(r => ({ area: r.area, level: r.level })),
-      channelHref: `/channels/${slug}`,
+      channelHref: `/foundation/channels/${slug}`,
     }
   })
 

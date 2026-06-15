@@ -4,10 +4,12 @@ import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Send, Loader2, Sparkles, CheckCircle2, XCircle, AlertCircle,
-  FileText, Plus, ArrowRight,
+  FileText, Plus, ArrowRight, Cloud, CloudOff,
 } from 'lucide-react'
-import { chatWithAI, createReportFromDraft } from '../ai-actions'
-import type { ChatMessage, AIDraft, AIDraftTest } from '../ai-actions'
+import {
+  chatWithAI, createReportFromDraft, saveDraft, updateDraft, finalizeDraft,
+} from '../ai-actions'
+import type { ChatMessage, AIDraft, AIDraftTest, DisplayMessage } from '../ai-actions'
 import type { FinalStatus } from '../actions'
 
 // ── Label helpers ─────────────────────────────────────────────────────────────
@@ -77,12 +79,15 @@ function TestPreviewCard({ test, num }: { test: Partial<AIDraftTest>; num: numbe
   )
 }
 
+type SaveState = 'idle' | 'saving' | 'saved'
+
 function DraftPreview({
-  draft, ready, creating, onCreateReport,
+  draft, ready, creating, saveState, onCreateReport,
 }: {
   draft:          AIDraft
   ready:          boolean
   creating:       boolean
+  saveState:      SaveState
   onCreateReport: () => void
 }) {
   const filledCount = [
@@ -96,6 +101,17 @@ function DraftPreview({
         <FileText className="w-4 h-4 text-muted-foreground/80" />
         <p className="text-xs font-semibold text-muted-foreground">Report Draft</p>
         <span className="ml-auto text-[10px] text-muted-foreground/60">{filledCount}/5 fields</span>
+        {/* Save state indicator */}
+        {saveState === 'saving' && (
+          <span className="flex items-center gap-1 text-[9px] text-muted-foreground/50">
+            <Cloud className="w-3 h-3 animate-pulse" /> Saving…
+          </span>
+        )}
+        {saveState === 'saved' && (
+          <span className="flex items-center gap-1 text-[9px] text-emerald-500/70">
+            <CloudOff className="w-3 h-3" /> Saved
+          </span>
+        )}
       </div>
 
       {/* Report header fields */}
@@ -128,7 +144,7 @@ function DraftPreview({
         )}
       </div>
 
-      {/* Create report button */}
+      {/* Create / complete button */}
       <div className="pt-3 mt-3 border-t border-border">
         {ready ? (
           <button
@@ -137,15 +153,15 @@ function DraftPreview({
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors"
           >
             {creating
-              ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating report…</>
-              : <><ArrowRight className="w-4 h-4" /> Create Report</>
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
+              : <><ArrowRight className="w-4 h-4" /> Save &amp; Complete</>
             }
           </button>
         ) : (
           <div className="flex items-center gap-2 px-3 py-2.5 bg-card/50 border border-border rounded-lg">
             <AlertCircle className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
             <p className="text-[10px] text-muted-foreground/60">
-              Keep describing your tests — the Create button will appear when there&apos;s enough to build the report.
+              Keep describing your tests — the Save button will appear when there&apos;s enough to build the report.
             </p>
           </div>
         )}
@@ -183,12 +199,21 @@ function Bubble({ role, text }: { role: 'user' | 'assistant'; text: string }) {
 const INITIAL_MESSAGE =
   "Hi! Describe your DLP testing scenario and I'll build the evidence report for you.\n\nTell me what you tested — which data types (credit cards, SSNs, PHI, API keys…), which channels or tools you used, and what actually happened when you ran the tests. If any controls missed or fired unexpectedly, mention that too."
 
-interface DisplayMessage {
-  role: 'user' | 'assistant'
-  text: string
+interface Props {
+  initialDraftId?:         string
+  initialDraft?:           AIDraft
+  initialReady?:           boolean
+  initialApiMessages?:     ChatMessage[]
+  initialDisplayMessages?: DisplayMessage[]
 }
 
-export function AIReportBuilder() {
+export function AIReportBuilder({
+  initialDraftId,
+  initialDraft,
+  initialReady,
+  initialApiMessages,
+  initialDisplayMessages,
+}: Props) {
   const router = useRouter()
 
   const [input, setInput]         = useState('')
@@ -196,49 +221,91 @@ export function AIReportBuilder() {
   const [isCreating, startCreate] = useTransition()
   const [createError, setCreateError] = useState<string | null>(null)
 
+  // Draft persistence state
+  const [draftId,   setDraftId]   = useState<string | null>(initialDraftId ?? null)
+  const [saveState, setSaveState] = useState<SaveState>('idle')
+
   // Conversation state
-  // apiMessages = what's sent to the API (assistant content = raw JSON strings)
-  // displayMessages = what the user sees (assistant content = parsed .message field)
-  const [apiMessages, setApiMessages]     = useState<ChatMessage[]>([])
-  const [displayMessages, setDisplayMessages] = useState<DisplayMessage[]>([
-    { role: 'assistant', text: INITIAL_MESSAGE },
-  ])
-  const [draft, setDraft] = useState<AIDraft>({
-    name: null, assessed_on: null, tested_by: null,
-    environment: null, report_type: null, notes: null, tests: [],
-  })
-  const [ready, setReady] = useState(false)
+  const [apiMessages, setApiMessages] = useState<ChatMessage[]>(
+    initialApiMessages ?? []
+  )
+  // When resuming a draft, initialDisplayMessages already includes the greeting.
+  // Prepending INITIAL_MESSAGE again would show the greeting twice.
+  const [displayMessages, setDisplayMessages] = useState<DisplayMessage[]>(
+    initialDisplayMessages && initialDisplayMessages.length > 0
+      ? initialDisplayMessages
+      : [{ role: 'assistant', text: INITIAL_MESSAGE }]
+  )
+  const [draft, setDraft] = useState<AIDraft>(
+    initialDraft ?? {
+      name: null, assessed_on: null, tested_by: null,
+      environment: null, report_type: null, notes: null, tests: [],
+    }
+  )
+  // Restore the exact ready value the AI last reported — not inferred from tests.length.
+  // The AI may have set ready: false even with tests present (e.g. required fields missing).
+  const [ready, setReady] = useState(initialReady ?? false)
 
   const bottomRef = useRef<HTMLDivElement>(null)
-  const inputRef  = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [displayMessages, isPending])
+
+  // Auto-hide "Saved" indicator after 2 s
+  useEffect(() => {
+    if (saveState !== 'saved') return
+    const t = setTimeout(() => setSaveState('idle'), 2000)
+    return () => clearTimeout(t)
+  }, [saveState])
 
   function handleSend() {
     const text = input.trim()
     if (!text || isPending) return
     setInput('')
 
-    const userMsg: ChatMessage   = { role: 'user', content: text }
-    const newApiMessages         = [...apiMessages, userMsg]
+    const userMsg: ChatMessage = { role: 'user', content: text }
+    const newApiMessages = [...apiMessages, userMsg]
+    const newDisplayMessages: DisplayMessage[] = [...displayMessages, { role: 'user', text }]
 
-    setDisplayMessages(prev => [...prev, { role: 'user', text }])
     setApiMessages(newApiMessages)
+    setDisplayMessages(newDisplayMessages)
 
     startTransition(async () => {
       const res = await chatWithAI(newApiMessages)
 
-      // Store the raw JSON response in API history so the AI has context
       const assistantRaw: ChatMessage = {
         role:    'assistant',
         content: JSON.stringify({ message: res.message, ready: res.ready, draft: res.draft }),
       }
-      setApiMessages(prev => [...prev, assistantRaw])
-      setDisplayMessages(prev => [...prev, { role: 'assistant', text: res.message }])
+
+      const nextApiMessages     = [...newApiMessages, assistantRaw]
+      const nextDisplayMessages: DisplayMessage[] = [
+        ...newDisplayMessages,
+        { role: 'assistant', text: res.message },
+      ]
+
+      setApiMessages(nextApiMessages)
+      setDisplayMessages(nextDisplayMessages)
       setDraft(res.draft)
       setReady(res.ready)
+
+      // Auto-save
+      const hasDraftContent = res.draft.name !== null || res.draft.tests.length > 0
+
+      if (draftId === null && hasDraftContent) {
+        setSaveState('saving')
+        const saved = await saveDraft(res.draft, res.ready, nextApiMessages, nextDisplayMessages)
+        if (saved.id) {
+          setDraftId(saved.id)
+          setSaveState('saved')
+        }
+      } else if (draftId !== null) {
+        setSaveState('saving')
+        // fire-and-forget during normal chat
+        updateDraft(draftId, res.draft, res.ready, nextApiMessages, nextDisplayMessages)
+          .then(() => setSaveState('saved'))
+      }
     })
   }
 
@@ -252,12 +319,19 @@ export function AIReportBuilder() {
   function handleCreateReport() {
     setCreateError(null)
     startCreate(async () => {
-      const result = await createReportFromDraft(draft)
-      if (result.error) {
-        setCreateError(result.error)
-        return
+      if (draftId) {
+        // Await final state — ensures last in-flight auto-save does not race with finalize
+        await updateDraft(draftId, draft, ready, apiMessages, displayMessages)
+
+        const result = await finalizeDraft(draftId, draft)
+        if (result.error) { setCreateError(result.error); return }
+        router.push(`/tools/evidence-report/${draftId}`)
+      } else {
+        // Fallback: AI declared ready before any auto-save fired
+        const result = await createReportFromDraft(draft)
+        if (result.error) { setCreateError(result.error); return }
+        router.push(`/tools/evidence-report/${result.id}`)
       }
-      router.push(`/tools/evidence-report/${result.id}`)
     })
   }
 
@@ -295,7 +369,6 @@ export function AIReportBuilder() {
         <div className="border-t border-border p-3">
           <div className="flex items-end gap-2">
             <textarea
-              ref={inputRef}
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -328,6 +401,7 @@ export function AIReportBuilder() {
           draft={draft}
           ready={ready}
           creating={isCreating}
+          saveState={saveState}
           onCreateReport={handleCreateReport}
         />
       </div>

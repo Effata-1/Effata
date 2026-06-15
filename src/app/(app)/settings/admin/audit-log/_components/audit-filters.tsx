@@ -2,14 +2,16 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Filter, X, Download, ChevronRight, Search, ChevronDown } from 'lucide-react'
+import { Download, ChevronDown, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { AUDIT_CATEGORIES } from '../_lib/audit-actions'
+import { FilterChip, AddFilterButton } from '@/components/ui/add-filter-button'
 
 interface Props {
-  currentRange: string
+  currentRange:    string
   currentSeverity: string
   currentCategory: string
-  currentUser: string
+  currentUser:     string
 }
 
 const RANGES = [
@@ -20,25 +22,26 @@ const RANGES = [
   { label: 'Last 90 Days',  value: '90' },
 ]
 
-const SEVERITIES = ['High', 'Medium', 'Low', 'Info']
-const CATEGORIES  = ['Auth', 'GenAI', 'Onboarding', 'Policies']
+const SEVERITY_OPTIONS = [
+  { value: 'high',   label: 'High'   },
+  { value: 'medium', label: 'Medium' },
+  { value: 'low',    label: 'Low'    },
+  { value: 'info',   label: 'Info'   },
+]
 
 export function AuditFilters({ currentRange, currentSeverity, currentCategory, currentUser }: Props) {
-  const router = useRouter()
-  const [openDropdown, setOpenDropdown] = useState<'filter' | 'range' | null>(null)
-  const [activeMenu,   setActiveMenu]   = useState<'severity' | 'category' | null>(null)
-  const filterRef   = useRef<HTMLDivElement>(null)
+  const router    = useRouter()
+  const [rangeOpen, setRangeOpen] = useState(false)
   const rangeRef    = useRef<HTMLDivElement>(null)
   const searchRef   = useRef<HTMLInputElement>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const currentRangeLabel = RANGES.find(r => r.value === currentRange)?.label ?? 'Last 7 Days'
-  const hasFilters = currentSeverity !== 'all' || currentCategory !== 'all' || currentUser !== ''
 
   const navigate = useCallback((overrides: Record<string, string>) => {
     const next = { range: currentRange, severity: currentSeverity, category: currentCategory, user: currentUser, ...overrides }
     const params = new URLSearchParams()
-    if (next.range && next.range !== '7')    params.set('range',    next.range)
+    if (next.range    && next.range    !== '7')   params.set('range',    next.range)
     if (next.severity && next.severity !== 'all') params.set('severity', next.severity)
     if (next.category && next.category !== 'all') params.set('category', next.category)
     if (next.user) params.set('user', next.user)
@@ -46,202 +49,92 @@ export function AuditFilters({ currentRange, currentSeverity, currentCategory, c
     router.push(`/settings/admin/audit-log${qs ? `?${qs}` : ''}`)
   }, [currentRange, currentSeverity, currentCategory, currentUser, router])
 
-  function selectFilter(key: string, value: string) {
-    navigate({ [key]: value.toLowerCase() })
-    setOpenDropdown(null)
-  }
-
-  function clearFilters() {
-    navigate({ severity: 'all', category: 'all', user: '' })
-    if (searchRef.current) searchRef.current.value = ''
-  }
-
   function handleUserSearch(value: string) {
     if (searchTimer.current) clearTimeout(searchTimer.current)
     searchTimer.current = setTimeout(() => navigate({ user: value }), 400)
   }
 
   useEffect(() => {
-    if (!openDropdown) return
+    if (!rangeOpen) return
     function handleClick(e: MouseEvent) {
-      const target = e.target as Node
-      const inFilter = filterRef.current?.contains(target)
-      const inRange  = rangeRef.current?.contains(target)
-      if (!inFilter && !inRange) setOpenDropdown(null)
+      if (!rangeRef.current?.contains(e.target as Node)) setRangeOpen(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
-  }, [openDropdown])
+  }, [rangeOpen])
 
   return (
-    <div className="space-y-3">
-      {/* Top row: FILTERS label + Time range + Export */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => setOpenDropdown(null)}
-          className="flex items-center gap-1.5 text-xs font-bold text-blue-400 uppercase tracking-wider"
-        >
-          <Filter className="w-3.5 h-3.5" />
-          Filters
-          <ChevronDown className="w-3 h-3" />
-        </button>
-
-        <div className="flex items-center gap-2">
-          <button
-            className="p-1.5 text-muted-foreground/80 hover:text-foreground/70 border border-border rounded-md transition-colors"
-            title="Export"
-          >
-            <Download className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Time range dropdown */}
-          <div className="relative" ref={rangeRef}>
-            <button
-              onClick={() => setOpenDropdown(openDropdown === 'range' ? null : 'range')}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-card border border-border-strong rounded-lg text-foreground/70 hover:border-border-strong transition-colors"
-            >
-              {currentRangeLabel}
-              <ChevronDown className={cn('w-3 h-3 transition-transform', openDropdown === 'range' && 'rotate-180')} />
-            </button>
-
-            {openDropdown === 'range' && (
-              <div className="absolute top-full mt-1 right-0 z-50 w-44 bg-muted border border-border-strong rounded-lg overflow-hidden shadow-xl">
-                {RANGES.map(r => (
-                  <button
-                    key={r.value}
-                    onClick={() => { navigate({ range: r.value }); setOpenDropdown(null) }}
-                    className={cn(
-                      'w-full px-4 py-2.5 text-sm text-left transition-colors',
-                      currentRange === r.value ? 'bg-accent text-foreground' : 'text-foreground/70 hover:bg-accent'
-                    )}
-                  >
-                    {r.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+    <div className="flex items-center gap-2 flex-wrap">
+      {/* User search */}
+      <div className="relative">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/80 pointer-events-none" />
+        <input
+          ref={searchRef}
+          type="text"
+          placeholder="Search user…"
+          defaultValue={currentUser}
+          onChange={e => handleUserSearch(e.target.value)}
+          className="pl-8 pr-3 py-2 text-xs bg-card border border-border rounded-lg text-foreground/70 placeholder-muted-foreground/50 focus:outline-none focus:border-border-strong w-52"
+        />
       </div>
 
-      {/* Filter bar */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {/* User search */}
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/80 pointer-events-none" />
-          <input
-            ref={searchRef}
-            type="text"
-            placeholder="Search user..."
-            defaultValue={currentUser}
-            onChange={e => handleUserSearch(e.target.value)}
-            className="pl-8 pr-3 py-1.5 text-xs bg-card border border-border-strong rounded-lg text-foreground/70 placeholder-muted-foreground/50 focus:outline-none focus:border-border-strong w-52"
-          />
-        </div>
+      {/* Shared Add Filter button */}
+      <AddFilterButton
+        defs={[
+          { key: 'severity', label: 'Severity', type: 'single', options: SEVERITY_OPTIONS  },
+          { key: 'category', label: 'Log Type', type: 'single', options: AUDIT_CATEGORIES  },
+        ]}
+        value={{
+          severity: currentSeverity === 'all' ? '' : currentSeverity,
+          category: currentCategory === 'all' ? '' : currentCategory,
+        }}
+        onChange={(key, val) => navigate({ [key]: (val as string) || 'all' })}
+      />
 
-        {/* ADD FILTER button */}
-        <div className="relative" ref={filterRef}>
-          <button
-            onClick={() => { setOpenDropdown(openDropdown === 'filter' ? null : 'filter'); setActiveMenu(null) }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-colors uppercase tracking-wide"
-          >
-            + Add Filter
-          </button>
+      {/* User chip rendered externally (not managed by AddFilterButton) */}
+      {currentUser && (
+        <FilterChip
+          label={`User: ${currentUser}`}
+          onRemove={() => { navigate({ user: '' }); if (searchRef.current) searchRef.current.value = '' }}
+        />
+      )}
 
-          {openDropdown === 'filter' && (
-            <div className="absolute top-full mt-1 left-0 z-50 flex shadow-xl">
-              {/* Main menu */}
-              <div className="w-48 bg-muted border border-border-strong rounded-lg overflow-hidden">
-                {([
-                  { key: 'severity' as const, label: 'Severity' },
-                  { key: 'category' as const, label: 'Log Type' },
-                ] as const).map(menu => (
-                  <button
-                    key={menu.key}
-                    onMouseEnter={() => setActiveMenu(menu.key)}
-                    onClick={() => setActiveMenu(menu.key)}
-                    className={cn(
-                      'w-full flex items-center justify-between px-4 py-3 text-sm text-left transition-colors',
-                      activeMenu === menu.key ? 'bg-blue-600 text-white' : 'text-foreground/70 hover:bg-accent'
-                    )}
-                  >
-                    {menu.label}
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                ))}
-              </div>
+      {/* Spacer */}
+      <div className="flex-1" />
 
-              {activeMenu === 'severity' && (
-                <div className="w-36 bg-muted border border-border-strong rounded-lg overflow-hidden ml-px">
-                  {SEVERITIES.map(s => (
-                    <button
-                      key={s}
-                      onClick={() => selectFilter('severity', s)}
-                      className="w-full px-4 py-2.5 text-sm text-left text-foreground/70 hover:bg-accent transition-colors"
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              )}
+      {/* Export */}
+      <button
+        className="p-1.5 text-muted-foreground/80 hover:text-foreground/70 border border-border rounded-md transition-colors"
+        title="Export"
+      >
+        <Download className="w-3.5 h-3.5" />
+      </button>
 
-              {activeMenu === 'category' && (
-                <div className="w-36 bg-muted border border-border-strong rounded-lg overflow-hidden ml-px">
-                  {CATEGORIES.map(c => (
-                    <button
-                      key={c}
-                      onClick={() => selectFilter('category', c)}
-                      className="w-full px-4 py-2.5 text-sm text-left text-foreground/70 hover:bg-accent transition-colors"
-                    >
-                      {c}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+      {/* Time range dropdown */}
+      <div className="relative" ref={rangeRef}>
+        <button
+          onClick={() => setRangeOpen(v => !v)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-card border border-border rounded-lg text-foreground/70 hover:border-border-strong transition-colors"
+        >
+          {currentRangeLabel}
+          <ChevronDown className={cn('w-3 h-3 transition-transform', rangeOpen && 'rotate-180')} />
+        </button>
 
-        {/* Clear filters */}
-        {hasFilters && (
-          <button
-            onClick={clearFilters}
-            className="p-1.5 text-muted-foreground/80 hover:text-foreground/70 border border-border-strong rounded-md transition-colors"
-            title="Clear all filters"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        )}
-
-        {/* Active filter chips */}
-        {currentSeverity !== 'all' && (
-          <span className="flex items-center gap-1 px-2 py-1 text-xs bg-muted border border-border-strong rounded-lg text-foreground/70">
-            Severity: <span className="capitalize ml-0.5">{currentSeverity}</span>
-            <button onClick={() => navigate({ severity: 'all' })} className="text-muted-foreground/80 hover:text-foreground/70 ml-1">
-              <X className="w-3 h-3" />
-            </button>
-          </span>
-        )}
-
-        {currentCategory !== 'all' && (
-          <span className="flex items-center gap-1 px-2 py-1 text-xs bg-muted border border-border-strong rounded-lg text-foreground/70">
-            <span className="capitalize">{currentCategory}</span>
-            <button onClick={() => navigate({ category: 'all' })} className="text-muted-foreground/80 hover:text-foreground/70 ml-1">
-              <X className="w-3 h-3" />
-            </button>
-          </span>
-        )}
-
-        {currentUser && (
-          <span className="flex items-center gap-1 px-2 py-1 text-xs bg-muted border border-border-strong rounded-lg text-foreground/70">
-            User: {currentUser}
-            <button
-              onClick={() => { navigate({ user: '' }); if (searchRef.current) searchRef.current.value = '' }}
-              className="text-muted-foreground/80 hover:text-foreground/70 ml-1"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </span>
+        {rangeOpen && (
+          <div className="absolute top-full mt-1 right-0 z-50 w-44 bg-muted border border-border rounded-lg overflow-hidden shadow-xl">
+            {RANGES.map(r => (
+              <button
+                key={r.value}
+                onClick={() => { navigate({ range: r.value }); setRangeOpen(false) }}
+                className={cn(
+                  'w-full px-4 py-2.5 text-sm text-left transition-colors',
+                  currentRange === r.value ? 'bg-accent text-foreground' : 'text-foreground/70 hover:bg-accent',
+                )}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
         )}
       </div>
     </div>

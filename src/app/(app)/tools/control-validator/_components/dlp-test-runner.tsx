@@ -308,12 +308,13 @@ const RESULT_META: Record<TestResult, {
   label: string; color: string; border: string; bg: string
   Icon: React.ComponentType<{ className?: string }>; headline: string; sub: string
 }> = {
-  blocked:           { label: 'BLOCKED',              color: 'text-green-400',  border: 'border-green-500/40',  bg: 'bg-green-500/8',   Icon: ShieldCheck,   headline: 'DLP intercepted this request',                         sub: 'The request never reached our server — your DLP control is working for this vector.' },
-  not_blocked:       { label: 'NOT BLOCKED',           color: 'text-red-400',    border: 'border-red-500/40',    bg: 'bg-red-500/8',     Icon: ShieldAlert,   headline: 'Our server received the payload',                      sub: 'DLP did not intercept this request. This channel / data-type combination is not being caught.' },
-  error:             { label: 'ERROR',                 color: 'text-muted-foreground',   border: 'border-border-strong/40',   bg: 'bg-muted/40',   Icon: AlertTriangle, headline: 'Test failed with an error',                            sub: 'The request failed for a non-DLP reason (check console). Try again or inspect network logs.' },
-  user_alert_proceed:{ label: 'COACHING — PROCEEDED',  color: 'text-amber-400',  border: 'border-amber-500/40',  bg: 'bg-amber-500/8',   Icon: AlertTriangle, headline: 'DLP showed a coaching popup — analyst clicked Proceed', sub: 'The request was allowed after user justification. This DLP control is in coaching mode — it relies on the user to stop exfiltration, not an automated block.' },
-  user_alert_stop:   { label: 'COACHING — STOPPED',    color: 'text-blue-400',   border: 'border-blue-500/40',   bg: 'bg-blue-500/8',    Icon: ShieldCheck,   headline: 'DLP showed a coaching popup — analyst clicked Stop',    sub: 'Data was not exfiltrated, but the control relies on user judgment rather than automatic blocking. Consider whether this gap requires remediation.' },
-  blocked_coached:   { label: 'BLOCKED — NOTIFIED',    color: 'text-orange-400', border: 'border-orange-500/40', bg: 'bg-orange-500/8',  Icon: ShieldAlert,   headline: 'DLP blocked the transfer and showed a notification popup', sub: 'The upload was blocked and you were shown a block notification (OK only). Data did not leave. The control is enforcing but includes user notification.' },
+  blocked:           { label: 'BLOCKED',              color: 'text-green-400',          border: 'border-green-500/40',        bg: 'bg-green-500/8',   Icon: ShieldCheck,   headline: 'DLP intercepted this request',                              sub: 'The request never reached our server — your DLP control is working for this vector.' },
+  not_blocked:       { label: 'NOT BLOCKED',           color: 'text-red-400',            border: 'border-red-500/40',          bg: 'bg-red-500/8',     Icon: ShieldAlert,   headline: 'Our server received the payload',                           sub: 'DLP did not intercept this request. This channel / data-type combination is not being caught.' },
+  error:             { label: 'ERROR',                 color: 'text-muted-foreground',   border: 'border-border-strong/40',    bg: 'bg-muted/40',      Icon: AlertTriangle, headline: 'Test failed with an error',                                 sub: 'The request failed for a non-DLP reason (check console). Try again or inspect network logs.' },
+  inconclusive:      { label: 'INCONCLUSIVE',          color: 'text-muted-foreground',   border: 'border-border/40',           bg: 'bg-muted/20',      Icon: AlertTriangle, headline: 'Test could not complete',                                   sub: 'The connection was refused, timed out, or aborted before a result could be determined. This does not confirm a DLP block — check your network and retry.' },
+  user_alert_proceed:{ label: 'COACHING — PROCEEDED',  color: 'text-amber-400',          border: 'border-amber-500/40',        bg: 'bg-amber-500/8',   Icon: AlertTriangle, headline: 'DLP showed a coaching popup — analyst clicked Proceed',    sub: 'The request was allowed after user justification. This DLP control is in coaching mode — it relies on the user to stop exfiltration, not an automated block.' },
+  user_alert_stop:   { label: 'COACHING — STOPPED',    color: 'text-blue-400',           border: 'border-blue-500/40',         bg: 'bg-blue-500/8',    Icon: ShieldCheck,   headline: 'DLP showed a coaching popup — analyst clicked Stop',        sub: 'Data was not exfiltrated, but the control relies on user judgment rather than automatic blocking. Consider whether this gap requires remediation.' },
+  blocked_coached:   { label: 'BLOCKED — NOTIFIED',    color: 'text-orange-400',         border: 'border-orange-500/40',       bg: 'bg-orange-500/8',  Icon: ShieldAlert,   headline: 'DLP blocked the transfer and showed a notification popup',  sub: 'The upload was blocked and you were shown a block notification (OK only). Data did not leave. The control is enforcing but includes user notification.' },
 }
 
 
@@ -449,28 +450,33 @@ export function DlpTestRunner({ initialHistory }: Props) {
     } catch (err) {
       const ms  = Date.now() - start
       const msg = err instanceof Error ? err.message : 'Unknown error'
-      setRunResult({ status: 'blocked', responseMs: ms, errMsg: msg })
+
+      // Network-level failures are ambiguous — DLP may or may not have been involved.
+      // Only genuine network errors become 'inconclusive'; other app/client errors stay 'error'.
+      const isNetworkFailure = /failed to fetch|networkerror|load failed|aborterror|econnrefused|etimedout|timeout|refused|offline/i.test(msg)
+      const result: TestResult = isNetworkFailure ? 'inconclusive' : 'error'
+
+      setRunResult({ status: result, responseMs: ms, errMsg: msg })
 
       const { id } = await saveTestResult({
         testName: nameForHistory, protocol: selectedWeb.id,
         dataType: isFileTest ? 'custom_file' : dataType.id,
-        destination: dest, result: 'blocked', responseTimeMs: ms,
+        destination: dest, result, responseTimeMs: ms,
       })
       const newId = id ?? crypto.randomUUID()
       setLastResultId(newId)
-      setLastInitialResult('blocked')
-      // A slow blocked result (>5s) means either a block-notification popup or coaching stop
-      if (ms > 5000) setShowAlertPrompt(true)
+      // Do NOT set lastInitialResult or showAlertPrompt — the coaching popup
+      // is irrelevant for inconclusive/error results.
 
       setHistory(prev => [{
         id: newId, test_name: nameForHistory,
         protocol: selectedWeb.id, data_type: isFileTest ? 'custom_file' : dataType.id,
-        destination: dest, result: 'blocked', response_code: null,
+        destination: dest, result, response_code: null,
         response_time_ms: ms, created_at: new Date().toISOString(),
       }, ...prev.slice(0, 49)])
+    } finally {
+      setIsRunning(false)
     }
-
-    setIsRunning(false)
   }, [payload, uploadFile, isRunning, selectedWeb, dataType])
 
   // ── Script actions ────────────────────────────────────────────────────────
@@ -685,6 +691,14 @@ export function DlpTestRunner({ initialHistory }: Props) {
                 </>
               )}
 
+              {/* Synthetic data notice */}
+              <div className="flex items-start gap-2 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-400/80">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <span>
+                  All test payloads contain <strong>synthetic data only</strong>. When a test is not blocked, the payload reaches our server — confirming it passed through DLP uninspected.
+                </span>
+              </div>
+
               {/* Destination + Run */}
               <div className="flex items-center gap-3">
                 <div className="flex-1 bg-muted border border-border-strong rounded-lg px-3 py-2 flex items-center gap-2">
@@ -898,12 +912,13 @@ export function DlpTestRunner({ initialHistory }: Props) {
 // ── Separate component so usePagination works cleanly ─────────────────────────
 
 const HISTORY_BADGE: Record<string, { cls: string; label: string }> = {
-  blocked:            { cls: 'bg-green-500/15 text-green-400',   label: 'Blocked' },
-  not_blocked:        { cls: 'bg-red-500/15 text-red-400',       label: 'Not Blocked' },
-  error:              { cls: 'bg-accent/50 text-muted-foreground',     label: 'Error' },
-  user_alert_proceed: { cls: 'bg-amber-500/15 text-amber-400',   label: 'Coaching — Proceeded' },
-  user_alert_stop:    { cls: 'bg-blue-500/15 text-blue-400',     label: 'Coaching — Stopped' },
-  blocked_coached:    { cls: 'bg-orange-500/15 text-orange-400', label: 'Blocked — Notified' },
+  blocked:            { cls: 'bg-green-500/15 text-green-400',        label: 'Blocked' },
+  not_blocked:        { cls: 'bg-red-500/15 text-red-400',            label: 'Not Blocked' },
+  error:              { cls: 'bg-accent/50 text-muted-foreground',    label: 'Error' },
+  inconclusive:       { cls: 'bg-muted/40 text-muted-foreground',     label: 'Inconclusive' },
+  user_alert_proceed: { cls: 'bg-amber-500/15 text-amber-400',        label: 'Coaching — Proceeded' },
+  user_alert_stop:    { cls: 'bg-blue-500/15 text-blue-400',          label: 'Coaching — Stopped' },
+  blocked_coached:    { cls: 'bg-orange-500/15 text-orange-400',      label: 'Blocked — Notified' },
 }
 
 const RESULT_FILTER_OPTIONS: { value: string; label: string }[] = [
@@ -913,6 +928,7 @@ const RESULT_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: 'user_alert_proceed',label: 'Coaching — Proceeded' },
   { value: 'user_alert_stop',   label: 'Coaching — Stopped' },
   { value: 'blocked_coached',   label: 'Blocked — Notified' },
+  { value: 'inconclusive',      label: 'Inconclusive' },
   { value: 'error',             label: 'Error' },
 ]
 

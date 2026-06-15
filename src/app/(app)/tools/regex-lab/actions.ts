@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
 import { logAiSearch } from '@/lib/ai-log'
 import { callAgent } from '@/lib/api-client.server'
@@ -66,15 +67,9 @@ export async function savePattern(data: {
   aiGenerated: boolean
   aiExplanation: string
 }): Promise<{ id?: string; error?: string }> {
+  const user = await requireRole('analyst')
+  const orgId = user.orgId
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-
-  const { data: { session } } = await supabase.auth.getSession()
-  const orgId = session?.access_token
-    ? JSON.parse(atob(session.access_token.split('.')[1]))?.org_id
-    : null
-  if (!orgId) return { error: 'Organisation not found' }
 
   const { data: inserted, error } = await supabase
     .from('regex_patterns')
@@ -101,7 +96,7 @@ export async function savePattern(data: {
     entity_name: data.name.trim(),
     details:     { pattern: data.pattern, flags: data.flags, ai_generated: data.aiGenerated },
     user_id:     user.id,
-    user_email:  user.email ?? undefined,
+    user_email:  user.email || undefined,
     org_id:      orgId,
   })
 
@@ -127,14 +122,9 @@ export async function getPatterns(): Promise<{ patterns: SavedPattern[]; error?:
 // ── Delete Pattern ────────────────────────────────────────────────────────────
 
 export async function deletePattern(id: string): Promise<{ error?: string }> {
+  const user = await requireRole('analyst')
+  const orgId = user.orgId
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-
-  const { data: { session } } = await supabase.auth.getSession()
-  const orgId = session?.access_token
-    ? JSON.parse(atob(session.access_token.split('.')[1]))?.org_id
-    : null
 
   const { data: existing } = await supabase
     .from('regex_patterns')
@@ -151,8 +141,8 @@ export async function deletePattern(id: string): Promise<{ error?: string }> {
     entity_id:   id,
     entity_name: existing?.name ?? id,
     user_id:     user.id,
-    user_email:  user.email ?? undefined,
-    org_id:      orgId ?? undefined,
+    user_email:  user.email || undefined,
+    org_id:      orgId,
   })
 
   return {}

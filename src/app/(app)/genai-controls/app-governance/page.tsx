@@ -11,12 +11,11 @@ export default async function AppGovernancePage() {
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
-  const [categories, { data: apps }, { data: profiles }, { data: classifications }, { data: refNotes }] = await Promise.all([
+  const [categories, { data: apps }, { data: profiles }, { data: classifications }] = await Promise.all([
     ensureGenAIGovernanceCategories(),
     supabase.from('genai_apps').select('*').eq('status', 'active').order('app_name'),
     supabase.from('genai_app_profiles').select('*'),
     supabase.from('genai_customer_classifications').select('*').eq('org_id', user.orgId),
-    supabase.from('org_reference_app_notes').select('app_slug, notes, in_scope, classification').eq('org_id', user.orgId),
   ])
 
   const profileMap = new Map((profiles as GenAIAppProfile[] ?? []).map(p => [p.app_id, p]))
@@ -37,23 +36,11 @@ export default async function AppGovernancePage() {
     appsByCategoryTag[tag].push({ app, profile, classification })
   }
 
-  const refDataBySlug = Object.fromEntries(
-    (refNotes ?? []).map(n => [
-      n.app_slug as string,
-      {
-        notes:          (n.notes          ?? '')    as string,
-        in_scope:       (n.in_scope       ?? false) as boolean,
-        classification: (n.classification ?? null)  as string | null,
-      },
-    ]),
-  )
-
   return (
     <GovernanceClient
       categories={categories}
       appsByCategoryTag={appsByCategoryTag}
       userRole={user.role}
-      initialNotes={refDataBySlug}
     />
   )
 }

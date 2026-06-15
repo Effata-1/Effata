@@ -13,7 +13,9 @@ import { evaluateApp, bulkSetClassification } from '../actions'
 import type { EvaluatedAppCard } from '../actions'
 import { AppLogo } from './app-logo'
 import { CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
-import { FilterSelect, MultiFilterSelect } from '@/components/ui/filter-select'
+import { FilterSelect } from '@/components/ui/filter-select'
+import { AddFilterButton } from '@/components/ui/add-filter-button'
+import type { FilterSectionDef } from '@/components/ui/add-filter-button'
 import type { GenAIApp, CustomerClassification, TrustScores, CustomerClass } from '@/lib/genai/types'
 
 export interface CatalogEntry {
@@ -24,7 +26,6 @@ export interface CatalogEntry {
 
 interface Props {
   entries: CatalogEntry[]
-  lastRunInfo: { status: string; apps_updated: number; apps_added: number } | null
   totalInDb: number
   orgCategories?: { system_tag: string | null; name: string }[]
 }
@@ -416,21 +417,12 @@ function TableHeader({
 
 // ── Bulk action bar ───────────────────────────────────────────────────────────
 
-const BULK_CLS_OPTIONS: { value: CustomerClass; label: string }[] = [
-  { value: 'enterprise-approved',        label: 'Approved & Supported'    },
-  { value: 'approved-with-conditions',   label: 'Approved with Conditions' },
-  { value: 'permitted-with-restriction', label: 'Restricted / Unassessed'  },
-  { value: 'personal',                   label: 'Personal'                 },
-  { value: 'unknown',                    label: 'Unknown'                  },
-  { value: 'prohibited',                 label: 'Prohibited'               },
-]
-
-function BulkActionBar({ count, onClear, onApply, isPending, clsOptions = BULK_CLS_OPTIONS }: {
+function BulkActionBar({ count, onClear, onApply, isPending, clsOptions }: {
   count: number
   onClear: () => void
   onApply: (cls: CustomerClass) => void
   isPending: boolean
-  clsOptions?: { value: string; label: string }[]
+  clsOptions: { value: string; label: string }[]
 }) {
   const [selectedCls, setSelectedCls] = useState<string>('')
 
@@ -738,7 +730,7 @@ function parseEvalError(rawError: string, searchTerm: string): {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function AppCatalogClient({ entries, lastRunInfo, totalInDb, orgCategories = [] }: Props) {
+export function AppCatalogClient({ entries, totalInDb, orgCategories = [] }: Props) {
   const [search,       setSearch]       = useState('')
   const [view,         setView]         = useState<'table' | 'grid'>('table')
   const [sort,         setSort]         = useState<{ key: SortKey; dir: SortDir }>({ key: 'name', dir: 'asc' })
@@ -911,15 +903,13 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb, orgCategorie
   const pendingCount = totalInDb - scoredCount
   const showNotFound = trimmed.length > 2 && filtered.length === 0 && !isPending && !evaluatedApp
 
-  const catNameMap = Object.fromEntries(orgCategories.map(c => [c.system_tag ?? '', c.name]))
-  const clsFilterOptions = [
-    { value: 'not-set',                    label: 'Not Set' },
-    { value: 'enterprise-approved',        label: catNameMap['enterprise-approved']        ?? 'Approved & Supported' },
-    { value: 'approved-with-conditions',   label: catNameMap['approved-with-conditions']   ?? 'Approved w/ Conditions' },
-    { value: 'permitted-with-restriction', label: catNameMap['permitted-with-restriction'] ?? 'Restricted' },
-    { value: 'personal',                   label: 'Personal Only' },
-    { value: 'prohibited',                 label: catNameMap['prohibited']                 ?? 'Prohibited' },
-  ]
+  // Derived from the org's actual governance categories — never shows removed categories
+  const clsFilterOptions = useMemo(() => [
+    { value: 'not-set', label: 'Not Set' },
+    ...orgCategories
+      .filter(c => c.system_tag && c.system_tag !== 'unknown')
+      .map(c => ({ value: c.system_tag as string, label: c.name })),
+  ], [orgCategories])
 
   const riskFilterOptions = [
     { value: 'low',      label: 'Low Risk (≥85)'   },
@@ -939,32 +929,11 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb, orgCategorie
             {pendingCount > 0 && <span className="text-muted-foreground/50"> · {pendingCount} pending</span>}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1.5 shrink-0 text-xs text-muted-foreground/60">
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" />Low</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500" />Moderate</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500" />Medium</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" />High Risk</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {lastRunInfo ? (
-              <>
-                <span className={cn('w-1.5 h-1.5 rounded-full',
-                  lastRunInfo.status === 'completed' ? 'bg-green-500' :
-                  lastRunInfo.status === 'failed'    ? 'bg-red-500' : 'bg-yellow-500 animate-pulse',
-                )} />
-                <span>Last refresh: {lastRunInfo.apps_updated} updated · {lastRunInfo.apps_added} added</span>
-              </>
-            ) : (
-              <><span className="w-1.5 h-1.5 rounded-full bg-accent" /><span>No refresh runs yet</span></>
-            )}
-            <Link href="/settings/admin/refresh-logs" className="underline hover:text-muted-foreground/80 ml-1">Logs →</Link>
-          </div>
-        </div>
       </div>
 
       {/* Toolbar */}
       <div className="flex items-center gap-2 flex-wrap">
+        {/* Search */}
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
           <input
@@ -982,18 +951,23 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb, orgCategorie
           )}
         </div>
 
-        <FilterSelect options={riskFilterOptions} value={filterRisk} onChange={v => { setFilterRisk(v); resetPage() }} placeholder="Risk" />
-        <FilterSelect options={clsFilterOptions} value={filterCls} onChange={v => { setFilterCls(v); resetPage() }} placeholder="Classification" />
-        {groupOptions.length > 1 && (
-          <MultiFilterSelect options={groupOptions} value={filterGroups} onChange={v => { setFilterGroups(v); resetPage() }} placeholder="Category" />
-        )}
+        {/* Unified filter button */}
+        <AddFilterButton
+          defs={[
+            { key: 'risk',  label: 'Risk',           type: 'single', options: riskFilterOptions },
+            { key: 'cls',   label: 'Classification', type: 'single', options: clsFilterOptions  },
+            ...(groupOptions.length > 1 ? [{ key: 'group', label: 'App Group', type: 'multi' as const, options: groupOptions }] : []),
+          ] satisfies FilterSectionDef[]}
+          value={{ risk: filterRisk, cls: filterCls, group: filterGroups }}
+          onChange={(key, val) => {
+            if (key === 'risk')  { setFilterRisk(val as string); resetPage() }
+            if (key === 'cls')   { setFilterCls(val as string); resetPage() }
+            if (key === 'group') { setFilterGroups(val as string[]); resetPage() }
+          }}
+        />
 
-        {activeFilters > 0 && (
-          <button onClick={clearAllFilters} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground/70 hover:text-foreground border border-border hover:border-border-strong transition-colors">
-            <X className="w-3 h-3" />Clear ({activeFilters})
-          </button>
-        )}
 
+        {/* View toggle */}
         <div className="ml-auto flex items-center gap-0.5 rounded-lg border border-border bg-card/50 p-1">
           <button onClick={() => setView('table')} className={cn('p-1.5 rounded-md transition-colors', view === 'table' ? 'bg-muted text-foreground' : 'text-muted-foreground/50 hover:text-foreground/70')} title="Table view">
             <LayoutList className="w-3.5 h-3.5" />
@@ -1010,12 +984,10 @@ export function AppCatalogClient({ entries, lastRunInfo, totalInDb, orgCategorie
 
       {selectedIds.size > 0 && (
         <BulkActionBar count={selectedIds.size} onClear={() => setSelectedIds(new Set())} onApply={handleBulkApply} isPending={isBulkPending} clsOptions={[
-          { value: 'enterprise-approved',        label: catNameMap['enterprise-approved']        ?? 'Approved & Supported' },
-          { value: 'approved-with-conditions',   label: catNameMap['approved-with-conditions']   ?? 'Approved with Conditions' },
-          { value: 'permitted-with-restriction', label: catNameMap['permitted-with-restriction'] ?? 'Restricted / Unassessed' },
-          { value: 'personal',                   label: 'Personal' },
-          { value: 'unknown',                    label: 'Unknown' },
-          { value: 'prohibited',                 label: catNameMap['prohibited']                 ?? 'Prohibited' },
+          ...orgCategories
+            .filter(c => c.system_tag && c.system_tag !== 'unknown')
+            .map(c => ({ value: c.system_tag as string, label: c.name })),
+          { value: 'unknown', label: 'Not Set' },
         ]} />
       )}
 

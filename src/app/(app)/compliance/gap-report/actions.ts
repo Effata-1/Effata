@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { logAuditEvent } from '@/lib/audit'
+import { requireRole } from '@/lib/auth'
 import type { ControlStatus } from '@/lib/compliance/controls'
 
 export async function upsertAssessment(
@@ -10,14 +11,9 @@ export async function upsertAssessment(
   status: ControlStatus,
   notes?: string
 ): Promise<{ error?: string }> {
+  const user = await requireRole('analyst')
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-
-  const { data: { session } } = await supabase.auth.getSession()
-  const orgId = session?.access_token
-    ? JSON.parse(atob(session.access_token.split('.')[1]))?.org_id
-    : null
+  const orgId = user.orgId
   if (!orgId) return { error: 'Organisation not found' }
 
   // Fetch previous status for the audit trail
@@ -68,11 +64,9 @@ export async function getControlHistory(
   controlKey: string,
   regulationId: string
 ): Promise<{ created_at: string; user_email: string | null; old_value: string | null; new_value: string | null }[]> {
+  const user = await requireRole('analyst')
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  const orgId = session?.access_token
-    ? JSON.parse(atob(session.access_token.split('.')[1]))?.org_id
-    : null
+  const orgId = user.orgId
   if (!orgId) return []
 
   const { data } = await supabase

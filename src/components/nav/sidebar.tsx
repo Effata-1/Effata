@@ -17,58 +17,29 @@ import {
   ChevronRight,
   LogOut,
 } from 'lucide-react'
+import { NAV } from '@/lib/nav'
+import type { ReactNode } from 'react'
 
-const NAV_ITEMS = [
-  {
-    label: 'Dashboard',
-    href:  '/dashboard',
-    base:  '/dashboard',
-    icon:  <LayoutDashboard className="h-4 w-4" />,
-    sub:   false,
-  },
-  {
-    label: 'Architecture',
-    href:  '/architecture/framework',
-    base:  '/architecture',
-    icon:  <Building2 className="h-4 w-4" />,
-    sub:   true,
-  },
-  {
-    label: 'GenAI Controls',
-    href:  '/genai-controls/app-governance',
-    base:  '/genai-controls',
-    icon:  <Bot className="h-4 w-4" />,
-    sub:   true,
-  },
-  {
-    label: 'Policies',
-    href:  '/policies/library',
-    base:  '/policies',
-    icon:  <Shield className="h-4 w-4" />,
-    sub:   true,
-  },
-  {
-    label: 'Tools',
-    href:  '/tools/regex-lab',
-    base:  '/tools',
-    icon:  <Wrench className="h-4 w-4" />,
-    sub:   true,
-  },
-  {
-    label: 'DLP Tools',
-    href:  '/dlp-tools/market',
-    base:  '/dlp-tools',
-    icon:  <Package2 className="h-4 w-4" />,
-    sub:   true,
-  },
-  {
-    label: 'Compliance',
-    href:  '/compliance',
-    base:  '/compliance',
-    icon:  <ClipboardList className="h-4 w-4" />,
-    sub:   true,
-  },
-]
+const SECTION_ICONS: Record<string, ReactNode> = {
+  'home':          <LayoutDashboard className="h-4 w-4" />,
+  'architecture':  <Building2 className="h-4 w-4" />,
+  'genai-controls':<Bot className="h-4 w-4" />,
+  'foundation':    <Shield className="h-4 w-4" />,
+  'test-evidence': <Wrench className="h-4 w-4" />,
+  'dlp-tools':     <Package2 className="h-4 w-4" />,
+  'compliance':    <ClipboardList className="h-4 w-4" />,
+}
+
+// Build nav items from NAV — section-level only, settings excluded (shown in footer)
+const NAV_ITEMS = NAV
+  .filter(s => s.id !== 'settings')
+  .map(s => ({
+    label: s.label,
+    href:  s.pages[0].route,
+    base:  '/' + s.pages[0].route.split('/')[1],
+    icon:  SECTION_ICONS[s.id] ?? <Shield className="h-4 w-4" />,
+    sub:   s.pages.length > 1,
+  }))
 
 export function Sidebar() {
   const pathname = usePathname()

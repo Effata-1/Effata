@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { Search, X } from 'lucide-react'
 import type { AuditEntry, RegulationRef } from '../page'
-import { MultiFilterSelect } from '@/components/ui/filter-select'
+import { AddFilterButton } from '@/components/ui/add-filter-button'
 import { usePagination } from '@/hooks/use-pagination'
 
 const STATUS_STYLE: Record<string, { label: string; color: string; bg: string }> = {
@@ -97,18 +97,16 @@ export function AuditTrailClient({
           )}
         </div>
 
-        <MultiFilterSelect
-          options={regulations.map(r => ({ value: r.code, label: r.short_name }))}
-          value={regFilter}
-          onChange={setReg}
-          placeholder="All Regulations"
-        />
-
-        <MultiFilterSelect
-          options={controls.map(c => ({ value: c.key, label: c.label }))}
-          value={ctrlFilter}
-          onChange={setCtrl}
-          placeholder="All Controls"
+        <AddFilterButton
+          defs={[
+            { key: 'reg',  label: 'Regulation', type: 'multi', options: regulations.map(r => ({ value: r.code, label: r.short_name })) },
+            { key: 'ctrl', label: 'Control',    type: 'multi', options: controls.map(c => ({ value: c.key,  label: c.label })) },
+          ]}
+          value={{ reg: regFilter, ctrl: ctrlFilter }}
+          onChange={(key, val) => {
+            if (key === 'reg')  setReg(val as string[])
+            if (key === 'ctrl') setCtrl(val as string[])
+          }}
         />
 
         <span className="text-xs text-muted-foreground/60 ml-auto">

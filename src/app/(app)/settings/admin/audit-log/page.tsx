@@ -1,27 +1,10 @@
 import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/auth'
 import { AuditFilters } from './_components/audit-filters'
 import { AuditLogTable } from './_components/audit-log-table'
 import type { AuditLog } from './_components/audit-log-table'
-
-function getSeverity(action: string): 'high' | 'medium' | 'low' | 'info' {
-  const SEVERITY_MAP: Record<string, 'high' | 'medium' | 'low' | 'info'> = {
-    'auth.login_success':           'info',
-    'auth.logout':                  'info',
-    'auth.signup':                  'low',
-    'onboarding.completed':         'low',
-    'genai.classification_changed': 'medium',
-    'classification_changed':       'medium',
-    'regex.pattern_saved':          'low',
-    'regex.pattern_deleted':        'medium',
-    'test_data.dataset_saved':      'low',
-    'test_data.dataset_deleted':    'medium',
-    'dlp_test.run':                         'low',
-    'compliance.regulation_verified':       'low',
-    'compliance.assessment_updated':        'low',
-  }
-  return SEVERITY_MAP[action] ?? 'info'
-}
+import { getSeverity, CATEGORY_PREFIXES_FOR_FILTER } from './_lib/audit-actions'
 
 export default async function AuditLogPage({
   searchParams,
@@ -30,11 +13,8 @@ export default async function AuditLogPage({
 }) {
   const { range = '7', severity = 'all', category = 'all', user: userSearch = '' } = await searchParams
 
+  const { orgId } = await requireRole('admin')
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  const orgId = session?.access_token
-    ? JSON.parse(atob(session.access_token.split('.')[1]))?.org_id
-    : null
 
   let query = supabase
     .from('audit_logs')
@@ -50,12 +30,14 @@ export default async function AuditLogPage({
     query = query.gte('created_at', since)
   }
 
-  const categoryPrefixMap: Record<string, string> = {
-    auth: 'auth.', genai: 'genai.', onboarding: 'onboarding.',
-    policy: 'policy.', user: 'user.', tool: 'tool.', compliance: 'compliance.',
-  }
-  if (category !== 'all' && categoryPrefixMap[category]) {
-    query = query.like('action', `${categoryPrefixMap[category]}%`)
+  const prefixes = category !== 'all' ? CATEGORY_PREFIXES_FOR_FILTER[category] : undefined
+  if (prefixes?.length) {
+    if (prefixes.length === 1) {
+      query = query.like('action', `${prefixes[0]}%`)
+    } else {
+      // Build OR: action.like.prefix1%,action.like.prefix2%,...
+      query = query.or(prefixes.map(p => `action.like.${p}%`).join(','))
+    }
   }
 
   const { data: rawLogs } = await query

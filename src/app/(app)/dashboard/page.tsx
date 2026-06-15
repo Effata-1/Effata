@@ -1,4 +1,8 @@
-export default function DashboardPage() {
+import { requireRole } from '@/lib/auth'
+
+export default async function DashboardPage() {
+  await requireRole('read_only')
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-foreground mb-1">Dashboard</h1>

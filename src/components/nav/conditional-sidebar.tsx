@@ -3,14 +3,18 @@
 import { usePathname } from 'next/navigation'
 import { Sidebar } from './sidebar'
 
+// Routes with their own section sidebar. Dashboard intentionally keeps the main app nav.
 const SECTION_ROUTES = [
-  '/settings',
   '/architecture',
   '/genai-controls',
-  '/policies',
+  '/foundation',
   '/tools',
-  '/compliance',
   '/dlp-tools',
+  '/compliance',
+  '/settings',
+  '/data-at-rest',
+  '/data-in-motion',
+  '/data-in-use',
 ]
 
 export function ConditionalSidebar() {

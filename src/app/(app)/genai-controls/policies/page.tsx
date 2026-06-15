@@ -1,7 +1,7 @@
 import { requireRole } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { ensureClassificationLabels } from '@/lib/data-catalog/actions'
-import { getIdentityPageData } from '@/app/(app)/policies/identity/actions'
+import { getIdentityPageData } from '@/app/(app)/foundation/identity/actions'
 import { syncRecommendedPolicies } from './actions'
 import { PolicyList } from './_components/policy-list'
 import type { GenAIPolicy } from '@/lib/genai/types'

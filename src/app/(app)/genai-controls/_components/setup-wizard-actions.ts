@@ -157,6 +157,6 @@ export async function applyDataCatalogDefaults(): Promise<{ error?: string; coun
   if (error) return { error: error.message, count: 0 }
 
   revalidateSetup()
-  revalidatePath('/policies/data-catalog')
+  revalidatePath('/foundation/data-catalog')
   return { count: rows.length }
 }

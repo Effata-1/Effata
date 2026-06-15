@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { cn } from '@/lib/utils'
+import { ProposalsPanel } from './_components/proposals-panel'
+import type { ProposedChange } from './_components/proposals-panel'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,10 +53,13 @@ function fmt(iso: string) {
 export default async function CronRunsPage() {
   const supabase = await createClient()
 
-  const [{ data: cd }, { data: gd }] = await Promise.all([
+  const [{ data: cd }, { data: gd }, { data: pd }] = await Promise.all([
     supabase.from('compliance_check_runs').select('*').order('started_at', { ascending: false }).limit(20),
     supabase.from('genai_research_runs').select('*').order('started_at', { ascending: false }).limit(20),
+    supabase.from('compliance_proposed_changes').select('*').eq('status', 'pending').order('created_at', { ascending: false }),
   ])
+
+  const pendingProposals = (pd ?? []) as ProposedChange[]
 
   const compliance: CronRun[] = ((cd ?? []) as Array<Record<string, unknown>>).map(r => ({
     id:           r.id as string,
@@ -62,7 +67,7 @@ export default async function CronRunsPage() {
     started_at:   r.started_at as string,
     completed_at: r.completed_at as string | null,
     status:       r.status as string,
-    summary:      `${r.regs_checked ?? 0} checked · ${r.regs_updated ?? 0} updated · ${r.regs_added ?? 0} added`,
+    summary:      `${r.regs_checked ?? 0} checked · ${r.regs_proposed ?? 0} proposed · ${r.regs_updated ?? 0} updated`,
     changes:      (r.changes as CronRun['changes']) ?? [],
     errors:       (r.errors as CronRun['errors']) ?? [],
   }))
@@ -90,6 +95,24 @@ export default async function CronRunsPage() {
           All scheduled background jobs. Compliance review runs on the 1st of each month · GenAI research runs every Monday.
         </p>
       </div>
+
+      {/* Pending AI proposals — require admin review before changes go live */}
+      {pendingProposals.length > 0 && (
+        <div className="space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">
+              Pending AI Proposals
+              <span className="ml-2 text-[11px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                {pendingProposals.length}
+              </span>
+            </h3>
+            <p className="text-xs text-muted-foreground/70 mt-0.5">
+              Review and approve before changes are written to the live compliance database.
+            </p>
+          </div>
+          <ProposalsPanel proposals={pendingProposals} />
+        </div>
+      )}
 
       {runs.length === 0 ? (
         <div className="py-16 text-center rounded-xl border border-border">
@@ -126,7 +149,7 @@ export default async function CronRunsPage() {
                   <div className="px-5 pb-4 pt-1 space-y-3 bg-card/30">
                     {run.changes.length > 0 && (
                       <div>
-                        <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide mb-2">Changes</p>
+                        <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide mb-2">Proposals</p>
                         <div className="space-y-1.5">
                           {run.changes.map((c, i) => (
                             <div key={i} className="flex items-start gap-2.5">
@@ -136,9 +159,6 @@ export default async function CronRunsPage() {
                               <div>
                                 {c.regulation_name && <p className="text-xs text-foreground/70">{c.regulation_name}</p>}
                                 {c.reason && <p className="text-xs text-muted-foreground/80">{c.reason}</p>}
-                                {c.fields_updated?.length && (
-                                  <p className="text-[10px] text-muted-foreground/60">Fields: {c.fields_updated.join(', ')}</p>
-                                )}
                               </div>
                             </div>
                           ))}

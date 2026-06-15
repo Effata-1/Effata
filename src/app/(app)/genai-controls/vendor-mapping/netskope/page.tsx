@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
+import { pageById } from '@/lib/nav'
 import { checkNetskopeReadiness } from './_lib/readiness'
 import type { OrgVendorObjectMappingRow } from './_lib/readiness'
 import { NetskopeVendorMappingClient } from './_components/netskope-mapping-client'
@@ -109,7 +110,7 @@ export default async function NetskopeVendorMappingPage() {
           </p>
         </div>
         <Link
-          href="/genai-controls/vendor-mapping/netskope/recommendation"
+          href={pageById('netskope-pack').route}
           className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-blue-500/30 bg-blue-500/10 text-xs font-medium text-blue-400 hover:bg-blue-500/15 transition-colors"
         >
           View Recommendation →

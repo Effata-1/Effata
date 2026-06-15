@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -27,6 +28,17 @@ export interface ReportSummary {
   overall_result: OverallResult
   test_count:     number
   created_at:     string
+  status:         'draft' | 'complete'
+}
+
+export interface Attachment {
+  id:         string
+  file_name:  string
+  file_type:  string
+  file_size:  number
+  signedUrl:  string
+  test_id:    string | null
+  created_at: string
 }
 
 export interface EvidenceReport {
@@ -78,22 +90,10 @@ export interface ValidatorResult {
   protocol:         string
   data_type:        string
   destination:      string
-  result:           'blocked' | 'not_blocked' | 'error'
+  result:           'blocked' | 'not_blocked' | 'error' | 'user_alert_proceed' | 'user_alert_stop' | 'blocked_coached' | 'inconclusive'
   response_code:    number | null
   response_time_ms: number | null
   created_at:       string
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-async function getOrgId(supabase: Awaited<ReturnType<typeof createClient>>): Promise<string | null> {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.access_token) return null
-  try {
-    return JSON.parse(atob(session.access_token.split('.')[1]))?.org_id ?? null
-  } catch {
-    return null
-  }
 }
 
 // ── Report CRUD ───────────────────────────────────────────────────────────────
@@ -107,11 +107,9 @@ export async function createReport(data: {
   overallResult?: OverallResult
   notes:          string
 }): Promise<{ id?: string; error?: string }> {
+  const user = await requireRole('analyst')
+  const orgId = user.orgId
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-  const orgId = await getOrgId(supabase)
-  if (!orgId) return { error: 'Organisation not found' }
 
   const { data: inserted, error } = await supabase
     .from('evidence_reports')
@@ -134,7 +132,7 @@ export async function createReport(data: {
   await logAuditEvent({
     action: 'evidence_report.created', entity_type: 'evidence_report',
     entity_id: inserted.id, entity_name: data.name.trim(),
-    user_id: user.id, user_email: user.email ?? undefined, org_id: orgId,
+    user_id: user.id, user_email: user.email || undefined, org_id: orgId,
   })
 
   return { id: inserted.id }
@@ -171,10 +169,9 @@ export async function updateReport(
 }
 
 export async function deleteReport(id: string): Promise<{ error?: string }> {
+  const user = await requireRole('analyst')
+  const orgId = user.orgId
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-  const orgId = await getOrgId(supabase)
 
   const { data: existing } = await supabase
     .from('evidence_reports').select('name').eq('id', id).single()
@@ -185,7 +182,7 @@ export async function deleteReport(id: string): Promise<{ error?: string }> {
   await logAuditEvent({
     action: 'evidence_report.deleted', entity_type: 'evidence_report',
     entity_id: id, entity_name: existing?.name ?? id,
-    user_id: user.id, user_email: user.email ?? undefined, org_id: orgId ?? undefined,
+    user_id: user.id, user_email: user.email || undefined, org_id: orgId,
   })
 
   return {}
@@ -198,7 +195,7 @@ export async function getReports(): Promise<{ reports: ReportSummary[]; error?: 
 
   const { data: reports, error: rErr } = await supabase
     .from('evidence_reports')
-    .select('id, name, report_type, environment, assessed_on, overall_result, created_at')
+    .select('id, name, report_type, environment, assessed_on, overall_result, created_at, status')
     .order('created_at', { ascending: false })
 
   if (rErr) return { reports: [], error: rErr.message }
@@ -271,11 +268,9 @@ export async function addTest(
     sortOrder:           number
   }
 ): Promise<{ id?: string; error?: string }> {
+  const user = await requireRole('analyst')
+  const orgId = user.orgId
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-  const orgId = await getOrgId(supabase)
-  if (!orgId) return { error: 'Organisation not found' }
 
   const { data: inserted, error } = await supabase
     .from('report_tests')
@@ -383,11 +378,9 @@ export async function importFromValidator(
 ): Promise<{ count: number; error?: string }> {
   if (!testResultIds.length) return { count: 0 }
 
+  const user = await requireRole('analyst')
+  const orgId = user.orgId
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { count: 0, error: 'Not authenticated' }
-  const orgId = await getOrgId(supabase)
-  if (!orgId) return { count: 0, error: 'Organisation not found' }
 
   const { data: results, error: fetchErr } = await supabase
     .from('dlp_test_results')
@@ -427,14 +420,15 @@ export async function importFromValidator(
     if (r === 'blocked')            return { actual_result: 'blocked',           final_status: 'passed' }
     if (r === 'not_blocked')        return { actual_result: 'allowed_no_alert',   final_status: 'failed' }
     if (r === 'user_alert_proceed') return { actual_result: 'allowed_with_coach', final_status: 'failed' }
-    if (r === 'user_alert_stop')    return { actual_result: 'allowed_with_coach', final_status: 'inconclusive' }
+    if (r === 'user_alert_stop')    return { actual_result: 'allowed_with_coach', final_status: 'passed' }
     if (r === 'blocked_coached')    return { actual_result: 'blocked',            final_status: 'passed' }
+    if (r === 'inconclusive')       return { actual_result: 'test_failed',        final_status: 'inconclusive' }
     return                                 { actual_result: 'test_failed',        final_status: 'inconclusive' }
   }
 
   const rows = (results ?? []).map(r => {
     const mapped = mapResult(r.result)
-    const code = `DLP-${testNum++}`.padStart(3, '0')
+    const code = `DLP-${String(testNum++).padStart(3, '0')}`
     const row = {
       org_id:             orgId,
       report_id:          reportId,
@@ -476,4 +470,197 @@ export async function getTests(reportId: string): Promise<{ tests: ReportTest[];
     .order('sort_order')
   if (error) return { tests: [], error: error.message }
   return { tests: (data ?? []) as ReportTest[] }
+}
+
+// ── File attachments ──────────────────────────────────────────────────────────
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+
+const ALLOWED_MIMES = new Set([
+  'image/png', 'image/jpeg', 'image/gif', 'image/webp',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/csv', 'text/plain',
+])
+
+// Magic byte checks — verify actual file content matches the claimed MIME type.
+// A malicious caller can set file.type to anything; this check cannot be bypassed
+// because it reads the decoded bytes, not the client-supplied string.
+const MAGIC_CHECKS: Record<string, (b: Buffer) => boolean> = {
+  'image/png':  b => b[0]===0x89 && b[1]===0x50 && b[2]===0x4E && b[3]===0x47,
+  'image/jpeg': b => b[0]===0xFF && b[1]===0xD8 && b[2]===0xFF,
+  'image/gif':  b => b[0]===0x47 && b[1]===0x49 && b[2]===0x46,
+  'image/webp': b => b[0]===0x52 && b[1]===0x49 && b[2]===0x46 && b[3]===0x46
+                  && b[8]===0x57 && b[9]===0x45 && b[10]===0x42 && b[11]===0x50,
+  'application/pdf': b => b[0]===0x25 && b[1]===0x50 && b[2]===0x44 && b[3]===0x46,
+  // DOC: OLE2 signature D0 CF 11 E0
+  'application/msword': b => b[0]===0xD0 && b[1]===0xCF && b[2]===0x11 && b[3]===0xE0,
+  // DOCX: ZIP/PK signature (Office Open XML is a zip file)
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+    b => b[0]===0x50 && b[1]===0x4B,
+  // Text files: no null bytes in first 512 bytes (binary content check)
+  'text/csv':   b => !b.slice(0, 512).includes(0x00),
+  'text/plain': b => !b.slice(0, 512).includes(0x00),
+}
+
+export async function uploadAttachment(
+  reportId: string,
+  file: { name: string; type: string; size: number; base64: string },
+  testId?: string,
+): Promise<{ id?: string; signedUrl?: string; error?: string }> {
+  const user = await requireRole('analyst')
+  const orgId = user.orgId
+  const supabase = await createClient()
+
+  // 1. Verify report ownership before touching storage or inserting rows
+  const { data: reportRow, error: reportErr } = await supabase
+    .from('evidence_reports')
+    .select('id, org_id')
+    .eq('id', reportId)
+    .eq('org_id', orgId)
+    .single()
+
+  if (reportErr || !reportRow) return { error: 'Report not found or access denied' }
+
+  // 1b. If a testId was supplied, confirm it belongs to this same report (and thus org)
+  if (testId) {
+    const { data: testRow, error: testErr } = await supabase
+      .from('report_tests')
+      .select('id')
+      .eq('id', testId)
+      .eq('report_id', reportId)
+      .single()
+
+    if (testErr || !testRow) return { error: 'Test not found or does not belong to this report' }
+  }
+
+  // 2. Reject oversized uploads (client-reported size)
+  if (file.size > MAX_FILE_SIZE) return { error: 'File exceeds 10 MB limit' }
+
+  // 3. Reject disallowed MIME types
+  if (!ALLOWED_MIMES.has(file.type)) return { error: `File type "${file.type}" is not allowed` }
+
+  // 5. Decode base64 on the server
+  const decoded = Buffer.from(file.base64, 'base64')
+
+  // 6. Verify actual byte length matches claimed size and is within limit
+  if (decoded.byteLength !== file.size) return { error: 'File size mismatch — upload rejected' }
+  if (decoded.byteLength > MAX_FILE_SIZE) return { error: 'Decoded file exceeds 10 MB limit' }
+
+  // 7. Magic byte check — verify file content matches claimed MIME type.
+  //     This cannot be bypassed because it reads decoded bytes, not client-supplied type.
+  const magicOk = MAGIC_CHECKS[file.type]?.(decoded)
+  if (magicOk === false) {
+    return { error: `File content does not match declared type "${file.type}" — upload rejected` }
+  }
+  if (magicOk === undefined) {
+    // No check registered for this MIME (should not happen — ALLOWED_MIMES guards entry)
+    return { error: 'File type validation not available — upload rejected' }
+  }
+
+  // 6. Server-generated UUID path — original filename never used in storage path
+  const { randomUUID } = await import('crypto')
+  const storagePath = `${orgId}/${reportId}/${randomUUID()}`
+
+  // 7. Upload to Supabase storage
+  const { error: uploadErr } = await supabase.storage
+    .from('evidence-attachments')
+    .upload(storagePath, decoded, { contentType: file.type })
+  if (uploadErr) return { error: uploadErr.message }
+
+  // 8. Sanitize display filename
+  const path = await import('path')
+  const safeName = path.basename(file.name).replace(/[^a-zA-Z0-9._\-]/g, '_')
+
+  // 9. Insert DB row
+  const { data: inserted, error: dbErr } = await supabase
+    .from('report_attachments')
+    .insert({
+      org_id:      orgId,
+      report_id:   reportId,
+      test_id:     testId ?? null,
+      file_name:   safeName,
+      file_path:   storagePath,
+      file_type:   file.type,
+      file_size:   decoded.byteLength,
+      uploaded_by: user.id,
+    })
+    .select('id')
+    .single()
+
+  if (dbErr) {
+    // Clean up orphaned storage object
+    await supabase.storage.from('evidence-attachments').remove([storagePath])
+    return { error: dbErr.message }
+  }
+
+  // 10. Return signed URL (1 hour)
+  const { data: signed } = await supabase.storage
+    .from('evidence-attachments')
+    .createSignedUrl(storagePath, 3600)
+
+  return { id: inserted.id, signedUrl: signed?.signedUrl }
+}
+
+export async function deleteAttachment(attachmentId: string): Promise<{ error?: string }> {
+  const user = await requireRole('analyst')
+  const orgId = user.orgId
+  const supabase = await createClient()
+
+  // Fetch row — verify org ownership
+  const { data: row, error: fetchErr } = await supabase
+    .from('report_attachments')
+    .select('id, file_path, org_id')
+    .eq('id', attachmentId)
+    .single()
+
+  if (fetchErr || !row) return { error: 'Attachment not found' }
+  if (row.org_id !== orgId) return { error: 'Not authorised' }
+
+  // Remove from storage first
+  await supabase.storage.from('evidence-attachments').remove([row.file_path])
+
+  // Delete DB row
+  const { error: delErr } = await supabase
+    .from('report_attachments')
+    .delete()
+    .eq('id', attachmentId)
+
+  if (delErr) return { error: delErr.message }
+  return {}
+}
+
+export async function getAttachments(reportId: string): Promise<Attachment[]> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data: rows } = await supabase
+    .from('report_attachments')
+    .select('id, file_name, file_type, file_size, file_path, test_id, created_at')
+    .eq('report_id', reportId)
+    .order('created_at')
+
+  if (!rows?.length) return []
+
+  // Generate signed URLs in parallel
+  const attachments = await Promise.all(
+    rows.map(async (row) => {
+      const { data: signed } = await supabase.storage
+        .from('evidence-attachments')
+        .createSignedUrl(row.file_path, 3600)
+      return {
+        id:         row.id as string,
+        file_name:  row.file_name as string,
+        file_type:  row.file_type as string,
+        file_size:  row.file_size as number,
+        signedUrl:  signed?.signedUrl ?? '',
+        test_id:    row.test_id as string | null,
+        created_at: row.created_at as string,
+      }
+    })
+  )
+
+  return attachments
 }

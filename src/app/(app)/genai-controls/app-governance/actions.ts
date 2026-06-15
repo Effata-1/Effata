@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
+import { logAuditEvent } from '@/lib/audit'
 
 export interface GenAIGovernanceCategory {
   id: string
@@ -58,7 +59,7 @@ const SYSTEM_DEFAULTS: Omit<GenAIGovernanceCategory, 'id' | 'org_id' | 'created_
 
 function revalidateGenAI() {
   revalidatePath('/genai-controls/app-governance')
-  revalidatePath('/genai-controls/policy-matrix')
+  revalidatePath('/genai-controls/control-matrix')
 }
 
 export async function ensureGenAIGovernanceCategories(): Promise<GenAIGovernanceCategory[]> {
@@ -99,12 +100,25 @@ export async function upsertGenAICategory(
   const supabase = await createClient()
 
   if (categoryId) {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('org_genai_governance_categories')
       .update({ name: fields.name, color: fields.color, priority: fields.priority, description: fields.description })
       .eq('id', categoryId)
       .eq('org_id', user.orgId)
+      .select('id')
+      .maybeSingle()
     if (error) return { error: error.message }
+    if (!data) return { error: 'Category not found.' }
+    await logAuditEvent({
+      action:      'app_governance.category_updated',
+      entity_type: 'org_genai_governance_categories',
+      entity_id:   categoryId,
+      entity_name: fields.name,
+      details:     fields,
+      org_id:  user.orgId,
+      user_id: user.id,
+    user_email:  user.email,
+    })
   } else {
     let baseTag = fields.name
       .toLowerCase()
@@ -130,6 +144,15 @@ export async function upsertGenAICategory(
       .from('org_genai_governance_categories')
       .insert({ org_id: user.orgId, ...fields, is_system: false, system_tag })
     if (error) return { error: error.message }
+    await logAuditEvent({
+      action:      'app_governance.category_created',
+      entity_type: 'org_genai_governance_categories',
+      entity_name: fields.name,
+      details:     fields,
+      org_id:  user.orgId,
+      user_id: user.id,
+    user_email:  user.email,
+    })
   }
 
   revalidateGenAI()
@@ -140,43 +163,30 @@ export async function deleteGenAICategory(categoryId: string): Promise<{ error?:
   const user = await requireRole('admin')
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('org_genai_governance_categories')
     .delete()
     .eq('id', categoryId)
     .eq('org_id', user.orgId)
     .eq('is_system', false)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  // Supabase returns no error when 0 rows match — guard explicitly so we don't log a phantom deletion.
+  if (!data) return { error: 'Category not found or cannot be deleted.' }
+  await logAuditEvent({
+    action:      'app_governance.category_deleted',
+    entity_type: 'org_genai_governance_categories',
+    entity_id:   categoryId,
+    org_id:  user.orgId,
+    user_id: user.id,
+    user_email:  user.email,
+  })
   revalidateGenAI()
   return {}
 }
 
-export async function saveRefAppData(
-  appSlug: string,
-  data: { notes?: string; in_scope?: boolean; classification?: string | null },
-): Promise<{ error?: string }> {
-  const user = await requireRole('analyst')
-  const supabase = await createClient()
-
-  const { error } = await supabase
-    .from('org_reference_app_notes')
-    .upsert(
-      {
-        org_id:         user.orgId,
-        app_slug:       appSlug,
-        notes:          data.notes ?? null,
-        in_scope:       data.in_scope ?? false,
-        classification: data.classification ?? null,
-        updated_at:     new Date().toISOString(),
-      },
-      { onConflict: 'org_id,app_slug' },
-    )
-
-  if (error) return { error: error.message }
-  revalidatePath('/genai-controls/app-governance')
-  return {}
-}
 
 export async function setAppGovernanceClassification(
   appId: string,
@@ -195,6 +205,15 @@ export async function setAppGovernanceClassification(
     }, { onConflict: 'org_id,app_id' })
 
   if (error) return { error: error.message }
+  await logAuditEvent({
+    action:      'app_governance.app_classified',
+    entity_type: 'genai_customer_classifications',
+    entity_id:   appId,
+    new_value:   classification,
+    org_id:  user.orgId,
+    user_id: user.id,
+    user_email:  user.email,
+  })
   revalidatePath('/genai-controls/app-governance')
   return {}
 }

@@ -1,23 +1,30 @@
 import { SectionSidebar } from '@/components/nav/section-sidebar'
 import { requireRole } from '@/lib/auth'
+import { NAV } from '@/lib/nav'
+
+// Setup Guide and Dashboard are section-local (not in the GenAI spine)
+const STATIC_PREFIX = [
+  { label: 'Setup Guide', href: '/genai-controls' },
+  { label: 'Dashboard',   href: '/genai-controls/dashboard' },
+]
+
+// Spine steps 1–7 derived from NAV, with step numbers and deliverable badges
+const SPINE_ITEMS = NAV
+  .find(s => s.id === 'genai-controls')!
+  .pages
+  .sort((a, b) => (a.step ?? 0) - (b.step ?? 0))
+  .map(p => ({ label: p.label, href: p.route, step: p.step, badge: p.badge }))
 
 const ITEMS = [
-  { label: 'Setup Guide',        href: '/genai-controls' },
-  { label: 'Dashboard',          href: '/genai-controls/dashboard' },
-  { label: 'App Governance',     href: '/genai-controls/app-governance' },
-  { label: 'App Catalog',        href: '/genai-controls/apps' },
-  { label: 'Control Matrix',     href: '/genai-controls/control-matrix' },
-  { label: 'Policy Library',     href: '/genai-controls/policies' },
-  { label: 'Coaching Templates', href: '/genai-controls/notifications' },
-  { label: 'Netskope Policies',  href: '/genai-controls/vendor-mapping/netskope/recommendation' },
-  { label: 'Presentation',       href: '/genai-controls/presentation' },
+  ...STATIC_PREFIX,
+  ...SPINE_ITEMS,
 ]
 
 export default async function GenAIControlsLayout({ children }: { children: React.ReactNode }) {
   await requireRole('analyst')
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <SectionSidebar title="GenAI Controls" items={ITEMS} />
+      <SectionSidebar title={NAV.find(s => s.id === 'genai-controls')!.label} items={ITEMS} />
       <main className="flex-1 overflow-y-auto">
         <div className="p-8">{children}</div>
       </main>

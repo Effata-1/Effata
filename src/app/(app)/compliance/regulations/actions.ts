@@ -24,10 +24,11 @@ export async function markRegulationVerified(
     })
   if (logError) return { error: logError.message }
 
-  await supabase
+  const { error: updateError } = await supabase
     .from('compliance_regulations')
     .update({ last_verified_at: new Date().toISOString() })
     .eq('id', regulationId)
+  if (updateError) return { error: updateError.message }
 
   // fire-and-forget — audit failures must never block mutations
   void logAuditEvent({

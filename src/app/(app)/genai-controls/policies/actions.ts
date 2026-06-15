@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
+import { callData } from '@/lib/api-client.server'
 import {
   validateNeutralPolicy,
   NPJ_CHANNELS_CONTENT_DETECTION,
@@ -22,7 +23,7 @@ import {
   UL_DC_DEFAULTS, UL_DC_COACHING_DEFAULTS,
 } from '@/lib/genai/control-matrix-rows'
 import { ensureClassificationLabels } from '@/lib/data-catalog/actions'
-import { ensureDefaultCoachingTemplates } from '@/app/(app)/genai-controls/notifications/actions'
+import { ensureDefaultCoachingTemplates } from '@/app/(app)/genai-controls/coaching-messages/actions'
 import { validateActionTemplate } from '@/lib/genai/coaching-validation'
 import type { ControlType } from '@/lib/genai/types'
 
@@ -127,6 +128,19 @@ export async function upsertPolicy(
     : await supabase.from('org_genai_policies').insert(basePayload).select('id').maybeSingle()
 
   if (error) return { error: error.message }
+  // For updates: if no row was returned the policy doesn't exist or belongs to another org.
+  // Supabase returns no error on 0-row writes, so guard explicitly before logging.
+  if (id && !data) return { error: 'Policy not found.' }
+  await logAuditEvent({
+    action:      id ? 'policy.updated' : 'policy.created',
+    entity_type: 'org_genai_policies',
+    entity_id:   (data as { id: string } | null)?.id ?? id ?? undefined,
+    entity_name: typeof fields.name === 'string' ? fields.name : undefined,
+    details:     { changedFields: Object.keys(fields) },
+    org_id:  user.orgId,
+    user_id: user.id,
+    user_email:  user.email,
+  })
   revalidatePath('/genai-controls/policies')
   return { id: (data as { id: string } | null)?.id }
 }
@@ -345,6 +359,15 @@ export async function duplicatePolicy(id: string): Promise<{ error?: string }> {
     })
 
   if (error) return { error: error.message }
+  await logAuditEvent({
+    action:      'policy.duplicated',
+    entity_type: 'org_genai_policies',
+    entity_id:   id,
+    entity_name: `${String(rest.name ?? '')} (copy)`,
+    org_id:  user.orgId,
+    user_id: user.id,
+    user_email:  user.email,
+  })
   revalidatePath('/genai-controls/policies')
   return {}
 }
@@ -353,13 +376,24 @@ export async function deletePolicy(id: string): Promise<{ error?: string }> {
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('org_genai_policies')
     .delete()
     .eq('id', id)
     .eq('org_id', user.orgId)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  if (!data) return { error: 'Policy not found.' }
+  await logAuditEvent({
+    action:      'policy.deleted',
+    entity_type: 'org_genai_policies',
+    entity_id:   id,
+    org_id:  user.orgId,
+    user_id: user.id,
+    user_email:  user.email,
+  })
   revalidatePath('/genai-controls/policies')
   return {}
 }
@@ -371,13 +405,24 @@ export async function togglePolicyActive(
   const user = await requireRole('analyst')
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('org_genai_policies')
     .update({ is_active, updated_at: new Date().toISOString() })
     .eq('id', id)
     .eq('org_id', user.orgId)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  if (!data) return { error: 'Policy not found.' }
+  await logAuditEvent({
+    action:      is_active ? 'policy.activated' : 'policy.deactivated',
+    entity_type: 'org_genai_policies',
+    entity_id:   id,
+    org_id:  user.orgId,
+    user_id: user.id,
+    user_email:  user.email,
+  })
   revalidatePath('/genai-controls/policies')
   return {}
 }
@@ -408,6 +453,7 @@ export async function logPolicyChangeEvent(params: {
     },
     org_id:  user.orgId,
     user_id: user.id,
+    user_email:  user.email,
   })
 }
 
@@ -1012,12 +1058,33 @@ export async function syncRecommendedPolicies(
   if (deleteKeys.length > 0) {
     const { error } = await supabase.from('org_genai_policies')
       .delete().eq('org_id', user.orgId).in('policy_key', deleteKeys)
-    if (error) console.error('[syncRecommendedPolicies] bulk delete:', error.message)
+    if (error) {
+      console.error('[syncRecommendedPolicies] bulk delete:', error.message)
+      throw new Error(`Failed to remove stale policies: ${error.message}`)
+    }
   }
+
+  let upsertOk = true
   if (upsertRows.length > 0) {
-    const { error } = await supabase.from('org_genai_policies')
+    const { error: upsertError } = await supabase.from('org_genai_policies')
       .upsert(upsertRows, { onConflict: 'org_id,policy_key' })
-    if (error) console.error('[syncRecommendedPolicies] bulk upsert:', error.message)
+    if (upsertError) {
+      console.error('[syncRecommendedPolicies] bulk upsert:', upsertError.message)
+      upsertOk = false
+    }
+  }
+
+  // ── Auto-enqueue translation for any policies that became pending ─────────────
+  const hasPending = upsertRows.some(r => r.vendor_translation_status === 'pending')
+  if (upsertOk && hasPending) {
+    try {
+      await callData('/api/jobs', {
+        method: 'POST',
+        body: { jobType: 'policy-translate', payload: { vendor_id: 'netskope', policy_source: 'recommended', only_pending: true } },
+      })
+    } catch (e) {
+      console.error('[syncRecommendedPolicies] enqueue translate:', e)
+    }
   }
 
   revalidatePath('/genai-controls/policies')
@@ -1065,6 +1132,15 @@ export async function duplicatePolicyAsManual(policyId: string): Promise<{ newPo
     .single()
 
   if (error) return { error: error.message }
+  await logAuditEvent({
+    action:      'policy.duplicated_as_manual',
+    entity_type: 'org_genai_policies',
+    entity_id:   policyId,
+    entity_name: `Copy of ${String(rest.name ?? '')}`,
+    org_id:  user.orgId,
+    user_id: user.id,
+    user_email:  user.email,
+  })
   revalidatePath('/genai-controls/policies')
   return { newPolicyId: (newRow as { id: string }).id }
 }

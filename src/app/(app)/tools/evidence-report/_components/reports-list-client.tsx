@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Eye, FileText, Loader2 } from 'lucide-react'
+import { Plus, Trash2, Eye, FileText, Loader2, PencilLine } from 'lucide-react'
 import { deleteReport } from '../actions'
 import type { ReportSummary, OverallResult, ReportType } from '../actions'
 import { usePagination } from '@/hooks/use-pagination'
@@ -55,6 +55,10 @@ export function ReportsListClient({ reports, error }: Props) {
 
   function handleView(id: string) {
     router.push(`/tools/evidence-report/${id}`)
+  }
+
+  function handleContinue(id: string) {
+    router.push(`/tools/evidence-report/new?draft=${id}`)
   }
 
   function handleDelete(id: string) {
@@ -132,12 +136,19 @@ export function ReportsListClient({ reports, error }: Props) {
                   className={`${i < pg.slice.length - 1 ? 'border-b border-border/50' : ''} hover:bg-card/40 transition-colors`}
                 >
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => handleView(r.id)}
-                      className="text-foreground hover:text-blue-400 font-medium text-sm text-left transition-colors"
-                    >
-                      {r.name}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => r.status === 'draft' ? handleContinue(r.id) : handleView(r.id)}
+                        className="text-foreground hover:text-blue-400 font-medium text-sm text-left transition-colors"
+                      >
+                        {r.name}
+                      </button>
+                      {r.status === 'draft' && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border bg-amber-500/15 text-amber-400 border-amber-500/30">
+                          Draft
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground text-xs">
                     {REPORT_TYPE_LABELS[r.report_type]}
@@ -158,13 +169,23 @@ export function ReportsListClient({ reports, error }: Props) {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => handleView(r.id)}
-                        className="p-1.5 text-muted-foreground/80 hover:text-foreground hover:bg-muted rounded transition-colors"
-                        title="View report"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
+                      {r.status === 'draft' ? (
+                        <button
+                          onClick={() => handleContinue(r.id)}
+                          className="p-1.5 text-muted-foreground/80 hover:text-amber-400 hover:bg-muted rounded transition-colors"
+                          title="Continue draft"
+                        >
+                          <PencilLine className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleView(r.id)}
+                          className="p-1.5 text-muted-foreground/80 hover:text-foreground hover:bg-muted rounded transition-colors"
+                          title="View report"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       {confirmId === r.id ? (
                         <div className="flex items-center gap-1">
                           <span className="text-xs text-muted-foreground/80">Delete?</span>

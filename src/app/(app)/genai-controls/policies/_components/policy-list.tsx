@@ -11,6 +11,7 @@ import {
 import { cn } from '@/lib/utils'
 import { deletePolicy, duplicatePolicy, duplicatePolicyAsManual, refreshPolicyFromMatrix, togglePolicyActive } from '../actions'
 import { PolicyChatPanel } from './policy-chat-panel'
+import { FilterChip } from '@/components/ui/add-filter-button'
 import type { GenAIPolicy, ApprovalStatus, ActionCode, PolicyRule, NpjCondition } from '@/lib/genai/types'
 import { lintAllPolicies, SEVERITY_STYLES, type LintIssue } from '@/lib/genai/lint'
 import type { RuleItem } from '../new/_components/policy-builder'
@@ -588,7 +589,7 @@ function DeleteConfirmModal({
 
 export function PolicyList({ policies: initialPolicies, categories, apps, classifications, identityFields, ruleItems }: Props) {
   const router = useRouter()
-  const [policies, setPolicies]               = useState<GenAIPolicy[]>(initialPolicies)
+  const [policies, setPolicies]               = useState<GenAIPolicy[]>([])
 
   // Sync local state when server re-renders with fresh data (e.g. after generate)
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -1158,19 +1159,11 @@ export function PolicyList({ policies: initialPolicies, categories, apps, classi
             const def = FILTER_DEFS.find(d => d.key === key)!
             const valueLabels = [...vals].map(v => getFilterValueLabel(key, v)).join(', ')
             return (
-              <span
+              <FilterChip
                 key={key}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-medium"
-              >
-                <span className="text-blue-400/60">{def.label}:</span>
-                {valueLabels}
-                <button
-                  onClick={() => removeFilterKey(key)}
-                  className="ml-0.5 text-blue-400/60 hover:text-blue-300 transition-colors"
-                >
-                  <X className="w-2.5 h-2.5" />
-                </button>
-              </span>
+                label={`${def.label}: ${valueLabels}`}
+                onRemove={() => removeFilterKey(key)}
+              />
             )
           })}
           <button

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/auth'
 import { callData } from '@/lib/api-client.server'
 import { computeTrustScore, CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
 import { cn } from '@/lib/utils'
@@ -13,6 +14,7 @@ function RiskBadge({ score }: { score: number }) {
 }
 
 export default async function GenAIAppsPage() {
+  const { orgId } = await requireRole('analyst')
   const supabase = await createClient()
 
   let lastRun: { status: string; apps_updated: number; apps_added: number } | null = null
@@ -34,11 +36,6 @@ export default async function GenAIAppsPage() {
   const { data: profiles } = await supabase
     .from('genai_app_profiles')
     .select('*')
-
-  const { data: { session } } = await supabase.auth.getSession()
-  const orgId = session?.access_token
-    ? JSON.parse(atob(session.access_token.split('.')[1]))?.org_id
-    : null
 
   const { data: classifications } = orgId ? await supabase
     .from('genai_customer_classifications')

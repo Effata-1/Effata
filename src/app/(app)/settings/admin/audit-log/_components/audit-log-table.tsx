@@ -3,6 +3,7 @@
 import { cn } from '@/lib/utils'
 import { CLASSIFICATION_LABELS } from '@/lib/genai/scoring'
 import { usePagination } from '@/hooks/use-pagination'
+import { getSeverity } from '../_lib/audit-actions'
 
 export interface AuditLog {
   id: string
@@ -27,25 +28,55 @@ const ACTION_LABELS: Record<string, string> = {
   'regex.pattern_deleted':        'Regex pattern deleted',
   'test_data.dataset_saved':      'Test dataset saved',
   'test_data.dataset_deleted':    'Test dataset deleted',
-  'dlp_test.run':                         'DLP test run',
-  'compliance.regulation_verified':       'Regulation marked as verified',
-  'compliance.assessment_updated':        'Control assessment updated',
-}
-
-const SEVERITY_MAP: Record<string, 'high' | 'medium' | 'low' | 'info'> = {
-  'auth.login_success':           'info',
-  'auth.logout':                  'info',
-  'auth.signup':                  'low',
-  'onboarding.completed':         'low',
-  'genai.classification_changed': 'medium',
-  'classification_changed':       'medium',
-  'regex.pattern_saved':          'low',
-  'regex.pattern_deleted':        'medium',
-  'test_data.dataset_saved':      'low',
-  'test_data.dataset_deleted':    'medium',
-  'dlp_test.run':                         'low',
-  'compliance.regulation_verified':       'low',
-  'compliance.assessment_updated':        'low',
+  'dlp_test.run':                          'DLP test run',
+  'compliance.regulation_verified':        'Regulation marked as verified',
+  'compliance.assessment_updated':         'Control assessment updated',
+  'control_matrix.cell_updated':           'Control matrix cell updated',
+  'control_matrix.cell_reset':             'Control matrix cell reset',
+  'control_matrix.posture_updated':        'Category access posture changed',
+  'control_matrix.reset':                  'Control matrix reset to defaults',
+  'policy.created':                        'Policy created',
+  'policy.updated':                        'Policy updated',
+  'policy.deleted':                        'Policy deleted',
+  'policy.duplicated':                     'Policy duplicated',
+  'policy.duplicated_as_manual':           'Policy duplicated as manual',
+  'policy.activated':                      'Policy activated',
+  'policy.deactivated':                    'Policy deactivated',
+  'policy.change_applied':                 'Policy changed by AI',
+  'policy_chat.diff_applied':              'Policy diff applied via chat',
+  'coaching_template.created':             'Coaching template created',
+  'coaching_template.updated':             'Coaching template updated',
+  'coaching_template.deleted':             'Coaching template deleted',
+  'coaching_template.activated':           'Coaching template activated',
+  'coaching_template.deactivated':         'Coaching template deactivated',
+  'coaching_template.reset':               'Coaching template reset to default',
+  'app_governance.category_created':       'App governance category created',
+  'app_governance.category_updated':       'App governance category updated',
+  'app_governance.category_deleted':       'App governance category deleted',
+  'compliance_proposal.approved':          'Compliance proposal approved',
+  'compliance_proposal.rejected':          'Compliance proposal rejected',
+  'sensitivity_label.created':             'Sensitivity label created',
+  'sensitivity_label.updated':             'Sensitivity label updated',
+  'sensitivity_label.deactivated':         'Sensitivity label deactivated',
+  'identity.mapping_added':                'Identity mapping added',
+  'identity.mapping_deleted':              'Identity mapping deleted',
+  'identity.scope_toggled':                'Identity scope updated',
+  'destination.scope_toggled':             'Destination scope updated',
+  'destination.custom_added':              'Custom destination added',
+  'destination.custom_deleted':            'Custom destination deleted',
+  'channel.assessment_saved':              'Channel assessment saved',
+  'classification_label.updated':          'Classification label updated',
+  'classification_label.created':          'Classification label created',
+  'classification_label.deleted':          'Classification label deleted',
+  'data_type.custom_created':              'Custom data type created',
+  'classification.ai_mapping_accepted':    'AI classification accepted',
+  'user.invited':                          'Team member invited',
+  'user.role_changed':                     'Team member role changed',
+  'user.removed':                          'Team member removed',
+  // newly instrumented actions
+  'app_governance.app_classified':         'App classification changed',
+  'identity.mapping_updated':              'Identity mapping updated',
+  'destination.profile_updated':           'Destination profile updated',
 }
 
 const SEVERITY_STYLES: Record<string, string> = {
@@ -56,18 +87,28 @@ const SEVERITY_STYLES: Record<string, string> = {
 }
 
 const CATEGORY_PREFIXES: Record<string, string> = {
-  auth:        'Auth',
-  genai:       'GenAI',
-  onboarding:  'Onboarding',
-  policy:      'Policies',
-  user:        'Users',
-  tool:        'Tools',
-  compliance:  'Compliance',
-  dlp_test:    'Tools',
-}
-
-function getSeverity(action: string): 'high' | 'medium' | 'low' | 'info' {
-  return SEVERITY_MAP[action] ?? 'info'
+  auth:                'Auth',
+  genai:               'GenAI',
+  onboarding:          'Onboarding',
+  policy:              'Policies',
+  user:                'Users',
+  tool:                'Tools',
+  compliance:          'Compliance',
+  dlp_test:            'Tools',
+  control_matrix:      'Control Matrix',
+  coaching_template:   'Coaching',
+  app_governance:      'App Governance',
+  compliance_proposal: 'Compliance',
+  sensitivity_label:   'Labels',
+  classification_label:'Labels',
+  identity:            'Identity',
+  destination:         'Destinations',
+  channel:             'Channels',
+  data_type:           'Data Catalog',
+  classification:      'Data Catalog',
+  policy_chat:         'Policies',
+  regex:               'Tools',
+  test_data:           'Tools',
 }
 
 function getCategory(action: string): string {
